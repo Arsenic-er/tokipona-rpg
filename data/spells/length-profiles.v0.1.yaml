@@ -1,0 +1,216 @@
+schema_version: "g02.length-profiles.v0.1"
+content_version: "chapter-01.4"
+ruleset_version: "w01.0.6"
+language_profile_version: "tp-community-review-pending.0"
+review_batch: "S1-04"
+scope: "axial_length_graybox"
+status: "draft"
+
+world_units:
+  length_unit: "tile"
+  pixels_per_tile: 16
+  simulation_depth_tiles: 1.0
+  mass_unit: "MU"
+  energy_unit: "EU"
+
+language_mapping:
+  short:
+    expression: "head + lili"
+    modifier_word_id: "word.lili"
+    game_interpretation_zh: "当前轴向元素框架中的较短形态；不是 lili 的唯一语言意义。"
+  default:
+    expression: "head"
+    modifier_word_id: null
+    game_interpretation_zh: "未说明尺度时采用本作默认长度；裸词不具有‘标准长度’的语言意义。"
+  long:
+    expression: "head + suli"
+    modifier_word_id: "word.suli"
+    game_interpretation_zh: "当前轴向元素框架中的较长形态；不是 suli 的唯一语言意义。"
+
+length_classes:
+  short:
+    ratio_to_base: 0.5
+    modifier_resonance_mp: 1.0
+    minimum_realized_ratio_to_base: 0.25
+  default:
+    ratio_to_base: 1.0
+    modifier_resonance_mp: 0.0
+    minimum_realized_ratio_to_base: 0.75
+  long:
+    ratio_to_base: 2.0
+    modifier_resonance_mp: 1.0
+    minimum_realized_ratio_to_base: 1.25
+
+geometry_contract:
+  only_mutable_axis: "LENGTH"
+  anchor_mode: "start"
+  primary_axis_source: "public_focus"
+  direction_snap_count: 8
+  requires_primary_axis: true
+  grows_continuously_from_anchor: true
+  fixed_cross_section: true
+  length_changes_cross_section: false
+  length_changes_density_or_unit_intensity: false
+  renderer_and_collider_share_final_length: true
+  max_renderer_collider_endpoint_error_px: 1
+  forbidden_writes: [width, thickness, radius, area, target_count, speed, damage_multiplier]
+
+placement_contract:
+  preview_before_cost: true
+  swept_volume_check: true
+  blocked_policy: "preview_nearest_valid_endpoint"
+  insufficient_mp_policy: "reject_target_class_and_show_required_mp"
+  silent_mp_clamp_forbidden: true
+  living_safety_margin_px: {normal: 8, large: 12, boss: 16}
+  spawn_inside_living_forbidden: true
+  grow_through_living_forbidden: true
+  form_crush_damage_forbidden: true
+
+cost_contract:
+  round_activation_mp_to: 0.5
+  modifier_token_floor_policy: "head_core_mp_plus_modifier_resonance_mp"
+  short_refund_forbidden: true
+  long_extra_formula: "max(0, final_length_tiles - base_length_tiles) * extension_mp_per_tile"
+  total_activation_formula: "head_core_mp + modifier_resonance_mp + long_extra_mp"
+  ordinary_material_has_length_sustain_mp: false
+  state_constraints_may_add_sustain_mp: true
+
+stability_contract:
+  formula: "clamp(base + short_bonus * max(0, 1-r) - long_penalty * max(0, r-1)^2 + support - external_load, 0, 1)"
+  ratio_symbol: "r = final_length / base_length"
+  bands:
+    stable: {minimum: 0.75, maximum: 1.0}
+    warned: {minimum: 0.5, maximum_exclusive: 0.75}
+    failing: {minimum: 0.0, maximum_exclusive: 0.5}
+  damage_multiplier_forbidden: true
+
+element_profiles:
+  word.telo:
+    geometry_source: "single-word-spells.v0.1.yaml"
+    geometry_entry_id: "word.telo"
+    core_activation_mp: 5.0
+    base_length_tiles: 2.0
+    cross_section_width_px: 12
+    short_length_tiles: 1.0
+    long_length_tiles: 4.0
+    hard_cap_length_tiles: 6.0
+    extension_mp_per_tile: 2.0
+    unit_load: {kind: mass, amount_per_tile: 1.0, unit: MU}
+    stability: {base: 0.8, long_penalty: 0.15, short_bonus: 0.05, failure_mode: "column_breaks_and_collapses"}
+    lifecycle: {formation_grace_seconds: 0.15, default_sustain_mp_per_second: 0.0, release: "gravity_flow_and_splash"}
+    expected_activation_mp: {short: 6.0, default: 5.0, long: 10.0}
+    invariants: [zero_initial_velocity, no_pressure_gain, no_direct_attack]
+
+  word.seli:
+    geometry_source: "single-word-spells.v0.1.yaml"
+    geometry_entry_id: "word.seli"
+    core_activation_mp: 4.0
+    base_length_tiles: 2.0
+    cross_section_width_px: 8
+    short_length_tiles: 1.0
+    long_length_tiles: 4.0
+    hard_cap_length_tiles: 6.0
+    extension_mp_per_tile: 2.0
+    unit_load: {kind: thermal_energy, amount_per_tile: 8.0, unit: EU}
+    stability: {base: 0.75, long_penalty: 0.12, short_bonus: 0.05, failure_mode: "tip_flickers_and_dissipates"}
+    lifecycle: {default_duration_seconds: 3.0, default_sustain_mp_per_second: 0.0, release: "fuel_burn_or_heat_dissipation"}
+    expected_activation_mp: {short: 5.0, default: 4.0, long: 9.0}
+    invariants: [unit_temperature_unchanged, fuel_or_state_constraint_required_for_persistence, no_fire_ray, no_direct_attack]
+
+  word.kiwen:
+    geometry_source: "single-word-spells.v0.1.yaml"
+    geometry_entry_id: "word.kiwen"
+    core_activation_mp: 8.0
+    base_length_tiles: 2.0
+    cross_section_width_px: 16
+    short_length_tiles: 1.0
+    long_length_tiles: 4.0
+    hard_cap_length_tiles: 4.0
+    extension_mp_per_tile: 2.0
+    unit_load: {kind: mass, amount_per_tile: 4.0, unit: MU}
+    stability: {base: 0.95, long_penalty: 0.25, short_bonus: 0.05, failure_mode: "unsupported_beam_bends_or_breaks"}
+    lifecycle: {formation_seconds_formula: "0.25 + 0.12 * final_length_tiles", default_sustain_mp_per_second: 0.0, release: "supported_structure_or_rigid_body_fall"}
+    expected_activation_mp: {short: 9.0, default: 8.0, long: 13.0}
+    invariants: [zero_initial_velocity, mass_derived_from_length, formation_crush_forbidden, no_direct_attack]
+
+  word.ko:
+    geometry_source: "single-word-spells.v0.1.yaml"
+    geometry_entry_id: "word.ko"
+    core_activation_mp: 6.0
+    base_length_tiles: 2.0
+    cross_section_width_px: 16
+    short_length_tiles: 1.0
+    long_length_tiles: 4.0
+    hard_cap_length_tiles: 6.0
+    extension_mp_per_tile: 1.5
+    unit_load: {kind: mass, amount_per_tile: 2.0, unit: MU}
+    stability: {base: 0.72, long_penalty: 0.15, short_bonus: 0.08, failure_mode: "tip_sags_and_slumps"}
+    lifecycle: {precise_shape_grace_seconds: 0.5, default_sustain_mp_per_second: 0.0, release: "gravity_viscosity_and_slope"}
+    expected_activation_mp: {short: 7.0, default: 6.0, long: 10.0}
+    invariants: [viscosity_unchanged, hardness_unchanged, no_active_push, no_direct_attack]
+
+  word.kon:
+    geometry_source: "single-word-spells.v0.1.yaml"
+    geometry_entry_id: "word.kon"
+    core_activation_mp: 3.0
+    base_length_tiles: 2.0
+    cross_section_width_px: 24
+    short_length_tiles: 1.0
+    long_length_tiles: 4.0
+    hard_cap_length_tiles: 8.0
+    extension_mp_per_tile: 1.5
+    unit_load: {kind: pressure_state_energy, amount_per_tile: 2.0, unit: EU}
+    stability: {base: 0.78, long_penalty: 0.12, short_bonus: 0.05, failure_mode: "tip_boundary_diffuses"}
+    lifecycle: {boundary_grace_seconds: 0.4, default_sustain_mp_per_second: 0.0, release: "natural_diffusion"}
+    expected_activation_mp: {short: 4.0, default: 3.0, long: 7.0}
+    invariants: [unit_pressure_unchanged, no_directional_flow, no_pressure_stacking, no_direct_attack]
+
+preview_contract:
+  labels_zh:
+    short: "较短形态｜lili"
+    default: "默认形态｜不添加尺度修饰词"
+    long: "较长形态｜suli"
+  strength_ladder_visual_forbidden: true
+  fields:
+    - broad_language_meaning
+    - game_length_interpretation
+    - primary_axis
+    - anchor
+    - base_length_tiles
+    - final_length_tiles
+    - fixed_cross_section_width_px
+    - activation_mp_total
+    - added_length_mp
+    - state_sustain_mp_per_second
+    - stability_score
+    - stability_failure_mode
+    - blocking_object
+    - release_behavior
+    - direct_attack
+
+mastery_contract:
+  states: [discovered, available, mastered]
+  evidence_types: [default_is_unspecified, unprompted_selection, novel_scene_transfer, cross_element_transfer, broad_semantics_contrast, counterfactual_explanation, delayed_parallel_transfer]
+  same_task_variant_evidence_cap: 1
+  minimum_task_families_per_class: 3
+  real_time_wait_required: false
+  repeated_cast_count_unlock_forbidden: true
+  experienced_player_unseen_test_skip_allowed: true
+
+invariants:
+  - "short_ratio < 1 < long_ratio"
+  - "all three classes share the same cross-section for a given element"
+  - "length modifiers never write speed or damage multiplier"
+  - "long activation MP pays for added physical or field workload"
+  - "short activation MP never falls below the head plus modifier resonance floor"
+  - "stability cannot improve with added unsupported length"
+  - "profile version participates in CastPlan cache keys and effect fingerprints"
+
+golden_tests:
+  - {id: "length.telo.short", expression: "telo lili", length_tiles: 1.0, width_px: 12, activation_mp: 6.0, direct_attack: false}
+  - {id: "length.telo.default", expression: "telo", length_tiles: 2.0, width_px: 12, activation_mp: 5.0, direct_attack: false}
+  - {id: "length.telo.long", expression: "telo suli", length_tiles: 4.0, width_px: 12, activation_mp: 10.0, direct_attack: false}
+  - {id: "length.seli.long", expression: "seli suli", length_tiles: 4.0, width_px: 8, activation_mp: 9.0, direct_attack: false}
+  - {id: "length.kiwen.long", expression: "kiwen suli", length_tiles: 4.0, width_px: 16, activation_mp: 13.0, direct_attack: false}
+  - {id: "length.ko.long", expression: "ko suli", length_tiles: 4.0, width_px: 16, activation_mp: 10.0, direct_attack: false}
+  - {id: "length.kon.long", expression: "kon suli", length_tiles: 4.0, width_px: 24, activation_mp: 7.0, direct_attack: false}

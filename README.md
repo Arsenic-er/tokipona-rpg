@@ -1,12 +1,24 @@
 # tokipona
 
-一个以“让另一个人理解”为胜利条件的道本语（toki pona）学习游戏。
+一款使用道本语（toki pona）表达构筑魔法的竖版 2D 像素动作 RPG。游戏采用手工地图、连续存档和可回访世界；玩家通过探索、战斗、环境改造、人物沟通与冥想练习学习语言。
 
-项目目前处于研究与原型定义阶段，尚未选择视觉方向，也尚未初始化游戏代码。当前建议先验证一个很小的核心：玩家用有限的道本语描述场景，伙伴或模拟听者据此重建场景，并通过澄清与改述修复误解。
+项目目前处于设计与灰盒定义阶段，尚未初始化正式游戏代码。早期“描述场景—让伙伴重建—通过澄清修复误解”的方案保留为语言学习研究基线，并将作为任务、沟通和反馈机制的一部分，而不再单独定义完整游戏形态。
 
 ## 当前文档
 
 - [中文游戏设计研究](docs/game-design-research-zh.md)
+- [八份开发文档总索引](docs/design/README.md)
+- [玩法 01：探索与任务](docs/design/gameplay/01-exploration-and-quests-zh.md)
+- [玩法 02：咒语构筑（单词层数据库）](docs/design/gameplay/02-spell-construction-zh.md)
+- [背景 01：世界规则](docs/design/world/01-world-rules-zh.md)
+- [首个灰盒关卡：高位蓄水槽](docs/design/levels/ch01-length-cistern-graybox-zh.md)
+- [GitHub 咒语构筑参考架构](docs/research/github-spell-construction-references-zh.md)
+
+## 机器数据
+
+- [首批单词咒语](data/spells/single-word-spells.v0.1.yaml)
+- [长度构形参数](data/spells/length-profiles.v0.1.yaml)
+- [高位蓄水槽任务](data/tasks/ch01-length-cistern.v0.1.yaml)
 
 ## 仓库边界
 

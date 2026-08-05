@@ -1,0 +1,480 @@
+schema_version: "g01.task.v0.1"
+task_id: "ch01_length_cistern"
+task_version: "0.1.0"
+content_version: "chapter-01.4"
+status: "draft"
+title_zh: "高位蓄水槽"
+spec_document: "../../docs/design/levels/ch01-length-cistern-graybox-zh.md"
+
+version_bindings:
+  world_rules:
+    document_id: "W-01"
+    ruleset_version: "w01.0.6"
+  single_word_spells:
+    source: "../spells/single-word-spells.v0.1.yaml"
+    schema_version: "g02.single-word-spell.v0.1"
+    content_version: "chapter-01.4"
+  length_profiles:
+    source: "../spells/length-profiles.v0.1.yaml"
+    schema_version: "g02.length-profiles.v0.1"
+    content_version: "chapter-01.4"
+  language_profile_version: "tp-community-review-pending.0"
+
+version_freeze:
+  freeze_on_task_start: true
+  resume_uses_frozen_versions: true
+  mismatch_policy: "require_explicit_migration_or_restart"
+  silent_recompile_forbidden: true
+
+cache_key_contract:
+  task_runtime_key:
+    algorithm: "sha256"
+    fields: [task_id, task_version, version_bindings, initial_state_snapshot.snapshot_hash]
+  castplan_key:
+    algorithm: "sha256"
+    fields:
+      - canonical_ast
+      - contextual_roles
+      - target_binding
+      - public_focus
+      - world_snapshot_hash
+      - artifact_capabilities
+      - version_bindings
+
+initial_state_snapshot:
+  snapshot_id: "cistern.entry.v0.1"
+  snapshot_hash: null
+  snapshot_hash_status: "pending_content_build"
+  deterministic: true
+  random_seed: null
+  player:
+    current_mp: 24.0
+    max_mp: 24.0
+    expression_capacity_meaningful_tokens: 2
+    unlocked_word_ids: ["word.telo", "word.lili", "word.suli"]
+    living_safety_class: "normal"
+  artifact:
+    supports_public_focus: true
+    direction_snap_count: 8
+    supports_length_axis: true
+    post_cast_resize_enabled: false
+  task_local_material:
+    export_to_inventory_forbidden: true
+    economy_export_forbidden: true
+    restore_mp_forbidden: true
+  persistent_flags:
+    high_cistern_reconnected: false
+    upper_channel_available: false
+    exit_ladder_lowered: false
+
+scene:
+  scene_id: "valley.high_cistern.graybox.v0.1"
+  coordinate_origin: "bottom_left"
+  tile_size_px: 16
+  bounds_tiles: {width: 30, height: 48}
+  camera_reference_px: {width: 480, height: 768}
+  movement_path: "vertical_switchback"
+  no_precision_jump_required: true
+  minimum_platform_width_tiles: 3.0
+  minimum_climb_shaft_width_tiles: 2.0
+  checkpoints:
+    - {id: "checkpoint.entry", position_tiles: [3.5, 2.0], restores_phase_snapshot: true}
+    - {id: "checkpoint.first_landing", position_tiles: [24.5, 14.0], restores_phase_snapshot: true}
+    - {id: "checkpoint.second_landing", position_tiles: [4.5, 26.0], restores_phase_snapshot: true}
+    - {id: "checkpoint.exit", position_tiles: [26.5, 40.0], restores_phase_snapshot: true}
+  safety:
+    fall_returns_to_latest_checkpoint: true
+    fall_ends_task: false
+    gate_crush_forbidden: true
+    lift_crush_forbidden: true
+    hidden_timer_forbidden: true
+    hostile_entities_present: false
+
+enabled_content:
+  word_ids: ["word.telo", "word.lili", "word.suli"]
+  grammar:
+    head_ids: ["word.telo"]
+    optional_length_modifier_ids: ["word.lili", "word.suli"]
+    direct_attack_enabled: false
+  rule_refs:
+    - "single_word.entries[word.telo]"
+    - "single_word.length_modifier_contract"
+    - "length_profiles.geometry_contract"
+    - "length_profiles.placement_contract"
+    - "length_profiles.cost_contract"
+    - "length_profiles.stability_contract"
+    - "world_rules.interpretation_pipeline"
+    - "world_rules.deterministic_execution"
+    - "world_rules.idempotent_state_transition"
+  expected_profiles:
+    short: {expression_shape: "head + word.lili", nominal_length_px: 16, fixed_width_px: 12, activation_mp: 6.0}
+    default: {expression_shape: "head", nominal_length_px: 32, fixed_width_px: 12, activation_mp: 5.0}
+    long: {expression_shape: "head + word.suli", nominal_length_px: 64, fixed_width_px: 12, activation_mp: 10.0}
+
+stations:
+  observation:
+    station_id: "entry_echo"
+    bbox_tiles: [2.0, 3.0, 8.0, 5.0]
+    scripted_demonstration:
+      canonical_ast: {head: "word.telo", length_modifier: null}
+      consumes_player_mp: false
+      creates_exportable_matter: false
+      nominal_length_px: 32
+      fixed_width_px: 12
+      initial_velocity_px_per_second: [0.0, 0.0]
+      gravity_applies: true
+    required_feedback_layers: [broad_language_meaning, game_interpretation, world_result]
+
+  short:
+    station_id: "precision_channel"
+    anchor_tiles: [6.5, 7.75]
+    primary_axis: "east"
+    receiver_bbox_tiles: [7.20, 6.75, 0.55, 0.40]
+    receiver_required_mu: 0.25
+    blocker_distance_tiles: 1.25
+    blocker_id: "cistern.short.stone_baffle"
+    direct_solution_class: "short"
+    unlocks_gate_id: "gate.right_shaft"
+    alternate_action_classes: ["maintenance_bypass_valve", "existing_seep_water"]
+
+  default:
+    station_id: "double_measure_valve"
+    anchor_tiles: [22.0, 19.75]
+    primary_axis: "west"
+    receiver_bbox_tiles: [19.75, 18.75, 0.50, 0.40]
+    receiver_required_mu: 1.6
+    capture_window_length_tiles: [1.75, 2.25]
+    far_blocker_distance_tiles: 2.25
+    far_blocker_id: "cistern.default.backstop"
+    near_drain_bbox_tiles: [20.50, 18.50, 1.00, 0.50]
+    direct_solution_class: "default"
+    unlocks_gate_id: "gate.left_shaft"
+    alternate_action_classes: ["two_short_pulses_synchronized", "movable_gutter", "existing_drip_water"]
+
+  long:
+    station_id: "high_siphon_bell"
+    anchor_tiles: [7.0, 32.0]
+    primary_axis: "east"
+    receiver_bbox_tiles: [10.60, 30.90, 0.65, 0.50]
+    receiver_distance_window_tiles: [3.50, 4.25]
+    receiver_required_mu: 0.5
+    support_ids: ["cistern.long.rib_left", "cistern.long.rib_right"]
+    support_bonus: 0.10
+    predicted_stability_without_support: 0.65
+    predicted_stability_with_support: 0.75
+    direct_solution_class: "long"
+    unlocks_mechanism_id: "lift.water_powered"
+    alternate_action_classes: ["lower_siphon_bell", "maintenance_platform_and_bucket", "repair_hand_pump"]
+
+semantic_acceptance:
+  raw_utterance_string_match_forbidden: true
+  task_completion_reads:
+    - world_goal_predicates
+    - idempotent_world_events
+  learning_evidence_reads:
+    - canonical_ast
+    - contextual_roles
+    - resolved_length_class
+    - effect_fingerprint
+    - prompt_level
+    - goal_predicate_results
+  supported_input_modalities_may_normalize_to_same_plan: [text, glyph_grid, accessible_selector]
+  required_water_fingerprint:
+    matter_or_energy: "default_water"
+    fixed_cross_section_width_px: 12
+    initial_velocity_px_per_second: [0.0, 0.0]
+    gravity_applies: true
+    direct_attack: false
+    forbidden_writes: [speed, damage_multiplier, width, thickness, pressure]
+
+state_machine:
+  initial_state: "observation.ready"
+  terminal_states: ["completed", "completed_with_fallback"]
+  transitions:
+    - {from: "observation.ready", event: "scripted_default_result_observed", to: "short.ready"}
+    - {from: "short.ready", event: "short_receiver_goal_true", to: "short.passed"}
+    - {from: "short.passed", event: "checkpoint_written", to: "default.ready"}
+    - {from: "default.ready", event: "default_receiver_goal_true", to: "default.passed"}
+    - {from: "default.passed", event: "checkpoint_written", to: "long.ready"}
+    - {from: "long.ready", event: "siphon_primed", to: "long.passed"}
+    - {from: "long.passed", event: "world_transition_committed", guard: "fallback_used == false", to: "completed"}
+    - {from: "long.passed", event: "world_transition_committed", guard: "fallback_used == true", to: "completed_with_fallback"}
+
+stage_contracts:
+  observation:
+    costs_player_mp: false
+    goal_predicates:
+      - "feedback.broad_language_meaning_observed == true"
+      - "feedback.game_interpretation_observed == true"
+      - "feedback.world_result_observed == true"
+    evidence_candidate: "length.default_baseline_observed"
+
+  short:
+    world_goal_predicates:
+      - "receiver.short.collected_water_mass_mu >= 0.25"
+      - "screen.short.protected_contact == false"
+      - "gate.right_shaft.open == true"
+    direct_teaching_solution:
+      resolved_length_class: "short"
+      length_modifier_id: "word.lili"
+      nominal_length_px: 16
+      fixed_width_px: 12
+      activation_mp: 6.0
+    evidence_only_if:
+      selected_action_class: "short_direct_cast"
+      highest_prompt_level: ["H0", "H1"]
+      living_overlap: false
+
+  default:
+    world_goal_predicates:
+      - "receiver.default.collected_water_mass_mu >= 1.6"
+      - "receiver.default.overflow_contact == false"
+      - "gate.left_shaft.open == true"
+    direct_teaching_solution:
+      resolved_length_class: "default"
+      length_modifier_id: null
+      nominal_length_px: 32
+      fixed_width_px: 12
+      activation_mp: 5.0
+    evidence_only_if:
+      selected_action_class: "default_single_cast"
+      canonical_token_ids: ["word.telo"]
+      modifier_removed_by_system: false
+      autofill_used: false
+      highest_prompt_level: ["H0", "H1"]
+
+  long:
+    world_goal_predicates:
+      - "cistern.siphon_primed == true"
+      - "lift.water_powered.available == true"
+    direct_teaching_solution:
+      resolved_length_class: "long"
+      length_modifier_id: "word.suli"
+      nominal_length_px: 64
+      fixed_width_px: 12
+      activation_mp: 10.0
+      minimum_supported_stability: 0.75
+    evidence_only_if:
+      selected_action_class: "long_direct_supported_cast"
+      highest_prompt_level: ["H0", "H1"]
+      living_overlap: false
+
+preview_execution_contract:
+  preview_required_before_commit: true
+  renderer_and_collider_share_final_length: true
+  max_endpoint_error_px: 1
+  direction_snap_count: 8
+  swept_volume_check: true
+  preview_fields:
+    - broad_language_meaning
+    - game_length_interpretation
+    - requested_length_class
+    - nominal_length_px
+    - realized_length_px
+    - fixed_cross_section_width_px
+    - blocking_object_id
+    - activation_mp_required
+    - current_mp
+    - stability_score
+    - stability_failure_mode
+    - release_behavior
+    - can_confirm
+    - rejection_code
+  environment_blocking:
+    endpoint_policy: "nearest_valid_endpoint"
+    class_preserved_after_truncation: true
+    confirmation_condition: "realized_ratio_to_base >= class.minimum_realized_ratio_to_base"
+  mp:
+    silent_length_class_downgrade_forbidden: true
+    insufficient_mp:
+      world_mutation: false
+      mp_charge: 0.0
+      confirmation_enabled: false
+      show_required_mp: true
+  collision:
+    spawn_inside_living_forbidden: true
+    grow_through_living_forbidden: true
+    form_crush_damage_forbidden: true
+    living_safety_margin_px: {normal: 8, large: 12, boss: 16}
+
+hint_ladder:
+  levels:
+    H5: {reveals: "complete demonstration expression and result", independent_evidence_allowed: false}
+    H4: {reveals: "two partial expressions and contrasting outlines", independent_evidence_allowed: false}
+    H3: {reveals: "candidate modifier words", independent_evidence_allowed: false}
+    H2: {reveals: "observe distance, clearance or receiver", independent_evidence_allowed: false}
+    H1: {reveals: "normal environmental replay only", independent_evidence_allowed: true}
+    H0: {reveals: "normal scene and post-construction preview only", independent_evidence_allowed: true}
+  trigger: ["player_request", "two_distinct_attempts_without_new_information"]
+  real_time_wait_required: false
+  accessibility_support_counts_as_hint: false
+  exact_utterance_first_hint_forbidden: true
+
+evidence_trace_contract:
+  event_fields:
+    - task_id
+    - task_version
+    - stage_id
+    - attempt_id
+    - idempotency_key
+    - frozen_version_bindings
+    - world_snapshot_hash
+    - canonical_ast
+    - target_binding
+    - requested_length_class
+    - resolved_length_class
+    - effect_fingerprint
+    - prompt_level
+    - selected_action_class
+    - activation_mp_quote
+    - state_transition
+    - goal_predicate_results
+    - feedback_code
+    - evidence_candidates
+    - evidence_awarded
+  privacy:
+    upload_raw_utterance: false
+    local_raw_utterance_retention: "session_only"
+    upload_canonical_features: true
+  same_task_variant_evidence_cap: 1
+  awards:
+    observation: {type: "default_baseline_observed", maximum: 1}
+    short: {type: "unprompted_selection", length_class: "short", maximum: 1}
+    default: {type: "default_is_unspecified", length_class: "default", maximum: 1}
+    long: {type: "unprompted_selection", length_class: "long", maximum: 1}
+  mastery_forbidden_from_this_task_alone: true
+
+soft_failure:
+  insufficient_mp:
+    execute: false
+    mp_charge: 0.0
+    feedback_code: "requested_class_requires_more_mp"
+    silent_downgrade: false
+  blocked_below_class_minimum:
+    execute: false
+    mp_charge: 0.0
+    feedback_code: "requested_class_cannot_be_realized_here"
+    show_nearest_valid_endpoint: true
+  unsafe_living_overlap:
+    execute: false
+    mp_charge: 0.0
+    feedback_code: "living_safety_volume_blocked"
+  wrong_but_safe_length_class:
+    execute_if_otherwise_legal: true
+    stage_pass: false
+    feedback_code: "physical_result_did_not_meet_receiver_need"
+    permanent_penalty: false
+  unstable_result:
+    execute_physics: true
+    stage_pass: false
+    irreversible_damage: false
+    feedback_code: "support_or_alignment_needed"
+  retry:
+    player_requested_stage_rewind: true
+    restore_snapshot: "last_stage_checkpoint"
+    restore_mp_exactly: true
+    remove_task_local_manifestations: true
+    preserve_learning_evidence: true
+    preserve_collectibles_and_global_progress: true
+    idempotent: true
+    economy_gain_forbidden: true
+
+fallback:
+  all_world_goal_predicates_still_required: true
+  action_classes:
+    - "maintenance_bypass_valve"
+    - "movable_gutter"
+    - "maintenance_platform_and_bucket"
+    - "repair_hand_pump"
+  narrative_completion_allowed: true
+  language_mastery_evidence_awarded: false
+  permanent_progress_blocked: false
+  schedule_optional_transfer_task: true
+
+completion:
+  task_goal_predicate: "gate.right_shaft.open && gate.left_shaft.open && cistern.siphon_primed"
+  world_transition:
+    set_flags:
+      high_cistern_reconnected: true
+      upper_channel_available: true
+      exit_ladder_lowered: true
+    conjured_water_becomes_persistent_supply: false
+    task_local_manifestations_enter_economy: false
+  expected_direct_mp_ledger:
+    short: 6.0
+    default: 5.0
+    long: 10.0
+    total: 21.0
+    initial: 24.0
+    remaining: 3.0
+
+accessibility_contract:
+  anchor_snap_radius_tiles: 0.75
+  preview_can_lock_without_holding: true
+  reaction_time_requirement: false
+  receiver_feedback_modalities: [shape, texture, animation, sound, subtitle]
+  color_only_state_forbidden: true
+  screen_shake_optional: true
+  maintenance_route_available: true
+
+invariants:
+  - "task success reads world predicates, never raw utterance strings"
+  - "direct correct path costs 21 MP and is reachable from the 24 MP snapshot"
+  - "short, default and long keep a 12 px cross-section and zero initial velocity"
+  - "environment truncation preserves requested class and obeys its minimum realized ratio"
+  - "insufficient MP rejects the requested class without silent downgrade"
+  - "stage rewind cannot duplicate matter, MP, world transitions or evidence"
+  - "fallback routes preserve story progress but do not counterfeit language evidence"
+  - "one completion cannot grant permanent mastery"
+
+golden_tests:
+  - id: "cistern.observation.default_is_scripted_input"
+    expect: {player_mp_charge: 0.0, evidence_type: "default_baseline_observed", mastery: false}
+
+  - id: "cistern.short.direct"
+    canonical_ast: {head: "word.telo", length_modifier: "word.lili"}
+    expect: {resolved_class: "short", length_px: 16, width_px: 12, mp_charge: 6.0, stage_pass: true}
+
+  - id: "cistern.short.blocks_default_below_minimum"
+    canonical_ast: {head: "word.telo", length_modifier: null}
+    environment_blocker_px: 20
+    expect: {requested_class: "default", realized_ratio_to_base: 0.625, can_confirm: false, mp_charge: 0.0}
+
+  - id: "cistern.default.direct_omission"
+    canonical_ast: {head: "word.telo", length_modifier: null}
+    expect: {resolved_class: "default", length_px: 32, width_px: 12, mp_charge: 5.0, stage_pass: true, evidence: "default_is_unspecified"}
+
+  - id: "cistern.default.two_shorts_complete_without_default_evidence"
+    action_class: "two_short_pulses_synchronized"
+    expect: {stage_pass: true, default_is_unspecified_awarded: false}
+
+  - id: "cistern.default.blocks_long_below_minimum"
+    canonical_ast: {head: "word.telo", length_modifier: "word.suli"}
+    environment_blocker_px: 36
+    expect: {requested_class: "long", realized_ratio_to_base: 1.125, can_confirm: false, mp_charge: 0.0}
+
+  - id: "cistern.long.supported"
+    canonical_ast: {head: "word.telo", length_modifier: "word.suli"}
+    support_id: "cistern.long.rib_left"
+    expect: {resolved_class: "long", length_px: 64, width_px: 12, stability_score: 0.75, mp_charge: 10.0, stage_pass: true}
+
+  - id: "cistern.long.default_falls_short_not_language_error"
+    canonical_ast: {head: "word.telo", length_modifier: null}
+    expect: {parse_state: "parsed_grounded", stage_pass: false, feedback_code: "physical_result_did_not_meet_receiver_need"}
+
+  - id: "cistern.long.insufficient_mp_never_downgrades"
+    current_mp: 9.0
+    canonical_ast: {head: "word.telo", length_modifier: "word.suli"}
+    expect: {can_confirm: false, required_mp: 10.0, mp_charge: 0.0, fallback_class_selected: null}
+
+  - id: "cistern.living_collision"
+    living_entity_in_sweep: true
+    expect: {can_confirm: false, mp_charge: 0.0, world_mutation: false}
+
+  - id: "cistern.fallback_no_false_mastery"
+    action_class: "maintenance_platform_and_bucket"
+    expect: {terminal_state: "completed_with_fallback", language_mastery_evidence_awarded: false}
+
+  - id: "cistern.replay_idempotent"
+    replay_same_idempotency_key: 2
+    expect: {mp_charge_count: 1, receiver_fill_event_count: 1, evidence_award_count: 1}

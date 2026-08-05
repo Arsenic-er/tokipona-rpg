@@ -1,0 +1,503 @@
+schema_version: "g02.single-word-spell.v0.1"
+content_version: "chapter-01.4"
+ruleset_version: "w01.0.6"
+language_profile_version: "tp-community-review-pending.0"
+review_batch: "S1-04"
+scope: "single_word"
+revision_notes:
+  - "Externalized numeric LENGTH profiles and added axial base geometry for the five extendable elements."
+  - "telo prototype activation cost changed from 6 MP to 5 MP."
+  - "CONTEXT_REQUIRED words now emit a semantic echo: 1 MP by default; pona costs 2 MP."
+  - "Added a deterministic combination uniqueness contract."
+  - "Promoted suli and lili as paired LENGTH modifiers with non-physical standalone resonance."
+  - "Raised the direct-attack minimum from three to four meaningful tokens plus an approved signature."
+  - "Removed the SIZE axis; suli/lili now map only to axial LENGTH with a fixed cross-section."
+
+source_policy:
+  semantic_text: "Original Chinese paraphrase; external definitions are not copied verbatim."
+  canonical_claim: false
+  linku_license_note: "Linked reference data is CC-BY-SA-4.0; ingestion requires a separate license review."
+  shared_official_reference: "https://tokipona.org/Sonja_Lang_-_Toki_Pona_Dictionary.pdf"
+
+enums:
+  solo_policy: [CAST_SAFE, CONTEXT_REQUIRED, DISABLED]
+  function_tag: [MANIFEST, DRIVE, TRANSFORM, SHAPE, STATE, SENSE, LIFE, CONDITION]
+  lifecycle_status: [draft, linguistic_review, pedagogy_review, gameplay_review, joint_resolution, implementation_ready, implemented, qa_verified, released, disabled]
+
+shared_rules:
+  token_count: 1
+  direct_attack: false
+  minimum_tokens_for_direct_attack: 4
+  token_count_is_sufficient_for_direct_attack: false
+  direct_attack_requires_approved_signature: true
+  hostile_lock_on: false
+  can_target_living: false
+  spawn_inside_entity_forbidden: true
+  default_initial_velocity_mps: {x: 0.0, y: 0.0}
+  invalid_cast_cost: 0.0
+  context_required_default_resonance_mp: 1.0
+  context_required_creates_physical_world_change: false
+  created_matter_can_restore_mp: false
+  economy_export_forbidden: true
+  game_interpretation_is_canonical_toki_pona: false
+
+combination_contract:
+  strategy: "semantic_rule_generation_plus_curated_recipes"
+  compile_target: "CastPlan"
+  deterministic: true
+  semantically_distinct_signatures_require_distinct_effect_fingerprints: true
+  paraphrase_equivalence_groups_may_share_fingerprints: true
+  cosmetic_only_difference_is_unique: false
+  signature_fields: [canonical_ast, contextual_roles, target_binding, environment_capabilities, artifact_capabilities]
+  fingerprint_fields: [matter_or_energy, shape_or_topology, state_transition, motion_or_path, lifecycle, environmental_interactions, cost_and_side_effects]
+  precedence: [safety_rules, language_structure, world_capabilities, curated_recipe, generated_rule, cosmetic_cue]
+  collision_policy: "fail_build_unless_equivalence_is_reviewed"
+
+length_modifier_contract:
+  entry_ids: ["word.suli", "word.lili"]
+  profile_source: "length-profiles.v0.1.yaml"
+  profile_version_participates_in_castplan_cache_key: true
+  length_classes: [short, default, long]
+  construction: "summonable_axial_head_plus_length_modifier"
+  allowed_as_head: false
+  allowed_as_modifier: true
+  standalone_world_mutation: false
+  descriptive_predicate_world_mutation: false
+  supported_axis: "LENGTH"
+  size_axis_supported: false
+  requires_explicit_primary_axis: true
+  public_focus_selects_direction_only: true
+  public_focus_cannot_supply_action_or_target: true
+  fixed_cross_section: true
+  length_changes_cross_section: false
+  length_changes_unit_intensity: false
+  conflicting_or_repeated_length_requires_clarification: true
+  geometry:
+    volume_formula: "default_cross_section_area * actual_length"
+    mass_formula: "density * default_cross_section_area * actual_length"
+    renderer_must_scale_along_primary_axis_only: true
+    swept_volume_requires_collision_and_living_safety_check: true
+  adapters:
+    telo:
+      increase: "fixed-diameter longer temporary water column"
+      decrease: "fixed-diameter shorter water segment"
+      invariants: [zero_initial_velocity, gravity_applies, no_pressure_gain, collapses_without_stabilizer]
+    seli:
+      increase: "fixed-width longer anchored flame or heat channel"
+      decrease: "fixed-width shorter flame or heat pulse"
+      invariants: [unit_temperature_unchanged, fuel_or_sustain_required, no_fire_ray, no_fixed_damage]
+    kiwen:
+      increase: "fixed-section longer rough pillar or simple beam"
+      decrease: "fixed-section shorter hard segment"
+      invariants: [zero_initial_velocity, mass_derived_from_length, gravity_and_stress_apply, no_living_overlap]
+    ko:
+      increase: "fixed-section longer moldable ridge or strip"
+      decrease: "fixed-section shorter strip"
+      invariants: [viscosity_and_hardness_unchanged, gravity_and_slope_apply, slumps_without_support]
+    kon:
+      increase: "fixed-section longer air cavity"
+      decrease: "fixed-section shorter air cavity"
+      invariants: [unit_pressure_unchanged, natural_diffusion, no_directional_pressure]
+  cost:
+    bill_actual_length_mass_energy_boundary_and_stability: true
+    increase_requires_added_work_mp: true
+    decrease_actual_workload_may_be_lower: true
+    decrease_never_refunds_paid_mp_or_material: true
+    sustain_cost_may_fall_with_actual_length: true
+    post_cast_resize_enabled: false
+  damage:
+    word_id_or_length_multiplier_forbidden: true
+    derived_from: [mass, velocity, temperature, material_state, target_state]
+  examples:
+    "telo suli": {direct_attack: false, primary_axis_required: true, cross_section_multiplier: 1.0}
+    "telo lili": {direct_attack: false, primary_axis_required: true, cross_section_multiplier: 1.0}
+    "seli suli": {direct_attack: false, unit_temperature_multiplier: 1.0}
+    "kiwen suli": {direct_attack: false, width_multiplier: 1.0, gravity: true}
+
+attack_gate_contract:
+  minimum_meaningful_tokens: 4
+  token_count_is_sufficient: false
+  requires_approved_signature: true
+  three_token_command_profile:
+    example: "telo o tawa"
+    direct_attack: false
+    speed_class: "utility_low"
+    living_lock_on: false
+  candidate_signatures:
+    - {utterance: "telo suli o tawa", distinction: "axial_length_plus_motion"}
+    - {utterance: "telo kon o tawa", distinction: "cohesive_state_plus_motion"}
+    - {utterance: "telo o tawa wawa", distinction: "motion_plus_intensity"}
+  filler_or_repetition_grants_attack: false
+  physical_damage_only_after_world_interaction: true
+
+entries:
+  - id: "word.telo"
+    entry_version: "0.2.0"
+    word: "telo"
+    solo_policy: "CAST_SAFE"
+    function_tags: [MANIFEST, SHAPE, STATE]
+    semantic_hooks: [SUBSTANCE, LIQUID, FLOW, WET]
+    language:
+      common_scope_zh: "液体、水、饮料、湿物质等相关语义域。"
+      source_refs: ["https://linku.la/words/telo"]
+    magic:
+      interpretation_zh: "本作的显化学派把它作为默认液态媒介亲和。"
+      convention_label: "game_specific"
+    world:
+      effect_id: "manifest.default_water_blob"
+      effect_zh: "在施法者前上方合法锚点显化一团默认水，零初速度，随后服从重力与流体物理。"
+      geometry:
+        length_capable: true
+        length_profile_ref: "word.telo"
+        base_length_tiles: 2.0
+        primary_axis: {source: public_focus, direction_snap_count: 8, fallback: none}
+        anchor_mode: start
+        cross_section: {fixed_under_length_modifier: true, width_px: 12, simulation_depth_tiles: 1.0}
+      cost: {model: MASS_CREATE, prototype_activation_mp: 5.0, sustain_mp_per_second: 0.0}
+      anchor: {mode: caster_front_upper_nearest_valid, max_range_m: 3.0, collision_policy: find_nearest_valid}
+      physics: {gravity: true, initial_velocity_mps: {x: 0.0, y: 0.0}, environmental_interactions: [flow, splash, heat_transfer]}
+      lifetime: {mode: scene_manifestation, persistent_world_item: false, global_spawn_cap_required: true}
+    constraints: [no_hover, no_freeze, no_directed_jet, no_internal_spawn, no_mp_restore]
+    misconception_guards: ["telo 不固定等于水弹。", "下坠来自世界重力，不是 telo 的词义。"]
+    review: {status: draft, community_review_required: true, reviewers: []}
+    tests: [prototype_activation_cost_is_5, initial_velocity_is_zero, gravity_applies, living_target_rejected, cannot_restore_mp]
+
+  - id: "word.seli"
+    entry_version: "0.1.0"
+    word: "seli"
+    solo_policy: "CAST_SAFE"
+    function_tags: [MANIFEST, STATE, TRANSFORM]
+    semantic_hooks: [THERMAL, HEAT, FIRE]
+    language:
+      common_scope_zh: "热、温暖、火焰、燃烧或热源等相关语义域。"
+      source_refs: ["https://linku.la/words/seli"]
+    magic:
+      interpretation_zh: "本作把它实现为有限热能与点火条件的亲和。"
+      convention_label: "game_specific"
+    world:
+      effect_id: "state.local_heat_source"
+      effect_zh: "在合法锚点释放有限热量并形成短时小型热源；是否点燃由燃料与温度共同决定。"
+      geometry:
+        length_capable: true
+        length_profile_ref: "word.seli"
+        base_length_tiles: 2.0
+        primary_axis: {source: public_focus, direction_snap_count: 8, fallback: none}
+        anchor_mode: start
+        cross_section: {fixed_under_length_modifier: true, width_px: 8, simulation_depth_tiles: 1.0}
+      cost: {model: THERMAL_PULSE, prototype_activation_mp: 4.0, sustain_mp_per_second: 0.0}
+      anchor: {mode: focus_nearest_valid, max_range_m: 3.0, collision_policy: find_nearest_valid}
+      physics: {duration_seconds: 3.0, environmental_interactions: [heat_transfer, conditional_ignition]}
+      lifetime: {mode: transient, persistent_world_item: false}
+    constraints: [no_fireball, no_tracking, no_fixed_damage, no_internal_spawn, fuel_required_for_sustained_fire]
+    misconception_guards: ["seli 不固定等于火球或攻击。", "燃烧是环境条件满足后的物理后果。"]
+    review: {status: draft, community_review_required: true, reviewers: []}
+    tests: [living_target_rejected, no_fuel_no_sustained_fire, no_fixed_damage]
+
+  - id: "word.lete"
+    entry_version: "0.1.0"
+    word: "lete"
+    solo_policy: "CAST_SAFE"
+    function_tags: [STATE, TRANSFORM]
+    semantic_hooks: [THERMAL, COLD, UNCOOKED]
+    language:
+      common_scope_zh: "冷、凉、冻结，以及某些语境中的未烹饪状态。"
+      source_refs: ["https://linku.la/words/lete"]
+    magic:
+      interpretation_zh: "本作选取低温亲和，并用有限热量转移实现。"
+      convention_label: "game_specific"
+    world:
+      effect_id: "transform.local_cooling_pulse"
+      effect_zh: "从合法锚点附近的非生命介质移走有限热量，形成短促冷却脉冲。"
+      cost: {model: THERMAL_TRANSFER, prototype_activation_mp: 4.0, sustain_mp_per_second: 0.0}
+      anchor: {mode: nonliving_medium_nearest_focus, max_range_m: 3.0, collision_policy: cancel_if_none}
+      physics: {duration_seconds: 2.0, creates_ice_directly: false, absolute_zero_allowed: false}
+      lifetime: {mode: transient, persistent_world_item: false}
+    constraints: [no_living_target, no_forced_freeze, no_ice_projectile, no_absolute_zero]
+    misconception_guards: ["lete 不固定等于冰弹。", "冷却不保证相变，也可能涉及未烹饪语义。"]
+    review: {status: draft, community_review_required: true, reviewers: []}
+    tests: [living_target_rejected, finite_heat_transfer, no_direct_ice_creation]
+
+  - id: "word.kiwen"
+    entry_version: "0.1.0"
+    word: "kiwen"
+    solo_policy: "CAST_SAFE"
+    function_tags: [MANIFEST, SHAPE, STATE]
+    semantic_hooks: [SUBSTANCE, HARD_MATERIAL, SOLID]
+    language:
+      common_scope_zh: "坚硬物体或材料，如石、金属、木等。"
+      source_refs: ["https://linku.la/words/kiwen"]
+    magic:
+      interpretation_zh: "本作的显化学派把它作为普通硬质共鸣材料亲和。"
+      convention_label: "game_specific"
+    world:
+      effect_id: "manifest.default_hard_chunk"
+      effect_zh: "在前上方合法锚点显化一块普通、不规则的硬质共鸣物，零初速度并自然下坠。"
+      geometry:
+        length_capable: true
+        length_profile_ref: "word.kiwen"
+        base_length_tiles: 2.0
+        primary_axis: {source: public_focus, direction_snap_count: 8, fallback: none}
+        anchor_mode: start
+        cross_section: {fixed_under_length_modifier: true, width_px: 16, simulation_depth_tiles: 1.0}
+      cost: {model: MASS_CREATE, prototype_activation_mp: 8.0, sustain_mp_per_second: 0.0}
+      anchor: {mode: caster_front_upper_nearest_valid, max_range_m: 3.0, collision_policy: find_nearest_valid}
+      physics: {gravity: true, initial_velocity_mps: {x: 0.0, y: 0.0}, collision: true}
+      lifetime: {mode: scene_manifestation, persistent_world_item: false, global_spawn_cap_required: true}
+    constraints: [ordinary_material_only, irregular_shape_only, no_rare_mineral, no_tool_or_key, no_directed_velocity]
+    misconception_guards: ["kiwen 不固定等于石头或土系。", "默认石质外观只是本作视觉约定。"]
+    review: {status: draft, community_review_required: true, reviewers: []}
+    tests: [initial_velocity_is_zero, gravity_applies, no_rare_material, living_target_rejected]
+
+  - id: "word.ko"
+    entry_version: "0.1.0"
+    word: "ko"
+    solo_policy: "CAST_SAFE"
+    function_tags: [MANIFEST, SHAPE, TRANSFORM]
+    semantic_hooks: [SUBSTANCE, SEMISOLID, POWDER, MOLDABLE]
+    language:
+      common_scope_zh: "半固体、糊状物、粉末、黏团、沙土或泥等。"
+      source_refs: ["https://linku.la/words/ko"]
+    magic:
+      interpretation_zh: "本作把它作为低强度可塑共鸣材料亲和。"
+      convention_label: "game_specific"
+    world:
+      effect_id: "manifest.default_moldable_mass"
+      effect_zh: "显化少量无毒、均质、低强度的可塑共鸣质，受重力并缓慢摊开或黏附。"
+      geometry:
+        length_capable: true
+        length_profile_ref: "word.ko"
+        base_length_tiles: 2.0
+        primary_axis: {source: public_focus, direction_snap_count: 8, fallback: none}
+        anchor_mode: start
+        cross_section: {fixed_under_length_modifier: true, width_px: 16, simulation_depth_tiles: 1.0}
+      cost: {model: MASS_CREATE, prototype_activation_mp: 6.0, sustain_mp_per_second: 0.0}
+      anchor: {mode: caster_front_upper_nearest_valid, max_range_m: 3.0, collision_policy: find_nearest_valid}
+      physics: {gravity: true, initial_velocity_mps: {x: 0.0, y: 0.0}, environmental_interactions: [slump, spread, weak_adhesion]}
+      lifetime: {mode: scene_manifestation, persistent_world_item: false, global_spawn_cap_required: true}
+    constraints: [non_toxic, non_nutritive, no_explosive, no_permanent_cement, no_status_slow]
+    misconception_guards: ["ko 不固定等于泥或史莱姆。", "单词效果不自动附带毒或减速。"]
+    review: {status: draft, community_review_required: true, reviewers: []}
+    tests: [non_toxic, no_status_effect, living_target_rejected, cannot_enter_economy]
+
+  - id: "word.kon"
+    entry_version: "0.1.0"
+    word: "kon"
+    solo_policy: "CAST_SAFE"
+    function_tags: [MANIFEST, DRIVE, SENSE]
+    semantic_hooks: [MEDIUM, AIR, BREATH, INVISIBLE_ESSENCE]
+    language:
+      common_scope_zh: "空气、呼吸、风，以及精神、本质或无形存在等相关语义域。"
+      source_refs: ["https://linku.la/words/kon"]
+    magic:
+      interpretation_zh: "本作暂以气态与无形介质亲和作为首章可见实现。"
+      convention_label: "game_specific"
+    world:
+      effect_id: "manifest.undirected_air_pulse"
+      effect_zh: "在合法锚点形成一次无定向、低压差的短促空气扰动，随后自然扩散。"
+      geometry:
+        length_capable: true
+        length_profile_ref: "word.kon"
+        base_length_tiles: 2.0
+        primary_axis: {source: public_focus, direction_snap_count: 8, fallback: none}
+        anchor_mode: start
+        cross_section: {fixed_under_length_modifier: true, width_px: 24, simulation_depth_tiles: 1.0}
+      cost: {model: AIR_PULSE, prototype_activation_mp: 3.0, sustain_mp_per_second: 0.0}
+      anchor: {mode: focus_nearest_valid, max_range_m: 3.0, collision_policy: find_nearest_valid}
+      physics: {duration_seconds: 1.5, directed: false, pressure_class: low}
+      lifetime: {mode: transient, persistent_world_item: false}
+    constraints: [no_wind_blade, no_vacuum, no_suffocation, no_living_push, no_hover]
+    misconception_guards: ["kon 不固定等于悬浮或风。", "telo kon 的悬浮来自特定组合规则。"]
+    review: {status: draft, community_review_required: true, reviewers: []}
+    tests: [undirected, low_pressure, living_target_rejected, no_hover]
+
+  - id: "word.tawa"
+    entry_version: "0.2.0"
+    word: "tawa"
+    solo_policy: "CONTEXT_REQUIRED"
+    function_tags: [DRIVE, SENSE]
+    semantic_hooks: [MOTION_RELATION, DIRECTION_RELATION, BENEFICIARY_RELATION, PERSPECTIVE_RELATION]
+    language:
+      common_scope_zh: "移动、旅行；也可表达方向、受益者或视角关系。"
+      source_refs: ["https://linku.la/words/tawa"]
+    magic:
+      interpretation_zh: "本作把它作为运动与方向关系接口。"
+      convention_label: "game_specific"
+    world:
+      effect_id: "resonance.semantic_echo.tawa"
+      effect_zh: "产生短时运动/方向语义回声，不改变物理世界；提示补足移动主体以及方向或公开焦点。"
+      world_mutation: false
+      cost: {model: SEMANTIC_RESONANCE, prototype_activation_mp: 1.0, sustain_mp_per_second: 0.0}
+      missing_slots: [moving_subject, direction_or_focus]
+    constraints: [no_auto_dash, no_launch, no_teleport, no_single_word_force]
+    misconception_guards: ["tawa 不固定等于向前移动或发射。", "无法执行是魔法上下文不足，不是语言错误。"]
+    review: {status: draft, community_review_required: true, reviewers: []}
+    tests: [no_world_change, resonance_cost_is_1, returns_context_required]
+
+  - id: "word.kama"
+    entry_version: "0.2.0"
+    word: "kama"
+    solo_policy: "CONTEXT_REQUIRED"
+    function_tags: [TRANSFORM, SENSE, CONDITION]
+    semantic_hooks: [CHANGE_RELATION, ARRIVAL_RELATION, BECOME_RELATION]
+    language:
+      common_scope_zh: "到来、发生、成为、达到或成功做到等相关语义域。"
+      source_refs: ["https://linku.la/words/kama"]
+    magic:
+      interpretation_zh: "本作把它作为到来或状态转变接口。"
+      convention_label: "game_specific"
+    world:
+      effect_id: "resonance.semantic_echo.kama"
+      effect_zh: "产生短时到来/变化语义回声，不改变物理世界；提示补足变化主体以及位置或目标状态。"
+      world_mutation: false
+      cost: {model: SEMANTIC_RESONANCE, prototype_activation_mp: 1.0, sustain_mp_per_second: 0.0}
+      missing_slots: [changing_subject, destination_or_target_state]
+    constraints: [no_summon, no_teleport, no_entity_creation, no_forced_transformation]
+    misconception_guards: ["kama 不固定等于召唤或传送。", "无法执行是魔法上下文不足，不是语言错误。"]
+    review: {status: draft, community_review_required: true, reviewers: []}
+    tests: [no_world_change, resonance_cost_is_1, returns_context_required]
+
+  - id: "word.pona"
+    entry_version: "0.2.0"
+    word: "pona"
+    solo_policy: "CONTEXT_REQUIRED"
+    function_tags: [STATE, LIFE]
+    semantic_hooks: [IMPROVE_RELATION, BENEFICIAL_STATE, STABILITY]
+    language:
+      common_scope_zh: "积极、有益、合适、友好、和平或简单等性质。"
+      source_refs: ["https://linku.la/words/pona"]
+    magic:
+      interpretation_zh: "本作暂把它作为改善或稳定接口，但不预设何者为好。"
+      convention_label: "game_specific"
+    world:
+      effect_id: "resonance.semantic_echo.pona"
+      effect_zh: "产生短时改善/稳定语义回声，不改变物理世界；提示补足主体以及允许改善的具体状态。"
+      world_mutation: false
+      cost: {model: SEMANTIC_RESONANCE, prototype_activation_mp: 2.0, sustain_mp_per_second: 0.0}
+      missing_slots: [subject, allowed_state_to_improve]
+    constraints: [no_auto_heal, no_full_restore, no_resurrection, no_moral_judgment, no_permanent_buff]
+    misconception_guards: ["pona 不固定等于治疗。", "游戏不得用它自动判断善恶。"]
+    review: {status: draft, community_review_required: true, reviewers: []}
+    tests: [no_world_change, resonance_cost_is_2, no_auto_heal, returns_context_required]
+
+  - id: "word.pakala"
+    entry_version: "0.2.0"
+    word: "pakala"
+    solo_policy: "CONTEXT_REQUIRED"
+    function_tags: [TRANSFORM, SENSE]
+    semantic_hooks: [DISRUPT_RELATION, DAMAGE_STATE, ERROR_STATE]
+    language:
+      common_scope_zh: "损坏、破裂、受伤、搞砸、错误或事故等相关语义域。"
+      source_refs: ["https://linku.la/words/pakala"]
+    magic:
+      interpretation_zh: "本作把它作为损坏或失序接口。"
+      convention_label: "game_specific"
+    world:
+      effect_id: "resonance.semantic_echo.pakala"
+      effect_zh: "产生短时损坏/失序语义回声，不改变物理世界；提示补足合法对象、动作关系和允许的损坏状态。"
+      world_mutation: false
+      cost: {model: SEMANTIC_RESONANCE, prototype_activation_mp: 1.0, sustain_mp_per_second: 0.0}
+      missing_slots: [legal_target, action_relation, damageable_state]
+    constraints: [no_single_word_damage, no_explosion, no_auto_destroy, no_weakness_multiplier]
+    misconception_guards: ["pakala 不固定等于攻击或伤害。", "单独输入不能扣血或破坏物体。"]
+    review: {status: draft, community_review_required: true, reviewers: []}
+    tests: [no_world_change, resonance_cost_is_1, no_damage, returns_context_required]
+
+  - id: "word.awen"
+    entry_version: "0.2.0"
+    word: "awen"
+    solo_policy: "CONTEXT_REQUIRED"
+    function_tags: [STATE, CONDITION]
+    semantic_hooks: [SUSTAIN_RELATION, REMAIN_RELATION, PROTECT_RELATION]
+    language:
+      common_scope_zh: "保持、停留、等待、继续、保护或维持安全等相关语义域。"
+      source_refs: ["https://linku.la/words/awen"]
+    magic:
+      interpretation_zh: "本作把它作为保持、持续或锚定接口。"
+      convention_label: "game_specific"
+    world:
+      effect_id: "resonance.semantic_echo.awen"
+      effect_zh: "产生短时保持/持续语义回声，不改变物理世界；提示补足被维持的对象或状态。"
+      world_mutation: false
+      cost: {model: SEMANTIC_RESONANCE, prototype_activation_mp: 1.0, sustain_mp_per_second: 0.0}
+      missing_slots: [subject_or_state_to_sustain]
+    constraints: [no_auto_shield, no_time_stop, no_permanent_root, no_free_permanence]
+    misconception_guards: ["awen 不固定等于护盾。", "持续效果必须有对象并支付维持成本。"]
+    review: {status: draft, community_review_required: true, reviewers: []}
+    tests: [no_world_change, resonance_cost_is_1, no_permanent_effect, returns_context_required]
+
+  - id: "word.wawa"
+    entry_version: "0.2.0"
+    word: "wawa"
+    solo_policy: "CONTEXT_REQUIRED"
+    function_tags: [DRIVE, STATE, SENSE]
+    semantic_hooks: [INTENSITY_MODIFIER, ENERGY_INPUT, STRENGTH_STATE]
+    language:
+      common_scope_zh: "力量、能量、强度、有力或自信等相关语义域。"
+      source_refs: ["https://linku.la/words/wawa"]
+    magic:
+      interpretation_zh: "本作把它作为合法效果的强度与能量投入修饰接口。"
+      convention_label: "game_specific"
+    world:
+      effect_id: "resonance.semantic_echo.wawa"
+      effect_zh: "产生短时强度/能量语义回声，不改变物理世界；提示补足已有合法效果及额外能量来源。"
+      world_mutation: false
+      cost: {model: SEMANTIC_RESONANCE, prototype_activation_mp: 1.0, sustain_mp_per_second: 0.0}
+      missing_slots: [valid_effect_to_intensify, additional_energy_source]
+    constraints: [no_energy_projectile, no_free_mp, no_direct_damage_bonus, no_fixed_multiplier, no_unbounded_stacking]
+    misconception_guards: ["wawa 不固定等于攻击、魔力或电属性。", "它不能绕过 MP 上限或创造净能量。"]
+    review: {status: draft, community_review_required: true, reviewers: []}
+    tests: [no_world_change, resonance_cost_is_1, no_free_energy, returns_context_required]
+
+
+  - id: "word.suli"
+    entry_version: "0.1.0"
+    word: "suli"
+    solo_policy: "CONTEXT_REQUIRED"
+    function_tags: [SHAPE, STATE, TRANSFORM]
+    semantic_hooks: [LENGTH_INCREASE, AXIAL_EXTENT, IMPORTANCE_FOCUS]
+    language:
+      common_scope_zh: "大、长、高、宽、重；也可表示重要、相关或成年等相对性质。"
+      source_refs: ["https://linku.la/words/suli"]
+    magic:
+      interpretation_zh: "在具有公开主轴的元素召唤框架中，本作把其解释为固定截面的较长形态；这不是 suli 的唯一语言意义。"
+      convention_label: "game_specific"
+    world:
+      effect_id: "resonance.semantic_echo.suli"
+      length_operator_ref: "length.long"
+      effect_zh: "产生短时、无碰撞的较长共鸣线，不改变现有对象；提示补足可延展中心词和公开主轴方向。"
+      world_mutation: false
+      cost: {model: SEMANTIC_RESONANCE, prototype_activation_mp: 1.0, sustain_mp_per_second: 0.0}
+      missing_slots: [axial_summonable_semantic_head, public_primary_axis_direction]
+      standalone_resonance: {mode: non_physical_length_projection, collision: false, duration_seconds: 2.0}
+    constraints: [no_standalone_resize, no_size_axis, no_width_or_thickness_change, no_unit_intensity_change, no_direct_damage_bonus, no_attack_velocity, no_targeting, no_free_mass_or_energy]
+    misconception_guards: ["suli 的语言意义不只表示长。", "本作只在线状元素框架中选择较长形态，不提供整体放大。", "telo li suli 等描述结构不自动改造世界对象。", "焦点只给主轴方向，不能补出动作或攻击意图。"]
+    review: {status: draft, community_review_required: true, reviewers: []}
+    tests: [no_world_change, resonance_cost_is_1, no_collision, requires_primary_axis, cross_section_unchanged, no_direct_damage_bonus, returns_context_required]
+
+  - id: "word.lili"
+    entry_version: "0.1.0"
+    word: "lili"
+    solo_policy: "CONTEXT_REQUIRED"
+    function_tags: [SHAPE, STATE, TRANSFORM]
+    semantic_hooks: [LENGTH_DECREASE, AXIAL_EXTENT, FEW_PARTS]
+    language:
+      common_scope_zh: "小、短、少、年轻、部分，或较低程度等相对性质。"
+      source_refs: ["https://linku.la/words/lili"]
+    magic:
+      interpretation_zh: "在具有公开主轴的元素召唤框架中，本作把其解释为固定截面的较短形态；这不是 lili 的唯一语言意义。"
+      convention_label: "game_specific"
+    world:
+      effect_id: "resonance.semantic_echo.lili"
+      length_operator_ref: "length.short"
+      effect_zh: "产生短时、无碰撞的较短共鸣线，不改变现有对象；提示补足可延展中心词和公开主轴方向。"
+      world_mutation: false
+      cost: {model: SEMANTIC_RESONANCE, prototype_activation_mp: 1.0, sustain_mp_per_second: 0.0}
+      missing_slots: [axial_summonable_semantic_head, public_primary_axis_direction]
+      standalone_resonance: {mode: non_physical_length_projection, collision: false, duration_seconds: 2.0}
+    constraints: [no_standalone_resize, no_size_axis, no_width_or_thickness_change, no_unit_intensity_change, no_direct_damage_reduction, no_attack_velocity, no_targeting, no_mp_or_material_refund]
+    misconception_guards: ["lili 的语言意义不只表示短。", "本作只在线状元素框架中选择较短形态，不提供整体缩小或变细。", "较短构形不返还已经支付的 MP、材料或能量。", "描述现有对象较小不会静默执行物理改造。"]
+    review: {status: draft, community_review_required: true, reviewers: []}
+    tests: [no_world_change, resonance_cost_is_1, no_collision, requires_primary_axis, cross_section_unchanged, no_refund, returns_context_required]
+
+
+
