@@ -1,0 +1,110 @@
+{
+  "schemaVersion": "magic-glyph-surface-profiles.v0.2",
+  "contentVersion": "pu120.surface-review.2",
+  "reviewStatus": "draft",
+  "runtimeReady": false,
+  "tile": {
+    "width": 64,
+    "height": 64,
+    "sampling": "nearest",
+    "logicalPixelSize": 1,
+    "antiAliasing": false,
+    "visibleTileBoundary": false,
+    "clusterSizePx": [2, 6]
+  },
+  "activation": {
+    "codes": [32, 48, 72, 96, 128, 164, 208, 255],
+    "progression": "uniform_whole_glyph",
+    "mayChangeAlphaOrSilhouette": false,
+    "mayChangePosition": false,
+    "mayUsePerFrameRandomness": false
+  },
+  "contrastTargets": {
+    "dormantMedianMinimum": 1.25,
+    "activeMedianMinimum": 3.0,
+    "activeTenthPercentileMinimum": 2.0,
+    "activeAccentTenthPercentileMinimum": 3.0,
+    "activeMinusDormantMedianMinimum": 1.5,
+    "highContrastModeMinimum": 7.0,
+    "measurementBacking": "surface_after_groove_and_bed_before_glyph_emission"
+  },
+  "profiles": {
+    "stone": {
+      "displayNameZh": "暗色天然岩石",
+      "seed": 1907,
+      "palette": ["#0B0D0E", "#141719", "#1D2123", "#292D2E", "#393D3B", "#554B3D"],
+      "grainModel": "clustered_cellular",
+      "grainDirection": "none",
+      "grooveRadiusPx": 1,
+      "grooveStyle": "hard_continuous",
+      "grooveDarkenSteps": 2,
+      "glyphBedDarkenSteps": 2,
+      "rimLightenSteps": 1,
+      "rimDirection": [-1, -1],
+      "reflectionLimitPx": 1,
+      "permitsEmissiveReflection": true,
+      "destructionEdgeJitterPx": 1
+    },
+    "wood": {
+      "displayNameZh": "深色旧木",
+      "seed": 2909,
+      "palette": ["#100B08", "#1B110B", "#2C1A10", "#422817", "#603C20", "#885E31"],
+      "grainModel": "directional_fibers",
+      "grainDirection": "vertical",
+      "grooveRadiusPx": 1,
+      "grooveStyle": "broken_along_fiber",
+      "grooveDarkenSteps": 2,
+      "glyphBedDarkenSteps": 2,
+      "rimLightenSteps": 1,
+      "rimDirection": [0, -1],
+      "reflectionLimitPx": 1,
+      "permitsEmissiveReflection": true,
+      "destructionEdgeJitterPx": 1
+    },
+    "mud": {
+      "displayNameZh": "压实湿泥",
+      "seed": 3911,
+      "palette": ["#110D0A", "#1D1510", "#2D2118", "#413124", "#5A4730", "#7A6542"],
+      "grainModel": "irregular_clumps",
+      "grainDirection": "none",
+      "grooveRadiusPx": 1,
+      "grooveStyle": "low_contrast_intermittent",
+      "grooveDarkenSteps": 1,
+      "glyphBedDarkenSteps": 2,
+      "rimLightenSteps": 0,
+      "rimDirection": [-1, -1],
+      "reflectionLimitPx": 0,
+      "permitsEmissiveReflection": false,
+      "destructionEdgeJitterPx": 2
+    },
+    "metal": {
+      "displayNameZh": "氧化旧金属",
+      "seed": 4933,
+      "palette": ["#090C0E", "#151B1E", "#232B2F", "#354147", "#59676A", "#879395", "#C2CAC7"],
+      "grainModel": "brushed_plate",
+      "grainDirection": "horizontal",
+      "grooveRadiusPx": 1,
+      "grooveStyle": "hard_continuous",
+      "grooveDarkenSteps": 3,
+      "glyphBedDarkenSteps": 3,
+      "rimLightenSteps": 1,
+      "rimDirection": [-1, -1],
+      "reflectionLimitPx": 1,
+      "permitsEmissiveReflection": true,
+      "destructionEdgeJitterPx": 0
+    }
+  },
+  "compositionContract": {
+    "visibleMaskFormula": "glyphInkMask AND inscriptionSupportMask AND currentSolidMaterialMask",
+    "inscriptionSupportMaskPersistsIndependently": true,
+    "newlyFilledMaterialInheritsInscription": false,
+    "temporaryOcclusionMayPreserveSupportMetadata": true,
+    "glyphAtlasContainsBackground": false,
+    "surfaceProfileMayChangeGlyphSilhouette": false,
+    "surfaceProfileMayChangeActivationTiming": false,
+    "destructionRemovesSupportedGlyphPixels": true,
+    "materialGridMutationByRenderer": false,
+    "softBloomAllowed": false,
+    "subpixelFilteringAllowed": false
+  }
+}

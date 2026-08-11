@@ -1,0 +1,4148 @@
+{
+  "schemaVersion": "pu120.magic-glyph-catalog.v0.2",
+  "contentVersion": "pu-120.visual-semantic-draft.2",
+  "reviewStatus": "draft",
+  "runtimeReady": false,
+  "canonicalScope": {
+    "id": "pu-120",
+    "glyphCount": 120,
+    "ucsurRange": [
+      "U+F1900",
+      "U+F1977"
+    ],
+    "orthographicAliases": {
+      "ali": "ale"
+    },
+    "postCoreWordsExcluded": [
+      "namako",
+      "kin",
+      "oko"
+    ]
+  },
+  "frame": {
+    "width": 32,
+    "height": 32,
+    "inkMaxWidth": 24,
+    "inkMaxHeight": 24,
+    "count": 8,
+    "activationCodes": [
+      32,
+      48,
+      72,
+      96,
+      128,
+      164,
+      208,
+      255
+    ],
+    "durationMsPerFrame": 140,
+    "mode": "once_hold_last",
+    "progression": "uniform_whole_glyph",
+    "alphaMode": "binary"
+  },
+  "backgroundContract": {
+    "bakedIntoGlyph": false,
+    "surfaceProfiles": [
+      "stone",
+      "wood",
+      "mud",
+      "metal"
+    ],
+    "visibleMaskFormula": "glyphInkMask AND currentSolidMaterialMask"
+  },
+  "curriculum": {
+    "bandCounts": {
+      "P0": 12,
+      "P1": 18,
+      "P2": 24,
+      "P3": 30,
+      "P4": 24,
+      "P5": 12
+    },
+    "earlyPreviewException": {
+      "wordId": "o",
+      "previewBand": "P0",
+      "formalBand": "P1"
+    }
+  },
+  "domains": {
+    "D_SYNTAX_BINDER": {
+      "nameZh": "语法绑定",
+      "paletteId": "G_SYNTAX",
+      "defaultSoloPolicy": "CONTEXT_REQUIRED",
+      "defaultSoloCue": "neutral_reference_echo",
+      "wordCount": 15,
+      "usage": "visual_color_group_only",
+      "semanticAuthority": false
+    },
+    "D_QUANTITY_LOGIC": {
+      "nameZh": "数量与逻辑",
+      "paletteId": "G_LOGIC",
+      "defaultSoloPolicy": "CONTEXT_REQUIRED",
+      "defaultSoloCue": "abstract_relation_echo",
+      "wordCount": 12,
+      "usage": "visual_color_group_only",
+      "semanticAuthority": false
+    },
+    "D_MATTER_ENV": {
+      "nameZh": "物质与环境",
+      "paletteId": "G_MATTER",
+      "defaultSoloPolicy": "CONTEXT_REQUIRED",
+      "defaultSoloCue": "nonphysical_material_resonance_echo",
+      "wordCount": 6,
+      "usage": "visual_color_group_only",
+      "semanticAuthority": false
+    },
+    "D_LIFE_ENTITY": {
+      "nameZh": "生命与实体",
+      "paletteId": "G_LIFE",
+      "defaultSoloPolicy": "CONTEXT_REQUIRED",
+      "defaultSoloCue": "neutral_entity_presence_echo",
+      "wordCount": 16,
+      "usage": "visual_color_group_only",
+      "semanticAuthority": false
+    },
+    "D_CRAFT_OBJECT": {
+      "nameZh": "器物与工艺",
+      "paletteId": "G_CRAFT",
+      "defaultSoloPolicy": "CONTEXT_REQUIRED",
+      "defaultSoloCue": "artifact_concept_echo",
+      "wordCount": 11,
+      "usage": "visual_color_group_only",
+      "semanticAuthority": false
+    },
+    "D_ENERGY_FIELD": {
+      "nameZh": "能量与场",
+      "paletteId": "G_ENERGY",
+      "defaultSoloPolicy": "CONTEXT_REQUIRED",
+      "defaultSoloCue": "nonphysical_field_resonance_echo",
+      "wordCount": 7,
+      "usage": "visual_color_group_only",
+      "semanticAuthority": false
+    },
+    "D_PROPERTY_FORM": {
+      "nameZh": "性质与形态",
+      "paletteId": "G_FORM",
+      "defaultSoloPolicy": "CONTEXT_REQUIRED",
+      "defaultSoloCue": "noncollision_quality_echo",
+      "wordCount": 17,
+      "usage": "visual_color_group_only",
+      "semanticAuthority": false
+    },
+    "D_ACTION_PROCESS": {
+      "nameZh": "动作与过程",
+      "paletteId": "G_ACTION",
+      "defaultSoloPolicy": "CONTEXT_REQUIRED",
+      "defaultSoloCue": "process_relation_echo",
+      "wordCount": 13,
+      "usage": "visual_color_group_only",
+      "semanticAuthority": false
+    },
+    "D_SPACE_TIME": {
+      "nameZh": "时空与关系",
+      "paletteId": "G_SPACETIME",
+      "defaultSoloPolicy": "CONTEXT_REQUIRED",
+      "defaultSoloCue": "relational_frame_echo",
+      "wordCount": 11,
+      "usage": "visual_color_group_only",
+      "semanticAuthority": false
+    },
+    "D_PERCEPTION_SOCIAL": {
+      "nameZh": "感知与社会",
+      "paletteId": "G_MIND_SOCIAL",
+      "defaultSoloPolicy": "CONTEXT_REQUIRED",
+      "defaultSoloCue": "mind_social_relation_echo",
+      "wordCount": 12,
+      "usage": "visual_color_group_only",
+      "semanticAuthority": false
+    }
+  },
+  "palettes": {
+    "G_SYNTAX": {
+      "dormant": "#32363A",
+      "body": "#9AA3AA",
+      "highlight": "#F1F4F6",
+      "pattern": "syntax_brackets"
+    },
+    "G_LOGIC": {
+      "dormant": "#3B3728",
+      "body": "#C6AE58",
+      "highlight": "#FFF1A8",
+      "pattern": "logic_ticks"
+    },
+    "G_MATTER": {
+      "dormant": "#31382E",
+      "body": "#8FAE72",
+      "highlight": "#E4F4C8",
+      "pattern": "strata_points"
+    },
+    "G_LIFE": {
+      "dormant": "#2D3A31",
+      "body": "#61B77A",
+      "highlight": "#DFF8E6",
+      "pattern": "organic_pairs"
+    },
+    "G_CRAFT": {
+      "dormant": "#3B332A",
+      "body": "#C18B54",
+      "highlight": "#F5D4A2",
+      "pattern": "blueprint_nodes"
+    },
+    "G_ENERGY": {
+      "dormant": "#3A303C",
+      "body": "#B27CC8",
+      "highlight": "#F4DEFF",
+      "pattern": "field_pulses"
+    },
+    "G_FORM": {
+      "dormant": "#2E3740",
+      "body": "#71A7C5",
+      "highlight": "#E1F4FF",
+      "pattern": "contour_ticks"
+    },
+    "G_ACTION": {
+      "dormant": "#3E3229",
+      "body": "#D08A45",
+      "highlight": "#FFE0AA",
+      "pattern": "action_cadence"
+    },
+    "G_SPACETIME": {
+      "dormant": "#2E3340",
+      "body": "#718BCE",
+      "highlight": "#E0E8FF",
+      "pattern": "coordinate_nodes"
+    },
+    "G_MIND_SOCIAL": {
+      "dormant": "#3D3037",
+      "body": "#C47D9A",
+      "highlight": "#FFE0EC",
+      "pattern": "ripple_pairs"
+    },
+    "P_LIQUID": {
+      "dormant": "#263940",
+      "body": "#3CA6D0",
+      "highlight": "#C7F3FF",
+      "pattern": "horizontal_wave_points"
+    },
+    "P_HEAT": {
+      "dormant": "#3E3128",
+      "body": "#E37A24",
+      "highlight": "#FFE2A3",
+      "pattern": "rising_diagonal"
+    },
+    "P_COLD": {
+      "dormant": "#2C3643",
+      "body": "#74A9E8",
+      "highlight": "#F0F7FF",
+      "pattern": "crystal_cross"
+    },
+    "P_HARD": {
+      "dormant": "#3A342B",
+      "body": "#B98A4E",
+      "highlight": "#F1D3A0",
+      "pattern": "square_nodes"
+    },
+    "P_MOLDABLE": {
+      "dormant": "#392F3B",
+      "body": "#B581C0",
+      "highlight": "#F1D5F4",
+      "pattern": "irregular_grain"
+    },
+    "P_GAS": {
+      "dormant": "#2B3B39",
+      "body": "#67C7BD",
+      "highlight": "#E4FFFF",
+      "pattern": "paired_voids"
+    },
+    "F_MOTION": {
+      "dormant": "#3D3926",
+      "body": "#DABF4B",
+      "highlight": "#FFF3A3",
+      "pattern": "diagonal_cadence"
+    },
+    "F_CHANGE": {
+      "dormant": "#3A2E3A",
+      "body": "#C27AB0",
+      "highlight": "#FFD9F2",
+      "pattern": "checker_phase"
+    },
+    "F_IMPROVE": {
+      "dormant": "#2E3A32",
+      "body": "#58B987",
+      "highlight": "#DDF8E8",
+      "pattern": "paired_symmetric_nodes"
+    },
+    "F_DISRUPT": {
+      "dormant": "#3E2D30",
+      "body": "#D86567",
+      "highlight": "#FFD8D7",
+      "pattern": "broken_zigzag"
+    },
+    "F_SUSTAIN": {
+      "dormant": "#32373C",
+      "body": "#8E9FAE",
+      "highlight": "#EEF3F7",
+      "pattern": "horizontal_anchors"
+    },
+    "F_POWER": {
+      "dormant": "#382F3F",
+      "body": "#A984D5",
+      "highlight": "#F2E2FF",
+      "pattern": "paired_pulses"
+    },
+    "O_LENGTH": {
+      "dormant": "#39352E",
+      "body": "#BDA780",
+      "highlight": "#F4E5C7",
+      "pattern": "word_specific_length_marks"
+    }
+  },
+  "glyphs": [
+    {
+      "canonicalWordId": "a",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F1900",
+      "domainId": "D_SYNTAX_BINDER",
+      "curriculumBand": "P5",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_SYNTAX",
+      "soloCue": "affective_emphasis_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_SYNTAX_BINDER",
+      "semanticFacets": [
+        "emotion",
+        "emphasis",
+        "confirmation"
+      ],
+      "availableRoles": [
+        "interjection",
+        "discourse_particle",
+        "modifier"
+      ],
+      "gamePrototypeCue": "affective_emphasis_echo",
+      "soloCueVariants": [
+        "emotion_pulse_echo",
+        "confirmation_or_emphasis_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "akesi",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F1901",
+      "domainId": "D_LIFE_ENTITY",
+      "curriculumBand": "P4",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_LIFE",
+      "soloCue": "neutral_entity_presence_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_LIFE_ENTITY",
+      "semanticFacets": [
+        "living_or_bodily_concept",
+        "entity",
+        "ecological_relation"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "neutral_entity_presence_echo",
+      "soloCueVariants": [
+        "entity_identity_echo",
+        "ecological_relation_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "ala",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F1902",
+      "domainId": "D_QUANTITY_LOGIC",
+      "curriculumBand": "P1",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_LOGIC",
+      "soloCue": "negation_or_absence_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_QUANTITY_LOGIC",
+      "semanticFacets": [
+        "negation",
+        "absence",
+        "zero"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "negation_or_absence_echo",
+      "soloCueVariants": [
+        "predicate_negation_echo",
+        "absence_or_zero_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "alasa",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F1903",
+      "domainId": "D_ACTION_PROCESS",
+      "curriculumBand": "P4",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_ACTION",
+      "soloCue": "process_relation_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_ACTION_PROCESS",
+      "semanticFacets": [
+        "process",
+        "change",
+        "agency_or_relation"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "process_relation_echo",
+      "soloCueVariants": [
+        "process_phase_echo",
+        "agency_or_change_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "ale",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F1904",
+      "domainId": "D_QUANTITY_LOGIC",
+      "curriculumBand": "P3",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_LOGIC",
+      "soloCue": "totality_or_abundance_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_QUANTITY_LOGIC",
+      "semanticFacets": [
+        "all",
+        "abundance",
+        "one_hundred"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "totality_or_abundance_echo",
+      "soloCueVariants": [
+        "all_members_echo",
+        "hundred_count_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "anpa",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F1905",
+      "domainId": "D_SPACE_TIME",
+      "curriculumBand": "P2",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_SPACETIME",
+      "soloCue": "lower_relation_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_SPACE_TIME",
+      "semanticFacets": [
+        "below",
+        "lower_or_defeated",
+        "humble_or_dependent"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "lower_relation_echo",
+      "soloCueVariants": [
+        "spatial_below_echo",
+        "lower_status_or_defeat_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "ante",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F1906",
+      "domainId": "D_QUANTITY_LOGIC",
+      "curriculumBand": "P2",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_LOGIC",
+      "soloCue": "difference_or_change_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_QUANTITY_LOGIC",
+      "semanticFacets": [
+        "difference",
+        "change",
+        "otherness"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "difference_or_change_echo",
+      "soloCueVariants": [
+        "comparison_difference_echo",
+        "state_change_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "anu",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F1907",
+      "domainId": "D_QUANTITY_LOGIC",
+      "curriculumBand": "P2",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_LOGIC",
+      "soloCue": "alternative_relation_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_QUANTITY_LOGIC",
+      "semanticFacets": [
+        "choice",
+        "alternative",
+        "or_relation"
+      ],
+      "availableRoles": [
+        "grammar_particle",
+        "discourse_particle",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "alternative_relation_echo",
+      "soloCueVariants": [
+        "choice_branch_echo",
+        "question_alternative_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "awen",
+      "spellEntryId": "word.awen",
+      "displayCodepoint": "U+F1908",
+      "domainId": "D_ACTION_PROCESS",
+      "curriculumBand": "P0",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "F_SUSTAIN",
+      "soloCue": "continuity_echo",
+      "inheritance": "sustained_subject",
+      "basic14Override": true,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_ACTION_PROCESS",
+      "semanticFacets": [
+        "remaining",
+        "continuity",
+        "protection_or_keeping"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate"
+      ],
+      "gamePrototypeCue": "continuity_echo",
+      "soloCueVariants": [
+        "remain_in_state_echo",
+        "protect_or_keep_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "e",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F1909",
+      "domainId": "D_SYNTAX_BINDER",
+      "curriculumBand": "P1",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_SYNTAX",
+      "soloCue": "object_boundary_slot_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_SYNTAX_BINDER",
+      "semanticFacets": [
+        "direct_object_marker"
+      ],
+      "availableRoles": [
+        "grammar_particle"
+      ],
+      "gamePrototypeCue": "object_boundary_slot_echo",
+      "soloCueVariants": [
+        "predicate_object_boundary_echo",
+        "multiword_object_boundary_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "en",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F190A",
+      "domainId": "D_SYNTAX_BINDER",
+      "curriculumBand": "P2",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_SYNTAX",
+      "soloCue": "subject_grouping_slot_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_SYNTAX_BINDER",
+      "semanticFacets": [
+        "subject_grouping_marker"
+      ],
+      "availableRoles": [
+        "grammar_particle",
+        "discourse_particle"
+      ],
+      "gamePrototypeCue": "subject_grouping_slot_echo",
+      "soloCueVariants": [
+        "parallel_subject_echo",
+        "grouped_subject_boundary_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "esun",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F190B",
+      "domainId": "D_PERCEPTION_SOCIAL",
+      "curriculumBand": "P4",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_MIND_SOCIAL",
+      "soloCue": "trade_relation_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_PERCEPTION_SOCIAL",
+      "semanticFacets": [
+        "market",
+        "trade_or_exchange",
+        "commercial_relation"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "trade_relation_echo",
+      "soloCueVariants": [
+        "marketplace_echo",
+        "exchange_event_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "ijo",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F190C",
+      "domainId": "D_SYNTAX_BINDER",
+      "curriculumBand": "P1",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_SYNTAX",
+      "soloCue": "generic_entity_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_SYNTAX_BINDER",
+      "semanticFacets": [
+        "thing",
+        "phenomenon",
+        "general_entity"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "generic_entity_echo",
+      "soloCueVariants": [
+        "concrete_entity_echo",
+        "abstract_phenomenon_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "ike",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F190D",
+      "domainId": "D_PROPERTY_FORM",
+      "curriculumBand": "P1",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_FORM",
+      "soloCue": "noncollision_quality_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_PROPERTY_FORM",
+      "semanticFacets": [
+        "quality",
+        "state",
+        "form_or_evaluation"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "noncollision_quality_echo",
+      "soloCueVariants": [
+        "quality_contrast_echo",
+        "state_or_form_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "ilo",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F190E",
+      "domainId": "D_CRAFT_OBJECT",
+      "curriculumBand": "P4",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_CRAFT",
+      "soloCue": "artifact_concept_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_CRAFT_OBJECT",
+      "semanticFacets": [
+        "artifact",
+        "shape_or_container",
+        "constructed_relation"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "artifact_concept_echo",
+      "soloCueVariants": [
+        "object_identity_echo",
+        "shape_or_use_relation_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "insa",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F190F",
+      "domainId": "D_SPACE_TIME",
+      "curriculumBand": "P2",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_SPACETIME",
+      "soloCue": "relational_frame_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_SPACE_TIME",
+      "semanticFacets": [
+        "spatial_relation",
+        "temporal_relation",
+        "contextual_relation"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "relational_frame_echo",
+      "soloCueVariants": [
+        "spatial_relation_echo",
+        "temporal_or_causal_context_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "jaki",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F1910",
+      "domainId": "D_PROPERTY_FORM",
+      "curriculumBand": "P3",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_FORM",
+      "soloCue": "noncollision_quality_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_PROPERTY_FORM",
+      "semanticFacets": [
+        "quality",
+        "state",
+        "form_or_evaluation"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "noncollision_quality_echo",
+      "soloCueVariants": [
+        "quality_contrast_echo",
+        "state_or_form_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "jan",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F1911",
+      "domainId": "D_PERCEPTION_SOCIAL",
+      "curriculumBand": "P1",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_MIND_SOCIAL",
+      "soloCue": "mind_social_relation_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_PERCEPTION_SOCIAL",
+      "semanticFacets": [
+        "perception_or_knowledge",
+        "communication",
+        "social_relation"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "mind_social_relation_echo",
+      "soloCueVariants": [
+        "perception_or_knowledge_echo",
+        "communication_or_social_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "jelo",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F1912",
+      "domainId": "D_PROPERTY_FORM",
+      "curriculumBand": "P3",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_FORM",
+      "soloCue": "noncollision_quality_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_PROPERTY_FORM",
+      "semanticFacets": [
+        "quality",
+        "state",
+        "form_or_evaluation"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "noncollision_quality_echo",
+      "soloCueVariants": [
+        "quality_contrast_echo",
+        "state_or_form_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "jo",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F1913",
+      "domainId": "D_ACTION_PROCESS",
+      "curriculumBand": "P3",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_ACTION",
+      "soloCue": "possession_relation_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_ACTION_PROCESS",
+      "semanticFacets": [
+        "having",
+        "holding",
+        "possession_or_access"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate"
+      ],
+      "gamePrototypeCue": "possession_relation_echo",
+      "soloCueVariants": [
+        "held_object_echo",
+        "possession_or_access_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "kala",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F1914",
+      "domainId": "D_LIFE_ENTITY",
+      "curriculumBand": "P4",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_LIFE",
+      "soloCue": "neutral_entity_presence_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_LIFE_ENTITY",
+      "semanticFacets": [
+        "living_or_bodily_concept",
+        "entity",
+        "ecological_relation"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "neutral_entity_presence_echo",
+      "soloCueVariants": [
+        "entity_identity_echo",
+        "ecological_relation_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "kalama",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F1915",
+      "domainId": "D_ENERGY_FIELD",
+      "curriculumBand": "P4",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_ENERGY",
+      "soloCue": "nonphysical_field_resonance_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_ENERGY_FIELD",
+      "semanticFacets": [
+        "energy_or_signal",
+        "environmental_condition",
+        "intensity"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "nonphysical_field_resonance_echo",
+      "soloCueVariants": [
+        "field_presence_echo",
+        "signal_or_intensity_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "kama",
+      "spellEntryId": "word.kama",
+      "displayCodepoint": "U+F1916",
+      "domainId": "D_ACTION_PROCESS",
+      "curriculumBand": "P1",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "F_CHANGE",
+      "soloCue": "arrival_or_change_echo",
+      "inheritance": "target_state_then_changing_subject",
+      "basic14Override": true,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_ACTION_PROCESS",
+      "semanticFacets": [
+        "arrival",
+        "becoming",
+        "caused_result"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "arrival_or_change_echo",
+      "soloCueVariants": [
+        "arrival_path_echo",
+        "becoming_or_caused_result_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "kasi",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F1917",
+      "domainId": "D_LIFE_ENTITY",
+      "curriculumBand": "P0",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_LIFE",
+      "soloCue": "neutral_entity_presence_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_LIFE_ENTITY",
+      "semanticFacets": [
+        "living_or_bodily_concept",
+        "entity",
+        "ecological_relation"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "neutral_entity_presence_echo",
+      "soloCueVariants": [
+        "entity_identity_echo",
+        "ecological_relation_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "ken",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F1918",
+      "domainId": "D_QUANTITY_LOGIC",
+      "curriculumBand": "P3",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_LOGIC",
+      "soloCue": "modality_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_QUANTITY_LOGIC",
+      "semanticFacets": [
+        "possibility",
+        "ability",
+        "permission"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "modality_echo",
+      "soloCueVariants": [
+        "possible_state_echo",
+        "ability_or_permission_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "kepeken",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F1919",
+      "domainId": "D_ACTION_PROCESS",
+      "curriculumBand": "P2",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_ACTION",
+      "soloCue": "instrument_relation_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_ACTION_PROCESS",
+      "semanticFacets": [
+        "using",
+        "tool_or_method",
+        "instrumental_relation"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "instrument_relation_echo",
+      "soloCueVariants": [
+        "tool_use_echo",
+        "method_or_medium_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "kili",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F191A",
+      "domainId": "D_LIFE_ENTITY",
+      "curriculumBand": "P4",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_LIFE",
+      "soloCue": "plant_yield_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_LIFE_ENTITY",
+      "semanticFacets": [
+        "fruit_or_vegetable",
+        "edible_plant_part",
+        "plant_yield"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "plant_yield_echo",
+      "soloCueVariants": [
+        "fruiting_body_echo",
+        "edible_plant_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "kiwen",
+      "spellEntryId": "word.kiwen",
+      "displayCodepoint": "U+F191B",
+      "domainId": "D_MATTER_ENV",
+      "curriculumBand": "P0",
+      "soloPolicy": "CAST_SAFE",
+      "prototypeActivationMp": 8,
+      "paletteId": "P_HARD",
+      "soloCue": "falling_hard_chunk",
+      "inheritance": "intrinsic",
+      "basic14Override": true,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_MATTER_ENV",
+      "semanticFacets": [
+        "hard_material",
+        "stone_or_metal",
+        "solid_object"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "falling_hard_chunk",
+      "soloCueVariants": [
+        "falling_hard_chunk",
+        "hardness_or_solid_identity_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "ko",
+      "spellEntryId": "word.ko",
+      "displayCodepoint": "U+F191C",
+      "domainId": "D_MATTER_ENV",
+      "curriculumBand": "P3",
+      "soloPolicy": "CAST_SAFE",
+      "prototypeActivationMp": 6,
+      "paletteId": "P_MOLDABLE",
+      "soloCue": "falling_moldable_mass",
+      "inheritance": "intrinsic",
+      "basic14Override": true,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_MATTER_ENV",
+      "semanticFacets": [
+        "semi_solid_or_powder",
+        "clay_or_paste",
+        "moldable_mass"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "falling_moldable_mass",
+      "soloCueVariants": [
+        "falling_moldable_mass",
+        "powder_or_paste_identity_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "kon",
+      "spellEntryId": "word.kon",
+      "displayCodepoint": "U+F191D",
+      "domainId": "D_MATTER_ENV",
+      "curriculumBand": "P0",
+      "soloPolicy": "CAST_SAFE",
+      "prototypeActivationMp": 3,
+      "paletteId": "P_GAS",
+      "soloCue": "undirected_air_pulse",
+      "inheritance": "intrinsic",
+      "basic14Override": true,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_MATTER_ENV",
+      "semanticFacets": [
+        "air_or_gas",
+        "breath",
+        "spirit_or_essence"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "undirected_air_pulse",
+      "soloCueVariants": [
+        "undirected_air_pulse",
+        "breath_or_unseen_presence_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "kule",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F191E",
+      "domainId": "D_PROPERTY_FORM",
+      "curriculumBand": "P3",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_FORM",
+      "soloCue": "noncollision_quality_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_PROPERTY_FORM",
+      "semanticFacets": [
+        "quality",
+        "state",
+        "form_or_evaluation"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "noncollision_quality_echo",
+      "soloCueVariants": [
+        "quality_contrast_echo",
+        "state_or_form_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "kulupu",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F191F",
+      "domainId": "D_PERCEPTION_SOCIAL",
+      "curriculumBand": "P4",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_MIND_SOCIAL",
+      "soloCue": "collective_relation_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_PERCEPTION_SOCIAL",
+      "semanticFacets": [
+        "group",
+        "community",
+        "collection_or_organization"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "collective_relation_echo",
+      "soloCueVariants": [
+        "community_membership_echo",
+        "organized_collection_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "kute",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F1920",
+      "domainId": "D_PERCEPTION_SOCIAL",
+      "curriculumBand": "P4",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_MIND_SOCIAL",
+      "soloCue": "mind_social_relation_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_PERCEPTION_SOCIAL",
+      "semanticFacets": [
+        "perception_or_knowledge",
+        "communication",
+        "social_relation"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "mind_social_relation_echo",
+      "soloCueVariants": [
+        "perception_or_knowledge_echo",
+        "communication_or_social_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "la",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F1921",
+      "domainId": "D_SYNTAX_BINDER",
+      "curriculumBand": "P2",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_SYNTAX",
+      "soloCue": "context_boundary_slot_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_SYNTAX_BINDER",
+      "semanticFacets": [
+        "context_clause_boundary"
+      ],
+      "availableRoles": [
+        "grammar_particle",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "context_boundary_slot_echo",
+      "soloCueVariants": [
+        "condition_context_echo",
+        "time_or_topic_context_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "lape",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F1922",
+      "domainId": "D_PROPERTY_FORM",
+      "curriculumBand": "P4",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_FORM",
+      "soloCue": "noncollision_quality_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_PROPERTY_FORM",
+      "semanticFacets": [
+        "quality",
+        "state",
+        "form_or_evaluation"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "noncollision_quality_echo",
+      "soloCueVariants": [
+        "quality_contrast_echo",
+        "state_or_form_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "laso",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F1923",
+      "domainId": "D_PROPERTY_FORM",
+      "curriculumBand": "P3",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_FORM",
+      "soloCue": "noncollision_quality_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_PROPERTY_FORM",
+      "semanticFacets": [
+        "quality",
+        "state",
+        "form_or_evaluation"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "noncollision_quality_echo",
+      "soloCueVariants": [
+        "quality_contrast_echo",
+        "state_or_form_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "lawa",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F1924",
+      "domainId": "D_PERCEPTION_SOCIAL",
+      "curriculumBand": "P4",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_MIND_SOCIAL",
+      "soloCue": "direction_or_leadership_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_PERCEPTION_SOCIAL",
+      "semanticFacets": [
+        "head",
+        "leadership_or_control",
+        "mind_or_direction"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "direction_or_leadership_echo",
+      "soloCueVariants": [
+        "head_or_mind_echo",
+        "leadership_or_control_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "len",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F1925",
+      "domainId": "D_CRAFT_OBJECT",
+      "curriculumBand": "P3",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_CRAFT",
+      "soloCue": "artifact_concept_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_CRAFT_OBJECT",
+      "semanticFacets": [
+        "artifact",
+        "shape_or_container",
+        "constructed_relation"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "artifact_concept_echo",
+      "soloCueVariants": [
+        "object_identity_echo",
+        "shape_or_use_relation_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "lete",
+      "spellEntryId": "word.lete",
+      "displayCodepoint": "U+F1926",
+      "domainId": "D_ENERGY_FIELD",
+      "curriculumBand": "P3",
+      "soloPolicy": "CAST_SAFE",
+      "prototypeActivationMp": 4,
+      "paletteId": "P_COLD",
+      "soloCue": "local_cooling_pulse",
+      "inheritance": "intrinsic",
+      "basic14Override": true,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_ENERGY_FIELD",
+      "semanticFacets": [
+        "cold",
+        "coolness",
+        "uncooked_or_raw_state"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "local_cooling_pulse",
+      "soloCueVariants": [
+        "local_cooling_pulse",
+        "cold_state_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "li",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F1927",
+      "domainId": "D_SYNTAX_BINDER",
+      "curriculumBand": "P1",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_SYNTAX",
+      "soloCue": "predicate_boundary_slot_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_SYNTAX_BINDER",
+      "semanticFacets": [
+        "predicate_marker"
+      ],
+      "availableRoles": [
+        "grammar_particle"
+      ],
+      "gamePrototypeCue": "predicate_boundary_slot_echo",
+      "soloCueVariants": [
+        "subject_predicate_boundary_echo",
+        "multiword_predicate_boundary_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "lili",
+      "spellEntryId": "word.lili",
+      "displayCodepoint": "U+F1928",
+      "domainId": "D_PROPERTY_FORM",
+      "curriculumBand": "P0",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "O_LENGTH",
+      "soloCue": "length_projection_short",
+      "inheritance": "axial_semantic_head",
+      "basic14Override": true,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_PROPERTY_FORM",
+      "semanticFacets": [
+        "small",
+        "short",
+        "young",
+        "few"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "length_projection_short",
+      "soloCueVariants": [
+        "game_length_projection_short",
+        "size_or_age_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "linja",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F1929",
+      "domainId": "D_CRAFT_OBJECT",
+      "curriculumBand": "P3",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_CRAFT",
+      "soloCue": "flexible_line_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_CRAFT_OBJECT",
+      "semanticFacets": [
+        "long_flexible_object",
+        "cord_or_hair",
+        "line"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "flexible_line_echo",
+      "soloCueVariants": [
+        "cord_or_thread_echo",
+        "hair_or_linear_form_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "lipu",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F192A",
+      "domainId": "D_CRAFT_OBJECT",
+      "curriculumBand": "P4",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_CRAFT",
+      "soloCue": "artifact_concept_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_CRAFT_OBJECT",
+      "semanticFacets": [
+        "artifact",
+        "shape_or_container",
+        "constructed_relation"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "artifact_concept_echo",
+      "soloCueVariants": [
+        "object_identity_echo",
+        "shape_or_use_relation_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "loje",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F192B",
+      "domainId": "D_PROPERTY_FORM",
+      "curriculumBand": "P3",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_FORM",
+      "soloCue": "noncollision_quality_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_PROPERTY_FORM",
+      "semanticFacets": [
+        "quality",
+        "state",
+        "form_or_evaluation"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "noncollision_quality_echo",
+      "soloCueVariants": [
+        "quality_contrast_echo",
+        "state_or_form_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "lon",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F192C",
+      "domainId": "D_SPACE_TIME",
+      "curriculumBand": "P2",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_SPACETIME",
+      "soloCue": "presence_or_location_relation_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_SPACE_TIME",
+      "semanticFacets": [
+        "presence_or_existence",
+        "truth_or_reality",
+        "located_at_relation"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "presence_or_location_relation_echo",
+      "soloCueVariants": [
+        "existence_or_truth_echo",
+        "location_relation_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "luka",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F192D",
+      "domainId": "D_LIFE_ENTITY",
+      "curriculumBand": "P2",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_LIFE",
+      "soloCue": "reach_or_five_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_LIFE_ENTITY",
+      "semanticFacets": [
+        "arm_or_hand",
+        "touch_or_manual_action",
+        "five"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "reach_or_five_echo",
+      "soloCueVariants": [
+        "limb_reach_echo",
+        "five_count_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "lukin",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F192E",
+      "domainId": "D_PERCEPTION_SOCIAL",
+      "curriculumBand": "P0",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_MIND_SOCIAL",
+      "soloCue": "mind_social_relation_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_PERCEPTION_SOCIAL",
+      "semanticFacets": [
+        "perception_or_knowledge",
+        "communication",
+        "social_relation"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "mind_social_relation_echo",
+      "soloCueVariants": [
+        "perception_or_knowledge_echo",
+        "communication_or_social_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "lupa",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F192F",
+      "domainId": "D_CRAFT_OBJECT",
+      "curriculumBand": "P2",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_CRAFT",
+      "soloCue": "opening_boundary_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_CRAFT_OBJECT",
+      "semanticFacets": [
+        "hole",
+        "door_or_window",
+        "orifice_or_opening"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "opening_boundary_echo",
+      "soloCueVariants": [
+        "passage_opening_echo",
+        "hole_or_orifice_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "ma",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F1930",
+      "domainId": "D_MATTER_ENV",
+      "curriculumBand": "P1",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_MATTER",
+      "soloCue": "place_or_terrain_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_MATTER_ENV",
+      "semanticFacets": [
+        "land",
+        "place_or_country",
+        "outdoor_region"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "place_or_terrain_echo",
+      "soloCueVariants": [
+        "terrain_region_echo",
+        "place_or_country_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "mama",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F1931",
+      "domainId": "D_LIFE_ENTITY",
+      "curriculumBand": "P4",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_LIFE",
+      "soloCue": "origin_or_care_relation_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_LIFE_ENTITY",
+      "semanticFacets": [
+        "parent",
+        "ancestor_or_origin",
+        "caretaker_or_creator"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "origin_or_care_relation_echo",
+      "soloCueVariants": [
+        "lineage_origin_echo",
+        "caregiver_or_creator_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "mani",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F1932",
+      "domainId": "D_CRAFT_OBJECT",
+      "curriculumBand": "P4",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_CRAFT",
+      "soloCue": "value_exchange_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_CRAFT_OBJECT",
+      "semanticFacets": [
+        "money",
+        "valuable_resource",
+        "livestock_or_wealth"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "value_exchange_echo",
+      "soloCueVariants": [
+        "currency_or_trade_echo",
+        "valuable_resource_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "meli",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F1933",
+      "domainId": "D_LIFE_ENTITY",
+      "curriculumBand": "P5",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_LIFE",
+      "soloCue": "neutral_feminine_identity_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_LIFE_ENTITY",
+      "semanticFacets": [
+        "female_or_feminine_person",
+        "wife_or_feminine_relation",
+        "gendered_identity"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "neutral_feminine_identity_echo",
+      "soloCueVariants": [
+        "self_identified_feminine_echo",
+        "contextual_feminine_relation_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "mi",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F1934",
+      "domainId": "D_SYNTAX_BINDER",
+      "curriculumBand": "P1",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_SYNTAX",
+      "soloCue": "speaker_reference_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_SYNTAX_BINDER",
+      "semanticFacets": [
+        "first_person_reference",
+        "speaker_identity"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate"
+      ],
+      "gamePrototypeCue": "speaker_reference_echo",
+      "soloCueVariants": [
+        "speaker_identity_echo",
+        "speaker_possession_context_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "mije",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F1935",
+      "domainId": "D_LIFE_ENTITY",
+      "curriculumBand": "P5",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_LIFE",
+      "soloCue": "neutral_masculine_identity_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_LIFE_ENTITY",
+      "semanticFacets": [
+        "male_or_masculine_person",
+        "husband_or_masculine_relation",
+        "gendered_identity"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "neutral_masculine_identity_echo",
+      "soloCueVariants": [
+        "self_identified_masculine_echo",
+        "contextual_masculine_relation_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "moku",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F1936",
+      "domainId": "D_ACTION_PROCESS",
+      "curriculumBand": "P1",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_ACTION",
+      "soloCue": "consumption_relation_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_ACTION_PROCESS",
+      "semanticFacets": [
+        "eating_or_drinking",
+        "food",
+        "consumption"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate"
+      ],
+      "gamePrototypeCue": "consumption_relation_echo",
+      "soloCueVariants": [
+        "consume_substance_echo",
+        "food_or_nourishment_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "moli",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F1937",
+      "domainId": "D_LIFE_ENTITY",
+      "curriculumBand": "P4",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_LIFE",
+      "soloCue": "life_absence_transition_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_LIFE_ENTITY",
+      "semanticFacets": [
+        "death",
+        "nonliving_state",
+        "ending_of_life"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "life_absence_transition_echo",
+      "soloCueVariants": [
+        "living_to_nonliving_transition_echo",
+        "nonliving_state_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "monsi",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F1938",
+      "domainId": "D_SPACE_TIME",
+      "curriculumBand": "P2",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_SPACETIME",
+      "soloCue": "relational_frame_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_SPACE_TIME",
+      "semanticFacets": [
+        "spatial_relation",
+        "temporal_relation",
+        "contextual_relation"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "relational_frame_echo",
+      "soloCueVariants": [
+        "spatial_relation_echo",
+        "temporal_or_causal_context_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "mu",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F1939",
+      "domainId": "D_PERCEPTION_SOCIAL",
+      "curriculumBand": "P5",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_MIND_SOCIAL",
+      "soloCue": "mind_social_relation_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_PERCEPTION_SOCIAL",
+      "semanticFacets": [
+        "perception_or_knowledge",
+        "communication",
+        "social_relation"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "mind_social_relation_echo",
+      "soloCueVariants": [
+        "perception_or_knowledge_echo",
+        "communication_or_social_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "mun",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F193A",
+      "domainId": "D_ENERGY_FIELD",
+      "curriculumBand": "P3",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_ENERGY",
+      "soloCue": "celestial_object_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_ENERGY_FIELD",
+      "semanticFacets": [
+        "moon",
+        "night_sky_object",
+        "star_or_celestial_light"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "celestial_object_echo",
+      "soloCueVariants": [
+        "moon_phase_echo",
+        "night_sky_light_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "musi",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F193B",
+      "domainId": "D_PERCEPTION_SOCIAL",
+      "curriculumBand": "P4",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_MIND_SOCIAL",
+      "soloCue": "play_or_art_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_PERCEPTION_SOCIAL",
+      "semanticFacets": [
+        "play",
+        "art_or_entertainment",
+        "fun_or_amusement"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "play_or_art_echo",
+      "soloCueVariants": [
+        "gameplay_echo",
+        "artistic_or_amusing_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "mute",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F193C",
+      "domainId": "D_QUANTITY_LOGIC",
+      "curriculumBand": "P3",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_LOGIC",
+      "soloCue": "multiplicity_or_intensity_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_QUANTITY_LOGIC",
+      "semanticFacets": [
+        "many",
+        "quantity",
+        "intensity"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "multiplicity_or_intensity_echo",
+      "soloCueVariants": [
+        "many_entities_echo",
+        "strong_degree_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "nanpa",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F193D",
+      "domainId": "D_QUANTITY_LOGIC",
+      "curriculumBand": "P5",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_LOGIC",
+      "soloCue": "numeric_order_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_QUANTITY_LOGIC",
+      "semanticFacets": [
+        "number",
+        "ordinal_position"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "numeric_order_echo",
+      "soloCueVariants": [
+        "cardinal_number_echo",
+        "ordinal_position_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "nasa",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F193E",
+      "domainId": "D_PROPERTY_FORM",
+      "curriculumBand": "P5",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_FORM",
+      "soloCue": "noncollision_quality_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_PROPERTY_FORM",
+      "semanticFacets": [
+        "quality",
+        "state",
+        "form_or_evaluation"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "noncollision_quality_echo",
+      "soloCueVariants": [
+        "quality_contrast_echo",
+        "state_or_form_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "nasin",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F193F",
+      "domainId": "D_SPACE_TIME",
+      "curriculumBand": "P4",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_SPACETIME",
+      "soloCue": "path_or_method_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_SPACE_TIME",
+      "semanticFacets": [
+        "path",
+        "method_or_doctrine",
+        "custom_or_system"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "path_or_method_echo",
+      "soloCueVariants": [
+        "physical_route_echo",
+        "method_or_system_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "nena",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F1940",
+      "domainId": "D_PROPERTY_FORM",
+      "curriculumBand": "P4",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_FORM",
+      "soloCue": "noncollision_quality_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_PROPERTY_FORM",
+      "semanticFacets": [
+        "quality",
+        "state",
+        "form_or_evaluation"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "noncollision_quality_echo",
+      "soloCueVariants": [
+        "quality_contrast_echo",
+        "state_or_form_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "ni",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F1941",
+      "domainId": "D_SYNTAX_BINDER",
+      "curriculumBand": "P1",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_SYNTAX",
+      "soloCue": "demonstrative_reference_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_SYNTAX_BINDER",
+      "semanticFacets": [
+        "demonstrative_reference",
+        "nearby_or_discussed_context"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "demonstrative_reference_echo",
+      "soloCueVariants": [
+        "nearby_referent_echo",
+        "previously_discussed_referent_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "nimi",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F1942",
+      "domainId": "D_SYNTAX_BINDER",
+      "curriculumBand": "P2",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_SYNTAX",
+      "soloCue": "linguistic_label_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_SYNTAX_BINDER",
+      "semanticFacets": [
+        "word",
+        "name",
+        "linguistic_label"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "linguistic_label_echo",
+      "soloCueVariants": [
+        "name_reference_echo",
+        "word_form_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "noka",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F1943",
+      "domainId": "D_LIFE_ENTITY",
+      "curriculumBand": "P2",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_LIFE",
+      "soloCue": "support_or_lower_relation_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_LIFE_ENTITY",
+      "semanticFacets": [
+        "leg_or_foot",
+        "lower_part",
+        "support_base"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "support_or_lower_relation_echo",
+      "soloCueVariants": [
+        "ground_contact_echo",
+        "lower_part_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "o",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F1944",
+      "domainId": "D_SYNTAX_BINDER",
+      "curriculumBand": "P1",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_SYNTAX",
+      "soloCue": "address_or_intention_slot_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_SYNTAX_BINDER",
+      "semanticFacets": [
+        "vocative",
+        "imperative_or_optative"
+      ],
+      "availableRoles": [
+        "grammar_particle",
+        "discourse_particle"
+      ],
+      "gamePrototypeCue": "address_or_intention_slot_echo",
+      "soloCueVariants": [
+        "vocative_attention_echo",
+        "request_or_intention_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "olin",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F1945",
+      "domainId": "D_PERCEPTION_SOCIAL",
+      "curriculumBand": "P5",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_MIND_SOCIAL",
+      "soloCue": "mind_social_relation_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_PERCEPTION_SOCIAL",
+      "semanticFacets": [
+        "perception_or_knowledge",
+        "communication",
+        "social_relation"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "mind_social_relation_echo",
+      "soloCueVariants": [
+        "perception_or_knowledge_echo",
+        "communication_or_social_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "ona",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F1946",
+      "domainId": "D_SYNTAX_BINDER",
+      "curriculumBand": "P1",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_SYNTAX",
+      "soloCue": "contextual_referent_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_SYNTAX_BINDER",
+      "semanticFacets": [
+        "third_person_reference",
+        "contextual_referent"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate"
+      ],
+      "gamePrototypeCue": "contextual_referent_echo",
+      "soloCueVariants": [
+        "animate_referent_echo",
+        "inanimate_referent_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "open",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F1947",
+      "domainId": "D_ACTION_PROCESS",
+      "curriculumBand": "P2",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_ACTION",
+      "soloCue": "onset_or_opening_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_ACTION_PROCESS",
+      "semanticFacets": [
+        "beginning",
+        "opening",
+        "activation"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate"
+      ],
+      "gamePrototypeCue": "onset_or_opening_echo",
+      "soloCueVariants": [
+        "process_beginning_echo",
+        "access_opening_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "pakala",
+      "spellEntryId": "word.pakala",
+      "displayCodepoint": "U+F1948",
+      "domainId": "D_ACTION_PROCESS",
+      "curriculumBand": "P3",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "F_DISRUPT",
+      "soloCue": "process_relation_echo",
+      "inheritance": "legal_target",
+      "basic14Override": true,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_ACTION_PROCESS",
+      "semanticFacets": [
+        "process",
+        "change",
+        "agency_or_relation"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "process_relation_echo",
+      "soloCueVariants": [
+        "process_phase_echo",
+        "agency_or_change_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "pali",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F1949",
+      "domainId": "D_ACTION_PROCESS",
+      "curriculumBand": "P3",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_ACTION",
+      "soloCue": "work_process_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_ACTION_PROCESS",
+      "semanticFacets": [
+        "work",
+        "making",
+        "purposeful_activity"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate"
+      ],
+      "gamePrototypeCue": "work_process_echo",
+      "soloCueVariants": [
+        "making_activity_echo",
+        "purposeful_work_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "palisa",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F194A",
+      "domainId": "D_CRAFT_OBJECT",
+      "curriculumBand": "P3",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_CRAFT",
+      "soloCue": "rigid_linear_form_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_CRAFT_OBJECT",
+      "semanticFacets": [
+        "long_hard_object",
+        "rod_or_branch",
+        "stick_like_form"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "rigid_linear_form_echo",
+      "soloCueVariants": [
+        "rod_or_branch_echo",
+        "hard_long_shape_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "pan",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F194B",
+      "domainId": "D_MATTER_ENV",
+      "curriculumBand": "P4",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_MATTER",
+      "soloCue": "staple_food_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_MATTER_ENV",
+      "semanticFacets": [
+        "grain",
+        "bread_or_staple",
+        "cereal_food"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "staple_food_echo",
+      "soloCueVariants": [
+        "grain_material_echo",
+        "bread_or_cereal_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "pana",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F194C",
+      "domainId": "D_ACTION_PROCESS",
+      "curriculumBand": "P3",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_ACTION",
+      "soloCue": "process_relation_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_ACTION_PROCESS",
+      "semanticFacets": [
+        "process",
+        "change",
+        "agency_or_relation"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "process_relation_echo",
+      "soloCueVariants": [
+        "process_phase_echo",
+        "agency_or_change_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "pi",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F194D",
+      "domainId": "D_SYNTAX_BINDER",
+      "curriculumBand": "P2",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_SYNTAX",
+      "soloCue": "modifier_group_slot_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_SYNTAX_BINDER",
+      "semanticFacets": [
+        "modifier_regrouping"
+      ],
+      "availableRoles": [
+        "grammar_particle",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "modifier_group_slot_echo",
+      "soloCueVariants": [
+        "modifier_scope_echo",
+        "regrouped_phrase_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "pilin",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F194E",
+      "domainId": "D_PERCEPTION_SOCIAL",
+      "curriculumBand": "P4",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_MIND_SOCIAL",
+      "soloCue": "mind_social_relation_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_PERCEPTION_SOCIAL",
+      "semanticFacets": [
+        "perception_or_knowledge",
+        "communication",
+        "social_relation"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "mind_social_relation_echo",
+      "soloCueVariants": [
+        "perception_or_knowledge_echo",
+        "communication_or_social_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "pimeja",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F194F",
+      "domainId": "D_ENERGY_FIELD",
+      "curriculumBand": "P3",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_ENERGY",
+      "soloCue": "darkness_or_black_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_ENERGY_FIELD",
+      "semanticFacets": [
+        "dark",
+        "black",
+        "absence_of_light"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "darkness_or_black_echo",
+      "soloCueVariants": [
+        "low_light_echo",
+        "black_color_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "pini",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F1950",
+      "domainId": "D_ACTION_PROCESS",
+      "curriculumBand": "P2",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_ACTION",
+      "soloCue": "completion_boundary_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_ACTION_PROCESS",
+      "semanticFacets": [
+        "ending",
+        "completion",
+        "past_or_boundary"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate"
+      ],
+      "gamePrototypeCue": "completion_boundary_echo",
+      "soloCueVariants": [
+        "process_completion_echo",
+        "closed_boundary_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "pipi",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F1951",
+      "domainId": "D_LIFE_ENTITY",
+      "curriculumBand": "P4",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_LIFE",
+      "soloCue": "neutral_entity_presence_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_LIFE_ENTITY",
+      "semanticFacets": [
+        "living_or_bodily_concept",
+        "entity",
+        "ecological_relation"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "neutral_entity_presence_echo",
+      "soloCueVariants": [
+        "entity_identity_echo",
+        "ecological_relation_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "poka",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F1952",
+      "domainId": "D_SPACE_TIME",
+      "curriculumBand": "P2",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_SPACETIME",
+      "soloCue": "relational_frame_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_SPACE_TIME",
+      "semanticFacets": [
+        "spatial_relation",
+        "temporal_relation",
+        "contextual_relation"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "relational_frame_echo",
+      "soloCueVariants": [
+        "spatial_relation_echo",
+        "temporal_or_causal_context_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "poki",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F1953",
+      "domainId": "D_CRAFT_OBJECT",
+      "curriculumBand": "P3",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_CRAFT",
+      "soloCue": "artifact_concept_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_CRAFT_OBJECT",
+      "semanticFacets": [
+        "artifact",
+        "shape_or_container",
+        "constructed_relation"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "artifact_concept_echo",
+      "soloCueVariants": [
+        "object_identity_echo",
+        "shape_or_use_relation_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "pona",
+      "spellEntryId": "word.pona",
+      "displayCodepoint": "U+F1954",
+      "domainId": "D_PROPERTY_FORM",
+      "curriculumBand": "P1",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 2,
+      "paletteId": "F_IMPROVE",
+      "soloCue": "semantic_echo_improve",
+      "inheritance": "affected_subject",
+      "basic14Override": true,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_PROPERTY_FORM",
+      "semanticFacets": [
+        "good",
+        "simple",
+        "helpful_or_improving"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "semantic_echo_improve",
+      "soloCueVariants": [
+        "improvement_context_echo",
+        "goodness_or_simplicity_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "pu",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F1955",
+      "domainId": "D_SYNTAX_BINDER",
+      "curriculumBand": "P5",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_SYNTAX",
+      "soloCue": "official_book_reference_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_SYNTAX_BINDER",
+      "semanticFacets": [
+        "official_toki_pona_book",
+        "interaction_with_official_book"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "official_book_reference_echo",
+      "soloCueVariants": [
+        "book_object_echo",
+        "book_interaction_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "sama",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F1956",
+      "domainId": "D_QUANTITY_LOGIC",
+      "curriculumBand": "P2",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_LOGIC",
+      "soloCue": "similarity_relation_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_QUANTITY_LOGIC",
+      "semanticFacets": [
+        "similarity",
+        "equality",
+        "peer_relation"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "similarity_relation_echo",
+      "soloCueVariants": [
+        "comparison_similarity_echo",
+        "peer_or_equal_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "seli",
+      "spellEntryId": "word.seli",
+      "displayCodepoint": "U+F1957",
+      "domainId": "D_ENERGY_FIELD",
+      "curriculumBand": "P0",
+      "soloPolicy": "CAST_SAFE",
+      "prototypeActivationMp": 4,
+      "paletteId": "P_HEAT",
+      "soloCue": "local_heat_pulse",
+      "inheritance": "intrinsic",
+      "basic14Override": true,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_ENERGY_FIELD",
+      "semanticFacets": [
+        "fire",
+        "heat",
+        "cooking_or_chemical_change"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "local_heat_pulse",
+      "soloCueVariants": [
+        "local_heat_pulse",
+        "fire_or_warmth_context_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "selo",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F1958",
+      "domainId": "D_PROPERTY_FORM",
+      "curriculumBand": "P3",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_FORM",
+      "soloCue": "noncollision_quality_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_PROPERTY_FORM",
+      "semanticFacets": [
+        "quality",
+        "state",
+        "form_or_evaluation"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "noncollision_quality_echo",
+      "soloCueVariants": [
+        "quality_contrast_echo",
+        "state_or_form_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "seme",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F1959",
+      "domainId": "D_SYNTAX_BINDER",
+      "curriculumBand": "P1",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_SYNTAX",
+      "soloCue": "open_question_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_SYNTAX_BINDER",
+      "semanticFacets": [
+        "interrogative_unknown",
+        "requested_information"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "open_question_echo",
+      "soloCueVariants": [
+        "unknown_entity_or_quality_echo",
+        "unknown_action_or_relation_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "sewi",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F195A",
+      "domainId": "D_SPACE_TIME",
+      "curriculumBand": "P2",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_SPACETIME",
+      "soloCue": "upper_or_transcendent_relation_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_SPACE_TIME",
+      "semanticFacets": [
+        "above",
+        "high_or_elevated",
+        "sacred_or_divine"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "upper_or_transcendent_relation_echo",
+      "soloCueVariants": [
+        "spatial_above_echo",
+        "sacred_or_respected_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "sijelo",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F195B",
+      "domainId": "D_LIFE_ENTITY",
+      "curriculumBand": "P3",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_LIFE",
+      "soloCue": "embodied_extent_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_LIFE_ENTITY",
+      "semanticFacets": [
+        "body",
+        "physical_state",
+        "embodied_whole"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "embodied_extent_echo",
+      "soloCueVariants": [
+        "body_boundary_echo",
+        "physical_condition_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "sike",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F195C",
+      "domainId": "D_PROPERTY_FORM",
+      "curriculumBand": "P3",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_FORM",
+      "soloCue": "noncollision_quality_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_PROPERTY_FORM",
+      "semanticFacets": [
+        "quality",
+        "state",
+        "form_or_evaluation"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "noncollision_quality_echo",
+      "soloCueVariants": [
+        "quality_contrast_echo",
+        "state_or_form_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "sin",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F195D",
+      "domainId": "D_PROPERTY_FORM",
+      "curriculumBand": "P5",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_FORM",
+      "soloCue": "noncollision_quality_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_PROPERTY_FORM",
+      "semanticFacets": [
+        "quality",
+        "state",
+        "form_or_evaluation"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "noncollision_quality_echo",
+      "soloCueVariants": [
+        "quality_contrast_echo",
+        "state_or_form_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "sina",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F195E",
+      "domainId": "D_SYNTAX_BINDER",
+      "curriculumBand": "P1",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_SYNTAX",
+      "soloCue": "addressee_reference_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_SYNTAX_BINDER",
+      "semanticFacets": [
+        "second_person_reference",
+        "addressee_identity"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate"
+      ],
+      "gamePrototypeCue": "addressee_reference_echo",
+      "soloCueVariants": [
+        "addressee_identity_echo",
+        "addressee_possession_context_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "sinpin",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F195F",
+      "domainId": "D_SPACE_TIME",
+      "curriculumBand": "P2",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_SPACETIME",
+      "soloCue": "relational_frame_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_SPACE_TIME",
+      "semanticFacets": [
+        "spatial_relation",
+        "temporal_relation",
+        "contextual_relation"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "relational_frame_echo",
+      "soloCueVariants": [
+        "spatial_relation_echo",
+        "temporal_or_causal_context_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "sitelen",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F1960",
+      "domainId": "D_CRAFT_OBJECT",
+      "curriculumBand": "P4",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_CRAFT",
+      "soloCue": "representation_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_CRAFT_OBJECT",
+      "semanticFacets": [
+        "image",
+        "writing_or_symbol",
+        "recording_or_depiction"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "representation_echo",
+      "soloCueVariants": [
+        "written_symbol_echo",
+        "image_or_record_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "sona",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F1961",
+      "domainId": "D_PERCEPTION_SOCIAL",
+      "curriculumBand": "P2",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_MIND_SOCIAL",
+      "soloCue": "knowledge_relation_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_PERCEPTION_SOCIAL",
+      "semanticFacets": [
+        "knowledge",
+        "skill_or_understanding",
+        "knowing_how"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "knowledge_relation_echo",
+      "soloCueVariants": [
+        "learned_information_echo",
+        "skill_or_understanding_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "soweli",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F1962",
+      "domainId": "D_LIFE_ENTITY",
+      "curriculumBand": "P0",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_LIFE",
+      "soloCue": "neutral_entity_presence_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_LIFE_ENTITY",
+      "semanticFacets": [
+        "living_or_bodily_concept",
+        "entity",
+        "ecological_relation"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "neutral_entity_presence_echo",
+      "soloCueVariants": [
+        "entity_identity_echo",
+        "ecological_relation_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "suli",
+      "spellEntryId": "word.suli",
+      "displayCodepoint": "U+F1963",
+      "domainId": "D_PROPERTY_FORM",
+      "curriculumBand": "P0",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "O_LENGTH",
+      "soloCue": "length_projection_long",
+      "inheritance": "axial_semantic_head",
+      "basic14Override": true,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_PROPERTY_FORM",
+      "semanticFacets": [
+        "large",
+        "long_or_tall",
+        "important",
+        "adult"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "length_projection_long",
+      "soloCueVariants": [
+        "game_length_projection_long",
+        "size_or_importance_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "suno",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F1964",
+      "domainId": "D_ENERGY_FIELD",
+      "curriculumBand": "P3",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_ENERGY",
+      "soloCue": "nonphysical_field_resonance_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_ENERGY_FIELD",
+      "semanticFacets": [
+        "energy_or_signal",
+        "environmental_condition",
+        "intensity"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "nonphysical_field_resonance_echo",
+      "soloCueVariants": [
+        "field_presence_echo",
+        "signal_or_intensity_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "supa",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F1965",
+      "domainId": "D_CRAFT_OBJECT",
+      "curriculumBand": "P3",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_CRAFT",
+      "soloCue": "supporting_plane_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_CRAFT_OBJECT",
+      "semanticFacets": [
+        "horizontal_surface",
+        "platform_or_furniture",
+        "supporting_plane"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "supporting_plane_echo",
+      "soloCueVariants": [
+        "platform_surface_echo",
+        "table_or_floor_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "suwi",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F1966",
+      "domainId": "D_PROPERTY_FORM",
+      "curriculumBand": "P3",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_FORM",
+      "soloCue": "noncollision_quality_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_PROPERTY_FORM",
+      "semanticFacets": [
+        "quality",
+        "state",
+        "form_or_evaluation"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "noncollision_quality_echo",
+      "soloCueVariants": [
+        "quality_contrast_echo",
+        "state_or_form_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "tan",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F1967",
+      "domainId": "D_SPACE_TIME",
+      "curriculumBand": "P2",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_SPACETIME",
+      "soloCue": "origin_or_cause_relation_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_SPACE_TIME",
+      "semanticFacets": [
+        "origin",
+        "cause_or_reason",
+        "from_relation"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "origin_or_cause_relation_echo",
+      "soloCueVariants": [
+        "spatial_origin_echo",
+        "causal_reason_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "taso",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F1968",
+      "domainId": "D_QUANTITY_LOGIC",
+      "curriculumBand": "P5",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_LOGIC",
+      "soloCue": "limitation_or_contrast_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_QUANTITY_LOGIC",
+      "semanticFacets": [
+        "only",
+        "limitation",
+        "contrast"
+      ],
+      "availableRoles": [
+        "modifier",
+        "predicate",
+        "discourse_particle",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "limitation_or_contrast_echo",
+      "soloCueVariants": [
+        "only_scope_echo",
+        "but_contrast_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "tawa",
+      "spellEntryId": "word.tawa",
+      "displayCodepoint": "U+F1969",
+      "domainId": "D_ACTION_PROCESS",
+      "curriculumBand": "P0",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "F_MOTION",
+      "soloCue": "motion_or_toward_relation_echo",
+      "inheritance": "moved_subject",
+      "basic14Override": true,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_ACTION_PROCESS",
+      "semanticFacets": [
+        "movement",
+        "toward_relation",
+        "from_perspective_of"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "motion_or_toward_relation_echo",
+      "soloCueVariants": [
+        "physical_motion_echo",
+        "direction_or_perspective_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "telo",
+      "spellEntryId": "word.telo",
+      "displayCodepoint": "U+F196A",
+      "domainId": "D_MATTER_ENV",
+      "curriculumBand": "P0",
+      "soloPolicy": "CAST_SAFE",
+      "prototypeActivationMp": 5,
+      "paletteId": "P_LIQUID",
+      "soloCue": "falling_water_blob",
+      "inheritance": "intrinsic",
+      "basic14Override": true,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_MATTER_ENV",
+      "semanticFacets": [
+        "liquid",
+        "water",
+        "beverage_or_washing"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "falling_water_blob",
+      "soloCueVariants": [
+        "falling_water_blob",
+        "liquid_identity_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "tenpo",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F196B",
+      "domainId": "D_SPACE_TIME",
+      "curriculumBand": "P2",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_SPACETIME",
+      "soloCue": "relational_frame_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_SPACE_TIME",
+      "semanticFacets": [
+        "spatial_relation",
+        "temporal_relation",
+        "contextual_relation"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "relational_frame_echo",
+      "soloCueVariants": [
+        "spatial_relation_echo",
+        "temporal_or_causal_context_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "toki",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F196C",
+      "domainId": "D_PERCEPTION_SOCIAL",
+      "curriculumBand": "P2",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_MIND_SOCIAL",
+      "soloCue": "communication_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_PERCEPTION_SOCIAL",
+      "semanticFacets": [
+        "speech",
+        "language",
+        "communication_or_story"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "communication_echo",
+      "soloCueVariants": [
+        "spoken_message_echo",
+        "language_or_narrative_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "tomo",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F196D",
+      "domainId": "D_CRAFT_OBJECT",
+      "curriculumBand": "P1",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_CRAFT",
+      "soloCue": "artifact_concept_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_CRAFT_OBJECT",
+      "semanticFacets": [
+        "artifact",
+        "shape_or_container",
+        "constructed_relation"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "artifact_concept_echo",
+      "soloCueVariants": [
+        "object_identity_echo",
+        "shape_or_use_relation_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "tu",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F196E",
+      "domainId": "D_QUANTITY_LOGIC",
+      "curriculumBand": "P3",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_LOGIC",
+      "soloCue": "pair_or_division_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_QUANTITY_LOGIC",
+      "semanticFacets": [
+        "two",
+        "division",
+        "pair"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "pair_or_division_echo",
+      "soloCueVariants": [
+        "two_count_echo",
+        "split_into_parts_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "unpa",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F196F",
+      "domainId": "D_LIFE_ENTITY",
+      "curriculumBand": "P5",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_LIFE",
+      "soloCue": "neutral_reciprocal_intimacy_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_LIFE_ENTITY",
+      "semanticFacets": [
+        "sexual_or_intimate_relation",
+        "consensual_closeness",
+        "reproductive_context"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "neutral_reciprocal_intimacy_echo",
+      "soloCueVariants": [
+        "consensual_intimacy_relation_echo",
+        "nonexplicit_reproductive_context_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "uta",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F1970",
+      "domainId": "D_LIFE_ENTITY",
+      "curriculumBand": "P5",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_LIFE",
+      "soloCue": "oral_interface_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_LIFE_ENTITY",
+      "semanticFacets": [
+        "mouth",
+        "oral_action",
+        "opening_or_voice"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "oral_interface_echo",
+      "soloCueVariants": [
+        "speech_or_intake_echo",
+        "mouth_opening_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "utala",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F1971",
+      "domainId": "D_ACTION_PROCESS",
+      "curriculumBand": "P4",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_ACTION",
+      "soloCue": "process_relation_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_ACTION_PROCESS",
+      "semanticFacets": [
+        "process",
+        "change",
+        "agency_or_relation"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "process_relation_echo",
+      "soloCueVariants": [
+        "process_phase_echo",
+        "agency_or_change_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "walo",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F1972",
+      "domainId": "D_PROPERTY_FORM",
+      "curriculumBand": "P3",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_FORM",
+      "soloCue": "noncollision_quality_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_PROPERTY_FORM",
+      "semanticFacets": [
+        "quality",
+        "state",
+        "form_or_evaluation"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "noncollision_quality_echo",
+      "soloCueVariants": [
+        "quality_contrast_echo",
+        "state_or_form_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "wan",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F1973",
+      "domainId": "D_QUANTITY_LOGIC",
+      "curriculumBand": "P3",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_LOGIC",
+      "soloCue": "unity_or_joining_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_QUANTITY_LOGIC",
+      "semanticFacets": [
+        "one",
+        "unity",
+        "joining"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "unity_or_joining_echo",
+      "soloCueVariants": [
+        "one_count_echo",
+        "joined_whole_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "waso",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F1974",
+      "domainId": "D_LIFE_ENTITY",
+      "curriculumBand": "P4",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_LIFE",
+      "soloCue": "neutral_entity_presence_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_LIFE_ENTITY",
+      "semanticFacets": [
+        "living_or_bodily_concept",
+        "entity",
+        "ecological_relation"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "neutral_entity_presence_echo",
+      "soloCueVariants": [
+        "entity_identity_echo",
+        "ecological_relation_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "wawa",
+      "spellEntryId": "word.wawa",
+      "displayCodepoint": "U+F1975",
+      "domainId": "D_ENERGY_FIELD",
+      "curriculumBand": "P3",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "F_POWER",
+      "soloCue": "nonphysical_field_resonance_echo",
+      "inheritance": "intensified_effect",
+      "basic14Override": true,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_ENERGY_FIELD",
+      "semanticFacets": [
+        "energy_or_signal",
+        "environmental_condition",
+        "intensity"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "nonphysical_field_resonance_echo",
+      "soloCueVariants": [
+        "field_presence_echo",
+        "signal_or_intensity_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "weka",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F1976",
+      "domainId": "D_SPACE_TIME",
+      "curriculumBand": "P0",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_SPACETIME",
+      "soloCue": "absence_or_distance_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_SPACE_TIME",
+      "semanticFacets": [
+        "away",
+        "absent",
+        "removed_or_ignored"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "absence_or_distance_echo",
+      "soloCueVariants": [
+        "spatial_distance_echo",
+        "absence_or_removal_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    },
+    {
+      "canonicalWordId": "wile",
+      "spellEntryId": null,
+      "displayCodepoint": "U+F1977",
+      "domainId": "D_QUANTITY_LOGIC",
+      "curriculumBand": "P1",
+      "soloPolicy": "CONTEXT_REQUIRED",
+      "prototypeActivationMp": 1,
+      "paletteId": "G_LOGIC",
+      "soloCue": "desire_or_need_echo",
+      "inheritance": "none_until_castplan_binding",
+      "basic14Override": false,
+      "reviewStatus": "draft",
+      "visualDomainId": "D_QUANTITY_LOGIC",
+      "semanticFacets": [
+        "desire",
+        "need",
+        "intention"
+      ],
+      "availableRoles": [
+        "content_head",
+        "modifier",
+        "predicate",
+        "contextual_relation"
+      ],
+      "gamePrototypeCue": "desire_or_need_echo",
+      "soloCueVariants": [
+        "desired_outcome_echo",
+        "necessary_condition_echo"
+      ],
+      "cueScope": "game_specific_noncanonical"
+    }
+  ],
+  "safetyContract": {
+    "allGlyphsDiscoverableAndActivatable": true,
+    "glyphActivationDoesNotGrantPhysicalMutation": true,
+    "physicalSingleWordWhitelist": [
+      "kiwen",
+      "ko",
+      "kon",
+      "lete",
+      "seli",
+      "telo"
+    ],
+    "forbiddenSingleWordEffects": [
+      "life_creation",
+      "living_control",
+      "direct_damage",
+      "automatic_healing",
+      "teleportation",
+      "time_stop",
+      "wealth_or_finished_goods_creation",
+      "mind_reading",
+      "unbounded_energy"
+    ]
+  },
+  "provenance": {
+    "codepointSource": "https://www.kreativekorp.com/ucsur/charts/sitelen.html",
+    "gameplaySource": "data/spells/single-word-spells.v0.1.yaml",
+    "progressionSource": "data/language/glyph-progression.v0.1.yaml",
+    "fontFamily": "Sitelen Seli Kiwen Mono Juniko",
+    "fontLicense": "SIL-OFL-1.1"
+  },
+  "semanticContract": {
+    "visualDomainsAreSemanticAuthority": false,
+    "visualDomainPurpose": "color_and_review_grouping_only",
+    "gamePrototypeCuesAreCanonicalDefinitions": false,
+    "cueScope": "game_specific_noncanonical",
+    "contextDeterminesRoleAndMeaning": true,
+    "wordClassIsNotFixedByCue": true,
+    "minimumCueVariantsPerGlyph": 2,
+    "uiDisclaimerRequired": true,
+    "uiDisclaimerZh": "颜色只表示游戏中的视觉分组；单字回响是玩法原型，不是该词的完整或唯一释义。词义与作用由语境和组合决定。",
+    "genderAndIntimacyCuePolicy": "neutral_nonanatomical_nonstereotyped_nonexplicit"
+  },
+  "deprecatedFields": {
+    "glyphs[].domainId": "Compatibility alias of visualDomainId; do not use as a semantic class.",
+    "glyphs[].soloCue": "Compatibility alias of gamePrototypeCue; use soloCueVariants for contextual presentation.",
+    "domains": "Compatibility container for visual domains; entries have no semantic authority."
+  }
+}

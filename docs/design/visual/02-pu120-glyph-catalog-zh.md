@@ -1,7 +1,7 @@
-# V-02｜pu-120 字形、魔法域与激活目录
+# V-02｜pu-120 字形、视觉域与激活目录
 
-状态：完整视觉基线 v0.1（待用户与社群审阅）  
-机器真源：`data/language/pu-120-glyph-catalog.v0.1.json`  
+状态：完整视觉基线 v0.2（待用户与社群审阅）
+机器真源：`data/language/pu-120-glyph-catalog.v0.2.json`
 范围：严格 `pu-120`，UCSUR `U+F1900–U+F1977`
 
 ## 1. 范围修正
@@ -26,7 +26,9 @@ solo_cast_policy       CAST_SAFE | CONTEXT_REQUIRED | DISABLED
 
 字形点亮不等于语言掌握，也不等于获得单字物理魔法。玩家可以发现并激活一个字，但仍需在不同情境中练习，才能把它稳定用于自由组合。
 
-## 3. 十个魔法域
+## 3. 十个视觉域
+
+十个域只负责颜色与视觉纹理分组，不是 toki pona 的权威语义分类，也不是词性或施法效果答案。每个词在数据中另有 `semanticFacets`、`availableRoles` 和至少两个 `soloCueVariants`；界面必须把单字回响标为游戏原型提示，不能把一种提示当作该词的完整定义。
 
 | 域 | 数量 | 通用激活色 | 单字默认表现 |
 |---|---:|---|---|
@@ -41,7 +43,7 @@ solo_cast_policy       CAST_SAFE | CONTEXT_REQUIRED | DISABLED
 | `D_SPACE_TIME` 时空关系 | 11 | `#718BCE` | 坐标与关系网格，不传送或停时 |
 | `D_PERCEPTION_SOCIAL` 感知社会 | 12 | `#C47D9A` | 感知波纹，不读心或控制生物 |
 
-十类颜色是默认域色。V-01 的 14 个词继续使用 `P_LIQUID/P_HEAT/P_COLD/P_HARD/P_MOLDABLE/P_GAS/F_*/O_LENGTH` 专属覆盖；组合时操作词仍可继承实际受作用对象的颜色。
+十类颜色是默认视觉域色。V-01 的 14 个词继续使用 `P_LIQUID/P_HEAT/P_COLD/P_HARD/P_MOLDABLE/P_GAS/F_*/O_LENGTH` 专属覆盖；组合时操作词仍可继承实际受作用对象的颜色。颜色只帮助玩家导航与记忆，不得替代多情境练习。
 
 ## 4. 课程阶段
 
