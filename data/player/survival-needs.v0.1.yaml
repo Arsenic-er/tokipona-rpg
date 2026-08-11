@@ -1,0 +1,174 @@
+schema_version: "g04.player-survival.v0.1"
+content_version: "chapter-01.prologue.1"
+profile_id: "survival.soft-needs.default.v0.1"
+status: "draft"
+
+wal_ref: "../persistence/cross-save-wal.v0.1.yaml"
+world_clock_state_ref: "../persistence/cross-save-wal.v0.1.yaml#survival_metabolism_clock"
+
+contracts:
+  survival_mode: "soft_long_cycle"
+  mandatory_hunting: false
+  needs_may_kill_player: false
+  needs_may_block_mainline: false
+  needs_may_modify_language_system: false
+  forbidden_reads: [expression_capacity, max_mp, current_mp, parse_result, hint_level, language_evidence, spell_damage, attack_qualification]
+  offline_decay: false
+  wall_clock_decay: false
+  pause_menu_dialogue_cutscene_idle_decay: false
+  meditation_and_language_ui_decay: false
+
+clock:
+  clock_id: "survival_metabolism_tick"
+  world_clock_id: "active_world_simulation_tick"
+  ticks_per_active_minute: 60
+  advances_when: [live_world_activity_not_marked_metabolism_exempt]
+  frozen_when: [safe_zone, first_25_content_minutes, high_cistern_task, pause, inventory_menu, dialogue, cutscene, meditation, language_composition_ui, loading, offline]
+  safe_zone_policy: "world_clock_advances_but_survival_metabolism_tick_is_frozen"
+  economic_work_in_safe_zone_advances_world_clock: true
+  metabolism_accounting_reads_world_tick_delta_forbidden: true
+  lazy_accounting_events: [scene_exit, scene_entry, checkpoint_commit, consumable_commit, save_flush]
+
+state_registry:
+  - {state_id: "player_satiety", type: number, range: [0, 100], initial: 85, persistence_scope: "global", save_owner: "player_survival_save", writer_service: "player_survival_service"}
+  - {state_id: "player_hydration", type: number, range: [0, 100], initial: 90, persistence_scope: "global", save_owner: "player_survival_save", writer_service: "player_survival_service"}
+  - {state_id: "survival_last_accounted_metabolism_tick", type: integer, initial: 0, persistence_scope: "global", save_owner: "player_survival_save", writer_service: "player_survival_service"}
+  - {state_id: "prologue_needs_floor_active", type: boolean, initial: true, persistence_scope: "global", save_owner: "chapter_progress_save", writer_service: "chapter_flow", unique_writer_event: "prologue_survival_floor_released"}
+  - {state_id: "new_game_survival_grant_claimed", type: boolean, initial: false, persistence_scope: "global", save_owner: "economy_ledger_save", unique_writer_event: "new_game_survival_grant_committed"}
+  - {state_id: "public_relief_first_use_claimed", type: boolean, initial: false, persistence_scope: "global", save_owner: "economy_ledger_save", unique_writer_event: "public_relief_first_use_committed"}
+
+metabolism:
+  base_per_active_hour:
+    satiety_delta: -6.0
+    hydration_delta: -10.0
+  exertion_multipliers:
+    normal_exploration: 1.0
+    sprint_or_continuous_excavation: 1.25
+    hot_environment: 1.25
+    sprint_in_hot_environment: 1.25
+  maximum_prologue_multiplier: 1.25
+  clamp_after_accounting: [0, 100]
+  identical_effects_from_both_meters_stack_rule: "use_worst_multiplier_not_product"
+  maximum_total_stamina_regeneration_penalty_fraction: 0.30
+  maximum_total_movement_penalty_fraction: 0.10
+
+thresholds:
+  satiety:
+    - {band: "normal", range: [60, 100], effects: {none: true}}
+    - {band: "notice", range: [35, 59.999], effects: {one_soft_reminder_per_band_entry: true}}
+    - {band: "hungry", range: [20, 34.999], effects: {stamina_regeneration_multiplier: 0.90, natural_hp_regeneration_multiplier: 0.75}}
+    - {band: "severe", range: [1, 19.999], effects: {stamina_maximum_multiplier: 0.85, natural_hp_regeneration_multiplier: 0.0}}
+    - {band: "empty", range: [0, 0], effects: {stamina_regeneration_multiplier: 0.70, natural_hp_regeneration_multiplier: 0.0, movement_speed_floor_multiplier: 0.90, hp_damage: 0}}
+  hydration:
+    - {band: "normal", range: [60, 100], effects: {none: true}}
+    - {band: "notice", range: [35, 59.999], effects: {one_soft_reminder_per_band_entry: true}}
+    - {band: "thirsty", range: [20, 34.999], effects: {stamina_regeneration_multiplier: 0.90, natural_hp_regeneration_multiplier: 0.75}}
+    - {band: "severe", range: [1, 19.999], effects: {stamina_maximum_multiplier: 0.85, natural_hp_regeneration_multiplier: 0.0}}
+    - {band: "empty", range: [0, 0], effects: {stamina_regeneration_multiplier: 0.70, natural_hp_regeneration_multiplier: 0.0, movement_speed_floor_multiplier: 0.90, hp_damage: 0}}
+  forbidden_effects: [mp_regeneration_change, mp_capacity_change, expression_capacity_change, language_accuracy_change, spell_damage_change]
+
+prologue_overrides:
+  chapter_flow_id: "ch01_world_literacy_prologue"
+  first_25_content_minutes:
+    ui_hidden: true
+    metabolism_frozen: true
+  settlement_orientation:
+    tutorial_optional: true
+    shared_well_available: true
+    communal_plant_meal_available: true
+    on_first_use_minimum_state: {player_satiety: 90, player_hydration: 90}
+    first_use_event: "public_relief_first_use_committed"
+    later_uses_apply_normal_consumption_profiles: true
+    language_answer_required: false
+  high_cistern_task:
+    task_id: "ch01_length_cistern"
+    metabolism_frozen: true
+  floor_until_prologue_complete: 20
+  floor_applies_after_all_deltas: true
+  floor_release_event: "prologue_survival_floor_released"
+  floor_release_trigger: "prologue_return_observed == true"
+  floor_release_accounts_metabolism_to_current_tick_first: true
+  forced_hunt_count: 0
+  needs_related_death_count: 0
+  maximum_tutorial_prompts: 1
+  maximum_threshold_reminders_per_meter: 2
+  free_basic_recovery_discovery_p95_seconds: 60
+  starting_inventory_grant_event: "new_game_survival_grant_committed"
+  starting_inventory:
+    - {item_id: "container.field_canteen", charges: 3, hydration_per_charge: 25, economy_eligible: false}
+    - {item_id: "food.travel_ration", quantity: 1, satiety: 30, economy_eligible: false}
+
+consumption_profiles:
+  - {consumable_id: "water.clean", hydration_delta: 35, satiety_delta: 0, requirements: [potable], empty_container_returned: true}
+  - {consumable_id: "water.manifested_telo", hydration_delta: 20, satiety_delta: 0, requirements: [non_toxic, direct_immediate_consumption], inventory_storage_forbidden: true, economy_eligible: false, evidence_award: false}
+  - {consumable_id: "food.travel_ration", hydration_delta: 0, satiety_delta: 30, requirements: [not_spoiled]}
+  - {consumable_id: "food.cooked_game_meat", hydration_delta: 0, satiety_delta: 35, requirements: [cooked, not_spoiled]}
+  - {consumable_id: "food.root_stew", hydration_delta: 10, satiety_delta: 50, requirements: [cooked, not_spoiled]}
+  - {consumable_category: "raw_meat", direct_consumption_allowed_in_prologue: false, rejection_code: "cook_before_eating"}
+
+transaction_contract:
+  event_id: "survival_consumption_committed"
+  coordinator: "cross_save_wal.v0.1"
+  transaction_kind: "consume"
+  compare_and_swap_fields: [lot_ownership_revision, lot_remaining_quantity, survival_state_revision]
+  atomic_steps: [validate_owned_lot_or_world_source, reserve_consumable, account_metabolism_to_current_survival_tick, apply_meter_delta, consume_or_decrement_source, write_receipt]
+  idempotency_key_fields: [player_save_id, consumable_source_id, consumption_sequence]
+  transaction_id_and_receipt_id_source: "cross_save_wal.v0.1"
+  duplicate_commit_is_noop: true
+  checkpoint_rewind_does_not_restore_consumed_item: true
+  manifested_water_exception: "direct hydration only; creates no inventory lot currency or language evidence"
+
+grant_contracts:
+  new_game_survival_grant:
+    event_id: "new_game_survival_grant_committed"
+    transaction_kind: "survival_grant"
+    idempotency_key_fields: [player_save_id, profile_id, new_game_sequence]
+    compare_and_swap: {new_game_survival_grant_claimed: false}
+    atomic_steps: [create_starting_inventory_lots_with_deterministic_ids, set_new_game_survival_grant_claimed_true, write_receipt]
+  public_relief_first_use:
+    event_id: "public_relief_first_use_committed"
+    transaction_kind: "survival_grant"
+    idempotency_key_fields: [player_save_id, settlement_id, relief_service_version]
+    compare_and_swap: {public_relief_first_use_claimed: false}
+    atomic_steps: [account_metabolism_to_current_survival_tick, apply_minimum_meter_state, set_public_relief_first_use_claimed_true, write_receipt]
+  prologue_floor_release:
+    event_id: "prologue_survival_floor_released"
+    coordinator: "cross_save_wal.v0.1"
+    transaction_kind: "survival_floor_release"
+    idempotency_key_fields: [player_save_id, chapter_flow_id, prologue_completion_sequence]
+    compare_and_swap: {prologue_needs_floor_active: true}
+    deterministic_receipt_id_source: "cross_save_wal.v0.1"
+    atomic_steps: [account_metabolism_to_current_survival_tick, set_prologue_needs_floor_active_false, write_chapter_receipt]
+
+language_boundary:
+  prologue_active_new_words_added: 0
+  optional_receptive_exposure: [moku]
+  eating_or_drinking_is_language_evidence: false
+  future_word_sequence:
+    - [moku, kili]
+    - [soweli, selo]
+    - [seli, lete]
+    - [esun, mani]
+  phrase_examples_are_non_normative: ["moku soweli", "selo soweli", "moku seli"]
+
+telemetry:
+  events: [survival_meter_accounted, survival_band_entered, survival_consumption_committed, public_relief_used, manifested_water_consumed]
+  privacy: {upload_exact_inventory_lots: false, upload_meter_band_only: true}
+  acceptance:
+    prologue_needs_deaths: 0
+    prologue_forced_hunts: 0
+    survival_ui_active_time_share_maximum: 0.03
+    language_interactions_interrupted_by_needs_share_maximum: 0.02
+    active_retrieval_success_drop_vs_needs_disabled_percentage_points_maximum: 5
+
+golden_tests:
+  - {id: "needs.three_hour_baseline", input: {satiety: 85, hydration: 90, active_minutes: 180, multiplier: 1.0}, expect: {satiety: 67, hydration: 60}}
+  - {id: "needs.pause_no_decay", input: {active_minutes: 0, paused_minutes: 180}, expect: {satiety_delta: 0, hydration_delta: 0}}
+  - {id: "needs.prologue_floor", input: {satiety: 21, hydration: 21, active_minutes: 120}, expect: {satiety: 20, hydration: 20}}
+  - {id: "needs.zero_is_nonlethal", input: {satiety: 0, hydration: 0}, expect: {hp_damage: 0, movement_possible: true}}
+  - {id: "needs.no_language_or_mp_effect", expect: {language_fields_written: 0, mp_fields_written: 0, spell_damage_fields_written: 0}}
+  - {id: "needs.consume_idempotent", input: {duplicate_commit_count: 2}, expect: {meter_delta_count: 1, item_consumption_count: 1}}
+  - {id: "needs.grant_exactly_once", input: {new_game_reload_count: 3}, expect: {canteen_grant_count: 1, ration_grant_count: 1}}
+  - {id: "needs.floor_release_survives_reload", input: {release_commit_count: 2, reload: true}, expect: {prologue_needs_floor_active: false, release_receipt_count: 1}}
+  - {id: "needs.safe_zone_work_clock", input: {settlement_processing_active_minutes: 10}, expect: {world_clock_minutes_delta: 10, survival_meter_delta: 0}}
+  - {id: "needs.safe_zone_work_then_consume", input: {safe_zone_work_world_ticks: 600, consume_after_work: true}, expect: {metabolism_tick_delta: 0, metabolism_meter_delta: 0, consumable_meter_delta_count: 1}}

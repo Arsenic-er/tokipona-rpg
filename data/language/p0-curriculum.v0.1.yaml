@@ -1,0 +1,190 @@
+schema_version: "language.p0-curriculum.v0.1"
+content_version: "prologue-12.vertical-slice.1"
+status: "content_candidate"
+progression_ref: "./learning-progression.v0.2.yaml"
+glyph_catalog_ref: "./pu-120-glyph-catalog.v0.2.json"
+
+scope:
+  band: P0
+  unique_word_count: 12
+  first_three_hours_is_content_budget_not_real_time_gate: true
+  spell_notation_and_natural_sentence_are_separate: true
+  chapter_tokens_outside_p0: [o, wawa]
+  chapter_tokens_outside_p0_count_toward_p0: false
+  identifier_contract:
+    word_id_format: "裸拉丁 token，例如 telo。"
+    canonical_ast_word_id_format: "word.<word_id>，例如 word.telo。"
+
+target_state_ceiling_first_three_hours:
+  produced: [telo, tawa, lili, suli]
+  grounded: [seli, kiwen, awen]
+  attuned: [kon, kasi, lukin, weka, soweli]
+  note: "状态上限按本阶段主动负荷设计；grounded 集合不含已经 produced 的四词。"
+
+activation_medium:
+  item_id: learning.common_inscription_medium
+  name_zh: 通用刻印媒介
+  scarcity: common
+  tradeable: false
+  random_drop_required: false
+  consumed_on_failed_or_interrupted_activation: false
+  word_specific_component: "环境见证，不是背包中的一词一材料配方。"
+
+words:
+  - word_id: telo
+    first_location: forest_spring
+    witness: flowing_or_contained_water
+    grounding_task: repair_water_channel
+    target_state: produced
+    semantic_facets: [water_or_liquid, drinking_washing_or_containment]
+    misconception_to_repair: "telo 只等于水弹。"
+    production_task_families: [channel_routing, washing_or_filling]
+    meditation:
+      recognition_distractors: [kon, kiwen]
+      context_contrast: [falling_water, liquid_used_without_attack]
+  - word_id: tawa
+    first_location: waterwheel_marker
+    witness: existing_motion
+    grounding_task: restore_waterwheel_motion
+    target_state: produced
+    semantic_facets: [physical_motion, toward_or_perspective_relation]
+    misconception_to_repair: "tawa 永远只是向前移动。"
+    production_task_families: [waterwheel_motion, cart_or_object_motion]
+    meditation:
+      recognition_distractors: [awen, weka]
+      context_contrast: [object_moves, relation_toward_reference]
+  - word_id: lili
+    first_location: narrow_root_hollow
+    witness: narrow_gap
+    grounding_task: cistern_short_length
+    target_state: produced
+    semantic_facets: [small_or_short, few_or_young]
+    misconception_to_repair: "lili 永远把整个对象等比缩小。"
+    game_projection: "元素构形只映射 LENGTH 0.5，固定截面。"
+    production_task_families: [cistern_precision_window, narrow_gap_transfer]
+    meditation:
+      recognition_distractors: [suli]
+      context_contrast: [short_length, small_or_few_nonspell_context]
+  - word_id: suli
+    first_location: old_cistern
+    witness: long_span
+    grounding_task: cistern_long_length
+    target_state: produced
+    semantic_facets: [large_long_or_tall, important_or_adult]
+    misconception_to_repair: "suli 永远增加伤害或整体尺寸。"
+    game_projection: "元素构形只映射 LENGTH 2.0，固定截面。"
+    production_task_families: [cistern_long_span, cross_material_length]
+    meditation:
+      recognition_distractors: [lili]
+      context_contrast: [long_length, important_or_adult_nonspell_context]
+  - word_id: seli
+    first_location: charcoal_cave
+    witness: safe_hearth_or_warm_surface
+    grounding_task: relight_safe_hearth
+    target_state: grounded
+    semantic_facets: [fire_or_heat, cooking_or_chemical_change]
+    misconception_to_repair: "seli 必然生成远程火焰攻击。"
+    meditation:
+      recognition_distractors: [suno, lete]
+      context_contrast: [local_heat, cooking_or_warmth]
+  - word_id: kiwen
+    first_location: old_quarry_wall
+    witness: hard_solid_material
+    grounding_task: brace_fallen_path
+    target_state: grounded
+    semantic_facets: [hardness, stone_metal_or_solid_object]
+    misconception_to_repair: "kiwen 只表示石弹。"
+    meditation:
+      recognition_distractors: [ko, ma]
+      context_contrast: [falling_hard_chunk, hardness_or_material_identity]
+  - word_id: awen
+    first_location: ruin_support_pillar
+    witness: maintained_structure
+    grounding_task: hold_dissipating_state
+    target_state: grounded
+    semantic_facets: [remain_or_wait, keep_protect_or_continue]
+    misconception_to_repair: "awen 只是一种冻结或静止魔法。"
+    meditation:
+      recognition_distractors: [tawa, pini]
+      context_contrast: [remain_in_state, protect_or_keep]
+  - word_id: kon
+    first_location: cave_airshaft
+    witness: visible_draft_trace
+    grounding_task: reveal_draft_path
+    target_state: attuned
+    semantic_facets: [air_or_gas, breath_or_unseen_essence]
+    misconception_to_repair: "kon 单字必然让其他物质悬浮。"
+    meditation:
+      recognition_distractors: [telo, sewi]
+      context_contrast: [air_pulse, breath_or_unseen_presence]
+  - word_id: kasi
+    first_location: herb_grove
+    witness: living_plant
+    grounding_task: identify_usable_plant
+    target_state: attuned
+    semantic_facets: [plant_or_vegetation, plant_without_medicine_assumption]
+    misconception_to_repair: "kasi 必然是药草或治疗。"
+    meditation:
+      recognition_distractors: [kili, soweli]
+      context_contrast: [useful_plant, nonmedicinal_plant]
+  - word_id: lukin
+    first_location: lookout_stone
+    witness: distant_visible_clue
+    grounding_task: observe_without_collecting
+    target_state: attuned
+    semantic_facets: [see_look_or_watch, examine_or_read_visual_information]
+    misconception_to_repair: "lukin 等于已经知道，或可以读心。"
+    meditation:
+      recognition_distractors: [sona, oko]
+      context_contrast: [look_at_clue, inspect_visual_mark]
+  - word_id: weka
+    first_location: collapsed_side_cave
+    witness: displaced_obstacle
+    grounding_task: move_blockage_without_destroying
+    target_state: attuned
+    semantic_facets: [away_or_distant, absent_removed_or_ignored]
+    misconception_to_repair: "weka 是永久删除对象的魔法。"
+    meditation:
+      recognition_distractors: [lon, tawa]
+      context_contrast: [spatial_distance, absence_or_removal]
+  - word_id: soweli
+    first_location: animal_trail
+    witness: tracks_and_distant_animal
+    grounding_task: track_without_hunting
+    target_state: attuned
+    semantic_facets: [land_animal, animal_identity_without_all_life_assumption]
+    misconception_to_repair: "soweli 泛指所有生命，或发现后必须狩猎。"
+    meditation:
+      recognition_distractors: [waso, kala, kasi]
+      context_contrast: [animal_tracks, peaceful_land_animal]
+
+meditation_families:
+  - id: glyph_sound_recognition
+    evidence_ceiling: discovered
+    removes_cues: [domain_color]
+  - id: dual_context_grounding
+    evidence_ceiling: grounded
+    format: "两个合理情境加一个把游戏原型误当完整词义的陷阱。"
+  - id: scene_to_active_retrieval
+    evidence_ceiling: produced
+    max_eligible_prompt_level: 1
+  - id: misunderstanding_repair
+    evidence_ceiling: produced
+    feedback_codes: [parsed_ambiguous, parsed_out_of_scope, unparseable]
+  - id: delayed_parallel_transfer
+    evidence_ceiling: stabilized
+    changes: [surface_material, target_class, location, ui_layout]
+    unrelated_world_events_minimum: 2
+    environment_must_be_outside_produced_baseline: true
+    unseen_and_delayed_fingerprints_must_differ: true
+    unseen_and_delayed_variant_hashes_must_differ: true
+
+content_acceptance:
+  all_words_recoverable: true
+  all_words_have_pronunciation_audio: required
+  contexts_per_word_minimum: 2
+  misconception_counterexample_per_word_minimum: 1
+  color_only_identification_forbidden: true
+  fixed_slot_only_production_forbidden: true
+  raw_string_equality_as_success_forbidden: true
+  community_semantic_review_required: true

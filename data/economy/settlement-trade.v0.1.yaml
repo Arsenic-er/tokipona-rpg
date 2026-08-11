@@ -1,0 +1,177 @@
+schema_version: "economy.settlement-trade.v0.1"
+content_version: "prologue.1"
+status: "graybox"
+runtime_scope: "demo_only_player_sells_to_merchant"
+authoritative_item_catalog: "wildlife-products.v0.1.yaml"
+
+design_goal:
+  - "给前三小时的探索、狩猎和加工提供小额收入，但不替代世界探索。"
+  - "所有拒收都显示稳定的原因；交易不能静默吞物品。"
+  - "魔法显化物、公共救济、任务证据和语言知识不得变现。"
+  - "价格由来源、状态、质量与当期需求共同决定。"
+
+flow:
+  steps: [select_merchant, inspect_eligibility, create_quote, confirm_once, issue_receipt]
+  quote_lifetime_active_seconds: 300
+  quote_clock: "session_monotonic_active_seconds"
+  quote_clock_freezes_when_document_hidden_or_game_paused: true
+  quote_persists_across_save: false
+  commit_requires:
+    - merchant_demand_revision_match
+    - inventory_revision_match
+    - wallet_revision_match
+    - lot_ownership_revision_match
+    - lot_freshness_revision_match
+  transaction_idempotent: true
+  same_transaction_id_same_payload: "return_original_receipt"
+  same_transaction_id_different_payload: "reject_transaction_payload_conflict"
+  receipt_persists_across_save: true
+  mixed_container_policy: "block_forbidden_lines_and_explain_each; never silently consume"
+
+price:
+  currency: coin
+  rounding: "floor_each_demand_tier_after_multiplying_the_line_quantity"
+  formula: "floor(base * freshness * quality * full_units) + floor(base * freshness * quality * 0.25 * excess_units)"
+  freshness_multiplier:
+    fresh: 1.0
+    aging: 0.75
+    near_spoil: 0.5
+    spoiled: forbidden
+    decomposed: forbidden
+    rotten: forbidden
+    cured: 1.0
+    stable: 1.0
+  quality_multiplier:
+    standard: 1.0
+    rough: 0.75
+    poor: 0.5
+    below_0_5: forbidden
+  zero_coin_line: forbidden
+
+restock:
+  authoritative_contract: "wildlife-products.v0.1.yaml:settlement_market.restock_contract"
+  required_distinct_eligible_events: 3
+  eligible_events: [mainline_world_predicate_commit, non_replayed_side_task_commit, region_transition_commit]
+  required_state: [restock_event_cursor, processed_event_ids]
+  forbidden_triggers: [reopen_ui, reload_save, checkpoint_reset, repeated_event]
+  bare_restock_api_forbidden: true
+
+merchants:
+  - id: settlement.butcher
+    profession_zh: 屠户
+    runtime: active
+    buys: [raw_meat, cooked_meat, preserved_meat]
+    sells: [processed_meat, dried_meat_limited]
+    full_price_units_per_restock: 2
+    excess_policy: quarter_price
+    ownership_policy: legal_only
+    refuses: [corpse, spoiled_meat, contaminated_meat, manifested_meat]
+
+  - id: settlement.tanner
+    profession_zh: 制革匠
+    runtime: active
+    buys: [leather]
+    conditional_buys: [{category: raw_hide, unlock_condition: post_prologue_raw_hide_market}]
+    sells: [cured_leather, leather_cord, simple_leather_goods]
+    full_price_units_per_restock: 1
+    excess_policy: reject
+    ownership_policy: legal_only
+    refuses: [raw_hide_during_prologue, rotten_hide, invalid_origin]
+
+  - id: settlement.grocer
+    profession_zh: 杂货商
+    runtime: active
+    buys: [food_supply]
+    sells: [salt, travel_ration, canteen_refill]
+    full_price_units_per_restock: 3
+    excess_policy: quarter_price
+    refuses: [public_relief, spoiled_food, stolen_goods]
+
+  - id: settlement.smith
+    profession_zh: 铁匠
+    runtime: planned
+    buys: [legal_tool, processed_metal]
+    sells: [knife, axe, metal_tool, repair]
+    refuses: [quest_loan, armed_explosive]
+
+  - id: settlement.carpenter
+    profession_zh: 木匠
+    runtime: planned
+    buys: [legal_wood, repair_part]
+    sells: [handle, container, building_part]
+    refuses: [illegally_cut_wood, quest_reserved_material]
+
+  - id: settlement.herbalist
+    profession_zh: 草药师
+    runtime: planned
+    buys: [identified_plant]
+    sells: [herb, salve, identification]
+    refuses: [contaminated_plant, unknown_poison]
+
+  - id: settlement.archivist
+    profession_zh: 档案员
+    runtime: planned
+    buys: [ordinary_duplicate_document]
+    sells: [paper, charcoal, map_lead, ruin_interpretation]
+    refuses: [glyph_knowledge, first_rubbing, language_evidence, quest_document]
+
+  - id: settlement.fence
+    profession_zh: 销赃商
+    runtime: planned
+    ownership_policy: fence
+    buys: [noncritical_stolen_tool, identified_nonunique_relic]
+    sells: [suspicious_tool, information]
+    refuses: [key_item, npc_essential, unidentified_unique_relic]
+
+prologue_items:
+  - {id: food.raw_small_game_meat, category: raw_meat, base_player_sell_coin: 1, player_can_sell: true, buyer: settlement.butcher}
+  - {id: food.raw_predator_meat, category: raw_meat, base_player_sell_coin: 1, player_can_sell: true, buyer: settlement.butcher, extra_checks: [parasite_risk, processing_requirement]}
+  - {id: food.cooked_game_meat, category: cooked_meat, base_player_sell_coin: 2, player_can_sell: true, buyer: settlement.butcher}
+  - {id: food.dried_game_meat, category: preserved_meat, base_player_sell_coin: 3, player_can_sell: true, buyer: settlement.butcher}
+  - {id: material.raw_small_hide, category: raw_hide, base_player_sell_coin: 2, player_can_sell: false, unlock_condition: post_prologue_raw_hide_market, buyer: settlement.tanner}
+  - {id: material.raw_medium_pelt, category: raw_hide, base_player_sell_coin: 4, player_can_sell: false, unlock_condition: post_prologue_raw_hide_market, buyer: settlement.tanner}
+  - {id: material.cured_small_leather, category: leather, base_player_sell_coin: 2, player_can_sell: true, buyer: settlement.tanner}
+  - {id: material.cured_medium_leather, category: leather, base_player_sell_coin: 3, player_can_sell: true, buyer: settlement.tanner}
+  - {id: material.salt, category: tannin_or_salt, base_player_sell_coin: 0, merchant_sale_coin_candidate: 2, player_can_sell: false, seller: settlement.grocer}
+  - {id: food.travel_ration, category: food_supply, base_player_sell_coin: 1, merchant_sale_coin_candidate: 3, player_can_sell: true, buyer: settlement.grocer}
+
+never_trade:
+  - glyph_discovery_or_mastery_state
+  - first_glyph_rubbing
+  - language_learning_evidence
+  - expression_capacity
+  - mp_or_spell_unlock
+  - quest_key_or_borrowed_item
+  - public_relief_food_or_water
+  - manifested_or_temporary_matter
+  - spoiled_or_contaminated_food
+  - armed_or_active_explosive
+  - equipped_or_reserved_item
+  - npc_essential_item
+  - unidentified_unique_relic
+
+eligibility_first_failure_order:
+  - merchant_not_found
+  - merchant_unavailable
+  - item_unknown
+  - knowledge_or_quest_bound
+  - reserved_or_equipped
+  - origin_not_natural
+  - stolen_or_ownership_invalid
+  - item_not_sellable
+  - category_not_accepted
+  - prologue_restriction
+  - freshness_rejected
+  - contamination_rejected
+  - quality_too_low
+  - insufficient_quantity
+  - demand_exhausted
+  - zero_price
+  - eligible
+
+research_anchors:
+  - {topic: profession_filters, url: "https://ck.uesp.net/wiki/Creating_a_Merchant"}
+  - {topic: item_keyword_filters, url: "https://ck.uesp.net/wiki/Keyword"}
+  - {topic: item_refusal_flags, url: "https://github.com/CleverRaven/Cataclysm-DDA/blob/master/doc/JSON/JSON_FLAGS.md"}
+  - {topic: time_based_merchant_gold_restock_reference_not_inventory_policy, url: "https://gitlab.com/OpenMW/openmw/blob/master/docs/openmw-stage1.md"}
+  - {topic: idempotent_commit, url: "https://learn.microsoft.com/en-us/xbox/playfab/economy-monetization/economy-v2/tutorials/idempotent-transactions-and-retries"}

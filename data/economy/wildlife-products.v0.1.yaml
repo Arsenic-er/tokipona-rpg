@@ -1,0 +1,330 @@
+schema_version: "w03.wildlife-economy.v0.1"
+content_version: "chapter-01.prologue.1"
+economy_id: "valley_wildlife_products"
+status: "draft"
+
+survival_profile_ref: "../player/survival-needs.v0.1.yaml"
+wal_ref: "../persistence/cross-save-wal.v0.1.yaml"
+world_clock_state_ref: "../persistence/cross-save-wal.v0.1.yaml#world_clock"
+
+contracts:
+  optional_hunting_allowed: true
+  mandatory_hunting: false
+  direct_loot_drop_on_death: false
+  death_creates_one_corpse_record: true
+  carcass_processing_required_for_meat_or_hide: true
+  wildlife_outputs_required_for_mainline: false
+  wildlife_outputs_required_for_attack_qualification: false
+  wildlife_outputs_required_for_language_evidence: false
+  direct_currency_on_kill: 0
+  rare_drops: 0
+  quest_key_drops: 0
+  juvenile_harvest_outputs: 0
+  nonviolent_income_is_intended_to_be_more_efficient: true
+  temporary_manifested_matter_economy_forbidden: true
+  provenance_laundering_through_processing_forbidden: true
+
+time_and_decay:
+  clock_id: "active_world_simulation_tick"
+  settlement_processing_advances_clock: true
+  survival_metabolism_may_remain_frozen_while_clock_advances: true
+  wall_clock_and_offline_decay: false
+  lazy_decay_on_load: true
+  freshness_states: [fresh, aging, spoiled, decomposed]
+  hide_states: [raw, slipping, rotten, cured]
+  profiles:
+    raw_meat_temperate: {fresh_hours: 6, aging_hours: 6, spoiled_hours: 12, decomposed_after_hours: 24}
+    cooked_meat_temperate: {fresh_hours: 18, aging_hours: 18, spoiled_hours: 36, decomposed_after_hours: 72}
+    dried_meat_temperate: {fresh_hours: 72, aging_hours: 72, spoiled_hours: 144, decomposed_after_hours: 288}
+    raw_hide_temperate: {raw_hours: 24, slipping_hours: 24, rotten_after_hours: 48}
+    cured_leather: {stable: true}
+  state_fields: [freshness_mu, contamination_mu, moisture_band, temperature_exposure_integral, preservation_profile_id, last_decay_eval_tick]
+  processing_never_resets_spoilage_history: true
+
+item_definitions:
+  - {item_id: "carcass.rabbit", category: "corpse", inventory_mode: "heavy_world_object", sellable: false}
+  - {item_id: "carcass.fox", category: "corpse", inventory_mode: "heavy_world_object", sellable: false}
+  - {item_id: "carcass.bat", category: "corpse", inventory_mode: "heavy_world_object", sellable: false}
+  - {item_id: "carcass.frog", category: "corpse", inventory_mode: "heavy_world_object", sellable: false}
+  - {item_id: "food.raw_small_game_meat", category: "raw_meat", preservation_profile_id: "raw_meat_temperate", base_buy_price_coin: 1, prologue_edible: false}
+  - {item_id: "food.raw_predator_meat", category: "raw_meat", preservation_profile_id: "raw_meat_temperate", base_buy_price_coin: 1, prologue_edible: false}
+  - {item_id: "food.cooked_game_meat", category: "cooked_meat", preservation_profile_id: "cooked_meat_temperate", base_buy_price_coin: 2, satiety_delta: 35}
+  - {item_id: "food.dried_game_meat", category: "preserved_meat", preservation_profile_id: "dried_meat_temperate", base_buy_price_coin: 3, satiety_delta: 25}
+  - {item_id: "material.raw_small_hide", category: "raw_hide", preservation_profile_id: "raw_hide_temperate", base_buy_price_coin: 2}
+  - {item_id: "material.raw_medium_pelt", category: "raw_hide", preservation_profile_id: "raw_hide_temperate", base_buy_price_coin: 4}
+  - {item_id: "material.cured_small_leather", category: "leather", preservation_profile_id: "cured_leather", base_buy_price_coin: 2}
+  - {item_id: "material.cured_medium_leather", category: "leather", preservation_profile_id: "cured_leather", base_buy_price_coin: 3}
+  - {item_id: "material.salt", category: "tannin_or_salt", base_buy_price_coin: 1, source: "settlement_grocery_or_salt_gathering"}
+
+harvest_profiles:
+  - profile_id: "harvest.rabbit.v0.1"
+    species: "rabbit"
+    carcass_item_id: "carcass.rabbit"
+    adult_full_yield:
+      - {tissue_slot_id: "meat", item_id: "food.raw_small_game_meat", quantity: 2}
+      - {tissue_slot_id: "hide", item_id: "material.raw_small_hide", quantity: 1}
+    ecological_effects: [rabbit_population_reduced, fox_foraging_pressure_increased, meadow_grazing_reduced]
+  - profile_id: "harvest.fox.v0.1"
+    species: "fox"
+    carcass_item_id: "carcass.fox"
+    adult_full_yield:
+      - {tissue_slot_id: "meat", item_id: "food.raw_predator_meat", quantity: 1}
+      - {tissue_slot_id: "hide", item_id: "material.raw_medium_pelt", quantity: 1}
+    ecological_effects: [fox_population_reduced, rabbit_population_pressure_increased, settlement_garden_damage_pressure_increased]
+  - profile_id: "harvest.bat.v0.1"
+    species: "cave_bat"
+    carcass_item_id: "carcass.bat"
+    adult_full_yield:
+      - {tissue_slot_id: "meat", item_id: "food.raw_small_game_meat", quantity: 1}
+    ecological_effects: [flying_insect_pressure_increased, living_vibration_warning_removed]
+    redundant_hazard_feedback_required: [ceiling_cracks, falling_dust, stone_sound]
+  - profile_id: "harvest.frog.v0.1"
+    species: "mud_frog"
+    carcass_item_id: "carcass.frog"
+    adult_full_yield:
+      - {tissue_slot_id: "meat", item_id: "food.raw_small_game_meat", quantity: 1}
+    ecological_effects: [wetland_insect_pressure_increased, frog_ambience_reduced]
+
+juvenile_policy: {creates_corpse: true, harvest_slots: [], sale_value: 0}
+damage_quality:
+  clean_tool: {meat_yield_multiplier: 1.0, hide_quality_multiplier: 1.0}
+  no_tool: {meat_yield_multiplier: 0.5, hide_quality_multiplier: 0.0}
+  fire_or_explosion: {meat_yield_multiplier: 0.5, hide_quality_multiplier: 0.25}
+  crushing_impact: {meat_yield_multiplier: 0.75, hide_quality_multiplier: 0.5}
+zero_quality_output_policy: "omit_output_lot_and_record_zero_yield_reason"
+yield_quantity_rounding: "floor_each_output_after_multiplier"
+
+processing_contract:
+  work_unit_active_seconds: 60
+  safe_zone_work_advances_world_clock_but_not_survival_metabolism: true
+  field_knife_public_loan_at_settlement: true
+
+processing_recipes:
+  - recipe_id: "process.field_dress.v0.1"
+    station_or_tool_any: [butcher_table, field_knife]
+    input_category: "corpse"
+    output_source: "harvest_profile_remaining_tissue_slots"
+    transaction_kind: "harvest"
+    generic_process_output_path_forbidden: true
+    interaction_work_units: 4
+    real_time_wait: false
+    direct_language_evidence: false
+  - recipe_id: "cook.game_meat.v0.1"
+    station_any: [communal_kitchen, campfire_with_pan]
+    inputs: [{category: "raw_meat", quantity: 1}]
+    energy_requirement: {kind: "heat_work", eu: 8}
+    outputs: [{item_id: "food.cooked_game_meat", quantity: 1}]
+    interaction_work_units: 3
+    reject_input_states: [spoiled, decomposed]
+    output_freshness_formula: "min(recipe_freshness_cap, weighted_input_remaining_freshness)"
+    manifested_heat_allowed_as_energy_only: true
+    direct_language_evidence: false
+  - recipe_id: "dry.game_meat.v0.1"
+    station: "drying_rack"
+    inputs: [{category: "raw_meat", quantity: 1}, {item_id: "material.salt", quantity: 1}]
+    outputs: [{item_id: "food.dried_game_meat", quantity: 1}]
+    completion_rule: "after_two_unrelated_world_events"
+    interaction_work_units: 6
+    required_distinct_eligible_events: 2
+    eligible_event_filter: [mainline_world_predicate_commit, non_replayed_side_task_commit, region_transition_commit]
+    reject_input_states: [spoiled, decomposed]
+    real_time_wait: false
+    direct_language_evidence: false
+  - recipe_id: "tan.small_hide.v0.1"
+    station: "settlement_tannery"
+    inputs: [{item_id: "material.raw_small_hide", quantity: 1}, {category: "tannin_or_salt", quantity: 1}]
+    outputs: [{item_id: "material.cured_small_leather", quantity: 1}]
+    completion_rule: "after_one_unrelated_world_event"
+    interaction_work_units: 5
+    required_distinct_eligible_events: 1
+    eligible_event_filter: [mainline_world_predicate_commit, non_replayed_side_task_commit, region_transition_commit]
+    reject_input_states: [rotten]
+    real_time_wait: false
+    direct_language_evidence: false
+  - recipe_id: "tan.medium_pelt.v0.1"
+    station: "settlement_tannery"
+    inputs: [{item_id: "material.raw_medium_pelt", quantity: 1}, {category: "tannin_or_salt", quantity: 1}]
+    outputs: [{item_id: "material.cured_medium_leather", quantity: 1}]
+    completion_rule: "after_one_unrelated_world_event"
+    interaction_work_units: 5
+    required_distinct_eligible_events: 1
+    eligible_event_filter: [mainline_world_predicate_commit, non_replayed_side_task_commit, region_transition_commit]
+    reject_input_states: [rotten]
+    real_time_wait: false
+    direct_language_evidence: false
+
+provenance_contract:
+  corpse_id_formula: "sha256(economy_id, life_instance_id)"
+  death_event_id_formula: "sha256(region_save_id, life_instance_id, life_state_dead)"
+  corpse_unique_constraints: [life_instance_id, corpse_id]
+  corpse_fields: [corpse_id, region_id, life_instance_id, death_event_id, death_tick, cause_class, position, tissue_slots, revision, decay_state, last_decay_eval_tick]
+  lot_id_formula: "cross_save_wal.output_id_formula(transaction_id, inventory_lot, output_index)"
+  receipt_id_formula: "cross_save_wal.receipt_id_formula(transaction_id, receipt_kind)"
+  lot_fields: [lot_id, item_id, quantity, origin_kind, life_instance_id, death_event_id, harvest_event_id, parent_lot_ids, transform_event_id, matter_origin, natural_fraction, freshness_created_tick, freshness_revision, contamination_mu, quality_multiplier, economy_eligible, ownership_revision]
+  processed_output_freshness_formula: "min(recipe_freshness_cap, weighted_input_remaining_freshness_after_exposure)"
+  processed_output_quality_formula: "minimum_input_quality_times_recipe_quality_multiplier"
+  ui_stacking_preserves_underlying_lots: true
+  economy_eligibility:
+    natural_fraction_minimum: 1.0
+    temporary_manifested_matter_fraction_maximum: 0.0
+    processing_propagates_lowest_input_eligibility: true
+    manifested_heat_does_not_change_natural_matter_origin: true
+    container_transfer_does_not_change_provenance: true
+
+transaction_contracts:
+  coordinator: "cross_save_wal.v0.1"
+  deterministic_output_ids_source: "cross_save_wal.v0.1"
+  death:
+    transaction_kind: "death"
+    idempotency_key_fields: [region_save_id, life_instance_id]
+    deterministic_death_event_id: true
+    unique_constraints: [life_instance_id, corpse_id]
+    atomic_steps: [write_life_tombstone, create_corpse_once, remove_alive_spawn_eligibility, if_adult_decrement_species_living_count_once, increment_population_revision]
+  harvest:
+    transaction_kind: "harvest"
+    idempotency_key_fields: [corpse_id, tissue_slot_id, harvest_sequence]
+    compare_and_swap_fields: [expected_corpse_revision, expected_remaining_tissue_quantity]
+    deterministic_output_fields: [lot_id, receipt_id]
+    contention_policy: "fail_stale_revision_then_refresh_and_require_explicit_retry"
+    atomic_steps: [decrement_tissue_slot, create_inventory_lot, write_harvest_receipt]
+    field_dress_recipe_uses_this_transaction_only: true
+  process_workorder:
+    save_owner: "settlement_workorder_save"
+    record_fields: [work_order_id, recipe_id, recipe_version, state, input_lot_ids, start_input_ownership_revisions, start_input_freshness_revisions, start_reservation_revisions, start_event_sequence, required_event_count, eligible_event_filter, processed_through_sequence, station_storage_profile, output_lot_ids, failure_reason]
+    states: [reserved, completed, claimed, cancelled, failed_spoiled]
+    allowed_transitions: ["absent -> reserved", "reserved -> completed", "reserved -> cancelled", "reserved -> failed_spoiled", "failed_spoiled -> cancelled", "completed -> claimed"]
+    forbidden_transitions: ["completed -> cancelled", "claimed -> cancelled", "cancelled -> completed", "failed_spoiled -> completed"]
+    distinct_event_ids_only: true
+    repeated_or_replayed_events_do_not_advance: true
+    start:
+      transaction_kind: "workorder_start"
+      idempotency_key_fields: [player_save_id, station_id, recipe_version, sorted_input_lot_ids, start_sequence]
+      compare_and_swap_fields: [input_lot_ownership_revision, input_lot_remaining_quantity, input_lot_freshness_revision]
+      atomic_steps: [reserve_inputs, create_workorder_with_event_cursor_and_start_revision_audit, write_start_receipt]
+    complete:
+      transaction_kind: "workorder_complete"
+      idempotency_key_fields: [work_order_id, required_event_cursor]
+      prepare_sequence: [run_lazy_decay_to_current_world_tick, read_current_reserved_input_revisions, acquire_current_input_locks, persist_current_revisions_in_wal_operation_envelope]
+      compare_and_swap_fields: [workorder_state_reserved, current_input_ownership_revisions_locked_at_prepare, current_input_freshness_revisions_locked_at_prepare, current_reservation_revisions_locked_at_prepare]
+      revalidate_after_lazy_decay: [recipe_reject_input_states, remaining_quantity, ownership, freshness, contamination, station_storage_profile]
+      success_atomic_steps: [verify_distinct_eligible_events, recompute_output_freshness_and_quality, tombstone_reserved_inputs, create_station_owned_output_lots, set_state_completed, write_completion_receipt]
+      rejected_input_atomic_steps: [preserve_reserved_inputs, set_state_failed_spoiled, write_failure_receipt]
+      rejected_input_creates_output: false
+    claim:
+      transaction_kind: "workorder_claim"
+      idempotency_key_fields: [work_order_id, claimant_player_save_id]
+      compare_and_swap: {state: "completed"}
+      atomic_steps: [transfer_output_lots_to_player, set_state_claimed, write_claim_receipt]
+    cancel:
+      transaction_kind: "workorder_cancel"
+      idempotency_key_fields: [work_order_id, cancellation_sequence]
+      compare_and_swap_state_any: [reserved, failed_spoiled]
+      atomic_steps: [release_reserved_inputs, set_state_cancelled, write_cancel_receipt]
+  sell:
+    transaction_kind: "sell"
+    idempotency_key_fields: [player_save_id, merchant_id, quote_id]
+    compare_and_swap_fields: [lot_ownership_revision, lot_freshness_revision, wallet_revision, merchant_demand_revision, quote_consumed]
+    atomic_steps: [validate_quote_and_lot_revisions, transfer_or_tombstone_lots, credit_currency, update_persistent_market_state, mark_quote_consumed, write_sale_receipt]
+  checkpoint_rewind_preserves_committed_transactions: true
+  checkpoint_and_region_exit_use_wal_barrier: true
+  crash_recovery_uses_wal: true
+
+settlement_market:
+  currency_id: "coin"
+  state_save_owner: "economy_ledger_save"
+  persistent_state_fields: [merchant_id, demand_revision, price_table_version, sold_units_since_restock, restock_event_cursor, processed_event_ids]
+  vendors:
+    - {merchant_id: "settlement.butcher", accepts_categories: [raw_meat, cooked_meat, preserved_meat], full_price_units_per_restock: 2, excess_policy: "quarter_price_or_refuse"}
+    - {merchant_id: "settlement.tanner", accepts_categories: [leather], full_price_units_per_restock: 1, excess_policy: "quarter_price_or_refuse"}
+  quote_contract:
+    persistence: "session_ephemeral_reload_invalidates"
+    required_fields: [quote_id, merchant_id, player_save_id, price_table_version, demand_revision, line_items, total_coin, issued_tick, expires_tick, consumed]
+    line_item_fields: [lot_id, quantity, ownership_revision, freshness_revision, quality_multiplier, unit_price_coin]
+    quote_id_formula: "sha256(merchant_id, player_save_id, demand_revision, sorted_lot_revisions, quote_sequence)"
+    expires_after_active_seconds: 300
+    single_consumption: true
+    zero_coin_line_policy: "reject_quote_line"
+  price_formula: "floor(base_buy_price_coin * freshness_multiplier * quality_multiplier * demand_multiplier)"
+  freshness_multipliers: {fresh: 1.0, aging: 0.75, spoiled: 0.0, decomposed: 0.0, raw: 0.85, slipping: 0.50, rotten: 0.0, cured: 1.0}
+  quality_multiplier_range: [0.25, 1.0]
+  demand_multiplier_range: [0.75, 1.15]
+  raw_or_spoiled_restrictions: {spoiled_meat_accepted: false, rotten_hide_accepted: false, raw_hide_accepted_in_prologue: false}
+  restock_contract:
+    required_distinct_eligible_events: 3
+    eligible_event_filter: [mainline_world_predicate_commit, non_replayed_side_task_commit, region_transition_commit]
+    idempotency_key_fields: [merchant_id, restock_event_cursor, sorted_eligible_event_ids]
+    reload_restocks: false
+    checkpoint_reset_restocks: false
+    repeated_event_restocks: false
+  expected_income_balance:
+    processed_small_animal_net_coin_maximum: 6
+    hunting_income_per_active_minute_vs_nonviolent_job_maximum: 0.60
+    nonviolent_job_reference: {coin: 10, active_minutes: 10}
+    rabbit_full_processing_active_minutes_minimum: 15
+    fox_full_processing_active_minutes_minimum: 12
+    ingredient_and_energy_costs_count_against_net_income: true
+  merchant_never_posts_prologue_hunt_requirement: true
+
+ecology_population_contract:
+  save_owner: "valley_ecology_save"
+  population_state_scope: "region_persistent"
+  checkpoint_respawn_forbidden: true
+  save_reload_respawn_forbidden: true
+  repeated_event_replenishment_forbidden: true
+  species_profiles:
+    - {species: "rabbit", entity_id: "wildlife.rabbit.valley", initial_adults: 6, initial_spawn_sequence_range: [1, 6], initial_next_spawn_sequence: 7, habitat_capacity: 8, required_distinct_eligible_events: 3, replenishment_batch_maximum: 1, habitat_predicate: "wet_meadow_restored_or_partial"}
+    - {species: "fox", entity_id: "wildlife.fox.den", initial_adults: 2, initial_spawn_sequence_range: [1, 2], initial_next_spawn_sequence: 3, habitat_capacity: 3, required_distinct_eligible_events: 5, replenishment_batch_maximum: 1, habitat_predicate: "fox_den_intact"}
+    - {species: "cave_bat", entity_id: "wildlife.bat.service_channel", initial_adults: 4, initial_spawn_sequence_range: [1, 4], initial_next_spawn_sequence: 5, habitat_capacity: 5, required_distinct_eligible_events: 4, replenishment_batch_maximum: 1, habitat_predicate: "old_mine_ceiling_habitable"}
+    - {species: "mud_frog", entity_id: "wildlife.frog.wet_meadow", initial_adults: 5, initial_spawn_sequence_range: [1, 5], initial_next_spawn_sequence: 6, habitat_capacity: 7, required_distinct_eligible_events: 3, replenishment_batch_maximum: 1, habitat_predicate: "wetland_water_band_valid"}
+  population_record_fields: [species, entity_id, living_adult_count, habitat_capacity, spawn_generation, next_spawn_sequence, replenishment_event_cursor, processed_event_ids, population_revision]
+  initial_spawn_generation: 1
+  death_decrement_idempotency_key_fields: [species, life_instance_id]
+  replenishment_event_filter: [mainline_world_predicate_commit, non_replayed_side_task_commit, region_transition_commit]
+  replenishment_transaction:
+    transaction_kind: "wildlife_replenish"
+    coordinator: "cross_save_wal.v0.1"
+    idempotency_key_fields: [species, spawn_generation, sorted_distinct_eligible_event_ids]
+    compare_and_swap_fields: [population_revision, living_adult_count, habitat_capacity, next_spawn_sequence]
+    prepare_requirements: [habitat_predicate_true, living_adult_count_below_capacity, distinct_event_threshold_met]
+    life_instance_id_formula: "sha256(region_id, entity_id, spawn_generation, next_spawn_sequence)"
+    deterministic_output_fields: [life_instance_id, replenishment_receipt_id]
+    atomic_steps: [create_new_life_instance, increment_living_adult_count, increment_next_spawn_sequence, increment_population_revision, consume_distinct_event_ids, write_replenishment_receipt]
+    batch_maximum: 1
+  replenishment_creates_new_life_instance_id: true
+  visible_feedback_bindings:
+    rabbit_low: [lower_meadow_grazing, higher_garden_browse_pressure]
+    fox_low: [more_rabbits_near_gardens, fewer_warning_calls]
+    cave_bat_low: [more_flying_insects, preserve_ceiling_cracks_dust_and_stone_sound]
+    mud_frog_low: [more_wetland_insects, reduced_frog_ambience]
+  overharvest_feedback: [lower_encounter_density, altered_predator_prey_balance, settlement_supply_and_garden_changes]
+  abstract_morality_meter_required: false
+
+language_boundary:
+  events_that_never_award_language_growth: [wildlife_killed, corpse_created, tissue_harvested, recipe_completed, lot_sold]
+  phrase_examples_are_non_normative: ["moku soweli", "selo soweli", "moku seli"]
+  direct_translation_item_binding_forbidden: true
+
+golden_tests:
+  - {id: "economy.death_creates_one_corpse", input: {duplicate_death_commit: 2}, expect: {corpse_count: 1, life_tombstone_count: 1}}
+  - {id: "economy.harvest_slot_once", input: {duplicate_harvest_commit: 2}, expect: {lot_creation_count: 1, tissue_decrement_count: 1}}
+  - {id: "economy.process_preserves_origin", expect: {natural_input_origin_retained: true, spoiled_input_not_refreshed: true}}
+  - {id: "economy.manifested_matter_not_sellable", expect: {quote_created: false, currency_delta: 0}}
+  - {id: "economy.sale_idempotent", input: {duplicate_sale_commit: 2}, expect: {currency_credit_count: 1, lot_transfer_count: 1}}
+  - {id: "economy.checkpoint_no_duplication", expect: {duplicate_corpse: 0, duplicate_lot: 0, duplicate_workorder: 0, duplicate_receipt: 0}}
+  - {id: "economy.no_language_growth", expect: {language_event_count: 0, attack_qualification_event_count: 0}}
+  - {id: "economy.mainline_without_hunt", expect: {reachable: true, required_kills: 0, required_wildlife_items: 0}}
+  - {id: "economy.workorder_state_graph", expect: {completed_to_cancelled_allowed: false, claimed_to_cancelled_allowed: false, duplicate_outputs: 0}}
+  - {id: "economy.crash_each_wal_step", expect: {duplicate_corpses: 0, duplicate_lots: 0, duplicate_currency: 0, missing_committed_outputs: 0}}
+  - {id: "economy.quote_reload_invalid", input: {reload_after_quote: true}, expect: {old_quote_accepted: false, currency_delta: 0}}
+  - {id: "economy.restock_not_reloadable", input: {reload_count: 5, repeated_event_count: 5}, expect: {full_price_unit_refresh_count: 0}}
+  - {id: "economy.rabbit_full_processing_balance", expect: {net_coin_maximum: 6, active_minutes_minimum: 15, coin_per_active_minute_maximum: 0.40}}
+  - {id: "economy.dead_wildlife_not_checkpoint_respawned", expect: {same_life_instance_respawns: 0}}
+  - {id: "economy.replenishment_requires_distinct_events", input: {same_event_replays: 5}, expect: {new_life_instances: 0}}
+  - {id: "economy.rabbit_fastest_raw_sale", expect: {raw_hide_quote_created: false, gross_coin_maximum: 2, active_minutes_minimum: 4, coin_per_active_minute_maximum: 0.50}}
+  - {id: "economy.fox_fastest_raw_sale", expect: {raw_hide_quote_created: false, gross_coin_maximum: 1, active_minutes_minimum: 4, coin_per_active_minute_maximum: 0.25}}
+  - {id: "economy.rabbit_full_processing_gross_cap", expect: {gross_coin_maximum: 6, active_minutes_minimum: 15, coin_per_active_minute_maximum: 0.40}}
+  - {id: "economy.no_tool_zero_hide_omitted", input: {hide_quality_multiplier: 0.0}, expect: {hide_lot_count: 0, zero_yield_reason_count: 1}}
+  - {id: "economy.workorder_spoils_before_complete", expect: {state: "failed_spoiled", output_lot_count: 0, input_tombstone_count: 0}}
+  - {id: "economy.replenishment_idempotent", input: {duplicate_commit_count: 2}, expect: {new_life_instance_count: 1, population_increment_count: 1, spawn_sequence_increment_count: 1}}
+  - {id: "economy.death_decrements_population_once", input: {duplicate_death_commit: 2, age_class: "adult"}, expect: {population_decrement_count: 1, population_revision_increment_count: 1}}
+  - {id: "economy.first_replenishment_id_unique", expect: {initial_sequence_overlap_count: 0, first_replenishment_sequence_equals_initial_adults_plus_one: true, duplicate_life_instance_id_count: 0}}

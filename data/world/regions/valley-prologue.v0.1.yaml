@@ -1,0 +1,354 @@
+schema_version: "g01.region.v0.1"
+content_version: "chapter-01.prologue.1"
+region_id: "valley_prologue"
+status: "draft"
+ecology_ref: "../../ecology/valley-prologue.v0.1.yaml"
+survival_profile_ref: "../../player/survival-needs.v0.1.yaml"
+wildlife_economy_ref: "../../economy/wildlife-products.v0.1.yaml"
+wal_ref: "../../persistence/cross-save-wal.v0.1.yaml"
+
+coordinate_system:
+  origin: "bottom_left"
+  world_tile_size_px: 16
+  camera_profile_id: "portrait_scroll.runtime_pending"
+  scene_size_independent_from_camera: true
+
+contracts:
+  mandatory_kills: 0
+  zero_attack_mainline: true
+  critical_routes_require_universal_bypass: true
+  quest_success_uses_world_predicates: true
+  raw_utterance_string_matching_forbidden: true
+  wildlife_required_kill_forbidden: true
+  wildlife_required_drop_forbidden: true
+  temporary_manifest_sale_forbidden: true
+  optional_wildlife_harvest_allowed: true
+  wildlife_products_required_for_mainline_forbidden: true
+  processed_provenance_laundering_forbidden: true
+  committed_resource_and_economy_transactions_rewind_forbidden: true
+
+survival_relief_contract:
+  discovery_p95_seconds_maximum: 60
+  language_answer_required: false
+  wildlife_harm_required: false
+  relief_outputs_economy_eligible: false
+  required_node_relief:
+    - {node_id: "valley.arrival_shelf", mode: "first_25_minutes_metabolism_frozen"}
+    - {node_id: "valley.stream_section", mode: "first_25_minutes_metabolism_frozen"}
+    - {node_id: "valley.settlement", mode: "public_well_and_communal_plant_meal"}
+    - {node_id: "valley.waterwheel", mode: "potable_maintenance_spout_and_signed_settlement_return"}
+    - {node_id: "valley.service_channel", mode: "emergency_maintenance_canteen_and_signed_return"}
+    - {node_id: "valley.high_cistern", mode: "task_metabolism_frozen"}
+    - {node_id: "valley.return_channel", mode: "potable_return_spout_and_root_foraging"}
+
+nodes:
+  - node_id: "valley.arrival_shelf"
+    scene_id: "scene.valley.arrival_shelf"
+    implementation_status: "planned"
+    suggested_size_tiles: [24, 20]
+    entry_condition: {always: true}
+    persistence_scope: "region_persistent"
+    world_literacy_tags: [destructible_material, wet_soil, loose_stone, rotten_wood]
+
+  - node_id: "valley.stream_section"
+    scene_id: "scene.valley.stream_section"
+    implementation_status: "planned"
+    suggested_size_tiles: [32, 24]
+    entry_condition: {always: true}
+    persistence_scope: "region_persistent"
+    world_literacy_tags: [gravity, slope, container, soil_absorption]
+
+  - node_id: "valley.settlement"
+    scene_id: "scene.valley.settlement"
+    implementation_status: "planned"
+    suggested_size_tiles: [40, 30]
+    entry_condition: {always: true}
+    persistence_scope: "region_persistent"
+    facilities: [checkpoint, public_meditation_court, shop, repair_board, safe_range, public_well, communal_kitchen, butcher_table, settlement_tannery]
+    world_literacy_tags: [public_water, repair_history, material_culture, community_safety]
+
+  - node_id: "valley.waterwheel"
+    scene_id: "scene.valley.waterwheel"
+    implementation_status: "planned"
+    suggested_size_tiles: [30, 32]
+    entry_condition: {predicate: "settlement_reached == true"}
+    persistence_scope: "region_persistent"
+    world_literacy_tags: [existing_material_efficiency, continuous_flow, mechanical_repair]
+
+  - node_id: "valley.service_channel"
+    scene_id: "scene.valley.service_channel"
+    implementation_status: "planned"
+    suggested_size_tiles: [28, 40]
+    entry_condition:
+      any:
+        - "waterwheel_restored == true"
+        - "maintenance_access_open == true"
+    persistence_scope: "checkpoint_local"
+    world_literacy_tags: [water, mud, stone, wood, thin_ice]
+
+  - node_id: "valley.high_cistern"
+    scene_id: "valley.high_cistern.graybox.v0.1"
+    implementation_status: "specified"
+    task_ref: "../../tasks/ch01-length-cistern.v0.1.yaml"
+    suggested_size_tiles: [30, 48]
+    entry_condition:
+      any:
+        - "service_gate_open == true"
+        - "service_bypass_open == true"
+        - "den_route_open == true"
+    persistence_scope: "region_persistent"
+    world_literacy_tags: [axial_length, material_workload, siphon]
+
+  - node_id: "valley.den_bypass"
+    scene_id: "scene.valley.den_bypass"
+    implementation_status: "planned"
+    suggested_size_tiles: [28, 28]
+    entry_condition: {predicate: "service_channel_reached == true"}
+    persistence_scope: "region_persistent"
+    world_literacy_tags: [wildlife_warning, retreat_path, nonlethal_deterrence]
+
+  - node_id: "valley.return_channel"
+    scene_id: "scene.valley.return_channel"
+    implementation_status: "planned"
+    suggested_size_tiles: [30, 26]
+    entry_condition: {predicate: "exit_ladder_lowered == true"}
+    persistence_scope: "region_persistent"
+    world_literacy_tags: [persistent_consequence, ecology_return, community_route_change]
+
+  - node_id: "valley.safe_range"
+    scene_id: "scene.valley.safe_range"
+    implementation_status: "planned"
+    suggested_size_tiles: [24, 18]
+    entry_condition: {predicate: "range_trial_permission == true"}
+    persistence_scope: "global"
+    world_literacy_tags: [attack_signature, kinetic_damage, safety_boundary]
+
+
+  - node_id: "valley.old_mine_threshold"
+    scene_id: "scene.valley.old_mine_threshold"
+    implementation_status: "planned"
+    suggested_size_tiles: [24, 20]
+    entry_condition: {predicate: "prologue_return_observed == true"}
+    persistence_scope: "region_persistent"
+    world_literacy_tags: [peaceful_progress, chapter_transition]
+
+connection_contract:
+  default_direction: "bidirectional"
+  traversal_commits_are_atomic: true
+  reverse_traversal_uses_same_guard: true
+
+connections:
+  - {from: "valley.arrival_shelf", to: "valley.stream_section", traversal: {always: true}}
+  - {from: "valley.stream_section", to: "valley.settlement", traversal: {always: true}, on_first_traverse_commit: "settlement_entry_crossed"}
+  - {from: "valley.settlement", to: "valley.waterwheel", traversal: {always: true}}
+  - from: "valley.waterwheel"
+    to: "valley.service_channel"
+    traversal:
+      any:
+        - "waterwheel_restored == true"
+        - "maintenance_access_open == true"
+    on_first_traverse_commit: "service_channel_entry_crossed"
+  - from: "valley.service_channel"
+    to: "valley.high_cistern"
+    traversal:
+      any:
+        - "service_gate_open == true"
+        - "service_bypass_open == true"
+  - {from: "valley.service_channel", to: "valley.den_bypass", traversal: {always: true}}
+  - {from: "valley.den_bypass", to: "valley.high_cistern", traversal: {predicate: "den_route_open == true"}}
+  - {from: "valley.high_cistern", to: "valley.return_channel", traversal: {predicate: "exit_ladder_lowered == true"}}
+  - {from: "valley.return_channel", to: "valley.settlement", traversal: {always: true}}
+  - {from: "valley.settlement", to: "valley.safe_range", traversal: {predicate: "range_trial_permission == true"}}
+  - {from: "valley.settlement", to: "valley.old_mine_threshold", traversal: {predicate: "prologue_return_observed == true"}}
+
+persistence_classes:
+  ephemeral: [cosmetic_debris, transient_particles, temporary_manifested_matter, uncommitted_interaction_animation]
+  checkpoint_local: [loose_material_deltas, movable_tools, local_fluid_band]
+  region_persistent: [routes, meaningful_material_patches, infrastructure, water_level_band, den_integrity, wetland_state, wildlife_life_tombstones, corpse_instances, harvest_ledgers, station_workorders]
+  global: [task_completion, learning_evidence, npc_assignment, attack_qualification, player_survival, inventory_lots, item_provenance, wallet, economy_receipts]
+
+
+state_registry:
+  - {state_id: "arrival_route_stabilized", type: boolean, initial: false, owner: "ch01_arrival", persistence_scope: "region_persistent", save_owner: "valley_prologue_region_save", unique_writer_event: "arrival_route_patch_committed"}
+  - {state_id: "player_expression_capacity_meaningful_tokens", type: integer, initial: 1, owner: "chapter_flow", persistence_scope: "global", save_owner: "player_progression_save", unique_writer_events: [new_game_capacity_initialized, first_evidence_package_committed, attack_capacity_calibrated]}
+  - {state_id: "artifact_surface_slot_capacity", type: integer, initial: 1, owner: "chapter_flow", persistence_scope: "global", save_owner: "player_progression_save", unique_writer_events: [new_game_capacity_initialized, first_evidence_package_committed, attack_capacity_calibrated]}
+  - {state_id: "player_max_mp", type: number, initial: 24, owner: "chapter_flow", persistence_scope: "global", save_owner: "player_progression_save", unique_writer_events: [new_game_capacity_initialized, first_evidence_package_committed, attack_capacity_calibrated]}
+  - {state_id: "settlement_reached", type: boolean, initial: false, owner: "region", persistence_scope: "region_persistent", save_owner: "valley_prologue_region_save", unique_writer_event: "settlement_entry_crossed"}
+  - {state_id: "meditation_court_activated", type: boolean, initial: false, owner: "ch01_settlement_orientation", persistence_scope: "region_persistent", save_owner: "valley_prologue_region_save", unique_writer_event: "meditation_court_first_rest_committed"}
+  - {state_id: "waterwheel_stable", type: boolean, initial: false, owner: "ch01_waterwheel", persistence_scope: "region_persistent", save_owner: "valley_prologue_region_save", unique_writer_event: "waterwheel_goal_committed"}
+  - {state_id: "downstream_safe", type: boolean, initial: false, owner: "ch01_waterwheel", persistence_scope: "region_persistent", save_owner: "valley_prologue_region_save", unique_writer_event: "waterwheel_goal_committed"}
+  - {state_id: "waterwheel_mode", type: enum, values: [stopped, temporary_driven, structurally_restored], initial: stopped, owner: "ch01_waterwheel", persistence_scope: "region_persistent", save_owner: "valley_prologue_region_save", unique_writer_event: "waterwheel_result_committed"}
+  - {state_id: "waterwheel_restored", type: boolean, initial: false, owner: "ch01_waterwheel", persistence_scope: "region_persistent", save_owner: "valley_prologue_region_save", derived_from: "waterwheel_mode == structurally_restored"}
+  - {state_id: "maintenance_access_open", type: boolean, initial: false, owner: "ch01_waterwheel", persistence_scope: "region_persistent", save_owner: "valley_prologue_region_save", unique_writer_event: "waterwheel_goal_committed"}
+  - {state_id: "service_channel_reached", type: boolean, initial: false, owner: "region", persistence_scope: "region_persistent", save_owner: "valley_prologue_region_save", unique_writer_event: "service_channel_entry_crossed"}
+  - {state_id: "service_gate_open", type: boolean, initial: false, owner: "ch01_service_channel", persistence_scope: "region_persistent", save_owner: "valley_prologue_region_save", unique_writer_event: "service_gate_solution_committed"}
+  - {state_id: "service_bypass_open", type: boolean, initial: false, owner: "ch01_service_channel", persistence_scope: "region_persistent", save_owner: "valley_prologue_region_save", unique_writer_event: "service_bypass_solution_committed"}
+  - {state_id: "den_route_open", type: boolean, initial: false, owner: "ch01_service_channel", persistence_scope: "region_persistent", save_owner: "valley_prologue_region_save", unique_writer_event: "non_destructive_den_route_committed"}
+  - {state_id: "fox_den_intact", type: boolean, initial: true, owner: "ecology.valley_prologue", persistence_scope: "region_persistent", save_owner: "valley_prologue_region_save", unique_writer_event: "den_integrity_commit"}
+  - {state_id: "high_cistern_reconnected", type: boolean, initial: false, owner: "ch01_length_cistern", persistence_scope: "region_persistent", save_owner: "valley_prologue_region_save", unique_writer_event: "cistern_world_transition_committed"}
+  - {state_id: "upper_channel_available", type: boolean, initial: false, owner: "ch01_length_cistern", persistence_scope: "region_persistent", save_owner: "valley_prologue_region_save", unique_writer_event: "cistern_world_transition_committed"}
+  - {state_id: "exit_ladder_lowered", type: boolean, initial: false, owner: "ch01_length_cistern", persistence_scope: "region_persistent", save_owner: "valley_prologue_region_save", unique_writer_event: "cistern_world_transition_committed"}
+  - {state_id: "settlement_supply_stable", type: boolean, initial: false, owner: "ch01_return_flow", persistence_scope: "region_persistent", save_owner: "valley_prologue_region_save", unique_writer_event: "return_flow_committed"}
+  - {state_id: "wet_meadow_restored", type: boolean, initial: false, owner: "ch01_return_flow", persistence_scope: "region_persistent", save_owner: "valley_prologue_region_save", unique_writer_event: "return_flow_committed"}
+  - {state_id: "prologue_return_observed", type: boolean, initial: false, owner: "ch01_return_observation", persistence_scope: "global", save_owner: "chapter_progress_save", unique_writer_event: "return_observation_committed"}
+  - {state_id: "attack_capacity_calibration_complete", type: boolean, initial: false, owner: "chapter_flow", persistence_scope: "global", save_owner: "player_progression_save", unique_writer_event: "attack_capacity_calibrated"}
+  - {state_id: "range_trial_permission", type: boolean, initial: false, owner: "chapter_flow", persistence_scope: "global", save_owner: "player_learning_save", unique_writer_event: "attack_prerequisites_verified"}
+  - {state_id: "first_attack_signature_available", type: boolean, initial: false, owner: "ch01_first_attack_qualification", persistence_scope: "global", save_owner: "player_learning_save", unique_writer_event: "safe_range_transfer_passed"}
+  - {state_id: "first_attack_signature_completed", type: boolean, initial: false, owner: "ch01_first_attack_qualification", persistence_scope: "global", save_owner: "player_learning_save", unique_writer_event: "safe_range_material_table_completed"}
+event_commit_points:
+  new_game_capacity_initialized:
+    owner: "chapter_flow"
+    atomic_writes: {player_expression_capacity_meaningful_tokens: 1, artifact_surface_slot_capacity: 1, player_max_mp: 24}
+  arrival_route_patch_committed:
+    owner: "ch01_arrival"
+    atomic_writes: {arrival_route_stabilized: true}
+    atomic_patch_records: [patch.valley.arrival_route.v0.1]
+  settlement_entry_crossed:
+    owner: "region"
+    atomic_writes: {settlement_reached: true}
+  meditation_court_first_rest_committed:
+    owner: "ch01_settlement_orientation"
+    atomic_writes: {meditation_court_activated: true}
+  waterwheel_goal_committed:
+    owner: "ch01_waterwheel"
+    atomic_writes: {waterwheel_stable: true, downstream_safe: true, maintenance_access_open: true}
+  waterwheel_result_committed:
+    owner: "ch01_waterwheel"
+    writes_enum: {waterwheel_mode: [temporary_driven, structurally_restored]}
+    monotonic_enum_order: [stopped, temporary_driven, structurally_restored]
+    replay_merge_policy: "maximum_rank_wins"
+    patch_records_by_result: {structurally_restored: patch.valley.waterwheel_structure.v0.1}
+  service_channel_entry_crossed:
+    owner: "region"
+    atomic_writes: {service_channel_reached: true}
+  service_gate_solution_committed:
+    owner: "ch01_service_channel"
+    atomic_writes: {service_gate_open: true}
+    atomic_patch_records: [patch.valley.service_gate.v0.1]
+  service_bypass_solution_committed:
+    owner: "ch01_service_channel"
+    atomic_writes: {service_bypass_open: true}
+    atomic_patch_records: [patch.valley.service_bypass.v0.1]
+  non_destructive_den_route_committed:
+    owner: "ch01_service_channel"
+    atomic_writes: {den_route_open: true}
+    atomic_patch_records: [patch.valley.den_route.v0.1]
+    forbidden_writes: [fox_den_intact]
+  den_integrity_commit:
+    owner: "ecology.valley_prologue"
+    writes_enum: {fox_den_intact: [true, false]}
+    dynamic_patch_record: "patch.valley.den_integrity.dynamic.v0.1"
+    source_contract_ref: "../../ecology/valley-prologue.v0.1.yaml"
+  cistern_world_transition_committed:
+    owner: "ch01_length_cistern"
+    source_task_ref: "../../tasks/ch01-length-cistern.v0.1.yaml"
+    atomic_writes: {high_cistern_reconnected: true, upper_channel_available: true, exit_ladder_lowered: true}
+    atomic_patch_records: [patch.valley.cistern_return_ladder.v0.1]
+  return_flow_committed:
+    owner: "ch01_return_flow"
+    atomic_writes: {settlement_supply_stable: true, wet_meadow_restored: true}
+    atomic_patch_records: [patch.valley.return_flow.v0.1]
+  return_observation_committed:
+    owner: "ch01_return_observation"
+    atomic_writes: {prologue_return_observed: true}
+  first_evidence_package_committed:
+    owner: "chapter_flow"
+    atomic_writes: {player_expression_capacity_meaningful_tokens: 2, artifact_surface_slot_capacity: 2, player_max_mp: 26}
+  attack_capacity_calibrated:
+    owner: "chapter_flow"
+    evidence_graph_ref: "../../spells/attack-signatures.v0.1.yaml"
+    required_graph_id: "attack.water.forceful_motion.prerequisite_graph"
+    atomic_writes: {player_expression_capacity_meaningful_tokens: 4, artifact_surface_slot_capacity: 4, player_max_mp: 30, attack_capacity_calibration_complete: true}
+  attack_prerequisites_verified:
+    owner: "chapter_flow"
+    required_predicates: [prologue_return_observed, attack_capacity_calibration_complete]
+    atomic_writes: {range_trial_permission: true}
+  safe_range_transfer_passed:
+    owner: "ch01_first_attack_qualification"
+    atomic_writes: {first_attack_signature_available: true}
+  safe_range_material_table_completed:
+    owner: "ch01_first_attack_qualification"
+    atomic_writes: {first_attack_signature_completed: true}
+
+meaningful_material_patch_records:
+  runtime_record_fields: [patch_id, writer_event, recipe_id, recipe_version, payload_sha256, idempotency_key, committed_at_save_sequence]
+  checksum_algorithm: "sha256"
+  activation_barrier: "dependent_collision_and_traversal_enable_only_after_recipe_reconstruction_and_checksum_verification"
+  records:
+    - {patch_id: "patch.valley.arrival_route.v0.1", writer_event: "arrival_route_patch_committed", recipe_id: "rebuild.arrival.stable_foothold", recipe_version: 1, idempotency_key_fields: [region_save_id, patch_id], ordered_ops: [restore_committed_tile_delta, rebuild_collision, validate_route_clearance]}
+    - {patch_id: "patch.valley.waterwheel_structure.v0.1", writer_event: "waterwheel_result_committed", recipe_id: "rebuild.waterwheel.structural", recipe_version: 1, idempotency_key_fields: [region_save_id, patch_id], ordered_ops: [restore_axle_and_flume_delta, rebuild_collision, bind_continuous_wheel_variant]}
+    - {patch_id: "patch.valley.service_gate.v0.1", writer_event: "service_gate_solution_committed", recipe_id: "rebuild.service.gate", recipe_version: 1, idempotency_key_fields: [region_save_id, patch_id], ordered_ops: [restore_gate_geometry, rebuild_collision, verify_gate_route]}
+    - {patch_id: "patch.valley.service_bypass.v0.1", writer_event: "service_bypass_solution_committed", recipe_id: "rebuild.service.bypass", recipe_version: 1, idempotency_key_fields: [region_save_id, patch_id], ordered_ops: [restore_bypass_geometry, rebuild_collision, verify_bypass_route]}
+    - {patch_id: "patch.valley.den_route.v0.1", writer_event: "non_destructive_den_route_committed", recipe_id: "rebuild.den.non_destructive_route", recipe_version: 1, idempotency_key_fields: [region_save_id, patch_id], ordered_ops: [restore_route_geometry, rebuild_collision, verify_den_integrity_unchanged]}
+    - {patch_id: "patch.valley.den_integrity.dynamic.v0.1", writer_event: "den_integrity_commit", recipe_id: "rebuild.den.committed_structure_delta", recipe_version: 1, idempotency_key_fields: [region_save_id, patch_id, material_delta_sequence], ordered_ops: [restore_committed_tile_delta, rebuild_collision, derive_den_integrity]}
+    - {patch_id: "patch.valley.cistern_return_ladder.v0.1", writer_event: "cistern_world_transition_committed", recipe_id: "rebuild.cistern.return_ladder", recipe_version: 1, idempotency_key_fields: [region_save_id, patch_id], ordered_ops: [restore_ladder_and_channel, rebuild_collision, verify_return_route]}
+    - {patch_id: "patch.valley.return_flow.v0.1", writer_event: "return_flow_committed", recipe_id: "rebuild.return.flow_and_wetland", recipe_version: 1, idempotency_key_fields: [region_save_id, patch_id], ordered_ops: [restore_channel_delta, restore_water_band, rebuild_collision, activate_wetland_variant]}
+  reconstruction_failure_policy: "keep_dependent_route_blocked_surface_repair_affordance_and_preserve_raw_patch_payload"
+
+persistence_commit_contract:
+  wal_contract_ref: "../../persistence/cross-save-wal.v0.1.yaml"
+  local_material_deltas_default: "checkpoint_local"
+  state_scope_source: "state_registry.persistence_scope"
+  save_owner_source: "state_registry.save_owner"
+  promote_to_region_persistent_only_when:
+    - "a route or infrastructure predicate is atomically committed"
+    - "the promoted patch has an idempotency_key reconstruction_recipe_version and payload_sha256"
+  checkpoint_reset:
+    stop_accepting_new_transactions: true
+    prepared_transactions_require_durable_decision: true
+    committed_transactions_forward_apply_before_snapshot: true
+    rollback_uncommitted_material_deltas: true
+    preserve_scopes: [global, region_persistent]
+    preserve_region_commits: true
+    preserve_committed_transactions: [death, harvest, consume, workorder_start, workorder_complete, workorder_claim, workorder_cancel, sell, survival_grant, survival_floor_release, wildlife_replenish]
+    remove_task_local_manifestations: true
+    restore_mp_from_phase_ledger_exactly_once: true
+  region_exit:
+    stop_accepting_new_transactions: true
+    prepared_transactions_require_durable_decision: true
+    committed_transactions_forward_apply_before_unload: true
+    preserve_committed_transactions: [death, harvest, consume, workorder_start, workorder_complete, workorder_claim, workorder_cancel, sell, survival_grant, survival_floor_release, wildlife_replenish]
+    corpse_and_inventory_ledgers_are_not_material_deltas: true
+    flush_save_owners: [cross_save_wal_save, world_clock_save, player_survival_save, player_inventory_save, player_wallet_save, economy_ledger_save, settlement_workorder_save, valley_ecology_save, valley_resource_save, valley_prologue_region_save, chapter_progress_save, player_progression_save, player_learning_save]
+    checkpoint_local_state_not_exported: true
+  den_contract:
+    route_state_independent_from_den_integrity: true
+    den_destruction_opens_route: false
+    non_destructive_route_writer: "non_destructive_den_route_committed"
+  reload_state_order: [cross_save_wal_metadata, world_clock_save, player_survival_save, player_inventory_save, player_wallet_save, economy_ledger_save, player_progression_save, player_learning_save, chapter_progress_save, valley_prologue_region_save, valley_ecology_save, valley_resource_save, settlement_workorder_save]
+  reload_reconstruction_order: [wal_reconcile_to_fixed_point, registered_state, wildlife_life_tombstones, corpse_and_harvest_ledgers, processing_workorders_and_reservations, station_storage_profiles, lazy_decay, complete_due_workorders, meaningful_material_patches, collision_and_infrastructure, spawn_eligibility, ecology_behavior, cosmetic_debris]
+  wal_reconciliation_requires_all_participant_saves_loaded: true
+  scene_activation_requires_reconstruction_barrier: true
+
+scene_state_bindings:
+  - {scene_id: "scene.valley.waterwheel", reads: "waterwheel_mode", stopped_variant: "wheel_stopped", temporary_driven_variant: "wheel_stops_on_return", structurally_restored_variant: "wheel_continuous_lights_and_lift"}
+  - {scene_id: "scene.valley.settlement", reads: "waterwheel_mode", binding: "workshop_lights_and_npc_routes"}
+  - {scene_id: "scene.valley.return_channel", reads: "settlement_supply_stable", binding: "return_flow_collision_and_water_band"}
+  - {scene_id: "scene.valley.stream_section", reads: "arrival_route_stabilized", binding: "reconstructed_route_patch"}
+  - {scene_id: "scene.valley.den_bypass", reads: "fox_den_intact", binding: "den_geometry_and_fox_return"}
+  - {scene_id: "scene.valley.return_channel", reads: "wet_meadow_restored", binding: "frog_rabbit_and_vegetation_return"}
+
+route_completion_contract:
+  required_loop: [valley.arrival_shelf, valley.stream_section, valley.settlement, valley.waterwheel, valley.service_channel, valley.high_cistern, valley.return_channel, valley.settlement]
+  required_transition_alternatives:
+    service_channel_to_high_cistern:
+      - [valley.service_channel, valley.high_cistern]
+      - [valley.service_channel, valley.den_bypass, valley.high_cistern]
+  optional_nodes: [valley.den_bypass, valley.safe_range]
+  den_bypass_counts_as_valid_required_loop_subpath: true
+  peaceful_exit_node: "valley.old_mine_threshold"
+  peaceful_exit_origin: "valley.settlement"
+  loop_complete_predicate: "prologue_return_observed == true"
+  attack_qualification_required_for_exit: false
+
+protected_state_ids:
+  - "high_cistern_reconnected"
+  - "upper_channel_available"
+  - "exit_ladder_lowered"
+
+invariants:
+  - "Every required traversal has a non-attack solution."
+  - "No wildlife state is a required kill predicate."
+  - "Scene dimensions do not depend on the current laboratory canvas size."
+  - "L-01 remains authoritative for high-cistern objects, costs, predicates, and evidence."
+  - "Only meaningful route, infrastructure, ecology, and narrative deltas persist across the region."

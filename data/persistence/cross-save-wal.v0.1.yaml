@@ -1,0 +1,124 @@
+schema_version: "w04.cross-save-wal.v0.1"
+content_version: "chapter-01.prologue.1"
+coordinator_id: "cross_save_wal.v0.1"
+wal_save_owner: "cross_save_wal_save"
+status: "draft"
+
+world_clock:
+  state_id: "active_world_simulation_tick"
+  type: integer
+  initial: 0
+  persistence_scope: "global"
+  save_owner: "world_clock_save"
+  monotonic: true
+  advances_only_during_live_world_simulation: true
+  checkpoint_rewind_forbidden: true
+  offline_and_wall_clock_advance_forbidden: true
+  duplicate_accounting_key_fields: [player_save_id, simulation_session_id, tick_sequence]
+
+survival_metabolism_clock:
+  state_id: "survival_metabolism_tick"
+  type: integer
+  initial: 0
+  persistence_scope: "global"
+  save_owner: "world_clock_save"
+  monotonic: true
+  never_exceeds_state_id: "active_world_simulation_tick"
+  advances_when: [live_world_activity_not_marked_metabolism_exempt]
+  exempt_when: [safe_zone, first_25_content_minutes, high_cistern_task, pause, dialogue, cutscene, meditation, language_composition_ui, loading, offline]
+  checkpoint_rewind_forbidden: true
+  segment_ledger_fields: [segment_id, start_world_tick, end_world_tick, metabolism_exempt, applied_metabolism_tick_delta]
+  duplicate_accounting_key_fields: [player_save_id, activity_segment_id, metabolism_tick_sequence]
+
+transaction_identity:
+  transaction_id_formula: "sha256(coordinator_id, transaction_kind, canonical_idempotency_key)"
+  output_id_formula: "sha256(transaction_id, output_kind, output_index)"
+  receipt_id_formula: "sha256(transaction_id, receipt_kind)"
+  deterministic_ids_required: true
+
+record_schema:
+  required_fields: [transaction_id, transaction_kind, canonical_idempotency_key, participants, operation_envelopes, state, durable_decision, participant_prepare_acks, participant_apply_acks, created_tick, updated_tick]
+  participant_fields: [save_owner, before_revision, expected_revision, durable_intent_id, reservation_or_lock_id, operation_envelope_ref, operation_hash, after_revision, applied_revision]
+  operation_envelope_fields: [schema_version, save_owner, deterministic_operation, canonical_payload, before_revision, expected_after_revision, deterministic_output_ids, redo_preconditions]
+  quote_snapshot_fields_when_selling: [merchant_id, price_table_version, demand_revision, line_items, total_coin, issued_tick, expires_tick]
+  envelope_or_durable_participant_intent_required: true
+  operation_hash_without_redo_payload_forbidden: true
+  states: [prepared, committed, applied, aborted, garbage_collectable]
+  durable_decisions: [undecided, commit, abort]
+  unique_constraints: [transaction_id, canonical_idempotency_key]
+
+state_machine:
+  allowed_transitions:
+    - "absent -> prepared"
+    - "prepared -> committed"
+    - "prepared -> aborted"
+    - "committed -> applied"
+    - "applied -> garbage_collectable"
+  forbidden_transitions:
+    - "committed -> aborted"
+    - "applied -> aborted"
+    - "garbage_collectable -> prepared"
+  committed_transactions_use_forward_recovery_only: true
+
+protocol:
+  prepare:
+    - "validate all participant expected revisions"
+    - "persist complete versioned operation envelopes including quote snapshot and deterministic output ids"
+    - "fsync WAL prepared record"
+    - "CAS-write durable participant intents reservations or locks"
+    - "collect prepare acknowledgement from every participant"
+    - "abort and release every acquired intent if any participant prepare fails"
+  commit_precondition: "every participant has durable prepare acknowledgement and matching lock or reservation"
+  concurrent_prepare_policy: "conflicting expected revision or lock fails before durable commit"
+  commit:
+    - "persist durable commit decision only after all participant prepare acknowledgements"
+    - "forward-apply deterministic operation envelopes idempotently"
+    - "record participant apply acknowledgements"
+    - "mark applied only when every participant acknowledges"
+  abort:
+    - "allowed only before durable commit"
+    - "release reservations locks and intents without creating outputs"
+  garbage_collection:
+    - "retain applied record until every participant snapshot includes applied_revision"
+    - "retain compact receipt index after payload collection"
+
+recovery_contract:
+  load_order:
+    - "load WAL metadata"
+    - "load every referenced participant save"
+    - "reconcile prepared records to durable abort or durable commit"
+    - "forward-apply committed records to a fixed point"
+    - "verify participant acknowledgement revisions"
+  scene_activation_blocked_until_fixed_point: true
+  repeated_recovery_is_noop: true
+  corrupt_or_missing_participant_policy: "quarantine transaction keep scene inactive and expose recoverable diagnostic"
+
+checkpoint_and_region_exit_barrier:
+  stop_accepting_new_transactions: true
+  prepared_records_require_durable_decision_before_snapshot: true
+  committed_records_require_forward_apply_before_unload: true
+  checkpoint_rewind_never_reverts_committed_transaction: true
+  participant_flush_after_wal_decision: true
+
+registered_transaction_kinds:
+  - {kind: "death", participants: [valley_ecology_save, valley_resource_save]}
+  - {kind: "harvest", participants: [valley_resource_save, player_inventory_save, economy_ledger_save]}
+  - {kind: "consume", participants: [player_inventory_save, player_survival_save, economy_ledger_save]}
+  - {kind: "workorder_start", participants: [player_inventory_save, settlement_workorder_save, economy_ledger_save]}
+  - {kind: "workorder_complete", participants: [settlement_workorder_save, player_inventory_save, economy_ledger_save]}
+  - {kind: "workorder_claim", participants: [settlement_workorder_save, player_inventory_save, economy_ledger_save]}
+  - {kind: "workorder_cancel", participants: [settlement_workorder_save, player_inventory_save, economy_ledger_save]}
+  - {kind: "sell", participants: [player_inventory_save, player_wallet_save, economy_ledger_save]}
+  - {kind: "survival_grant", participants: [player_survival_save, player_inventory_save, economy_ledger_save]}
+  - {kind: "survival_floor_release", participants: [world_clock_save, player_survival_save, chapter_progress_save, economy_ledger_save]}
+  - {kind: "wildlife_replenish", participants: [valley_ecology_save]}
+
+golden_tests:
+  - {id: "wal.crash_after_prepare", inject_after: "prepared", expect: {durable_decision: "abort_or_commit_once", duplicate_outputs: 0}}
+  - {id: "wal.crash_after_commit", inject_after: "durable_commit", expect: {forward_recovery: true, duplicate_outputs: 0}}
+  - {id: "wal.crash_each_participant", inject_after_each_participant_write: true, expect: {fixed_point_recovery: true, duplicate_currency: 0, duplicate_lots: 0}}
+  - {id: "wal.checkpoint_after_commit", expect: {committed_effect_reverted: false}}
+  - {id: "world_tick.never_rewinds", input: {checkpoint_reset: true, reload: true}, expect: {tick_delta_minimum: 0}}
+  - {id: "wal.concurrent_conflict_before_commit", input: {same_lot_prepare_count: 2}, expect: {durable_commit_count: 1, aborted_count: 1}}
+  - {id: "wal.forward_recovery_has_redo_payload", expect: {operation_envelope_missing_count: 0}}
+  - {id: "metabolism_tick.excludes_safe_zone_work", input: {safe_zone_work_world_ticks: 600}, expect: {world_tick_delta: 600, metabolism_tick_delta: 0}}

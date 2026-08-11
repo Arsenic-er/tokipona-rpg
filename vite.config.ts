@@ -1,0 +1,11 @@
+import { defineConfig } from "vite";
+
+export default defineConfig({
+  base: "./",
+  build: {
+    target: "es2022",
+    rollupOptions: {
+      input: ["index.html", "survival.html", "trade.html", "cistern.html"],
+    },
+  },
+});

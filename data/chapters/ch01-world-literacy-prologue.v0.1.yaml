@@ -1,0 +1,341 @@
+schema_version: "g01.chapter-flow.v0.1"
+content_version: "chapter-01.prologue.1"
+chapter_flow_id: "ch01_world_literacy_prologue"
+status: "draft"
+
+region_ref: "../world/regions/valley-prologue.v0.1.yaml"
+world_ruleset_version: "w01.0.6"
+language_profile_version: "tp-community-review-pending.0"
+lexicon_ref: "../spells/single-word-spells.v0.1.yaml"
+length_profile_ref: "../spells/length-profiles.v0.1.yaml"
+attack_signatures_ref: "../spells/attack-signatures.v0.1.yaml"
+survival_profile_ref: "../player/survival-needs.v0.1.yaml"
+wildlife_economy_ref: "../economy/wildlife-products.v0.1.yaml"
+
+pacing_contract:
+  content_budget_minutes:
+    target_median: 180
+    exploratory_range: [120, 300]
+  is_real_time_gate: false
+  exclude_from_content_budget: [pause, idle, settings, optional_free_roam]
+  primary_activity_taxonomy:
+    classification_rule: "exactly_one_primary_class_per_active_second"
+    precedence_for_mixed_actions: [active_language_prediction_repair, meditation_reflection_safe_range, world_exploration_people_physics]
+    target_share:
+      world_exploration_people_physics: 0.70
+      active_language_prediction_repair: 0.20
+      meditation_reflection_safe_range: 0.10
+  consequential_choice_interval_minutes: [15, 20]
+  active_retrieval_interval_minutes: [30, 40]
+  focus_active_new_words_hard_max_per_segment: 2
+  previously_available_words_do_not_count_as_new_focus: true
+  max_consecutive_same_practice_family: 2
+
+prologue_contract:
+  focus: "world_literacy"
+  mandatory_kills: 0
+  mandatory_combat_encounters: 0
+  formal_attack_first_validation_target: "safe_range_inert_targets"
+  peaceful_progress_if_attack_locked: true
+  language_growth_from_kill_forbidden: true
+  attack_unlock_from_elapsed_time_forbidden: true
+  prologue_needs_floor_minimum: 20
+  needs_related_death_forbidden: true
+  needs_may_modify_language_or_mp_forbidden: true
+  needs_floor_release_event: "prologue_survival_floor_released"
+  needs_floor_release_trigger: "prologue_return_observed == true"
+  needs_floor_release_is_idempotent: true
+  forced_hunting_forbidden: true
+  wildlife_products_required_for_progress_forbidden: true
+
+segments:
+  - segment_id: "arrival"
+    content_budget_minutes: [0, 25]
+    map_nodes: [valley.arrival_shelf, valley.stream_section]
+    task_ids: [ch01_arrival]
+    task_family_id: "world_arrival_and_path"
+    implementation_status: "planned"
+    primary_world_facts: [world.water_obeys_path, world.destruction_persists]
+    focus_active_new_words: [telo]
+    previously_available_words: []
+    receptive_exposure: [kiwen, ko]
+    required_world_predicates: [settlement_reached]
+    solution_families: [move_loose_material, place_rotten_wood, dig_soft_soil, shallow_water_route, upper_slope_route]
+
+    survival_needs_mode: "hidden_and_frozen"
+  - segment_id: "settlement_orientation"
+    content_budget_minutes: [25, 50]
+    map_nodes: [valley.settlement]
+    task_ids: [ch01_settlement_orientation]
+    task_family_id: "community_orientation"
+    implementation_status: "planned"
+    primary_world_facts: [world.community_depends_on_infrastructure, world.magic_has_safety_practice]
+    focus_active_new_words: []
+    previously_available_words: [telo]
+    receptive_exposure: [seli, lete]
+    required_world_predicates: [meditation_court_activated]
+    optional_economy_jobs: [repair, transport, survey, salvage, gathering]
+    survival_onboarding:
+      optional: true
+      language_answer_required: false
+      public_well: true
+      communal_plant_meal: true
+      first_use_minimum_state: {player_satiety: 90, player_hydration: 90}
+      active_new_words_added: 0
+      optional_receptive_exposure: [moku]
+
+  - segment_id: "waterwheel"
+    content_budget_minutes: [50, 85]
+    map_nodes: [valley.waterwheel]
+    task_ids: [ch01_waterwheel]
+    task_family_id: "infrastructure_flow"
+    implementation_status: "planned"
+    primary_world_facts: [world.environment_saves_mp, world.structure_controls_continuity]
+    focus_active_new_words: [tawa]
+    previously_available_words: [telo]
+    receptive_exposure: [awen]
+    required_world_predicates: [waterwheel_stable, downstream_safe]
+    solution_families: [clear_blockage, repair_axle, move_flume, dig_bypass, temporary_manifest_then_mechanical_lock]
+
+  - segment_id: "service_channel"
+    content_budget_minutes: [85, 115]
+    map_nodes: [valley.service_channel]
+    task_ids: [ch01_service_channel]
+    task_family_id: "material_route_repair"
+    implementation_status: "planned"
+    primary_world_facts: [world.material_states_differ, world.heat_needs_source]
+    focus_active_new_words: [o]
+    previously_available_words: [telo, tawa]
+    receptive_exposure: [seli, lete, kiwen, ko]
+    required_world_predicates_any: [service_gate_open, service_bypass_open, den_route_open]
+    solution_families: [dig_wet_soil, move_stone_baffle, melt_thin_ice, open_bypass_valve, place_wood_platform, den_route]
+
+  - segment_id: "high_cistern"
+    content_budget_minutes: [110, 150]
+    map_nodes: [valley.high_cistern]
+    task_ids: [ch01_length_cistern]
+    task_family_id: "axial_length_infrastructure"
+    task_ref: "../tasks/ch01-length-cistern.v0.1.yaml"
+    implementation_status: "specified"
+    primary_world_facts: [world.length_is_geometry, world.length_changes_workload_not_direct_damage]
+    focus_active_new_words: [lili, suli]
+    previously_available_words: [telo, tawa, o]
+    receptive_exposure: []
+    required_world_predicates: [high_cistern_reconnected, upper_channel_available, exit_ladder_lowered]
+    completion_learning_state:
+      authority: "task.completion.world_transition.learning_state_proposals"
+      accept_conditional_task_proposals: true
+      rule_refs: {lili: "cistern.available.lili.v0.1", suli: "cistern.available.suli.v0.1"}
+      tool_only_completion_writes_available: false
+      direct_mastery_write_forbidden: true
+    length_mastery_required_for_first_attack: false
+
+    survival_metabolism_frozen: true
+  - segment_id: "den_and_return_flow"
+    content_budget_minutes: [140, 165]
+    map_nodes: [valley.den_bypass, valley.return_channel]
+    task_ids: [ch01_return_flow]
+    task_family_id: "ecology_and_return_flow"
+    implementation_status: "planned"
+    primary_world_facts: [world.wildlife_has_intent, world.destruction_persists]
+    focus_active_new_words: [wawa]
+    previously_available_words: [telo, tawa, o, lili, suli]
+    receptive_exposure: []
+    required_world_predicates: [settlement_supply_stable]
+    first_wawa_evidence_source: "inert_return_flow_mechanism_only"
+    wildlife_actions_count_for_wawa_evidence: false
+    solution_families: [wait_and_observe, route_around, low_force_deterrence, repair_overflow, clear_mud, reuse_old_channel]
+    optional_harvest_allowed: true
+    harvest_required_for_segment: false
+    wildlife_products_count_for_language_or_attack_evidence: false
+    optional_processing_demo_on_settlement_return: true
+    wildlife_processing_demo_source_any: [gifted_carcass, purchased_carcass, natural_death_carcass]
+    player_kill_required_for_demo: false
+    processing_demo_active_new_words_added: 0
+    processing_demo_language_answer_required: false
+    wildlife_contract:
+      default_relation: "avoidant"
+      states: [calm, observe, warn, self_defense, flee, return]
+      required_kill: false
+      important_drop: false
+      language_reward_from_harm: false
+
+  - segment_id: "return_and_safe_range"
+    content_budget_minutes: [155, 180]
+    map_nodes: [valley.settlement, valley.safe_range]
+    required_task_ids: [ch01_return_observation]
+    optional_task_ids: [ch01_first_attack_qualification]
+    task_family_id: "delayed_return_and_safe_transfer"
+    implementation_status: "planned"
+    primary_world_facts: [world.actions_have_persistent_social_and_ecological_effects, world.damage_is_physical_result]
+    focus_active_new_words: []
+    previously_available_words: [telo, tawa, o, wawa, lili, suli]
+    receptive_exposure: []
+    required_world_predicates: [prologue_return_observed]
+    optional_world_predicates: [first_attack_signature_available, first_attack_signature_completed]
+    safe_range_targets: [wood_dummy, sandbag, minecart, hanging_stone, material_collision_table]
+
+world_literacy_evidence:
+  evidence_kinds: [observed, intervened, transferred, causally_explained]
+  facts:
+    - {fact_id: "world.water_obeys_path", core_for_prologue: true, required_kinds: [observed, intervened]}
+    - {fact_id: "world.environment_saves_mp", core_for_prologue: true, required_kinds: [observed, intervened]}
+    - {fact_id: "world.heat_needs_source", core_for_prologue: false, exposure_kinds: [observed]}
+    - {fact_id: "world.length_is_geometry", core_for_prologue: true, required_kinds: [observed, intervened]}
+    - {fact_id: "world.wildlife_has_intent", core_for_prologue: false, exposure_kinds: [observed], harm_events_never_count: true}
+    - {fact_id: "world.destruction_persists", core_for_prologue: true, required_kinds: [observed, intervened]}
+
+capacity_progression:
+  state_ids: [player_expression_capacity_meaningful_tokens, artifact_surface_slot_capacity, player_max_mp, attack_capacity_calibration_complete, range_trial_permission]
+  milestones:
+    - milestone_id: "arrival_single_word"
+      resulting_state: {player_expression_capacity_meaningful_tokens: 1, artifact_surface_slot_capacity: 1, player_max_mp: 24}
+      unique_writer_event: "new_game_capacity_initialized"
+    - milestone_id: "pre_cistern_length_phrase"
+      prerequisites: [meditation_court_activated, telo_active_retrieval_1]
+      resulting_state: {player_expression_capacity_meaningful_tokens: 2, artifact_surface_slot_capacity: 2, player_max_mp: 26}
+      unique_writer_event: "first_evidence_package_committed"
+    - milestone_id: "attack_capacity_calibration"
+      prerequisite_graph_id: "attack.water.forceful_motion.prerequisite_graph"
+      resulting_state: {player_expression_capacity_meaningful_tokens: 4, artifact_surface_slot_capacity: 4, player_max_mp: 30, attack_capacity_calibration_complete: true}
+      unique_writer_event: "attack_capacity_calibrated"
+      max_mp_alone_cannot_grant_capacity: true
+    - milestone_id: "range_trial_permission"
+      prerequisites: [attack_capacity_calibration_complete, prologue_return_observed]
+      resulting_state: {range_trial_permission: true}
+      unique_writer_event: "attack_prerequisites_verified"
+      capacity_is_input_not_same_event_output: true
+  missing_capacity_policy: "offer_parallel_noncombat_calibration_at_next_safe_point"
+
+embedded_task_entry_contracts:
+  ch01_length_cistern:
+    player_state_source_when_embedded: "inherit_region_save"
+    standalone_initial_snapshot_is_runtime_source: false
+    first_entry_checkpoint_restore:
+      operation: "additive_light_restore"
+      restore_amount_formula: "round_to_0.5(max(3, 0.15 * max_mp))"
+      soft_cap_formula: "floor_to_0.5(0.80 * max_mp)"
+      post_mp_formula: "current_mp + max(0, min(restore_amount, soft_cap - current_mp))"
+      never_decreases_current_mp: true
+      never_exceeds_max_mp: true
+      once_per_checkpoint_activation_id: true
+      writes_inherited_region_current_mp: true
+      golden_examples:
+        - {current_mp: 10, max_mp: 26, post_mp: 14}
+        - {current_mp: 20, max_mp: 26, post_mp: 20.5}
+        - {current_mp: 24, max_mp: 26, post_mp: 24}
+    natural_mp_regeneration_remains_active: true
+    insufficient_for_direct_21_mp_path_policy: "allow_natural_regeneration_and_tool_fallback_without_false_language_evidence"
+    reentry_preserves_current_mp: true
+    phase_reset_restores_exact_phase_mp_ledger: true
+    phase_reset_cannot_increase_saved_region_mp: true
+
+first_attack_qualification:
+  attack_signature_id: "attack.water.forceful_motion.v0.1"
+  attack_signature_ref: "../spells/attack-signatures.v0.1.yaml"
+  prerequisite_graph_id: "attack.water.forceful_motion.prerequisite_graph"
+  canonical_ast_shape: {subject_head: "word.telo", command_particle: "o", action: "word.tawa", manner: "word.wawa"}
+  example_expression_non_normative: "telo o tawa wawa"
+  raw_utterance_string_match_forbidden: true
+  evidence_record_contract:
+    variant_hash_fields: [task_family_id, target_binding_class, normalized_environment_fingerprint, canonical_ast_shape]
+    normalized_environment_fingerprint_fields: [task_goal_id, target_material_class, target_initial_state_band, relevant_route_state]
+    excluded_environment_noise_fields: [particle_seed, cosmetic_debris, frame_time, ambient_animation_phase]
+    evidence_eligibility_fields_not_variant_identity: [highest_prompt_level]
+    idempotency_key_fields: [player_save_id, evidence_type, variant_hash]
+    same_variant_award_maximum: 1
+    reset_replay_reaward_forbidden: true
+  capacity_calibration:
+    state_id: "attack_capacity_calibration_complete"
+    granted_by_event: "attack_capacity_calibrated"
+    required_graph_id: "attack.water.forceful_motion.prerequisite_graph"
+    graph_completion_must_precede_capacity_write: true
+  trial_permission:
+    state_id: "range_trial_permission"
+    granted_by_event: "attack_prerequisites_verified"
+    execution_scope: "safe_range_inert_targets_only"
+    required_world_predicates: [prologue_return_observed, attack_capacity_calibration_complete]
+    required_evidence:
+      - {type: "prerequisite_graph_completion", graph_id: "attack.water.forceful_motion.prerequisite_graph", completion_event: "attack_capacity_calibrated"}
+      - {type: "capacity", player_expression_capacity_meaningful_tokens_minimum: 4, artifact_surface_slot_capacity_minimum: 4, player_max_mp_minimum: 30}
+    same_event_may_not_create_required_capacity: true
+  formal_unlock:
+    state_id: "first_attack_signature_available"
+    granted_by_event: "safe_range_transfer_passed"
+    required_evidence:
+      - {type: "safe_range_unseen_transfer", target_class: "inert", minimum: 1, max_hint_level: 1}
+    never_requires_living_target: true
+  forbidden_inputs: [kill_count, wildlife_harm, elapsed_real_time, repeated_cast_count, currency, streak, raw_utterance_string]
+  missing_qualification_policy: "continue_peacefully_and_offer_parallel_context_at_next_safe_point"
+
+failure_protection:
+  no_mp_cost_statuses: [unparseable, parsed_ambiguous, invalid_preview, insufficient_mp]
+  legal_but_unhelpful_cast_keeps_world_result: true
+  recovery_path_visibility_design_max_seconds: 60
+  public_local_reset_required: true
+  inherited_reset_contract:
+    atomic_restore: [task_phase_snapshot, player_position, current_mp_phase_ledger, task_local_objects]
+    remove_task_local_manifestations: true
+    preserve: [learning_evidence, region_commits, collectibles, global_progress]
+    reset_must_not_duplicate: [mp, materials, currency, task_items, evidence]
+    idempotency_key_fields: [task_id, phase_id, reset_sequence]
+  rest_recovery_requires_quiz: false
+  tool_bypass_grants_target_language_evidence: false
+
+telemetry_events:
+  - prologue_segment_started
+  - prologue_segment_completed
+  - world_literacy_observed
+  - world_literacy_intervened
+  - causal_attribution_submitted
+  - active_retrieval_submitted
+  - repair_requested
+  - repair_completed
+  - unseen_transfer_completed
+  - delayed_retrieval_completed
+  - alternate_method_used
+  - wildlife_encountered
+  - wildlife_provoked
+  - wildlife_fled
+  - wildlife_harmed
+  - local_reset_requested
+  - local_reset_completed
+  - capacity_milestone_committed
+  - attack_capacity_calibrated
+  - range_trial_permission_granted
+  - first_attack_signature_unlocked
+  - attack_qualification_started
+  - attack_qualification_completed
+  - safe_range_completed
+
+acceptance:
+  required:
+    mandatory_kills: 0
+    safe_range_uses_living_targets: false
+    required_tasks_have_non_attack_solution: true
+    first_attack_reads_kill_count: false
+    length_available_is_not_mastered: true
+    peaceful_progress_when_attack_locked: true
+    meaningful_world_deltas_on_return_minimum: 3
+  playtest_targets:
+    forced_hunts: 0
+    wildlife_products_required_for_mainline: false
+    survival_needs_modify_language_or_mp: false
+    prologue_needs_floor_minimum: 20
+    activity_share_uses_exclusive_primary_taxonomy: true
+    world_people_physics_time_share_minimum: 0.65
+    language_activity_time_share_range: [0.15, 0.25]
+    long_explanation_panel_time_share_maximum: 0.10
+    focus_active_new_words_per_segment_maximum: 2
+    recovery_path_visibility_design_max_seconds: 60
+    actual_soft_failure_recovery_seconds_p90_target: 120
+    range_trial_permission_content_minutes_p90_maximum: 180
+    formal_attack_unlock_by_180_content_minutes_proportion_minimum: 0.70
+    time_metric_excludes: [pause, idle, settings, optional_free_roam]
+    mandatory_wildlife_harm_events: 0
+
+    survival_ui_active_time_share_maximum: 0.03
+    needs_interrupted_language_interaction_share_maximum: 0.02
+    free_food_water_discovery_seconds_p95_maximum: 60
+    hunting_income_vs_nonviolent_job_maximum: 0.60
+    duplicate_corpse_lot_currency_count: 0

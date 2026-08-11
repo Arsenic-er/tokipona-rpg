@@ -1,0 +1,140 @@
+schema_version: "language.learning-progression.v0.2"
+content_version: "p0.vertical-slice.1"
+status: "implementation_candidate"
+runtime_module: "../../src/learning/progression.ts"
+
+axes:
+  discovery_state:
+    persistent: true
+    states: [unknown, discovered]
+    transition: "unknown -> discovered"
+  attunement_state:
+    persistent: true
+    states: [locked, attuned]
+    transition: "locked -> attuned"
+    ui_label_zh: "激活"
+    note: "永久调谐轴；不等于八帧发光动画，也不等于语言掌握。"
+  visual_activation:
+    persistent: false
+    states: [dormant, activating, active]
+    frame_count: 8
+    reset_policy: "离开本次呈现后可回到 dormant；不得写学习存档。"
+  learning_state:
+    persistent: true
+    states: [discovered, grounded, produced, stabilized]
+    monotonic: true
+
+attunement_contract:
+  prerequisites: [glyph_discovered]
+  catalyst_class: common_nontradeable
+  catalyst_random_drop_required: false
+  catalyst_tradeable: false
+  environmental_witness_required: true
+  grants: [pronunciation, meditation_cards, authored_controlled_trial]
+  does_not_grant: [grounded, produced, stabilized, free_combination, damage_multiplier]
+  interruption_refund_policy: "未提交 glyph_attunement_completed 前不消耗媒介。"
+
+state_transitions:
+  discovered:
+    requires: [glyph_discovered]
+  grounded:
+    requires: [attuned, eligible_grounding_trial]
+    eligible_interpretation_status: [parsed_grounded, executed_legal]
+    max_prompt_level: 1
+    world_outcome_contribution_required: true
+    forbidden: [tool_bypass, answer_visible, fixed_slot_only, color_only_cue]
+  produced:
+    requires: [grounded, active_retrieval_in_two_distinct_task_families]
+    max_prompt_level: 1
+    same_variant_award_maximum: 1
+  stabilized:
+    requires:
+      - produced
+      - unseen_transfer_in_new_task_family
+      - delayed_retrieval_in_new_task_family
+      - both_transfer_environments_outside_produced_baseline
+      - unseen_and_delayed_use_distinct_environment_fingerprints
+      - unseen_and_delayed_use_distinct_variant_hashes
+      - two_or_more_semantic_facets_demonstrated
+    logical_delay:
+      unrelated_committed_world_events_minimum: 2
+      real_time_wait_required: false
+    max_prompt_level: 1
+
+evidence_contract:
+  identifier_contract:
+    word_id: "裸拉丁 canonical token，例如 telo；作为学习存档键。"
+    canonical_ast_word_ids: "带 word. 命名空间的 AST 节点 ID，例如 word.telo。"
+    membership_rule: "canonical_ast_word_ids 必须包含 word.<word_id>。"
+  event_types:
+    - glyph_discovered
+    - glyph_attunement_completed
+    - grounding_trial_resolved
+    - active_retrieval_submitted
+    - repair_completed
+    - unseen_transfer_completed
+    - delayed_retrieval_completed
+    - learning_state_transition_committed
+  contextual_required_fields:
+    - event_id
+    - player_save_id
+    - word_id
+    - task_id
+    - task_family_id
+    - variant_hash
+    - normalized_environment_fingerprint
+    - prompt_level
+    - interpretation_status
+    - canonical_ast_word_ids
+    - semantic_facets_demonstrated
+    - world_outcome_contribution
+    - idempotency_key
+  variant_hash_fields:
+    - task_family_id
+    - target_binding_class
+    - normalized_environment_fingerprint
+    - canonical_ast_shape
+  idempotency_key_fields: [player_save_id, event_type, variant_hash]
+  same_idempotency_key_same_payload: no_op
+  same_idempotency_key_different_payload: conflict
+  reset_replay_reaward_forbidden: true
+  raw_free_text_persisted_by_default: false
+  unique_state_writer: learning_progression_reducer
+  task_may_only_propose_state: true
+
+prompt_levels:
+  H0: "无词汇答案提示。"
+  H1: "只给场景、意义或关系提示，不显示正确词、固定槽位或答案颜色。"
+  H2: "显示候选词或部分结构；可教学，不可作为 produced/stabilized 证据。"
+  H3: "显示答案或自动填充；只用于恢复，不记掌握证据。"
+
+growth_contract:
+  basic_current_mp_recovery_requires_correct_answer: false
+  eligible_evidence_may_feed_milestones: [max_mp, natural_regeneration, stability, precision, mp_efficiency, range_cap]
+  phrase_capacity_unique_writer: chapter_flow_capacity_milestone_event
+  language_mastery_damage_multiplier_forbidden: true
+  repeated_cast_count_growth_forbidden: true
+  discovery_count_growth_forbidden: true
+  failure_causes_permanent_regression: false
+
+migration:
+  from_task_local_states:
+    undiscovered: null
+    seen: discovered
+    available: grounded
+    practiced: produced
+    mastered: stabilized
+  direct_task_mastery_write_after_migration: forbidden
+
+acceptance:
+  p0_unique_words: 12
+  p0_recoverable_discovery_coverage: 1.0
+  contexts_minimum_per_produced_word: 2
+  semantic_facets_minimum_per_stabilized_word: 2
+  prologue_discovered_at_least_8_target: 0.90
+  prologue_discovered_median_range: [10, 12]
+  prologue_grounded_target_range: [5, 8]
+  prologue_produced_target_range: [4, 6]
+  delayed_recognition_target: 0.80
+  active_use_of_at_least_4_words_target: 0.60
+  toki_pona_community_reviewers_minimum: 2

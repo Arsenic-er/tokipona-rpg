@@ -1,0 +1,257 @@
+:root {
+  color: #ebe4d0;
+  background: #08090c;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-synthesis: none;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  min-width: 320px;
+  min-height: 100%;
+  margin: 0;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(59, 48, 36, 0.2), transparent 34rem),
+    #08090c;
+}
+
+button {
+  color: inherit;
+  font: inherit;
+}
+
+#app {
+  min-height: 100vh;
+  padding: max(10px, env(safe-area-inset-top)) 10px max(16px, env(safe-area-inset-bottom));
+}
+
+.lab-shell {
+  width: min(100%, 440px);
+  margin: 0 auto;
+}
+
+.hud {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.hud__title,
+.meter,
+.spell-panel,
+.lab-controls {
+  background: rgba(15, 16, 21, 0.94);
+  border: 1px solid #39342c;
+}
+
+.hud__title {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 8px 10px;
+}
+
+.mode-link {
+  color: #c8b27c;
+  font-size: 10px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.mode-link:hover {
+  color: #f0c879;
+}
+
+.hud__title strong {
+  font-size: 14px;
+  letter-spacing: 0.03em;
+}
+
+.eyebrow {
+  color: #a49b87;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.meter {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 11px;
+}
+
+.meter__track {
+  height: 6px;
+  overflow: hidden;
+  background: #252734;
+}
+
+.meter__fill {
+  width: 100%;
+  height: 100%;
+  background: #5367aa;
+  transition: width 120ms linear;
+}
+
+.game-frame {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid #4b4031;
+  background: #07080b;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+}
+
+#game {
+  display: block;
+  width: 100%;
+  aspect-ratio: 9 / 16;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  touch-action: none;
+  cursor: crosshair;
+}
+
+.crosshair-copy {
+  position: absolute;
+  right: 8px;
+  bottom: 7px;
+  max-width: 70%;
+  padding: 4px 6px;
+  color: #b4aa95;
+  background: rgba(5, 6, 8, 0.78);
+  font-size: 9px;
+  letter-spacing: 0.02em;
+  pointer-events: none;
+}
+
+.spell-panel {
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 9px;
+}
+
+.spell-readout {
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 10px;
+}
+
+.spell-readout span,
+.spell-readout small {
+  color: #a49b87;
+}
+
+.spell-readout strong {
+  color: #f0c879;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 17px;
+}
+
+.spell-readout small {
+  text-align: right;
+}
+
+.spell-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 5px;
+}
+
+.spell-grid button,
+.lab-controls button {
+  border: 1px solid #484239;
+  border-radius: 0;
+  background: #18191e;
+  cursor: pointer;
+}
+
+.spell-grid button {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 5px;
+  min-height: 36px;
+  padding: 5px 7px;
+  text-align: left;
+}
+
+.spell-grid button:hover,
+.spell-grid button[aria-pressed="true"],
+.lab-controls button:hover {
+  border-color: #c39a52;
+  background: #29231b;
+}
+
+.spell-grid button > span,
+.spell-grid button > small {
+  color: #8d8577;
+  font-size: 9px;
+}
+
+.spell-grid button > strong {
+  color: #e4dcc8;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 12px;
+}
+
+.lab-controls {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin-top: 8px;
+  padding: 9px;
+}
+
+.lab-controls button {
+  min-height: 34px;
+  padding: 5px;
+  font-size: 10px;
+}
+
+.lab-controls p {
+  grid-column: 1 / -1;
+  margin: 2px 0 0;
+  color: #bdb3a0;
+  font-size: 10px;
+}
+
+.lab-controls .help {
+  color: #756f66;
+  line-height: 1.5;
+}
+
+@media (min-width: 720px) and (min-height: 900px) {
+  #app {
+    padding-block: 18px;
+  }
+}
+
+@media (max-width: 360px) {
+  .spell-readout {
+    grid-template-columns: auto auto;
+  }
+
+  .spell-readout small {
+    grid-column: 1 / -1;
+    text-align: left;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .meter__fill {
+    transition: none;
+  }
+}

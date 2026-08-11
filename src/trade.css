@@ -1,0 +1,151 @@
+:root {
+  color: #e7dfca;
+  background: #0c0d0b;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-synthesis: none;
+}
+
+* { box-sizing: border-box; }
+
+html,
+body {
+  min-width: 320px;
+  min-height: 100%;
+  margin: 0;
+  background:
+    linear-gradient(rgba(12, 13, 11, 0.9), rgba(7, 8, 7, 0.98)),
+    repeating-linear-gradient(90deg, #211d15 0 2px, #11110e 2px 7px);
+}
+
+button,
+a { color: inherit; font: inherit; }
+
+button {
+  border: 1px solid #4b4538;
+  background: #1b1b17;
+  cursor: pointer;
+}
+
+button:hover:not(:disabled),
+button[aria-pressed="true"] { border-color: #c59b51; background: #2c261b; }
+button:disabled { color: #736e64; cursor: not-allowed; }
+
+#app { min-height: 100vh; padding: 12px; }
+.trade-shell { width: min(100%, 1040px); margin: 0 auto; }
+
+.topline,
+.wallet-panel,
+.merchant-list,
+.trade-desk,
+.quote-panel,
+.status-line {
+  border: 1px solid #3e392f;
+  background: rgba(17, 17, 14, 0.97);
+}
+
+.topline,
+.wallet-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 10px 12px;
+}
+
+.topline strong { display: block; }
+.topline nav { display: flex; gap: 12px; }
+.topline a { color: #c7b17b; font-size: 12px; text-decoration: none; }
+
+.eyebrow {
+  display: block;
+  color: #938c7d;
+  font: 10px/1.45 ui-monospace, SFMono-Regular, Consolas, monospace;
+  letter-spacing: 0.08em;
+}
+
+.wallet-panel { margin-top: 8px; color: #c9bea7; font: 12px ui-monospace, SFMono-Regular, Consolas, monospace; }
+#coin-count { color: #e5b85e; font-weight: 700; }
+
+.market-layout {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.merchant-list,
+.trade-desk { padding: 11px; }
+.merchant-list h2,
+.trade-desk h2,
+.quote-panel h2 { margin: 0 0 9px; font-size: 13px; }
+
+#merchant-buttons { display: grid; gap: 5px; }
+#merchant-buttons button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 42px;
+  padding: 7px 8px;
+  text-align: left;
+}
+#merchant-buttons small { color: #8e887c; font-size: 10px; }
+
+.merchant-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.merchant-heading h1 { margin: 2px 0 0; font-size: 19px; }
+.status-chip { padding: 4px 7px; border: 1px solid #4f493b; font-size: 10px; }
+.status-chip.active { color: #a9c48d; border-color: #526547; }
+.status-chip.planned { color: #999185; }
+
+.merchant-rules {
+  margin: 10px 0 14px;
+  padding: 8px;
+  background: #211f19;
+  color: #afa793;
+  font-size: 11px;
+  line-height: 1.55;
+}
+.merchant-rules p { margin: 2px 0; }
+
+.inventory-list { display: grid; gap: 6px; }
+.lot-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(200px, 0.75fr);
+  gap: 10px;
+  padding: 8px;
+  border-left: 3px solid #665e4d;
+  background: #1d1c18;
+}
+.lot-row.eligible { border-left-color: #7e9d66; }
+.lot-row.refused { border-left-color: #6d554c; }
+.lot-main,
+.lot-decision { display: grid; gap: 3px; }
+.lot-main strong { font-size: 12px; }
+.lot-main span,
+.lot-decision span { color: #978f80; font: 10px/1.35 ui-monospace, SFMono-Regular, Consolas, monospace; }
+.lot-decision { align-content: space-between; }
+.lot-decision button { min-height: 30px; padding: 5px 7px; font-size: 10px; }
+
+.quote-panel { display: grid; grid-template-columns: 1fr auto; gap: 10px; margin-top: 8px; padding: 11px; }
+.quote-panel h2 { grid-column: 1 / -1; }
+#quote-content { display: grid; gap: 3px; color: #a9a08f; font-size: 11px; }
+#quote-content strong { color: #e4d7b9; }
+#confirm-quote { min-width: 130px; padding: 8px 12px; }
+
+.status-line { min-height: 40px; margin: 8px 0 0; padding: 10px; color: #d3c5a6; font-size: 11px; }
+
+@media (max-width: 720px) {
+  .market-layout { grid-template-columns: 1fr; }
+  #merchant-buttons { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 520px) {
+  .topline,
+  .wallet-panel { align-items: flex-start; flex-direction: column; }
+  .lot-row { grid-template-columns: 1fr; }
+  .quote-panel { grid-template-columns: 1fr; }
+  #confirm-quote { width: 100%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { scroll-behavior: auto !important; }
+}

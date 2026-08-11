@@ -51,7 +51,7 @@ initial_state_snapshot:
     current_mp: 24.0
     max_mp: 24.0
     expression_capacity_meaningful_tokens: 2
-    unlocked_word_ids: ["word.telo", "word.lili", "word.suli"]
+    task_enabled_word_ids: ["word.telo", "word.lili", "word.suli"]
     living_safety_class: "normal"
   artifact:
     supports_public_focus: true
@@ -67,6 +67,32 @@ initial_state_snapshot:
     upper_channel_available: false
     exit_ladder_lowered: false
 
+
+entry_state_contract:
+  standalone_preview:
+    use_initial_state_snapshot: true
+    applies_embedded_first_entry_restore: false
+  embedded_region:
+    inherit_player_current_mp_max_mp_capacity_and_learning_state: true
+    initial_state_snapshot_player_is_not_applied: true
+    first_entry_checkpoint_restore:
+      operation: "additive_light_restore"
+      restore_amount_formula: "round_to_0.5(max(3, 0.15 * max_mp))"
+      soft_cap_formula: "floor_to_0.5(0.80 * max_mp)"
+      post_mp_formula: "current_mp + max(0, min(restore_amount, soft_cap - current_mp))"
+      never_decreases_current_mp: true
+      never_exceeds_max_mp: true
+      once_per_checkpoint_activation_id: true
+      duplicate_activation_is_noop: true
+      golden_examples:
+        - {current_mp: 10, max_mp: 26, post_mp: 14}
+        - {current_mp: 20, max_mp: 26, post_mp: 20.5}
+        - {current_mp: 24, max_mp: 26, post_mp: 24}
+    scene_reentry_full_restore_forbidden: true
+    phase_rewind_restores_exact_phase_snapshot: true
+    phase_rewind_cannot_increase_region_saved_mp: true
+    insufficient_for_direct_path_keeps_tool_fallback: true
+  task_enabled_words_are_not_persistent_unlocks: true
 scene:
   scene_id: "valley.high_cistern.graybox.v0.1"
   coordinate_origin: "bottom_left"
@@ -197,8 +223,8 @@ state_machine:
     - {from: "default.ready", event: "default_receiver_goal_true", to: "default.passed"}
     - {from: "default.passed", event: "checkpoint_written", to: "long.ready"}
     - {from: "long.ready", event: "siphon_primed", to: "long.passed"}
-    - {from: "long.passed", event: "world_transition_committed", guard: "fallback_used == false", to: "completed"}
-    - {from: "long.passed", event: "world_transition_committed", guard: "fallback_used == true", to: "completed_with_fallback"}
+    - {from: "long.passed", event: "cistern_world_transition_committed", guard: "fallback_used == false", to: "completed"}
+    - {from: "long.passed", event: "cistern_world_transition_committed", guard: "fallback_used == true", to: "completed_with_fallback"}
 
 stage_contracts:
   observation:
@@ -312,6 +338,9 @@ hint_ladder:
 
 evidence_trace_contract:
   event_fields:
+    - event_type
+    - semantic_word_ids_presented
+    - parse_state
     - task_id
     - task_version
     - stage_id
@@ -391,13 +420,55 @@ fallback:
   permanent_progress_blocked: false
   schedule_optional_transfer_task: true
 
+learning_state_event_contracts:
+  - event_id: "cistern_learning_proposal_committed"
+    version: "0.1.0"
+    trigger: "after_cistern_world_transition_committed"
+    evaluates_each_word_independently: true
+    unique_writer_for_task_learning_proposals: true
+    input_event_types: [length_result_observed, expression_attempt_resolved]
+    required_event_fields: [event_type, task_id, stage_id, canonical_ast, semantic_word_ids_presented, resolved_length_class, parse_state, selected_action_class, idempotency_key]
+    rules:
+      word.lili:
+        rule_id: "cistern.available.lili.v0.1"
+        proposed_state: "available"
+        eligible_if_any:
+          - {event_type: "length_result_observed", semantic_word_ids_presented_contains: "word.lili", resolved_length_class: "short"}
+          - {event_type: "expression_attempt_resolved", canonical_ast_contains: "word.lili", resolved_length_class: "short", parse_state_any: [parsed_grounded, executed_legal]}
+      word.suli:
+        rule_id: "cistern.available.suli.v0.1"
+        proposed_state: "available"
+        eligible_if_any:
+          - {event_type: "length_result_observed", semantic_word_ids_presented_contains: "word.suli", resolved_length_class: "long"}
+          - {event_type: "expression_attempt_resolved", canonical_ast_contains: "word.suli", resolved_length_class: "long", parse_state_any: [parsed_grounded, executed_legal]}
+    excluded_action_classes: [maintenance_bypass_valve, movable_gutter, maintenance_platform_and_bucket, repair_hand_pump]
+    no_eligible_word_policy: "commit_no_learning_state_write"
+    commit:
+      persistence_scope: "global"
+      save_owner: "player_learning_save"
+      state_order: [undiscovered, seen, available, practiced, mastered]
+      merge_policy: "maximum_rank_wins"
+      direct_mastery_write_forbidden: true
+      idempotency_key_fields: [player_save_id, task_id, event_id, word_id, proposed_state]
+      same_word_state_write_maximum: 1
+      replay_is_noop: true
+    task_completion_independent_from_learning_write: true
+
 completion:
   task_goal_predicate: "gate.right_shaft.open && gate.left_shaft.open && cistern.siphon_primed"
   world_transition:
+    writer_event: "cistern_world_transition_committed"
+    target_state_registry: "../world/regions/valley-prologue.v0.1.yaml"
     set_flags:
       high_cistern_reconnected: true
       upper_channel_available: true
       exit_ladder_lowered: true
+    learning_state_proposals:
+      writer_event: "cistern_learning_proposal_committed"
+      rule_refs:
+        word.lili: "cistern.available.lili.v0.1"
+        word.suli: "cistern.available.suli.v0.1"
+      permanent_mastery: false
     conjured_water_becomes_persistent_supply: false
     task_local_manifestations_enter_economy: false
   expected_direct_mp_ledger:

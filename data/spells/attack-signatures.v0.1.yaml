@@ -1,0 +1,120 @@
+schema_version: "g02.attack-signatures.v0.1"
+content_version: "chapter-01.prologue.1"
+status: "draft"
+
+contracts:
+  raw_utterance_string_matching_forbidden: true
+  minimum_meaningful_tokens_for_direct_attack: 4
+  language_mastery_damage_multiplier_forbidden: true
+  fixed_damage_from_word_id_forbidden: true
+  living_target_required_for_qualification: false
+  physical_damage_requires_world_interaction: true
+
+prerequisite_graphs:
+  - graph_id: "attack.water.forceful_motion.prerequisite_graph"
+    version: "0.1.0"
+    identity_fields: [graph_id, version, canonical_ast_shape]
+    canonical_ast_shape:
+      subject_head: "word.telo"
+      command_particle: "o"
+      action: "word.tawa"
+      manner: "word.wawa"
+    required_nodes:
+      - {node_id: "retrieve.telo.two_families", evidence_type: "active_retrieval", concept: "word.telo", distinct_task_families: 2, max_hint_level: 1}
+      - {node_id: "use.motion.noncombat", evidence_type: "noncombat_action", ast_shape: "N o tawa", distinct_task_families: 2, max_hint_level: 1}
+      - {node_id: "use.intensity.inert", evidence_type: "noncombat_intensity", concept: "word.wawa", source_object_class: "inert_return_flow_mechanism", minimum: 1, max_hint_level: 1}
+      - {node_id: "repair.related_graph", evidence_type: "repair", target_graph_id: "attack.water.forceful_motion.prerequisite_graph", eligible_target_node_ids: [use.motion.noncombat, use.intensity.inert], minimum: 1, max_hint_level_after_repair: 1}
+      - {node_id: "retrieve.delayed", evidence_type: "delayed_retrieval", target_graph_id: "attack.water.forceful_motion.prerequisite_graph", retrieval_target: "canonical_ast_shape_or_declared_paraphrase_equivalence", minimum: 1, unrelated_world_events_between: 2, max_hint_level: 1}
+    completion_event: "attack_capacity_calibrated"
+    forbidden_inputs: [kill_count, wildlife_harm, elapsed_real_time, repeated_cast_count, currency, streak]
+
+physics_damage_models:
+  - damage_formula_id: "physics.impact.transfer.v0.1"
+    version: "0.1.0"
+    status: "provisional_balance_model"
+    inputs: [projectile_phase, projectile_mass_mu, transferred_kinetic_eu, target_absorption_eu, solid_material_threshold_mu, solid_material_mass_coefficient]
+    kinetic_component_hp_formula: "floor(max(0, transferred_kinetic_eu - target_absorption_eu) / 4)"
+    solid_mass_component_hp_formula: "projectile_phase == solid ? floor(max(0, projectile_mass_mu - solid_material_threshold_mu) * solid_material_mass_coefficient) : 0"
+    total_impact_hp_formula: "kinetic_component_hp + solid_mass_component_hp"
+    liquid_and_gas_use_kinetic_component_only: true
+    solid_material_defaults:
+      wood: {threshold_mu: 2.0, mass_coefficient: 1.0}
+      ice: {threshold_mu: 1.5, mass_coefficient: 1.5}
+      stone: {threshold_mu: 1.5, mass_coefficient: 2.0}
+      metal: {threshold_mu: 1.0, mass_coefficient: 2.5}
+    readable_damage_breakdown_fields: [kinetic_hp, solid_mass_hp, absorbed_eu, total_hp]
+    language_fields_forbidden: [word_id, mastery_score, quiz_accuracy, streak]
+    tuning_requires_playtest: true
+
+signatures:
+  - signature_id: "attack.water.forceful_motion.v0.1"
+    version: "0.1.0"
+    prerequisite_graph_id: "attack.water.forceful_motion.prerequisite_graph"
+    canonical_ast_shape:
+      subject_head: "word.telo"
+      command_particle: "o"
+      action: "word.tawa"
+      manner: "word.wawa"
+    example_expression_non_normative: "telo o tawa wawa"
+    semantic_roles:
+      matter_source: "water"
+      illocution: "command"
+      motion_relation: "directed_motion"
+      manner: "forceful"
+    capacity_requirements:
+      player_expression_capacity_meaningful_tokens_minimum: 4
+      artifact_surface_slot_capacity_minimum: 4
+    mp_quote:
+      use_bound_existing_water: 13
+      manifest_default_water: 18
+      quote_breakdown_manifested:
+        water_manifestation: 5
+        command_and_direction_control: 2
+        motion_work: 3
+        paid_kinetic_budget: 8
+      maximum_mp_30_is_sufficient: true
+      insufficient_mp_policy: "preview_only_no_world_mutation_no_charge"
+    material_output:
+      phase: "liquid"
+      default_manifested_mass_mu: 2.0
+      solid_mass_impact_component: 0
+      gravity_after_release: true
+      persistence_scope: "ephemeral"
+      economy_export_forbidden: true
+    motion_output:
+      paid_kinetic_budget_eu: 8.0
+      initial_speed_band_mps: [3.0, 5.0]
+      direction_source: "public_focus_or_explicit_direction"
+      mouse_speed_to_kinetic_energy_forbidden: true
+      auto_target_lock_forbidden: true
+    damage_resolution:
+      reads: [transferred_kinetic_eu, relative_velocity, target_material_coupling, target_state]
+      liquid_solid_mass_damage_component: 0
+      solid_mass_damage_only_for_solid_projectiles: true
+      damage_formula_id: "physics.impact.transfer.v0.1"
+      damage_constant_in_signature_forbidden: true
+      length_word_ids_read_by_damage_formula: false
+      language_evidence_read_by_damage_formula: false
+    trial_execution:
+      required_permission_state: "range_trial_permission"
+      allowed_scene: "scene.valley.safe_range"
+      allowed_target_class: "inert"
+      living_overlap_rejected_before_commit: true
+      swept_volume_collision_check: true
+    post_unlock_execution:
+      required_state: "first_attack_signature_available"
+      world_space_trajectory_only: true
+      internal_spawn_forbidden: true
+      friendly_and_neutral_safety_preview_required: true
+      result_still_resolved_by_world_physics: true
+    qualification_transfer:
+      task_family_id: "safe_range_unseen_transfer"
+      target_classes: [wood_dummy, sandbag, minecart, hanging_stone]
+      material_table_completion_target: "material_collision_table"
+      same_normalized_variant_award_maximum: 1
+    golden_tests:
+      - {id: "attack.no_permission_no_commit", expect: {world_mutation: false, mp_charge: 0}}
+      - {id: "attack.max_mp_30_manifest_quote", expect: {can_quote: true, required_mp: 18}}
+      - {id: "attack.liquid_has_no_solid_mass_bonus", expect: {solid_mass_impact_component: 0}}
+      - {id: "attack.damage_ignores_language_mastery", expect: {language_multiplier: 1.0}}
+      - {id: "attack.inert_transfer_unlocks", expect: {living_target_required: false}}

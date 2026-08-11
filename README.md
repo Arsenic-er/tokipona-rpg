@@ -10,15 +10,24 @@
 - [八份开发文档总索引](docs/design/README.md)
 - [玩法 01：探索与任务](docs/design/gameplay/01-exploration-and-quests-zh.md)
 - [玩法 02：咒语构筑（单词层数据库）](docs/design/gameplay/02-spell-construction-zh.md)
+- [玩法 03：软生存与动物素材经济](docs/design/gameplay/03-survival-and-wildlife-economy-zh.md)
 - [背景 01：世界规则](docs/design/world/01-world-rules-zh.md)
 - [首个灰盒关卡：高位蓄水槽](docs/design/levels/ch01-length-cistern-graybox-zh.md)
+- [前三小时跨场景灰盒：溪谷世界识读序章](docs/design/levels/ch01-world-literacy-prologue-graybox-zh.md)
 - [GitHub 咒语构筑参考架构](docs/research/github-spell-construction-references-zh.md)
 
 ## 机器数据
 
 - [首批单词咒语](data/spells/single-word-spells.v0.1.yaml)
 - [长度构形参数](data/spells/length-profiles.v0.1.yaml)
+- [首个攻击签名与 MU/EU 物理伤害模型](data/spells/attack-signatures.v0.1.yaml)
+- [饱食度与口渴度](data/player/survival-needs.v0.1.yaml)
+- [动物尸体、加工与聚落市场](data/economy/wildlife-products.v0.1.yaml)
+- [跨存档 WAL 与单调世界时钟](data/persistence/cross-save-wal.v0.1.yaml)
 - [高位蓄水槽任务](data/tasks/ch01-length-cistern.v0.1.yaml)
+- [世界识读序章编排](data/chapters/ch01-world-literacy-prologue.v0.1.yaml)
+- [溪谷序章地区拓扑](data/world/regions/valley-prologue.v0.1.yaml)
+- [溪谷序章动物生态](data/ecology/valley-prologue.v0.1.yaml)
 
 ## 仓库边界
 

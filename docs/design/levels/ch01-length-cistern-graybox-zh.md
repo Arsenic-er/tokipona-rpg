@@ -1,8 +1,8 @@
 # L-01｜高位蓄水槽灰盒关卡
 
-状态：灰盒规格 v0.1  
-任务 ID：`ch01_length_cistern`  
-依赖：G-01 v0.6、G-02 v0.5、W-01 v0.6、`chapter-01.4`、`g02.length-profiles.v0.1`  
+状态：灰盒规格 v0.1<br>
+任务 ID：`ch01_length_cistern`<br>
+依赖：G-01 v0.7、G-02 v0.5、W-01 v0.6、`chapter-01.4`、`g02.length-profiles.v0.1`<br>
 范围：第一章首次完整对照 `telo lili / telo / telo suli`
 
 ## 1. 关卡职责
@@ -26,15 +26,17 @@
 进入前：
 
 - 已在 `ch01_waterwheel` 中见过 `telo`，知道显化水会受重力；
-- 当前最大 MP 至少 24，表达容量允许两个内容词；
+- 独立预览使用 24/24 MP 快照；嵌入序章时继承地区存档中的当前 MP、最大 MP、表达容量和学习状态（预期此时最大 MP 为 26），不得用快照覆盖；
 - `lili/suli` 可以处于“未发现”或“已见但未掌握”状态；
 - 玩家仍可使用移动、近战和环境工具，但本关没有必须击败的敌人。
+
+嵌入序章首次激活入口检查点时执行一次轻恢复：`restore = round_to_0.5(max(3, 0.15×max_mp))`，软上限为 `floor_to_0.5(0.8×max_mp)`，`post_mp = current_mp + max(0, min(restore, soft_cap-current_mp))`。该操作只增加或保持当前 MP，不会降低高于软上限的已有 MP；相同激活 ID 重放不再次回复。
 
 完成后：
 
 - `cistern.siphon_primed = true`；
 - `valley.upper_channel = available`；
-- 通往上层矿道的永久梯降下；
+- 通往回流道的永久梯降下；旧矿道入口只在玩家回到聚落并观察持续后果后开放；
 - 记录本关产生的长度选择证据，但不直接把任一词标成永久掌握。
 
 ## 4. 空间规格
@@ -53,7 +55,7 @@
 | 对象 ID | 位置/包围盒（格） | 初始状态 | 规则作用 |
 |---|---|---|---|
 | `spawn.entry` | `[1,2]..[2,5]` | active | 玩家入口 |
-| `checkpoint.entry` | `(3.5,2)` | active | 保存 24 MP 的任务快照 |
+| `checkpoint.entry` | `(3.5,2)` | active | 独立预览保存 24 MP；嵌入序章继承当前 MP 并按首次激活轻恢复公式结算 |
 | `echo.default` | `[2,3]..[10,8]` | active | 脚本演示裸词 2 格默认水段，不扣玩家 MP |
 | `anchor.short` | `(6.5,7.75)` | active | 主轴向东 |
 | `receiver.short` | `[7.20,7.75)×[6.75,7.15)` | empty | 收集至少 0.25 MU 后开启右梯井 |
@@ -72,7 +74,7 @@
 | `cistern.main` | `[11.25,23.5)×[31.5,38.5)` | unprimed | 保存原有水；显化水只启动虹吸 |
 | `lift.water_powered` | `[25.5,28)×[26,40)` | inactive | 虹吸启动后通往顶层 |
 | `checkpoint.exit` | `(26.5,40)` | locked | 保存全关状态 |
-| `exit.upper_mine` | `[28,29)×[41,44)` | locked | 任务出口和永久捷径 |
+| `exit.return_channel` | `[28,29)×[41,44)` | locked | 通往回流道的任务出口和永久捷径 |
 
 所有危险边缘下方都有回收池或斜坡。闸门与升降机检测玩家碰撞体后停止，不能夹伤玩家。
 

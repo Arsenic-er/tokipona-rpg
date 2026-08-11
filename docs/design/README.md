@@ -1,6 +1,6 @@
 # 道本语魔法 RPG：八份开发文档总索引
 
-状态：结构基线 v0.7  
+状态：结构基线 v0.8<br>
 更新：2026-08-06
 
 ## 当前方向
@@ -19,7 +19,7 @@
 |---|---|---|---|
 | G-01 | [探索与任务](gameplay/01-exploration-and-quests-zh.md) | 玩家去哪里、做什么、如何形成探索—表达—反馈—成长循环 | 初稿 |
 | G-02 | [咒语构筑：单词层数据库](gameplay/02-spell-construction-zh.md) | 词、短语、句法、指代与法器如何组成可执行魔法 | 单词层初稿·逐词审阅中 |
-| G-03 | 实际运用 | 战斗、解谜、沟通和环境操作如何共同检验语言能力 | 待写 |
+| G-03 | [实际运用：软生存与动物经济](gameplay/03-survival-and-wildlife-economy-zh.md) | 饱食、口渴、狩猎、加工、售卖怎样与战斗、生态和学习边界协同 | 系统规格 v0.1 |
 | G-04 | 反馈与成长 | 冥想、间隔复习、能力成长、失败修复与长期留存 | 待写 |
 
 ### 背景侧
@@ -36,6 +36,7 @@
 | ID | 文档 | 机器数据 | 状态 |
 |---|---|---|---|
 | L-01 | [高位蓄水槽](levels/ch01-length-cistern-graybox-zh.md) | [任务 YAML](../../data/tasks/ch01-length-cistern.v0.1.yaml) | 灰盒规格 v0.1 |
+| LP-01 | [溪谷世界识读序章](levels/ch01-world-literacy-prologue-graybox-zh.md) | [章节 YAML](../../data/chapters/ch01-world-literacy-prologue.v0.1.yaml) · [地区 YAML](../../data/world/regions/valley-prologue.v0.1.yaml) · [生态 YAML](../../data/ecology/valley-prologue.v0.1.yaml) · [需求 YAML](../../data/player/survival-needs.v0.1.yaml) · [动物经济 YAML](../../data/economy/wildlife-products.v0.1.yaml) · [WAL YAML](../../data/persistence/cross-save-wal.v0.1.yaml) | 跨场景灰盒 v0.1 |
 
 关卡规格不是新的顶层设计文档编号；它把 G-01 的任务意图、G-02 的咒语构筑和 W-01 的世界规则绑定为可实现、可重放的内容实例。
 
@@ -154,9 +155,12 @@ transfer_check_completed
 - 世界结构：手工地图、连续存档、可回访、非 roguelike。
 - 第一章语言：14 个候选内容词；`suli/lili` 成对保留宽语义，但元素召唤只映射到唯一 `LENGTH` 轴，不再提供整体 `SIZE` 模式。正式结构为 `o`、`li`、`e`，`la` 从第二章开始教学。
 - 长度灰盒：五类可延展元素统一采用 1/2/4 格的较短/默认/较长形态，截面按元素固定；默认形态表示“不添加尺度修饰词”，不是 toki pona 中的“标准长度”。数值源为 [`data/spells/length-profiles.v0.1.yaml`](../../data/spells/length-profiles.v0.1.yaml)。
+- 首攻灰盒：`attack.water.forceful_motion.v0.1` 的规范化语义图、证据图、MP 报价与 MU/EU 动能伤害模型以 [`data/spells/attack-signatures.v0.1.yaml`](../../data/spells/attack-signatures.v0.1.yaml) 为机器权威；词汇熟练度不得进入伤害公式。
+- 软生存与动物经济：饱食/口渴不致死且不读取语言或 MP；动物死亡生成唯一尸体，肉皮经幂等加工进入低收益聚落市场，主线与语言成长均不要求狩猎。机器权威为[需求 YAML](../../data/player/survival-needs.v0.1.yaml)、[动物经济 YAML](../../data/economy/wildlife-products.v0.1.yaml)和[WAL YAML](../../data/persistence/cross-save-wal.v0.1.yaml)。
 - 首个关卡实例：L-01 用观察回声、精密安全窗、两格接水阀和高位虹吸依次检验默认基线、`lili`、主动省略尺度词与 `suli`；正确直达路径耗费 21/24 MP，工具旁路可推进剧情但不伪造语言证据。
 - 攻击门槛：三词 `N o tawa` 是低速实用控制；直接攻击至少需要四个有效词、获准攻击签名与足够物理预算，任意四词不自动攻击。
-- 节奏：首个攻击签名目标放在章节约 70%；由对照、主动检索、改述、延迟与未见迁移证据解锁，不使用现实时间锁、签到或机械刷题。
+- 序章节奏：第一章开头约三小时以世界识读为主，主线必须击杀数为 0；三小时只是内容预算，不是现实时间门。聚落、水轮、检修渠、L-01、巢旁路与回流构成可回访闭环。
+- 攻击资格：序章末只在无生命靶标上验证首个攻击签名；资格读取非战斗动作、改述、延迟取回、未见迁移与物理预算，不读取击杀、金币、现实时间或机械重复。攻击未解锁不阻挡和平推进。
 - 语言裁决：规则解析器与明确语义接口；LLM 只能用于离线分析或辅助建议，不能最终裁决。
 - 内容规模：首章纵向切片优先，不提前制作完整世界。
 

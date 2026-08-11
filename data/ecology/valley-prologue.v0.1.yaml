@@ -1,0 +1,200 @@
+schema_version: "w03.ecology.v0.1"
+content_version: "chapter-01.prologue.1"
+ecology_id: "valley_prologue"
+status: "draft"
+survival_profile_ref: "../player/survival-needs.v0.1.yaml"
+wildlife_economy_ref: "../economy/wildlife-products.v0.1.yaml"
+
+contracts:
+  ordinary_wildlife_is_enemy_by_default: false
+  mandatory_kills: 0
+  required_quest_drops: 0
+  language_evidence_from_harm_forbidden: true
+  attack_qualification_from_wildlife_interaction_forbidden: true
+  critical_path_blocking_forbidden: true
+  deterministic_state_transitions_for_key_feedback: true
+  optional_harvest_allowed: true
+  harvest_outputs_never_required_for_route_or_language_evidence: true
+  direct_loot_drop_on_death_forbidden: true
+  juvenile_harvest_outputs_forbidden: true
+
+shared_behavior:
+  states: [calm, observe, warn, self_defense, flee, return]
+  transitions:
+    - {from: calm, to: observe, when: "player_enters_perception_zone"}
+    - {from: observe, to: warn, when: "player_enters_warning_zone_or_blocks_escape"}
+    - {from: warn, to: self_defense, when: "intrusion_continues_after_telegraph_or_major_harm_occurs"}
+    - {from: self_defense, to: flee, when: "escape_route_available_or_fear_threshold_reached"}
+    - {from: warn, to: flee, when: "player_retreats_or_nonlethal_deterrence_succeeds"}
+    - {from: flee, to: return, when: "line_of_sight_lost_and_local_danger_cleared"}
+    - {from: return, to: calm, when: "home_or_forage_anchor_reached"}
+  distance_tiles:
+    perception: 8.0
+    comfort: 5.0
+    warning: 3.5
+    defensive_contact: 1.5
+  timing_seconds:
+    intrusion_before_defense: 1.5
+    minimum_warning_telegraph: 0.7
+    lose_sight: 4.0
+    deescalate: 6.0
+  accidental_harm:
+    mild_hit_max_fraction_of_max_hp: 0.10
+    mild_hit_result: "startle"
+    repeated_hit_window_seconds: 4.0
+    major_hit_fraction_of_max_hp: 0.20
+  deterrence:
+    flee_threshold: 60
+    leave_activity_area_threshold: 80
+    sources:
+      - {action: "weapon_swing_without_hit", damage: 0, fear: 15}
+      - {action: "ground_impact_or_loud_sound", damage: 0, fear: 20}
+      - {action: "low_force_kon", damage: 0, fear: 20}
+      - {action: "small_water_splash", damage: 0, fear_range: [15, 20]}
+      - {action: "actual_weapon_hit", fear_range: [20, 35], discouraged: true}
+
+life_cycle_contract:
+  states: [alive, dead, corpse, decomposed]
+  orthogonal_to_behavior_state: true
+  entity_id_is_species_template_not_life_instance: true
+  life_instance_id_formula: "sha256(region_id, entity_id, spawn_generation, spawn_sequence)"
+  death_event_id_formula: "sha256(region_save_id, life_instance_id, life_state_dead)"
+  death_event_idempotency_key_fields: [region_save_id, life_instance_id]
+  corpse_unique_constraint: "one corpse_id per life_instance_id"
+  death_transition: "alive -> dead -> corpse"
+  death_creates_corpse_via_economy_contract: true
+  return_and_spawn_require: [life_state_is_alive, no_death_tombstone]
+  checkpoint_or_reload_respawn_forbidden: true
+  replenishment_requires_new_life_instance_id: true
+
+entities:
+  - entity_id: "wildlife.rabbit.valley"
+    species: "rabbit"
+    instance_id_strategy: "life_instance_id_formula"
+    life_state_ref: "valley_ecology_save.life_instances"
+    harvest_profile_id: "harvest.rabbit.v0.1"
+    max_hp_provisional: 8
+    home_scene: "scene.valley.return_channel"
+    spawn_anchor: "wet_meadow.rabbit_burrow"
+    real_escape_exit: "wet_meadow.rabbit_burrow_exit"
+    defensive_action: {kind: "kick", damage_provisional: 2}
+    defense_only_when: [cornered, young_threatened]
+    preferred_response: "flee"
+    water_response: "drink_when_basin_safe"
+
+  - entity_id: "wildlife.fox.den"
+    species: "fox"
+    instance_id_strategy: "life_instance_id_formula"
+    life_state_ref: "valley_ecology_save.life_instances"
+    harvest_profile_id: "harvest.fox.v0.1"
+    max_hp_provisional: 20
+    home_scene: "scene.valley.den_bypass"
+    spawn_anchor: "den.fox.rest_anchor"
+    real_escape_exit: "den.fox.back_exit"
+    warning_zone_anchor: "den.fox.young_area"
+    defensive_action: {kind: "bite_or_shove", damage_provisional: 6, guarding_young_damage_provisional: 8}
+    defense_only_when: [cornered, young_threatened, escape_blocked]
+    preferred_response: "warn_then_flee"
+    cross_scene_return_condition: "life_state == alive && no_death_tombstone && fox_den_intact && settlement_supply_stable && local_danger_cleared"
+
+  - entity_id: "wildlife.bat.service_channel"
+    species: "cave_bat"
+    instance_id_strategy: "life_instance_id_formula"
+    life_state_ref: "valley_ecology_save.life_instances"
+    harvest_profile_id: "harvest.bat.v0.1"
+    max_hp_provisional: 10
+    home_scene: "scene.valley.service_channel"
+    spawn_anchor: "service_channel.bat_roost"
+    real_escape_exit: "service_channel.upper_vent"
+    defensive_action: {kind: "accidental_collision", damage_provisional: 1}
+    preferred_response: "flee_from_light_sound_and_vibration"
+    environment_sensor: "roof_vibration_precedes_loose_rock_fall"
+
+  - entity_id: "wildlife.frog.wet_meadow"
+    species: "mud_frog"
+    instance_id_strategy: "life_instance_id_formula"
+    life_state_ref: "valley_ecology_save.life_instances"
+    harvest_profile_id: "harvest.frog.v0.1"
+    max_hp_provisional: 12
+    home_scene: "scene.valley.return_channel"
+    spawn_anchor: "wet_meadow.frog_pool"
+    real_escape_exit: "wet_meadow.mud_recess"
+    defensive_action: {kind: "bump", damage_provisional: 1}
+    preferred_response: "move_with_water_level"
+    cross_scene_return_condition: "life_state == alive && no_death_tombstone && wet_meadow_restored && settlement_supply_stable"
+
+events:
+  - event_id: "rabbit_drinks_at_basin"
+    trigger:
+      all: ["basin.water_mass >= 0.3", "player.distance_tiles >= 6", "local_disturbance == low"]
+    transition: "rabbit forage -> drink -> flee_to_real_burrow"
+    persistent_write: null
+
+  - event_id: "fox_warns_near_den"
+    trigger:
+      all: ["player_inside_den_warning_zone", "fox_den_intact == true"]
+    transition: "observe -> warn"
+    guarantees: [retreat_window, visible_telegraph, real_escape_exit]
+    forbidden_outputs: [quest_lock, required_kill, rare_drop, attack_qualification_evidence]
+
+  - event_id: "bats_reveal_vibration"
+    trigger: "roof_vibration >= warning_threshold"
+    transition: "roost -> flee_through_upper_vent"
+    purpose: "environment_hazard_telegraph"
+
+  - event_id: "wildlife_return_after_flow"
+    trigger:
+      all: ["settlement_supply_stable == true", "wet_meadow_restored == true"]
+    observes_committed_states: [settlement_supply_stable, wet_meadow_restored]
+    transition: "eligible_wildlife -> return"
+    persistent_write: null
+    first_return_channel_visit_visible: true
+
+  - event_id: "den_integrity_commit"
+    trigger: "meaningful_den_structure_delta_committed"
+    persistent_writes:
+      fox_den_intact: "derived_from_den_structure"
+    forbidden_writes: [den_route_open]
+
+reward_contract:
+  on_harm: {language_xp: 0, attack_qualification_evidence: 0, key_items: 0, rare_drops: 0, direct_currency: 0}
+  on_kill: {language_xp: 0, attack_qualification_evidence: 0, key_items: 0, rare_drops: 0, large_currency: 0, direct_currency: 0, create_corpse_exactly_once: true}
+  material_output_source: "harvest_profile_after_carcass_processing"
+  ordinary_substitutable_outputs_allowed: [food, organic_matter, meat, hide, leather]
+  outputs_never_required_for: [mainline_route, language_evidence, expression_capacity, mp_growth, attack_qualification, quest_key]
+
+world_literacy_evidence:
+  fact_id: "world.wildlife_has_intent"
+  required_for_prologue_completion: false
+  eligible_nonharmful_events: [fox_warns_near_den, wildlife_return_after_flow, rabbit_drinks_at_basin, bats_reveal_vibration]
+  intervention_must_be_nonharmful: true
+  wildlife_harm_events_never_count: true
+
+persistence:
+  state_source: "region.state_registry"
+  save_owners: [valley_ecology_save, valley_resource_save]
+  reload_order_authority_ref: "../world/regions/valley-prologue.v0.1.yaml#persistence_commit_contract"
+  local_reload_sequence_forbidden: true
+  required_order_constraints: [wal_before_tombstones, workorders_and_station_storage_before_lazy_decay, lazy_decay_before_due_completion, tombstones_before_spawn_eligibility]
+  ordinary_living_position_delta_scope: "checkpoint_local"
+  corpse_and_life_tombstone_scope: "region_persistent"
+  home_and_return_state_scope: "region_persistent"
+  checkpoint_reset_preserves: [life_tombstones, corpse_records, harvest_receipts, processing_receipts, sale_receipts]
+  reset_must_not_duplicate: [living_entities, corpses, inventory_lots, workorders, sale_receipts]
+  idempotency_keys:
+    behavior_event: [ecology_id, event_id, scene_visit_id, life_instance_id]
+    death_event: [region_save_id, life_instance_id]
+    corpse_harvest: [corpse_id, tissue_slot_id, harvest_sequence]
+  scene_activation_after_reconstruction_barrier: true
+
+golden_tests:
+  - {id: "fox.warns_before_defense", expect: {warning_telegraph_seconds_minimum: 0.7, retreat_available: true}}
+  - {id: "fox.den_destruction_not_shortcut", expect: {den_route_open: false}}
+  - {id: "wildlife.harm_no_language_progress", expect: {language_xp: 0, attack_qualification_evidence: 0}}
+  - {id: "rabbit.flee_uses_real_exit", expect: {despawn_in_view: false, reaches_burrow_exit: true}}
+  - {id: "reload.no_duplicate_wildlife", expect: {duplicate_entity_count: 0}}
+  - {id: "wildlife.kill_one_corpse", expect: {corpse_count_per_life_instance: 1, direct_loot_drop_count: 0}}
+  - {id: "wildlife.harvest_no_language_progress", expect: {language_xp: 0, attack_qualification_evidence: 0}}
+  - {id: "wildlife.dead_does_not_return", expect: {alive_spawn_with_death_tombstone: false}}
+  - {id: "wildlife.reload_no_duplicate_resources", expect: {duplicate_corpse_count: 0, duplicate_lot_count: 0}}
+  - {id: "wildlife.mainline_never_requires_products", expect: {required_wildlife_item_count: 0}}

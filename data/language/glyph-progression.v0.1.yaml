@@ -1,0 +1,121 @@
+schema_version: "language.glyph-progression.v0.1"
+content_version: "core-120.prologue-12"
+status: "design_candidate"
+
+scope:
+  core_word_target: 120
+  product_launch_corpus: "pu-120"
+  product_launch_scope_is_independent_of_csp_tier: true
+  optional_extensions: "remaining Common Sitelen Pona Tier 1 entries, then Tier 2 and Tier 3 after core launch"
+  full_120_word_id_manifest_required_before_content_freeze: true
+  canonical_save_key: "latin_word_id"
+  display_mapping: "Common Sitelen Pona representative glyph; UCSUR PUA is display-only"
+  official_unicode_claim: false
+
+learning_states:
+  - id: discovered
+    zh: 发现
+    effect: "记录地点与轮廓；不增加伤害，不立刻允许自由施法。"
+  - id: grounded
+    zh: 奠义
+    effect: "通过环境或任务理解常用语义；开放受控试用、读音和例句。"
+  - id: produced
+    zh: 产出
+    effect: "在两个不同情境中主动正确使用；进入自由组合词库。"
+  - id: stabilized
+    zh: 稳固
+    effect: "延迟回忆和新情境迁移成功；提高控制、稳定、MP效率与作用范围上限。"
+
+power_contract:
+  raw_found_count_damage_multiplier: forbidden
+  new_glyph_effect: "unlock semantic dimension, relation, condition, or control option"
+  mastery_effects: [precision, stability, duration, mp_efficiency, range_cap]
+  phrase_capacity_candidate_evidence: [stabilized_glyph_count, structural_training, max_mp]
+  phrase_capacity_unique_writer: "chapter_flow_capacity_milestone_event"
+  max_mp_alone_or_glyph_count_alone_grants_capacity: false
+  physical_damage_depends_on: [mass_mu, velocity, temperature, material_state, distance, target_state]
+  spell_notation_and_natural_sentence_are_distinct: true
+
+distribution:
+  prologue_guaranteed: 12
+  regional_main_routes_and_ruins: 36
+  optional_caves_ruins_towers_ecology: 48
+  settlement_craft_trade_ritual_social: 24
+  total: 120
+
+chapter_authority:
+  source: "../chapters/ch01-world-literacy-prologue.v0.1.yaml"
+  rule: "discovery does not override receptive, active, expression-capacity, or attack-gate state"
+
+prologue_first_12:
+  - {word_id: telo, discovery: forest_spring, grounding: repair_water_channel, chapter_role: active, controlled_trial_effect: summon_falling_water}
+  - {word_id: seli, discovery: charcoal_cave, grounding: relight_safe_hearth, chapter_role: receptive, controlled_trial_effect: local_heat_observation}
+  - {word_id: kiwen, discovery: old_quarry_wall, grounding: brace_fallen_path, chapter_role: receptive, controlled_trial_effect: falling_stone_observation}
+  - {word_id: kon, discovery: cave_airshaft, grounding: reveal_draft_path, chapter_role: discovered, controlled_trial_effect: air_and_draft_observation}
+  - {word_id: lili, discovery: narrow_root_hollow, grounding: fit_material_through_gap, chapter_role: active_after_cistern, controlled_trial_effect: half_axial_length}
+  - {word_id: kasi, discovery: herb_grove, grounding: identify_living_plant, chapter_role: discovered, controlled_trial_effect: plant_identification}
+  - {word_id: tawa, discovery: waterwheel_marker, grounding: restore_motion, chapter_role: active, controlled_trial_effect: low_utility_motion}
+  - {word_id: awen, discovery: ruin_support_pillar, grounding: hold_a_state, chapter_role: receptive, controlled_trial_effect: sustain_context}
+  - {word_id: lukin, discovery: lookout_stone, grounding: observation_task, chapter_role: discovered, controlled_trial_effect: perception_context}
+  - {word_id: weka, discovery: collapsed_side_cave, grounding: remove_blockage, chapter_role: discovered, controlled_trial_effect: removal_context}
+  - {word_id: suli, discovery: old_cistern, grounding: compare_long_and_default, chapter_role: active_after_cistern, controlled_trial_effect: double_axial_length}
+  - {word_id: soweli, discovery: animal_trail, grounding: track_without_hunting, chapter_role: discovered, controlled_trial_effect: land_animal_context}
+prologue_unlock_policy:
+  free_combination_unlock_state: produced
+  world_mutation_policy: "grounded allows only authored controlled trials; produced allows free combination"
+  discovered_count_does_not_equal_active_word_count: true
+
+prologue_route:
+  guarantee_policy: "critical glyphs cannot become permanently missable"
+  recovery: [settlement_map_lead, archivist_hint_later, alternate_environmental_task]
+  first_environmental_deterrence_expression: "kiwen lili"
+  first_environmental_deterrence_contract: {direct_attack: false, living_target_lock: false, purpose: block_path_or_make_warning_noise}
+  first_qualified_attack_signature_candidate: "telo o tawa wawa"
+  direct_attack_gate: {minimum_meaningful_tokens: 4, approved_signature_required: true}
+  tutorial_guaranteed_particle: {word_id: o, segment: service_channel, chapter_role: active}
+  natural_language_transfer_example_receptive_only: "kiwen lili li tawa."
+  spell_notation_example: "telo kon"
+  natural_language_example_receptive_only: "telo li lon kon."
+  li_is_not_unlocked_by_this_discovery_route: true
+
+semantic_location_groups:
+  forest: [kasi, kili, soweli, waso, telo, suno]
+  cave: [kiwen, insa, pimeja, lupa, anpa, sewi, kon]
+  ruins: [open, pini, tenpo, sona, sitelen, nimi, awen]
+  settlement: [jan, kulupu, esun, mani, pali, ilo, toki]
+
+accessibility:
+  display_modes: [glyph_only, glyph_plus_latin, glyph_plus_latin_plus_meaning]
+  pronunciation_audio: required
+  high_contrast_glyph: required
+  no_glow_mode: required
+  reduced_flash_mode: required
+  latin_word_search: required
+
+acceptance_metrics:
+  asset_manifest_coverage: 1.0
+  license_and_source_coverage: 1.0
+  prologue_discovered_at_least_8_target: 0.90
+  prologue_discovered_median_range: [10, 12]
+  prologue_grounded_target_range: [5, 8]
+  prologue_produced_target_range: [4, 6]
+  stabilized_is_measured_after_delayed_session: true
+  delayed_recognition_target: 0.80
+  active_use_of_at_least_4_words_target: 0.60
+  contexts_required_per_produced_word: 2
+  community_reviewers_minimum: 2
+
+known_risks:
+  - symbol_recognition_without_language_production
+  - game_effect_narrows_a_broad_word_meaning
+  - spell_notation_confused_with_natural_toki_pona
+  - low_resolution_glyph_collisions
+  - critical_glyph_becomes_missable
+  - one_hundred_twenty_repetitive_wall_interactions
+  - overclaiming_official_or_unicode_status
+  - uc_sur_pua_mapping_migration
+
+sources:
+  - {name: Common_Sitelen_Pona_semantic_chart, url: "https://www.kreativekorp.com/ucsur/charts/sitelenpona_org/semantic.html"}
+  - {name: Common_Sitelen_Pona_technical_chart, url: "https://www.kreativekorp.com/ucsur/charts/sitelen.html"}
+  - {name: sitelen_seli_kiwen_font, license: SIL_OFL_1_1, url: "https://www.kreativekorp.com/software/fonts/sitelenselikiwen/index.shtml"}
