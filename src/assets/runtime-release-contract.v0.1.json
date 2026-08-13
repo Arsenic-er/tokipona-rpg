@@ -1,0 +1,58 @@
+{
+  "schemaVersion": "tokipona.asset-release-gate.v0.1",
+  "status": "blocked",
+  "destinationRoot": "src/assets/runtime/magic-glyphs",
+  "requiredApprovals": [
+    "source",
+    "license",
+    "language",
+    "pixel",
+    "animation",
+    "accessibility",
+    "community",
+    "hashes"
+  ],
+  "allowedRuntimeRoles": {
+    "runtime_atlas": [".png"],
+    "runtime_mask": [".png"],
+    "runtime_animation": [".apng"],
+    "runtime_palette": [".json"],
+    "runtime_manifest": [".json"]
+  },
+  "currentAudits": [
+    {
+      "assetId": "tp.glyph.telo.water.uniform-brightness.v001",
+      "decision": "deny",
+      "reasonCodes": [
+        "runtime_not_ready",
+        "public_export_missing",
+        "license_source_unverified",
+        "license_redistribution_not_approved"
+      ]
+    },
+    {
+      "assetId": "pu120.background-independent.v001",
+      "decision": "deny",
+      "reasonCodes": [
+        "runtime_not_ready",
+        "release_status_not_approved",
+        "public_export_missing"
+      ]
+    },
+    {
+      "assetId": "pu120.surface-composition.v002",
+      "decision": "deny",
+      "reasonCodes": [
+        "runtime_not_ready",
+        "release_status_not_approved",
+        "public_export_missing"
+      ]
+    }
+  ],
+  "privacy": {
+    "containsPrivatePaths": false,
+    "containsPrivateAssets": false,
+    "containsSourceFonts": false,
+    "containsReviewMedia": false
+  }
+}
