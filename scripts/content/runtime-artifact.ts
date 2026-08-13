@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { posix } from "node:path";
 import type { ContentManifest, ContentObject, ContentValue } from "../../src/content/types.ts";
+import type { CapabilityMilestoneMachineProjection } from "../../src/session/capability-contract.ts";
 import type {
   RuntimeSceneEntranceManifest,
   RuntimeSceneExitManifest,
@@ -56,6 +57,7 @@ export interface RuntimeContentArtifact {
   };
   readonly scenes: RuntimeSceneManifestIndex;
   readonly infrastructureTasks: RuntimeInfrastructureTaskManifestIndex;
+  readonly capabilityProgression: CapabilityMilestoneMachineProjection;
 }
 
 export function buildRuntimeContentArtifact(manifest: ContentManifest): RuntimeContentArtifact {
@@ -88,6 +90,43 @@ export function buildRuntimeContentArtifact(manifest: ContentManifest): RuntimeC
       crossSectionWidthPx,
     }];
   })) as unknown as Record<RuntimeTeloLengthClass, RuntimeTeloLengthProfile>;
+
+  const chapterSources = manifest.byKind.chapter;
+  if (chapterSources.length !== 1) throw new Error(`Expected exactly one validated chapter source, received ${chapterSources.length}.`);
+  const chapterSource = chapterSources[0];
+  if (!chapterSource) throw new Error("Validated chapter source is unavailable.");
+  const authoredMilestones = requireObjectArray(chapterSource.content, ["capacity_progression", "milestones"]);
+  const capacityMilestones = authoredMilestones.flatMap((milestone) => {
+    const resultingState = requireObject(milestone, ["resulting_state"]);
+    const capacityKeys = [
+      "player_expression_capacity_meaningful_tokens",
+      "artifact_surface_slot_capacity",
+      "player_max_mp",
+    ] as const;
+    const presentCount = capacityKeys.filter((key) => readPath(resultingState, [key]) !== undefined).length;
+    if (presentCount === 0) return [];
+    if (presentCount !== capacityKeys.length) {
+      throw new Error(`${requireString(milestone, ["milestone_id"])} must author all three capability result values.`);
+    }
+    return [{
+      milestoneId: requireString(milestone, ["milestone_id"]),
+      writerEvent: requireString(milestone, ["unique_writer_event"]),
+      resultingState: {
+        expressionCapacityWords: requirePositiveInteger(resultingState, [capacityKeys[0]]),
+        focusSlots: requirePositiveInteger(resultingState, [capacityKeys[1]]),
+        maxMp: requirePositiveNumber(resultingState, [capacityKeys[2]]),
+      },
+    }];
+  });
+  if (capacityMilestones.length !== 3) {
+    throw new Error(`Capability progression must project exactly three complete milestones, received ${capacityMilestones.length}.`);
+  }
+  const capabilityProgression: CapabilityMilestoneMachineProjection = {
+    sourcePath: chapterSource.path,
+    sourceDigest: `sha256:${createHash("sha256").update(stableStringify(requireObject(chapterSource.content, ["capacity_progression"]))).digest("hex")}`,
+    contractRevision: chapterSource.contentVersion,
+    capacityMilestones,
+  };
 
   const sceneSources = [...manifest.byKind.scene].sort((left, right) => left.path.localeCompare(right.path));
   const scenes = Object.fromEntries(sceneSources.map((sceneSource) => {
@@ -326,7 +365,12 @@ export function buildRuntimeContentArtifact(manifest: ContentManifest): RuntimeC
       cistern,
     };
     return [id, result];
-  }));  return {
+  }));
+  const cisternCapacitySourcePath = infrastructureTasks.ch01_length_cistern?.cistern?.capacityMilestoneRef.sourcePath;
+  if (cisternCapacitySourcePath !== capabilityProgression.sourcePath) {
+    throw new Error("Cistern capacity milestone source must match the generated capability progression source.");
+  }
+  return {
     schemaVersion: RUNTIME_CONTENT_SCHEMA_VERSION,
     sourceDigest: `sha256:${createHash("sha256").update(stableStringify(content)).digest("hex")}`,
     source: { path: source.path, schemaVersion: source.schemaVersion, contentVersion: source.contentVersion },
@@ -339,6 +383,7 @@ export function buildRuntimeContentArtifact(manifest: ContentManifest): RuntimeC
       sourceDigest: `sha256:${createHash("sha256").update(stableStringify(infrastructureTaskSources.map((item) => item.content))).digest("hex")}`,
       byId: infrastructureTasks,
     },
+    capabilityProgression,
   };
 }
 

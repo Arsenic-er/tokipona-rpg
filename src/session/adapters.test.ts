@@ -3,11 +3,13 @@ import { CisternDemoController } from "../game/cistern-demo";
 import { SurvivalSystem } from "../game/survival";
 import { TradeSystem, createDemoTradeLots } from "../game/trade";
 import { CisternLearningSession } from "../learning/cistern-session";
-import { GameSession } from "./game-session";
+import { readVerifiedCapabilityMilestoneContract } from "./capability-contract";
+import { GameSession, type CapabilityMilestoneCommitPayload } from "./game-session";
 import {
   adaptRuntimeCheckpoint,
   commitSessionProposal,
   proposeCheckpoint,
+  proposeCapabilityMilestone,
   proposeCisternCast,
   proposeCisternRecovery,
   proposeLearningReplacement,
@@ -131,6 +133,76 @@ describe("GameSession transaction adapters", () => {
     const duplicate = commitSessionProposal(loaded.session, duplicateBatch);
     expect(duplicate).toMatchObject({ committed: false, reason: "duplicate_event" });
     expect(duplicate.session.snapshot()).toEqual(loaded.session.snapshot());
+  });
+
+  it("reads the chapter machine projection and atomically proposes the pre-cistern capability milestone", () => {
+    const binding = {
+      sourcePath: "data/chapters/ch01-world-literacy-prologue.v0.1.yaml",
+      milestoneId: "pre_cistern_length_phrase",
+      writerEvent: "first_evidence_package_committed",
+    };
+    const projection = {
+      sourcePath: binding.sourcePath,
+      sourceDigest: `sha256:${"c".repeat(64)}`,
+      contractRevision: "0.1.0",
+      capacityMilestones: [{
+        milestoneId: binding.milestoneId,
+        writerEvent: binding.writerEvent,
+        resultingState: { expressionCapacityWords: 2, focusSlots: 2, maxMp: 26 },
+      }],
+    };
+    const contract = readVerifiedCapabilityMilestoneContract(projection, binding);
+    const session = GameSession.create({
+      sessionId: "save.adapter.capacity",
+      mp: { currentMp: 17, maxMp: 24, worldVersion: 9 },
+      currentSceneId: "scene.valley.service_channel",
+    });
+    const committed = commitSessionProposal(
+      session,
+      proposeCapabilityMilestone("evidence-package.pre-cistern.001", contract),
+    );
+    expect(committed).toMatchObject({ committed: true, failedDraftId: null, reason: null });
+    expect(committed.session.snapshot().capabilities).toMatchObject({
+      expressionCapacityWords: 2,
+      focusSlots: 2,
+      revision: 1,
+    });
+    expect(committed.session.snapshot().mp).toEqual({ currentMp: 17, maxMp: 26, worldVersion: 10 });
+    expect(committed.session.snapshot().capabilities.appliedMilestones.pre_cistern_length_phrase)
+      .toMatchObject({ writerEvent: binding.writerEvent, maxMp: 26 });
+
+    const duplicateMilestone = commitSessionProposal(
+      committed.session,
+      proposeCapabilityMilestone("evidence-package.pre-cistern.002", contract),
+    );
+    expect(duplicateMilestone).toMatchObject({ committed: false, reason: "duplicate_milestone" });
+    expect(duplicateMilestone.session).toBe(committed.session);
+  });
+
+  it("fails closed for an unverified capability object or a mismatched task binding", () => {
+    const forged = {
+      milestoneId: "pre_cistern_length_phrase",
+      writerEvent: "first_evidence_package_committed",
+      sourcePath: "data/chapters/ch01-world-literacy-prologue.v0.1.yaml",
+      sourceDigest: `sha256:${"d".repeat(64)}`,
+      contractRevision: "0.1.0",
+      resultingState: { expressionCapacityWords: 2, focusSlots: 2, maxMp: 26 },
+    } as CapabilityMilestoneCommitPayload;
+    expect(() => proposeCapabilityMilestone("forged", forged)).toThrow(/verified content reader/);
+    expect(() => readVerifiedCapabilityMilestoneContract({
+      sourcePath: forged.sourcePath,
+      sourceDigest: forged.sourceDigest,
+      contractRevision: forged.contractRevision,
+      capacityMilestones: [{
+        milestoneId: forged.milestoneId,
+        writerEvent: "wrong_writer",
+        resultingState: forged.resultingState,
+      }],
+    }, {
+      sourcePath: forged.sourcePath,
+      milestoneId: forged.milestoneId,
+      writerEvent: forged.writerEvent,
+    })).toThrow(/writer event/);
   });
 
   it("commits batches atomically and rejects checkpoint revision regression", () => {

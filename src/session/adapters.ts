@@ -6,6 +6,10 @@ import type { EvidenceProposalResult } from "../learning/cistern-session";
 import type { LearningProgressionSnapshot } from "../learning/progression";
 import type { CastExecutionResult, MpRecoveryReceipt } from "../spells/cast-plan";
 import {
+  assertVerifiedCapabilityMilestoneContract,
+  type VerifiedCapabilityMilestoneContract,
+} from "./capability-contract";
+import {
   GameSession,
   adaptSurvivalSave,
   adaptTradeSnapshot,
@@ -241,6 +245,33 @@ export const proposeTradeTransaction = (
         ),
       ],
     },
+  };
+};
+
+/**
+ * Builds the only proposal allowed to advance expression words, focus slots and max MP together.
+ * The WeakSet assertion requires a contract returned by readVerifiedCapabilityMilestoneContract.
+ */
+export const proposeCapabilityMilestone = (
+  transactionId: string,
+  contract: VerifiedCapabilityMilestoneContract,
+): SessionProposalBatch => {
+  requiredId(transactionId, "capability transactionId");
+  assertVerifiedCapabilityMilestoneContract(contract);
+  return {
+    transactionId,
+    drafts: [{
+      eventId: `session.capability.${contract.writerEvent}.${transactionId}`,
+      type: "capability_milestone_committed",
+      payload: {
+        milestoneId: contract.milestoneId,
+        writerEvent: contract.writerEvent,
+        sourcePath: contract.sourcePath,
+        sourceDigest: contract.sourceDigest,
+        contractRevision: contract.contractRevision,
+        resultingState: { ...contract.resultingState },
+      },
+    }],
   };
 };
 

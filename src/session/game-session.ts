@@ -23,6 +23,46 @@ export interface SessionMpState {
   readonly worldVersion: number;
 }
 
+export interface SessionCapabilityMilestoneResult {
+  readonly expressionCapacityWords: number;
+  readonly focusSlots: number;
+  readonly maxMp: number;
+}
+
+export interface SessionCapabilityMilestoneRecord extends SessionCapabilityMilestoneResult {
+  readonly milestoneId: string;
+  readonly writerEvent: string;
+  readonly sourcePath: string;
+  readonly sourceDigest: `sha256:${string}`;
+  readonly contractRevision: string;
+  readonly committedByEventId: string;
+  readonly committedAtSequence: number;
+}
+
+/** Player progression authority for expression length and artifact surfaces. MP maximum stays in mp.maxMp. */
+export interface SessionCapabilityState {
+  readonly expressionCapacityWords: number;
+  readonly focusSlots: number;
+  readonly revision: number;
+  readonly appliedMilestones: Readonly<Record<string, SessionCapabilityMilestoneRecord>>;
+}
+
+export interface CapabilityMilestoneCommitPayload {
+  readonly milestoneId: string;
+  readonly writerEvent: string;
+  readonly sourcePath: string;
+  readonly sourceDigest: `sha256:${string}`;
+  readonly contractRevision: string;
+  readonly resultingState: SessionCapabilityMilestoneResult;
+}
+
+export const INITIAL_SESSION_CAPABILITIES: SessionCapabilityState = Object.freeze({
+  expressionCapacityWords: 1,
+  focusSlots: 1,
+  revision: 0,
+  appliedMilestones: Object.freeze({}),
+});
+
 export type WorldFlagValue = boolean | number | string;
 export type WorldFlagScope = "global" | "region" | "area";
 export type WorldFlagSetPayload =
@@ -116,6 +156,7 @@ export interface GameSessionState {
   readonly revision: number;
   readonly lastEventSequence: number;
   readonly mp: SessionMpState;
+  readonly capabilities: SessionCapabilityState;
   readonly world: SessionWorldState;
   readonly checkpoint: SessionCheckpointState;
   readonly learning: LearningProgressionSnapshot;
@@ -135,6 +176,7 @@ interface SessionEventBase<TType extends string, TPayload> {
 
 export type GameSessionEvent =
   | SessionEventBase<"mp_replaced", { readonly mp: SessionMpState }>
+  | SessionEventBase<"capability_milestone_committed", CapabilityMilestoneCommitPayload>
   | SessionEventBase<"scene_entered", { readonly sceneId: string }>
   | SessionEventBase<"checkpoint_set", { readonly checkpoint: SessionCheckpointState }>
   | SessionEventBase<"world_flag_set", WorldFlagSetPayload>
@@ -164,7 +206,9 @@ export type SessionApplyReason =
   | "invalid_event"
   | "state_regression"
   | "duplicate_receipt"
-  | "receipt_payload_conflict";
+  | "receipt_payload_conflict"
+  | "duplicate_milestone"
+  | "milestone_payload_conflict";
 
 export interface SessionApplyResult {
   readonly applied: boolean;
@@ -294,6 +338,36 @@ const isSessionMpState = (value: unknown): value is SessionMpState => {
     value.currentMp <= value.maxMp && isNonNegativeSafeInteger(value.worldVersion);
 };
 
+const isPositiveSafeInteger = (value: unknown): value is number =>
+  typeof value === "number" && Number.isSafeInteger(value) && value > 0;
+
+const isCapabilityMilestoneResult = (value: unknown): value is SessionCapabilityMilestoneResult =>
+  isRecord(value) && isPositiveSafeInteger(value.expressionCapacityWords) &&
+  isPositiveSafeInteger(value.focusSlots) && typeof value.maxMp === "number" &&
+  Number.isFinite(value.maxMp) && value.maxMp > 0;
+
+const isCapabilityMilestoneRecord = (value: unknown): value is SessionCapabilityMilestoneRecord => {
+  if (!isRecord(value) || !isCapabilityMilestoneResult(value)) return false;
+  const record = value as Record<string, unknown>;
+  return isNonEmptyString(record.milestoneId) && isNonEmptyString(record.writerEvent) &&
+    isNonEmptyString(record.sourcePath) && typeof record.sourceDigest === "string" &&
+    /^sha256:[0-9a-f]{64}$/.test(record.sourceDigest) && isNonEmptyString(record.contractRevision) &&
+    isNonEmptyString(record.committedByEventId) && isNonNegativeSafeInteger(record.committedAtSequence);
+};
+
+const isCapabilityState = (value: unknown): value is SessionCapabilityState => {
+  if (!isRecord(value) || !isPositiveSafeInteger(value.expressionCapacityWords) ||
+      !isPositiveSafeInteger(value.focusSlots) || !isNonNegativeSafeInteger(value.revision) ||
+      !isRecord(value.appliedMilestones)) return false;
+  const expressionCapacityWords = value.expressionCapacityWords;
+  const focusSlots = value.focusSlots;
+  const milestones = Object.entries(value.appliedMilestones);
+  return milestones.length === value.revision && milestones.every(([milestoneId, milestone]) =>
+    isNonEmptyString(milestoneId) && isCapabilityMilestoneRecord(milestone) &&
+    milestone.milestoneId === milestoneId && milestone.expressionCapacityWords <= expressionCapacityWords &&
+    milestone.focusSlots <= focusSlots);
+};
+
 const isWordLearningProgress = (value: unknown): value is WordLearningProgress => {
   if (!isRecord(value)) return false;
   return isNonEmptyString(value.wordId) &&
@@ -409,21 +483,31 @@ const isReceiptRecord = (value: unknown): value is Readonly<Record<string, Sessi
   isRecord(value) && Object.entries(value).every(([receiptId, receipt]) =>
     isNonEmptyString(receiptId) && isReceiptEntry(receipt) && receipt.receiptId === receiptId);
 
+const isSessionStateCore = (value: Record<string, unknown>): boolean =>
+  isNonNegativeSafeInteger(value.revision) && isNonNegativeSafeInteger(value.lastEventSequence) &&
+  value.revision === value.lastEventSequence && isSessionMpState(value.mp) && isWorldState(value.world) &&
+  isCheckpointState(value.checkpoint) && isLearningSnapshot(value.learning) && isSurvivalSave(value.survival) && isEconomySummary(value.economy) &&
+  isQuestRecord(value.quests) && isReceiptRecord(value.receiptIndex) &&
+  isStringRecord(value.processedEventPayloads) &&
+  Object.keys(value.processedEventPayloads).length === value.lastEventSequence;
+
 const isSessionState = (value: unknown): value is GameSessionState => {
-  if (!isRecord(value)) return false;
-  return isNonNegativeSafeInteger(value.revision) && isNonNegativeSafeInteger(value.lastEventSequence) &&
-    value.revision === value.lastEventSequence && isSessionMpState(value.mp) && isWorldState(value.world) &&
-    isCheckpointState(value.checkpoint) && isLearningSnapshot(value.learning) && isSurvivalSave(value.survival) && isEconomySummary(value.economy) &&
-    isQuestRecord(value.quests) && isReceiptRecord(value.receiptIndex) &&
-    isStringRecord(value.processedEventPayloads) &&
-    Object.keys(value.processedEventPayloads).length === value.lastEventSequence;
+  if (!isRecord(value) || !isSessionStateCore(value) || !isCapabilityState(value.capabilities) ||
+      !isSessionMpState(value.mp)) return false;
+  const maxMp = value.mp.maxMp;
+  return Object.values(value.capabilities.appliedMilestones).every((milestone) =>
+    milestone.maxMp <= maxMp);
 };
+
+const isPreCapabilityV02SessionState = (value: unknown): value is Omit<GameSessionState, "capabilities"> =>
+  isRecord(value) && value.capabilities === undefined && isSessionStateCore(value);
 
 const isEventEnvelope = (value: unknown): value is GameSessionEvent => {
   if (!isRecord(value) || !isNonEmptyString(value.eventId) || !isNonNegativeSafeInteger(value.sequence) ||
       value.sequence === 0 || !isNonEmptyString(value.type) || !isRecord(value.payload)) return false;
   return [
     "mp_replaced",
+    "capability_milestone_committed",
     "scene_entered",
     "checkpoint_set",
     "world_flag_set",
@@ -508,6 +592,7 @@ const createInitialState = (initial: GameSessionInitialState): GameSessionState 
     revision: 0,
     lastEventSequence: 0,
     mp: clone(initial.mp),
+    capabilities: clone(INITIAL_SESSION_CAPABILITIES),
     world: {
       currentSceneId: initial.currentSceneId,
       revision: 0,
@@ -601,6 +686,10 @@ export class GameSession {
     return clone(this.state);
   }
 
+  capabilitySnapshot(): SessionCapabilityState {
+    return clone(this.state.capabilities);
+  }
+
   events(): readonly GameSessionEvent[] {
     return clone(this.ledger);
   }
@@ -653,10 +742,75 @@ export class GameSession {
     switch (event.type) {
       case "mp_replaced": {
         if (!isSessionMpState(event.payload.mp)) return { reason: "invalid_event", duplicate: false };
+        // Capacity/max-MP progression is atomic and can only be written by a milestone event.
+        if (event.payload.mp.maxMp !== this.state.mp.maxMp) {
+          return { reason: "invalid_event", duplicate: false };
+        }
         if (event.payload.mp.worldVersion < this.state.mp.worldVersion) {
           return { reason: "state_regression", duplicate: false };
         }
         return { state: withAppliedEvent(this.state, event, { mp: clone(event.payload.mp) }) };
+      }
+      case "capability_milestone_committed": {
+        const payload = event.payload;
+        if (!isNonEmptyString(payload.milestoneId) || !isNonEmptyString(payload.writerEvent) ||
+            !isNonEmptyString(payload.sourcePath) || !isNonEmptyString(payload.contractRevision) ||
+            typeof payload.sourceDigest !== "string" || !/^sha256:[0-9a-f]{64}$/.test(payload.sourceDigest) ||
+            !isCapabilityMilestoneResult(payload.resultingState)) {
+          return { reason: "invalid_event", duplicate: false };
+        }
+        const prior = this.state.capabilities.appliedMilestones[payload.milestoneId];
+        const comparable = {
+          milestoneId: payload.milestoneId,
+          writerEvent: payload.writerEvent,
+          sourcePath: payload.sourcePath,
+          sourceDigest: payload.sourceDigest,
+          contractRevision: payload.contractRevision,
+          ...payload.resultingState,
+        };
+        if (prior) {
+          const priorComparable = {
+            milestoneId: prior.milestoneId,
+            writerEvent: prior.writerEvent,
+            sourcePath: prior.sourcePath,
+            sourceDigest: prior.sourceDigest,
+            contractRevision: prior.contractRevision,
+            expressionCapacityWords: prior.expressionCapacityWords,
+            focusSlots: prior.focusSlots,
+            maxMp: prior.maxMp,
+          };
+          return same(priorComparable, comparable)
+            ? { reason: "duplicate_milestone", duplicate: true }
+            : { reason: "milestone_payload_conflict", duplicate: false };
+        }
+        const next = payload.resultingState;
+        if (next.expressionCapacityWords < this.state.capabilities.expressionCapacityWords ||
+            next.focusSlots < this.state.capabilities.focusSlots || next.maxMp < this.state.mp.maxMp) {
+          return { reason: "state_regression", duplicate: false };
+        }
+        const record: SessionCapabilityMilestoneRecord = {
+          ...comparable,
+          committedByEventId: event.eventId,
+          committedAtSequence: event.sequence,
+        };
+        return {
+          state: withAppliedEvent(this.state, event, {
+            mp: {
+              currentMp: this.state.mp.currentMp,
+              maxMp: next.maxMp,
+              worldVersion: this.state.mp.worldVersion + 1,
+            },
+            capabilities: {
+              expressionCapacityWords: next.expressionCapacityWords,
+              focusSlots: next.focusSlots,
+              revision: this.state.capabilities.revision + 1,
+              appliedMilestones: {
+                ...this.state.capabilities.appliedMilestones,
+                [payload.milestoneId]: record,
+              },
+            },
+          }),
+        };
       }
       case "scene_entered": {
         if (!isNonEmptyString(event.payload.sceneId)) return { reason: "invalid_event", duplicate: false };
@@ -847,6 +1001,39 @@ const saveDigest = (save: GameSessionSave): string => fingerprint({
   eventLedger: save.eventLedger,
 });
 
+const isPreCapabilityV02SaveStructurallyValid = (value: unknown): value is Omit<GameSessionSave, "origin" | "state"> & {
+  readonly origin: Omit<GameSessionState, "capabilities">;
+  readonly state: Omit<GameSessionState, "capabilities">;
+} => {
+  if (!isRecord(value) || value.schema !== GAME_SESSION_SAVE_SCHEMA || !isNonEmptyString(value.sessionId) ||
+      !isPreCapabilityV02SessionState(value.origin) || value.origin.revision !== 0 || value.origin.lastEventSequence !== 0 ||
+      Object.keys(value.origin.processedEventPayloads).length !== 0 || !isPreCapabilityV02SessionState(value.state) ||
+      !Array.isArray(value.eventLedger) || !value.eventLedger.every(isEventEnvelope) ||
+      value.eventLedger.some((event) => event.type === "capability_milestone_committed") ||
+      !isRecord(value.integrity) || value.integrity.algorithm !== GAME_SESSION_INTEGRITY_ALGORITHM ||
+      typeof value.integrity.digest !== "string" || !/^[0-9a-f]{8}$/.test(value.integrity.digest)) return false;
+  return value.eventLedger.length === value.state.lastEventSequence;
+};
+
+const upgradePreCapabilityV02Save = (
+  save: Omit<GameSessionSave, "origin" | "state"> & {
+    readonly origin: Omit<GameSessionState, "capabilities">;
+    readonly state: Omit<GameSessionState, "capabilities">;
+  },
+): GameSessionSave => {
+  const withoutIntegrity: Omit<GameSessionSave, "integrity"> = {
+    schema: GAME_SESSION_SAVE_SCHEMA,
+    sessionId: save.sessionId,
+    origin: { ...clone(save.origin), capabilities: clone(INITIAL_SESSION_CAPABILITIES) },
+    state: { ...clone(save.state), capabilities: clone(INITIAL_SESSION_CAPABILITIES) },
+    eventLedger: clone(save.eventLedger),
+  };
+  return {
+    ...withoutIntegrity,
+    integrity: { algorithm: GAME_SESSION_INTEGRITY_ALGORITHM, digest: fingerprint(withoutIntegrity) },
+  };
+};
+
 const isCurrentSaveStructurallyValid = (value: unknown): value is GameSessionSave => {
   if (!isRecord(value) || value.schema !== GAME_SESSION_SAVE_SCHEMA || !isNonEmptyString(value.sessionId) ||
       !isSessionState(value.origin) || value.origin.revision !== 0 || value.origin.lastEventSequence !== 0 ||
@@ -870,8 +1057,14 @@ export const migrateGameSessionSave = (candidate: unknown): GameSessionMigration
     return { ok: false, error: "invalid_save" };
   }
   if (candidate.schema === GAME_SESSION_SAVE_SCHEMA) {
-    if (!isCurrentSaveStructurallyValid(candidate)) return { ok: false, error: "invalid_save" };
-    return { ok: true, save: clone(candidate), migratedFrom: null };
+    if (isCurrentSaveStructurallyValid(candidate)) {
+      return { ok: true, save: clone(candidate), migratedFrom: null };
+    }
+    if (!isPreCapabilityV02SaveStructurallyValid(candidate)) return { ok: false, error: "invalid_save" };
+    if (candidate.integrity.digest !== saveDigest(candidate as unknown as GameSessionSave)) {
+      return { ok: false, error: "invalid_save" };
+    }
+    return { ok: true, save: upgradePreCapabilityV02Save(candidate), migratedFrom: null };
   }
   if (candidate.schema !== LEGACY_GAME_SESSION_SAVE_SCHEMA) {
     return { ok: false, error: "unsupported_schema" };
@@ -882,6 +1075,7 @@ export const migrateGameSessionSave = (candidate: unknown): GameSessionMigration
     revision: 0,
     lastEventSequence: 0,
     mp: clone(candidate.mp),
+    capabilities: clone(INITIAL_SESSION_CAPABILITIES),
     world: clone(candidate.world),
     checkpoint: {
       id: "checkpoint.legacy-entry",

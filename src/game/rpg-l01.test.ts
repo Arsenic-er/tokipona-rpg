@@ -104,6 +104,24 @@ describe("RpgL01RoomSession", () => {
     });
   });
 
+  it("charges a legal wrong-length cast without advancing the receiver, quest, or evidence", () => {
+    const target = room();
+    const before = target.snapshot().session;
+    target.setExpression("telo");
+    target.setDirection("east");
+    target.setTargetAnchorPx({ x: 20, y: 20 });
+    const preview = target.beginPreview();
+    expect(preview.plan).toMatchObject({ canConfirm: true, resolvedLengthClass: "default" });
+
+    const result = target.confirmPending("l01.cast.legal-wrong-length");
+
+    expect(result).toMatchObject({ accepted: true, reason: "confirmed", evidence: null });
+    expect(result.snapshot.session.mp).toMatchObject({ currentMp: 19, maxMp: 24, worldVersion: 1 });
+    expect(result.snapshot.session.learning).toEqual(before.learning);
+    expect(result.snapshot.session.quests).toEqual(before.quests);
+    expect(result.snapshot.cistern).toMatchObject({ stage: "short", mp: 19, pendingPlan: null });
+    expect(flagIsTrue(target, RPG_L01_WORLD_FLAGS.shortReceiverSatisfied)).toBe(false);
+  });
   it("rechecks living safety at confirmation and commits no MP, water, quest, or evidence on rejection", () => {
     const target = room();
     const before = target.snapshot().session;

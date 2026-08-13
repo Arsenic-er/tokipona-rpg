@@ -305,8 +305,9 @@ export class RpgL01RoomSession {
     currentLivingSafetyZones: readonly LivingSafetyZone[] = [],
   ): RpgL01ConfirmOutcome {
     requiredId(transactionId, "transactionId");
-    const stage = this.controller.snapshot().stage;
-    if (stage === "completed" || !this.controller.snapshot().pendingPlan) {
+    const pending = this.controller.snapshot();
+    const stage = pending.stage;
+    if (stage === "completed" || !pending.pendingPlan) {
       return this.confirmOutcome(false, "no_pending_preview", null, null, null);
     }
     if (this.authoritativeSession.snapshot().receiptIndex[transactionId]) {
@@ -319,7 +320,9 @@ export class RpgL01RoomSession {
       return this.confirmOutcome(false, "cast_rejected", confirmation, null, null);
     }
 
-    const evidence = this.resolveDirectEvidence(stage, transactionId);
+    const receiverSatisfied = pending.selectedExpression === STAGE_EXPRESSIONS[stage] &&
+      confirmation.snapshot.stage !== stage;
+    const evidence = receiverSatisfied ? this.resolveDirectEvidence(stage, transactionId) : null;
     const before = this.authoritativeSession.snapshot();
     const nextWorldVersion = before.mp.worldVersion + 1;
     if (!Number.isSafeInteger(nextWorldVersion)) {
@@ -342,48 +345,53 @@ export class RpgL01RoomSession {
         `session.l01.cast.receipt.${transactionId}`,
         transactionId,
         "cast",
-        `l01:${stage}:${confirmation.execution.planId}:charge:${confirmation.execution.mpCharge}`,
+        `l01:${stage}:${pending.selectedExpression}:${confirmation.execution.planId}:charge:${confirmation.execution.mpCharge}`,
       ),
-      globalFlagDraft(
-        `session.l01.receiver.${stage}.${transactionId}`,
-        RECEIVER_FLAG_BY_STAGE[stage],
-      ),
-      {
-        eventId: `session.l01.quest.${stage}.${transactionId}`,
-        type: "quest_stage_set",
-        payload: {
-          questId: RPG_L01_QUEST_ID,
-          stageId: stage === "long" ? "completed" : `${stage}_receiver_satisfied`,
-          stageOrdinal: stage === "long" ? 4 : stageOrdinal(stage),
-        },
-      },
     ];
 
-    if (evidence.reason === "proposed") {
-      const appliedEvidence = evidence.proposedEvents.filter((_, index) => evidence.reductions[index]?.applied);
-      if (appliedEvidence.length > 0) {
-        drafts.push({
-          eventId: `session.l01.learning.${stage}.${transactionId}`,
-          type: "learning_replaced",
-          payload: { learning: evidence.learning },
-        });
-        for (const event of appliedEvidence) {
-          drafts.push(receiptDraft(
-            `session.l01.learning.receipt.${event.eventId}`,
-            event.idempotencyKey,
-            "learning",
-            `l01:${event.eventType}:${event.eventId}`,
-          ));
+    if (receiverSatisfied) {
+      drafts.push(
+        globalFlagDraft(
+          `session.l01.receiver.${stage}.${transactionId}`,
+          RECEIVER_FLAG_BY_STAGE[stage],
+        ),
+        {
+          eventId: `session.l01.quest.${stage}.${transactionId}`,
+          type: "quest_stage_set",
+          payload: {
+            questId: RPG_L01_QUEST_ID,
+            stageId: stage === "long" ? "completed" : `${stage}_receiver_satisfied`,
+            stageOrdinal: stage === "long" ? 4 : stageOrdinal(stage),
+          },
+        },
+      );
+
+      if (evidence?.reason === "proposed") {
+        const appliedEvidence = evidence.proposedEvents.filter((_, index) => evidence.reductions[index]?.applied);
+        if (appliedEvidence.length > 0) {
+          drafts.push({
+            eventId: `session.l01.learning.${stage}.${transactionId}`,
+            type: "learning_replaced",
+            payload: { learning: evidence.learning },
+          });
+          for (const event of appliedEvidence) {
+            drafts.push(receiptDraft(
+              `session.l01.learning.receipt.${event.eventId}`,
+              event.idempotencyKey,
+              "learning",
+              `l01:${event.eventType}:${event.eventId}`,
+            ));
+          }
         }
       }
-    }
 
-    if (stage === "long") {
-      drafts.push(
-        globalFlagDraft(`session.l01.completed.cistern.${transactionId}`, RPG_L01_WORLD_FLAGS.highCisternReconnected),
-        globalFlagDraft(`session.l01.completed.channel.${transactionId}`, RPG_L01_WORLD_FLAGS.upperChannelAvailable),
-        globalFlagDraft(`session.l01.completed.ladder.${transactionId}`, RPG_L01_WORLD_FLAGS.exitLadderLowered),
-      );
+      if (stage === "long") {
+        drafts.push(
+          globalFlagDraft(`session.l01.completed.cistern.${transactionId}`, RPG_L01_WORLD_FLAGS.highCisternReconnected),
+          globalFlagDraft(`session.l01.completed.channel.${transactionId}`, RPG_L01_WORLD_FLAGS.upperChannelAvailable),
+          globalFlagDraft(`session.l01.completed.ladder.${transactionId}`, RPG_L01_WORLD_FLAGS.exitLadderLowered),
+        );
+      }
     }
 
     const commit = commitSessionProposal(this.authoritativeSession, {

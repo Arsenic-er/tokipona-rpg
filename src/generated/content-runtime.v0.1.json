@@ -3114,5 +3114,39 @@
         "cistern": null
       }
     }
+  },
+  "capabilityProgression": {
+    "sourcePath": "data/chapters/ch01-world-literacy-prologue.v0.1.yaml",
+    "sourceDigest": "sha256:f1b6ec610915f8d963cbca3a8643b13949dfa26a028502122bed66d900c9bd88",
+    "contractRevision": "chapter-01.prologue.1",
+    "capacityMilestones": [
+      {
+        "milestoneId": "arrival_single_word",
+        "writerEvent": "new_game_capacity_initialized",
+        "resultingState": {
+          "expressionCapacityWords": 1,
+          "focusSlots": 1,
+          "maxMp": 24
+        }
+      },
+      {
+        "milestoneId": "pre_cistern_length_phrase",
+        "writerEvent": "first_evidence_package_committed",
+        "resultingState": {
+          "expressionCapacityWords": 2,
+          "focusSlots": 2,
+          "maxMp": 26
+        }
+      },
+      {
+        "milestoneId": "attack_capacity_calibration",
+        "writerEvent": "attack_capacity_calibrated",
+        "resultingState": {
+          "expressionCapacityWords": 4,
+          "focusSlots": 4,
+          "maxMp": 30
+        }
+      }
+    ]
   }
 }

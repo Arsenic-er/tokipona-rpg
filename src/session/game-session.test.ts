@@ -27,6 +27,25 @@ const initialEconomy = (coin = 0): SessionEconomySummary => ({
   lots: [],
 });
 
+const testCanonicalize = (value: unknown): unknown => {
+  if (Array.isArray(value)) return value.map(testCanonicalize);
+  if (value !== null && typeof value === "object") {
+    return Object.fromEntries(Object.entries(value).sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, item]) => [key, testCanonicalize(item)]));
+  }
+  return value;
+};
+
+const testDigest = (value: unknown): string => {
+  const text = JSON.stringify(testCanonicalize(value));
+  let hash = 0x811c9dc5;
+  for (let index = 0; index < text.length; index += 1) {
+    hash ^= text.charCodeAt(index);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return (hash >>> 0).toString(16).padStart(8, "0");
+};
+
 const createSession = (): GameSession => GameSession.create({
   sessionId: "save.test.001",
   mp: { currentMp: 24, maxMp: 24, worldVersion: 0 },
@@ -485,6 +504,96 @@ describe("GameSession", () => {
     expect(session.nextSequence()).toBe(1);
   });
 
+  it("commits capacity and max MP as one monotonic milestone and preserves it across reset/save/replay", () => {
+    const session = createSession();
+    const milestone: GameSessionEvent = {
+      eventId: "event.capability.pre-cistern",
+      sequence: 1,
+      type: "capability_milestone_committed",
+      payload: {
+        milestoneId: "pre_cistern_length_phrase",
+        writerEvent: "first_evidence_package_committed",
+        sourcePath: "data/chapters/ch01-world-literacy-prologue.v0.1.yaml",
+        sourceDigest: `sha256:${"a".repeat(64)}`,
+        contractRevision: "0.1.0",
+        resultingState: { expressionCapacityWords: 2, focusSlots: 2, maxMp: 26 },
+      },
+    };
+    expect(session.apply(milestone)).toMatchObject({ applied: true, reason: "applied" });
+    expect(session.capabilitySnapshot()).toMatchObject({
+      expressionCapacityWords: 2,
+      focusSlots: 2,
+      revision: 1,
+    });
+    expect(session.snapshot().mp).toEqual({ currentMp: 24, maxMp: 26, worldVersion: 1 });
+
+    expect(session.apply({
+      eventId: "event.reset.after-capability",
+      sequence: 2,
+      type: "area_reset",
+      payload: { areaId: "n05" },
+    }).applied).toBe(true);
+    expect(session.snapshot().capabilities).toEqual(session.capabilitySnapshot());
+    expect(session.snapshot().capabilities.expressionCapacityWords).toBe(2);
+
+    const save = session.toSave();
+    const loaded = GameSession.load(JSON.parse(JSON.stringify(save)));
+    expect(loaded.ok).toBe(true);
+    if (!loaded.ok) return;
+    expect(loaded.session.snapshot()).toEqual(session.snapshot());
+    const replayed = replayGameSession(save.sessionId, save.origin, save.eventLedger);
+    expect(replayed.ok).toBe(true);
+    if (replayed.ok) expect(replayed.session.snapshot()).toEqual(session.snapshot());
+
+    expect(session.apply({
+      eventId: "event.max-mp-alone-forbidden",
+      sequence: 3,
+      type: "mp_replaced",
+      payload: { mp: { currentMp: 24, maxMp: 30, worldVersion: 2 } },
+    })).toMatchObject({ applied: false, reason: "invalid_event" });
+  });
+
+  it("deduplicates milestones by milestone ID, rejects conflicting payloads, and keeps capacity monotonic", () => {
+    const session = createSession();
+    const basePayload = {
+      milestoneId: "pre_cistern_length_phrase",
+      writerEvent: "first_evidence_package_committed",
+      sourcePath: "data/chapters/ch01-world-literacy-prologue.v0.1.yaml",
+      sourceDigest: `sha256:${"b".repeat(64)}` as const,
+      contractRevision: "0.1.0",
+      resultingState: { expressionCapacityWords: 2, focusSlots: 2, maxMp: 26 },
+    };
+    expect(session.apply({
+      eventId: "event.capability.first",
+      sequence: 1,
+      type: "capability_milestone_committed",
+      payload: basePayload,
+    }).applied).toBe(true);
+    expect(session.apply({
+      eventId: "event.capability.same-milestone",
+      sequence: 2,
+      type: "capability_milestone_committed",
+      payload: basePayload,
+    })).toMatchObject({ applied: false, duplicate: true, reason: "duplicate_milestone" });
+    expect(session.apply({
+      eventId: "event.capability.conflict",
+      sequence: 2,
+      type: "capability_milestone_committed",
+      payload: { ...basePayload, resultingState: { ...basePayload.resultingState, focusSlots: 3 } },
+    })).toMatchObject({ applied: false, duplicate: false, reason: "milestone_payload_conflict" });
+    expect(session.apply({
+      eventId: "event.capability.regression",
+      sequence: 2,
+      type: "capability_milestone_committed",
+      payload: {
+        ...basePayload,
+        milestoneId: "regressive_milestone",
+        resultingState: { expressionCapacityWords: 1, focusSlots: 2, maxMp: 26 },
+      },
+    })).toMatchObject({ applied: false, reason: "state_regression" });
+    expect(session.nextSequence()).toBe(2);
+  });
+
   it("rejects component regressions and leaves the expected sequence reusable", () => {
     const session = createSession();
     expect(session.apply({
@@ -501,6 +610,34 @@ describe("GameSession", () => {
       payload: { mp: { currentMp: 24, maxMp: 24, worldVersion: 1 } },
     })).toMatchObject({ applied: false, reason: "state_regression" });
     expect(session.nextSequence()).toBe(2);
+  });
+  it("upgrades integrity-valid pre-capability v0.2 saves without inferring progress from max MP", () => {
+    const save = GameSession.create({
+      sessionId: "save.legacy-v02.capacity",
+      mp: { currentMp: 20, maxMp: 26, worldVersion: 4 },
+      currentSceneId: "scene.n04.service",
+    }).toSave();
+    const legacy = structuredClone(save) as unknown as Record<string, any>;
+    delete legacy.origin.capabilities;
+    delete legacy.state.capabilities;
+    legacy.integrity.digest = testDigest({
+      schema: legacy.schema,
+      sessionId: legacy.sessionId,
+      origin: legacy.origin,
+      state: legacy.state,
+      eventLedger: legacy.eventLedger,
+    });
+    const loaded = GameSession.load(legacy);
+    expect(loaded.ok).toBe(true);
+    if (!loaded.ok) return;
+    expect(loaded.migratedFrom).toBeNull();
+    expect(loaded.session.snapshot().capabilities).toEqual({
+      expressionCapacityWords: 1,
+      focusSlots: 1,
+      revision: 0,
+      appliedMilestones: {},
+    });
+    expect(loaded.session.snapshot().mp.maxMp).toBe(26);
   });
 });
 
