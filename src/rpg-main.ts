@@ -685,7 +685,7 @@ function drawGlyph(x: number, y: number, phase: GlyphPhase): void {
 
 function bindInputs(): void {
   window.addEventListener("keydown", (event) => {
-    if (event.key === " " && preservesNativeSpace(event.target)) return;
+    if (preservesNativeControl(event.target)) return;
     if (event.repeat && ["e", "r"].includes(event.key.toLowerCase())) return;
     const key = event.key.toLowerCase();
     if (key === "a" || key === "arrowleft") held.add("left");
@@ -1032,7 +1032,7 @@ function clearHeld(): void {
   pointerHolds.clear();
 }
 
-function preservesNativeSpace(target: EventTarget | null): boolean {
+function preservesNativeControl(target: EventTarget | null): boolean {
   return target instanceof Element &&
     target.closest("button, a, input, textarea, select, [contenteditable]:not([contenteditable='false'])") !== null;
 }
