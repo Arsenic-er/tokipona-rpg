@@ -20,6 +20,10 @@ import {
   PROLOGUE_STREAM_SCENE_ID,
 } from "./game/prologue-arrival-stream";
 import { WORLD_TILE_SIZE_PX, type RuntimeInput, type RuntimeSnapshot } from "./runtime";
+import {
+  createRpgInfrastructureUi,
+  type InfrastructureUiCommand,
+} from "./rpg-infrastructure-ui";
 
 type GlyphPhase = "undiscovered" | "discovered" | "activated";
 type Tone = "neutral" | "success" | "warning" | "danger";
@@ -173,6 +177,49 @@ class FlowBrowserPort {
     return ui(true, "交易入口已由场景清单授权；当前灰盒只显示商人 allowlist，不执行成交。", "neutral");
   }
 
+  infrastructure(command: InfrastructureUiCommand): UiResult {
+    switch (command.kind) {
+      case "enter_waterwheel":
+        return flowResult(this.flow.enterWaterwheel(nextId("enter-waterwheel")), "Entered N03 waterwheel.");
+      case "observe_wheel":
+        return flowResult(this.flow.observeWaterwheelPhysics(nextId("observe-wheel"), {
+          angularVelocityRpm: 12,
+          elapsedTicks: 120,
+          downstreamFlowBand: "safe",
+          overflowContact: false,
+        }), "Recorded 120 stable wheel ticks.");
+      case "waterwheel_solution":
+        return flowResult(this.flow.completeWaterwheelSolution(nextId(`wheel-${command.solutionId}`), command.solutionId, command.evidence), "Waterwheel solution committed.");
+      case "enter_service":
+        return flowResult(this.flow.enterServiceChannel(nextId("enter-service")), "Entered N04 service channel.");
+      case "return_waterwheel":
+        return flowResult(this.flow.returnToWaterwheel(nextId("return-waterwheel")), "Returned to N03.");
+      case "return_settlement":
+        return flowResult(this.flow.returnToSettlement(nextId("return-settlement")), "Returned to N02.");
+      case "discover_tawa":
+        return flowResult(this.flow.discoverTawa(nextId("discover-tawa")), "Discovered tawa.");
+      case "attune_tawa":
+        return flowResult(this.flow.attuneTawa(nextId("attune-tawa")), "Attuned tawa.");
+      case "ground_tawa":
+        return flowResult(this.flow.groundTawa(nextId("ground-tawa"), {
+          solutionId: command.inService ? "service.open_bypass_valve" : "waterwheel.move_flume",
+          promptLevel: 1,
+          predictedMotionCorrect: true,
+          worldOutcomeContribution: true,
+          toolBypass: false,
+          answerVisible: false,
+        }), "Recorded low-hint tawa grounding evidence.");
+      case "service_solution":
+        return flowResult(this.flow.completeServiceSolution(nextId(`service-${command.solutionId}`), command.solutionId, command.evidence), "Service-channel route committed.");
+      case "read_o":
+        return flowResult(this.flow.readGrammarOSign(nextId("read-o")), "Read the receptive o sign.");
+      case "accept_o":
+        return flowResult(this.flow.acceptGrammarOReceptivePrompt(nextId("accept-o"), true), "Accepted the o prompt without mastery.");
+      case "recover_softlock":
+        return flowResult(this.flow.recoverInfrastructureSoftLock(nextId("recover-infrastructure")), "Recovered the local route within the 60-second contract.");
+    }
+  }
+
   setCheckpoint(): UiResult {
     return flowResult(
       this.flow.setCheckpoint(nextId("checkpoint"), "checkpoint.prologue.browser"),
@@ -302,6 +349,7 @@ const taskStageLabel = required<HTMLElement>('[data-ui="task-stage"]');
 const statusLabel = required<HTMLElement>('[data-ui="status"]');
 
 let port = FlowBrowserPort.fresh();
+const infrastructureUi = createRpgInfrastructureUi((command) => run(() => port.infrastructure(command)));
 let priorTime = performance.now();
 let activationStarted: number | null = null;
 let jumpQueued = false;
@@ -332,6 +380,7 @@ function frame(now: number): void {
 }
 
 function render(snapshot: PrologueFlowSnapshot, now: number): void {
+  infrastructureUi.render(snapshot);
   const scene = requiredScene(snapshot.runtime.sceneId);
   drawWorld(snapshot, scene);
   sceneLabel.textContent = sceneTitle(snapshot.runtime.sceneId);
