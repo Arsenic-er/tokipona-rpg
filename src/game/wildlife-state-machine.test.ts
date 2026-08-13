@@ -260,4 +260,3 @@ describe("deterministic generated-ecology wildlife FSM", () => {
     }, bad)).toThrow(/at least 0.7/);
   });
 });
-

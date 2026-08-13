@@ -363,4 +363,3 @@ export class WildlifeStateMachine {
     return Math.ceil(this.ecology.loseSightSeconds * WILDLIFE_TICKS_PER_SECOND);
   }
 }
-
