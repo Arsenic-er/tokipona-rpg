@@ -1,3 +1,6 @@
+import generatedRuntimeArtifact from "../generated/content-runtime.v0.1.json";
+import { readRuntimeWildlifeProcessingManifest, requiresWildlifeProvenance } from "../content/runtime-wildlife-processing-manifest";
+const WILDLIFE_MANIFEST = readRuntimeWildlifeProcessingManifest(generatedRuntimeArtifact);
 export const TRADE_SAVE_SCHEMA = "tokipona.trade.v0.1";
 export const TRADE_PRICE_TABLE_VERSION = "settlement.prologue.v0.1";
 
@@ -36,6 +39,7 @@ export type TradeFreshness =
   | "spoiled"
   | "decomposed"
   | "raw"
+  | "slipping"
   | "cured"
   | "stable"
   | "rotten";
@@ -93,6 +97,21 @@ export interface MerchantDefinition {
   readonly ownershipPolicy?: "legal_only" | "fence";
 }
 
+export interface TradeWildlifeProvenance {
+  readonly lifeInstanceId: string | null;
+  readonly deathEventId: string | null;
+  readonly harvestEventId: string | null;
+  readonly parentLotIds: readonly string[];
+  readonly transformEventId: string | null;
+  readonly matterOrigin: "natural" | "manifested" | "mixed" | "legacy_unknown";
+  readonly freshnessCreatedTick: number;
+  readonly preservationProfileId: string | null;
+  readonly lastDecayEvalTick: number;
+  readonly remainingFreshnessSeconds: number | null;
+  readonly reservationRevision: number;
+  readonly reservedByWorkOrderId: string | null;
+}
+
 export interface TradeLot {
   readonly lotId: string;
   readonly itemId: string;
@@ -111,6 +130,7 @@ export interface TradeLot {
   readonly equipped: boolean;
   ownershipRevision: number;
   readonly freshnessRevision: number;
+  readonly wildlifeProvenance?: TradeWildlifeProvenance;
 }
 
 export interface MerchantState {
@@ -440,12 +460,39 @@ const REFUSAL_MESSAGES: Readonly<Record<TradeRefusalReason, string>> = Object.fr
 
 const freshnessMultiplier = (freshness: TradeFreshness): number => {
   if (freshness === "aging") return 0.75;
+  if (freshness === "slipping") return 0.5;
   if (freshness === "near_spoil") return 0.5;
   return 1;
 };
 
 const freshnessRejected = (freshness: TradeFreshness): boolean =>
   freshness === "spoiled" || freshness === "decomposed" || freshness === "rotten";
+
+const testWildlifeProvenance = (itemId: string): TradeWildlifeProvenance => ({
+  lifeInstanceId: "life.graybox.seed", deathEventId: "death.graybox.seed", harvestEventId: "harvest.graybox.seed",
+  parentLotIds: [] as string[], transformEventId: itemId.includes("raw_") ? null : "transform.graybox.seed",
+  matterOrigin: "natural", freshnessCreatedTick: 0,
+  preservationProfileId: WILDLIFE_MANIFEST.items[itemId]?.preservationProfileId ?? null,
+  lastDecayEvalTick: 0, remainingFreshnessSeconds: 3600, reservationRevision: 0, reservedByWorkOrderId: null,
+});
+
+const hasWildlifeProvenance = (lot: TradeLot): boolean => {
+  const value = (lot as TradeLot & { readonly wildlifeProvenance?: unknown }).wildlifeProvenance;
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+  const record = value as unknown as Record<string, unknown>;
+  return (record.lifeInstanceId === null || typeof record.lifeInstanceId === "string") &&
+    (record.deathEventId === null || typeof record.deathEventId === "string") &&
+    (record.harvestEventId === null || typeof record.harvestEventId === "string") &&
+    Array.isArray(record.parentLotIds) && record.parentLotIds.every((id) => typeof id === "string" && id.length > 0) &&
+    (record.transformEventId === null || typeof record.transformEventId === "string") &&
+    ["natural", "manifested", "mixed", "legacy_unknown"].includes(String(record.matterOrigin)) &&
+    Number.isSafeInteger(record.freshnessCreatedTick) && Number(record.freshnessCreatedTick) >= 0 &&
+    (record.preservationProfileId === null || typeof record.preservationProfileId === "string") &&
+    Number.isSafeInteger(record.lastDecayEvalTick) && Number(record.lastDecayEvalTick) >= Number(record.freshnessCreatedTick) &&
+    (record.remainingFreshnessSeconds === null || (typeof record.remainingFreshnessSeconds === "number" && Number.isFinite(record.remainingFreshnessSeconds) && record.remainingFreshnessSeconds >= 0)) &&
+    Number.isSafeInteger(record.reservationRevision) && Number(record.reservationRevision) >= 0 &&
+    (record.reservedByWorkOrderId === null || typeof record.reservedByWorkOrderId === "string");
+};
 
 const cloneLot = (lot: TradeLot): TradeLot => ({ ...lot, sourceLotIds: [...lot.sourceLotIds] });
 const cloneMerchantState = (state: MerchantState): MerchantState => ({ ...state });
@@ -469,6 +516,7 @@ export const createDemoTradeLots = (): TradeLot[] => [
     equipped: false,
     ownershipRevision: 0,
     freshnessRevision: 0,
+    wildlifeProvenance: testWildlifeProvenance("food.cooked_game_meat"),
   },
   {
     lotId: "lot.raw-hide.1",
@@ -488,6 +536,7 @@ export const createDemoTradeLots = (): TradeLot[] => [
     equipped: false,
     ownershipRevision: 0,
     freshnessRevision: 0,
+    wildlifeProvenance: testWildlifeProvenance("material.raw_small_hide"),
   },
   {
     lotId: "lot.cured-leather.1",
@@ -507,6 +556,7 @@ export const createDemoTradeLots = (): TradeLot[] => [
     equipped: false,
     ownershipRevision: 0,
     freshnessRevision: 0,
+    wildlifeProvenance: testWildlifeProvenance("material.cured_small_leather"),
   },
   {
     lotId: "lot.manifested-sample.1",
@@ -570,31 +620,31 @@ export class TradeSystem {
     });
   }
 
-  static fromSave(candidate: unknown): TradeSystem {
-    if (!candidate || typeof candidate !== "object") return new TradeSystem([]);
+  static fromSaveStrict(candidate: unknown): { readonly ok: true; readonly system: TradeSystem } |
+    { readonly ok: false; readonly error: "invalid_trade_save" } {
+    if (!candidate || typeof candidate !== "object") return { ok: false, error: "invalid_trade_save" };
     const save = candidate as Partial<TradeSave>;
-    if (
-      save.schema !== TRADE_SAVE_SCHEMA ||
-      !Array.isArray(save.lots) ||
-      !save.lots.every(isTradeLot) ||
-      !Array.isArray(save.merchantStates) ||
-      !save.merchantStates.every(isMerchantState) ||
-      !Array.isArray(save.receipts) ||
-      !save.receipts.every(isTradeReceipt)
-    ) {
-      return new TradeSystem([]);
+    const counters = [save.coin, save.walletRevision, save.inventoryRevision, save.quoteSequence];
+    if (save.schema !== TRADE_SAVE_SCHEMA || counters.some((value) => !Number.isSafeInteger(value) || Number(value) < 0) ||
+        !Array.isArray(save.lots) || !save.lots.every(isTradeLot) || new Set(save.lots.map((lot) => lot.lotId)).size !== save.lots.length ||
+        !Array.isArray(save.merchantStates) || !save.merchantStates.every(isMerchantState) ||
+        new Set(save.merchantStates.map((state) => state.merchantId)).size !== save.merchantStates.length ||
+        !Array.isArray(save.receipts) || !save.receipts.every(isTradeReceipt) ||
+        new Set(save.receipts.map((receipt) => receipt.transactionId)).size !== save.receipts.length) {
+      return { ok: false, error: "invalid_trade_save" };
     }
-
     const trade = new TradeSystem(save.lots);
-    trade.coin = nonNegativeInteger(save.coin, 0);
-    trade.walletRevision = nonNegativeInteger(save.walletRevision, 0);
-    trade.inventoryRevision = nonNegativeInteger(save.inventoryRevision, 0);
-    trade.quoteSequence = nonNegativeInteger(save.quoteSequence, 0);
-    save.merchantStates.forEach((state) => {
-      trade.merchantStates.set(state.merchantId, cloneMerchantState(state));
-    });
+    trade.coin = Number(save.coin); trade.walletRevision = Number(save.walletRevision);
+    trade.inventoryRevision = Number(save.inventoryRevision); trade.quoteSequence = Number(save.quoteSequence);
+    save.merchantStates.forEach((state) => trade.merchantStates.set(state.merchantId, cloneMerchantState(state)));
     save.receipts.forEach((receipt) => trade.receipts.set(receipt.transactionId, receipt));
-    return trade;
+    return { ok: true, system: trade };
+  }
+
+  /** Legacy graybox convenience. Production/WAL participants must use fromSaveStrict. */
+  static fromSave(candidate: unknown): TradeSystem {
+    const loaded = TradeSystem.fromSaveStrict(candidate);
+    return loaded.ok ? loaded.system : new TradeSystem([]);
   }
 
   snapshot(): TradeSnapshot {
@@ -629,6 +679,8 @@ export class TradeSystem {
       return refusal("knowledge_or_quest_bound");
     }
     if (lot.reserved || lot.equipped) return refusal("reserved_or_equipped");
+    if (lot.originKind === "natural" && lot.economyEligible && requiresWildlifeProvenance(WILDLIFE_MANIFEST, lot.itemId) &&
+        !hasWildlifeProvenance(lot)) return refusal("origin_not_natural");
     if (!lot.economyEligible || lot.originKind === "manifested" || lot.originKind === "relief" ||
         lot.originKind === "legacy_unknown" || lot.naturalFraction !== 1) {
       return refusal("origin_not_natural");
@@ -776,8 +828,6 @@ const refusal = (reason: TradeRefusalReason): TradeEligibility => ({
   messageZh: REFUSAL_MESSAGES[reason],
 });
 
-const nonNegativeInteger = (candidate: unknown, fallback: number): number =>
-  typeof candidate === "number" && Number.isInteger(candidate) && candidate >= 0 ? candidate : fallback;
 
 const TRADE_ORIGINS: readonly TradeOrigin[] = [
   "natural", "manifested", "relief", "quest", "borrowed", "stolen", "legacy_unknown",
@@ -789,6 +839,7 @@ const TRADE_FRESHNESS_STATES: readonly TradeFreshness[] = [
   "spoiled",
   "decomposed",
   "raw",
+  "slipping",
   "cured",
   "stable",
   "rotten",
@@ -828,7 +879,9 @@ const isTradeLot = (candidate: unknown): candidate is TradeLot => {
     Number.isInteger(lot.ownershipRevision) &&
     Number(lot.ownershipRevision) >= 0 &&
     Number.isInteger(lot.freshnessRevision) &&
-    Number(lot.freshnessRevision) >= 0
+    Number(lot.freshnessRevision) >= 0 &&
+    (!(lot.originKind === "natural" && lot.economyEligible && requiresWildlifeProvenance(WILDLIFE_MANIFEST, lot.itemId!)) ||
+      hasWildlifeProvenance(lot as TradeLot))
   );
 };
 

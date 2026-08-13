@@ -1,3 +1,5 @@
+import generatedRuntimeArtifact from "../generated/content-runtime.v0.1.json";
+import { readRuntimeWildlifeProcessingManifest, requiresWildlifeProvenance } from "../content/runtime-wildlife-processing-manifest";
 import {
   MERCHANT_DIRECTORY,
   TRADE_ITEMS,
@@ -30,7 +32,7 @@ export interface LegacySessionEconomySummary {
   readonly lots: readonly LegacyInventoryLotSummary[];
 }
 
-export type EconomyWorkOrderStatus = "queued" | "in_progress" | "completed" | "cancelled";
+export type EconomyWorkOrderStatus = "queued" | "in_progress" | "reserved" | "completed" | "failed_spoiled" | "claimed" | "cancelled";
 
 /** Reserved by v0.2 for the later corpse-processing slice; no producer is enabled yet. */
 export interface EconomyWorkOrder {
@@ -43,10 +45,17 @@ export interface EconomyWorkOrder {
 
 /** A durable processing receipt is distinct from a merchant trade receipt. */
 export interface EconomyProcessingReceipt {
+  readonly receiptId?: string;
   readonly transactionId: string;
-  readonly workOrderId: string;
+  readonly transactionKind?: string;
+  readonly action?: string;
+  readonly payloadHash?: string;
+  readonly workOrderId: string | null;
+  readonly corpseId?: string | null;
+  readonly tissueSlotId?: string | null;
   readonly inputLotIds: readonly string[];
   readonly outputLotIds: readonly string[];
+  readonly zeroYieldReason?: string | null;
   readonly committedWorldTick: number;
 }
 
@@ -56,6 +65,7 @@ export interface SessionEconomyState {
   readonly walletRevision: number;
   readonly inventoryRevision: number;
   readonly quoteSequence: number;
+  readonly activeWorldTick?: number;
   readonly lots: readonly TradeLot[];
   readonly merchantStates: readonly MerchantState[];
   readonly workOrders: readonly EconomyWorkOrder[];
@@ -76,8 +86,22 @@ const ORIGINS: readonly TradeOrigin[] = [
   "natural", "manifested", "relief", "quest", "borrowed", "stolen", "legacy_unknown",
 ];
 const FRESHNESS: readonly TradeFreshness[] = [
-  "fresh", "aging", "near_spoil", "spoiled", "decomposed", "raw", "cured", "stable", "rotten",
+  "fresh", "aging", "near_spoil", "spoiled", "decomposed", "raw", "slipping", "cured", "stable", "rotten",
 ];
+const MATTER_ORIGINS = ["natural", "manifested", "mixed", "legacy_unknown"] as const;
+const WILDLIFE_MANIFEST = readRuntimeWildlifeProcessingManifest(generatedRuntimeArtifact);
+const isWildlifeProvenance = (value: unknown): boolean => {
+  if (!isRecord(value) || !(value.lifeInstanceId === null || isId(value.lifeInstanceId)) ||
+      !(value.deathEventId === null || isId(value.deathEventId)) || !(value.harvestEventId === null || isId(value.harvestEventId)) ||
+      !Array.isArray(value.parentLotIds) || !value.parentLotIds.every(isId) || !unique(value.parentLotIds) ||
+      !(value.transformEventId === null || isId(value.transformEventId)) ||
+      !MATTER_ORIGINS.includes(value.matterOrigin as typeof MATTER_ORIGINS[number]) ||
+      !isCount(value.freshnessCreatedTick) || !(value.preservationProfileId === null || isId(value.preservationProfileId)) ||
+      !isCount(value.lastDecayEvalTick) || value.lastDecayEvalTick < value.freshnessCreatedTick ||
+      !(value.remainingFreshnessSeconds === null || isFiniteNonNegative(value.remainingFreshnessSeconds)) ||
+      !isCount(value.reservationRevision) || !(value.reservedByWorkOrderId === null || isId(value.reservedByWorkOrderId))) return false;
+  return true;
+};
 
 export const isTradeLotState = (value: unknown): value is TradeLot => {
   if (!isRecord(value) || !isId(value.lotId) || !isId(value.itemId) ||
@@ -97,6 +121,12 @@ export const isTradeLotState = (value: unknown): value is TradeLot => {
       (value.originKind !== "legacy_unknown" || value.naturalFraction !== 0 || value.economyEligible !== false)) {
     return false;
   }
+  const provenanceRequired = value.originKind === "natural" && value.economyEligible === true &&
+    requiresWildlifeProvenance(WILDLIFE_MANIFEST, value.itemId as string);
+  if (provenanceRequired && !isWildlifeProvenance(value.wildlifeProvenance)) return false;
+  if (value.wildlifeProvenance !== undefined && !isWildlifeProvenance(value.wildlifeProvenance)) return false;
+  if (isRecord(value.wildlifeProvenance) &&
+      value.reserved !== (value.wildlifeProvenance.reservedByWorkOrderId !== null)) return false;
   return true;
 };
 
@@ -112,16 +142,40 @@ export const isTradeReceiptValue = (value: unknown): value is TradeReceipt =>
   isId(value.lotId) && isId(value.itemId) && isCount(value.quantity) && value.quantity > 0 &&
   isCount(value.coinDelta) && isFiniteNonNegative(value.committedWorldTick);
 
-const isWorkOrder = (value: unknown): value is EconomyWorkOrder =>
-  isRecord(value) && isId(value.workOrderId) && isId(value.recipeId) &&
-  Array.isArray(value.inputLotIds) && value.inputLotIds.every(isId) && unique(value.inputLotIds) &&
-  ["queued", "in_progress", "completed", "cancelled"].includes(String(value.status)) && isCount(value.revision);
+const isWorkOrder = (value: unknown): value is EconomyWorkOrder => {
+  if (!isRecord(value) || !isId(value.workOrderId) || !isId(value.recipeId) || !Array.isArray(value.inputLotIds) ||
+      !value.inputLotIds.every(isId) || !unique(value.inputLotIds) ||
+      !["queued", "in_progress", "reserved", "completed", "failed_spoiled", "claimed", "cancelled"].includes(String(value.status)) || !isCount(value.revision)) return false;
+  if (value.status === "queued" || value.status === "in_progress") return true;
+  if (!isId(value.recipeVersion) || !isId(value.stationId) || !isId(value.initiatingPlayerSaveId) ||
+      !Array.isArray(value.inputs) || value.inputs.length !== value.inputLotIds.length ||
+      !isCount(value.startEventSequence) || !isCount(value.requiredEventCount) || !Array.isArray(value.eligibleEventFilter) ||
+      !value.eligibleEventFilter.every(isId) || !unique(value.eligibleEventFilter) || !isCount(value.processedThroughSequence) ||
+      value.processedThroughSequence < value.startEventSequence || !Array.isArray(value.processedEventIds) ||
+      !value.processedEventIds.every(isId) || !unique(value.processedEventIds) || !isId(value.stationStorageProfile) ||
+      !isCount(value.startWorldTick) || !isCount(value.readyWorldTick) || value.readyWorldTick < value.startWorldTick ||
+      !Array.isArray(value.outputLotIds) || !value.outputLotIds.every(isId) || !unique(value.outputLotIds) ||
+      !(value.failureReason === null || isId(value.failureReason))) return false;
+  const inputs = value.inputs as unknown[];
+  const inputLotIds = value.inputLotIds as string[];
+  if (!inputs.every((entry) => isRecord(entry) && isId(entry.lotId) && isCount(entry.quantity) && entry.quantity > 0 &&
+      isCount(entry.startOwnershipRevision) && isCount(entry.startFreshnessRevision) && isCount(entry.startReservationRevision)) ||
+      inputs.some((entry, index) => (entry as Record<string, unknown>).lotId !== inputLotIds[index])) return false;
+  if (value.status === "failed_spoiled" && value.failureReason === null) return false;
+  if (value.status === "reserved" && (value.outputLotIds.length !== 0 || value.failureReason !== null)) return false;
+  return true;
+};
 
-const isProcessingReceipt = (value: unknown): value is EconomyProcessingReceipt =>
-  isRecord(value) && isId(value.transactionId) && isId(value.workOrderId) &&
-  Array.isArray(value.inputLotIds) && value.inputLotIds.every(isId) && unique(value.inputLotIds) &&
-  Array.isArray(value.outputLotIds) && value.outputLotIds.every(isId) && unique(value.outputLotIds) &&
-  isCount(value.committedWorldTick);
+const isProcessingReceipt = (value: unknown): value is EconomyProcessingReceipt => {
+  if (!isRecord(value) || !isId(value.transactionId) || !(value.workOrderId === null || isId(value.workOrderId)) ||
+      !Array.isArray(value.inputLotIds) || !value.inputLotIds.every(isId) || !unique(value.inputLotIds) ||
+      !Array.isArray(value.outputLotIds) || !value.outputLotIds.every(isId) || !unique(value.outputLotIds) || !isCount(value.committedWorldTick)) return false;
+  if (value.receiptId === undefined) return isId(value.workOrderId);
+  return isId(value.receiptId) && isId(value.transactionKind) && isId(value.action) &&
+    typeof value.payloadHash === "string" && /^sha256:[0-9a-f]{64}$/.test(value.payloadHash) &&
+    (value.corpseId === null || isId(value.corpseId)) && (value.tissueSlotId === null || isId(value.tissueSlotId)) &&
+    (value.zeroYieldReason === null || isId(value.zeroYieldReason));
+};
 
 export const isLegacySessionEconomySummary = (value: unknown): value is LegacySessionEconomySummary => {
   if (!isRecord(value) || "schema" in value || !isCount(value.coin) || !isCount(value.walletRevision) ||
@@ -134,6 +188,7 @@ export const isLegacySessionEconomySummary = (value: unknown): value is LegacySe
 export const isSessionEconomyState = (value: unknown): value is SessionEconomyState => {
   if (!isRecord(value) || value.schema !== SESSION_ECONOMY_SCHEMA || !isCount(value.coin) ||
       !isCount(value.walletRevision) || !isCount(value.inventoryRevision) || !isCount(value.quoteSequence) ||
+      !(value.activeWorldTick === undefined || isCount(value.activeWorldTick)) ||
       !Array.isArray(value.lots) || !value.lots.every(isTradeLotState) ||
       !Array.isArray(value.merchantStates) || !value.merchantStates.every(isMerchantStateValue) ||
       !Array.isArray(value.workOrders) || !value.workOrders.every(isWorkOrder) ||
@@ -147,7 +202,11 @@ export const isSessionEconomyState = (value: unknown): value is SessionEconomySt
     unique(merchantStates.map((state) => state.merchantId)) &&
     unique(value.workOrders.map((order) => order.workOrderId)) &&
     unique(value.tradeReceipts.map((receipt) => receipt.transactionId)) &&
-    unique(value.processingReceipts.map((receipt) => receipt.transactionId));
+    unique(value.processingReceipts.map((receipt) => receipt.transactionId)) &&
+    (value.activeWorldTick === undefined || value.lots.every((lot) => {
+      const provenance = (lot as TradeLot & { readonly wildlifeProvenance?: { readonly lastDecayEvalTick: number } }).wildlifeProvenance;
+      return provenance === undefined || provenance.lastDecayEvalTick <= (value.activeWorldTick as number);
+    }));
 };
 
 const defaultMerchantStates = (): MerchantState[] => MERCHANT_DIRECTORY.map((merchant) => ({
@@ -163,6 +222,7 @@ export const createEmptySessionEconomy = (): SessionEconomyState => ({
   walletRevision: 0,
   inventoryRevision: 0,
   quoteSequence: 0,
+  activeWorldTick: 0,
   lots: [],
   merchantStates: defaultMerchantStates(),
   workOrders: [],
@@ -182,6 +242,7 @@ export const migrateLegacyEconomySummary = (summary: LegacySessionEconomySummary
     walletRevision: summary.walletRevision,
     inventoryRevision: summary.inventoryRevision,
     quoteSequence: 0,
+    activeWorldTick: 0,
     lots: summary.lots.map((lot): TradeLot => ({
       ...lot,
       sourceLotIds: [],
@@ -213,7 +274,7 @@ export const normalizeSessionEconomy = (
 
 export const adaptTradeSaveToSessionEconomy = (
   save: TradeSave,
-  retained?: Pick<SessionEconomyState, "workOrders" | "processingReceipts">,
+  retained?: Pick<SessionEconomyState, "workOrders" | "processingReceipts" | "activeWorldTick">,
 ): SessionEconomyState => {
   const candidate: SessionEconomyState = {
     schema: SESSION_ECONOMY_SCHEMA,
@@ -226,6 +287,7 @@ export const adaptTradeSaveToSessionEconomy = (
     workOrders: clone(retained?.workOrders ?? []),
     tradeReceipts: clone(save.receipts),
     processingReceipts: clone(retained?.processingReceipts ?? []),
+    activeWorldTick: retained?.activeWorldTick ?? 0,
   };
   if (save.schema !== TRADE_SAVE_SCHEMA || save.lots.some((lot) => TRADE_ITEMS[lot.itemId] === undefined) ||
       !isSessionEconomyState(candidate)) {

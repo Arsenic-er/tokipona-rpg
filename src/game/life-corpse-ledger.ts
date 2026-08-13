@@ -1,3 +1,6 @@
+import generatedRuntimeArtifact from "../generated/content-runtime.v0.1.json";
+import { readRuntimeWildlifeProcessingManifest } from "../content/runtime-wildlife-processing-manifest";
+
 export const LIFE_CORPSE_LEDGER_SCHEMA = "tokipona.life-corpse-ledger.v0.1" as const;
 export const WILDLIFE_ECONOMY_ID = "valley_wildlife_products" as const;
 
@@ -223,12 +226,10 @@ export const tissueSlotsForLife = (
   ageClass: WildlifeAgeClass,
 ): readonly CorpseTissueSlot[] => {
   if (ageClass === "juvenile") return Object.freeze([]);
-  const source = species === "rabbit"
-    ? [["meat", "food.raw_small_game_meat", 2], ["hide", "material.raw_small_hide", 1]] as const
-    : species === "fox"
-      ? [["meat", "food.raw_predator_meat", 1], ["hide", "material.raw_medium_pelt", 1]] as const
-      : [];
-  return Object.freeze(source.map(([tissueSlotId, itemId, quantity]) => Object.freeze({
+  const machine = readRuntimeWildlifeProcessingManifest(generatedRuntimeArtifact);
+  const profile = Object.values(machine.harvestProfiles).find((candidate) => candidate.species === species);
+  const source = profile?.adultFullYield ?? [];
+  return Object.freeze(source.map(({ tissueSlotId, itemId, quantity }) => Object.freeze({
     tissueSlotId,
     itemId,
     originalQuantity: quantity,

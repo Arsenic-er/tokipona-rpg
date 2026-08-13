@@ -19,6 +19,12 @@ const lot = (overrides: Partial<TradeLot> = {}): TradeLot => ({
   equipped: false,
   ownershipRevision: 0,
   freshnessRevision: 0,
+  wildlifeProvenance: {
+    lifeInstanceId: "life.test", deathEventId: "death.test", harvestEventId: "harvest.test", parentLotIds: [],
+    transformEventId: "transform.test", matterOrigin: "natural", freshnessCreatedTick: 0,
+    preservationProfileId: "cooked_meat_temperate", lastDecayEvalTick: 0, remainingFreshnessSeconds: 3600,
+    reservationRevision: 0, reservedByWorkOrderId: null,
+  },
   ...overrides,
 });
 
@@ -38,6 +44,19 @@ describe("TradeSystem", () => {
 
     expect(invalid.snapshot().lots).toEqual([]);
     expect(invalid.snapshot().coin).toBe(0);
+    expect(TradeSystem.fromSaveStrict({ schema: "tokipona.trade.v0.1", lots: [{ lotId: "bad" }] })).toEqual({
+      ok: false, error: "invalid_trade_save",
+    });
+  });
+
+  it("rejects a forged natural wildlife lot without lineage at quote and strict save load", () => {
+    const forged = lot({ lotId: "lot.forged.lineage" }) as TradeLot & { wildlifeProvenance?: unknown };
+    delete forged.wildlifeProvenance;
+    const trade = new TradeSystem([forged]);
+    expect(trade.getEligibility("settlement.butcher", forged.lotId, 1).reason).toBe("origin_not_natural");
+    const save = new TradeSystem([lot()]).toSave() as any;
+    delete save.lots[0].wildlifeProvenance;
+    expect(TradeSystem.fromSave(save).snapshot().lots).toEqual([]);
   });
 
   it("keeps first glyph rubbings outside the economy", () => {

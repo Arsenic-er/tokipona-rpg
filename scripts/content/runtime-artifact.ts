@@ -1,7 +1,9 @@
-import { createHash } from "node:crypto";
+﻿import { createHash } from "node:crypto";
 import { posix } from "node:path";
 import type { ContentManifest, ContentObject, ContentValue } from "../../src/content/types.ts";
 import type { CapabilityMilestoneMachineProjection } from "../../src/session/capability-contract.ts";
+import type { RuntimeFreshnessState, RuntimeWildlifeProcessingManifest } from "../../src/content/runtime-wildlife-processing-manifest.ts";
+import type { RuntimeTradeManifest } from "../../src/content/runtime-trade-manifest.ts";
 import type { RuntimeEcologyManifest, RuntimeWildlifeSpeciesManifest } from "../../src/content/runtime-ecology-manifest.ts";
 import type {
   RuntimeSceneEntranceManifest,
@@ -60,6 +62,19 @@ export interface RuntimeContentArtifact {
   readonly infrastructureTasks: RuntimeInfrastructureTaskManifestIndex;
   readonly capabilityProgression: CapabilityMilestoneMachineProjection;
   readonly ecology: RuntimeEcologyManifest;
+  readonly wildlifeProcessing: RuntimeWildlifeProcessingManifest;
+  readonly trade: RuntimeTradeManifest;
+  readonly survivalConsumption: {
+    readonly sourcePath: string;
+    readonly sourceDigest: `sha256:${string}`;
+    readonly profileId: string;
+    readonly eventId: "survival_consumption_committed";
+    readonly transactionKind: "consume";
+    readonly idempotencyKeyFields: readonly string[];
+    readonly wildlifeInventoryConsumableIds: readonly string[];
+    readonly profiles: Readonly<Record<string, Readonly<{ readonly consumableId: string; readonly hydrationDelta: number; readonly satietyDelta: number; readonly requirements: readonly string[] }>>>;
+    readonly categoryRejections: Readonly<Record<string, Readonly<{ readonly category: string; readonly rejectionCode: string }>>>;
+  };
 }
 
 export function buildRuntimeContentArtifact(manifest: ContentManifest): RuntimeContentArtifact {
@@ -455,7 +470,48 @@ export function buildRuntimeContentArtifact(manifest: ContentManifest): RuntimeC
   if (cisternCapacitySourcePath !== capabilityProgression.sourcePath) {
     throw new Error("Cistern capacity milestone source must match the generated capability progression source.");
   }
-  return {
+  const wildlifeProcessing = projectWildlifeProcessing(manifest);
+  const trade = projectSettlementTrade(manifest, scenes);
+  const survivalSources = manifest.byKind.survival;
+  if (survivalSources.length !== 1) throw new Error(`Expected exactly one survival source, received ${survivalSources.length}.`);
+  const survivalSource = survivalSources[0]!;
+  const survivalContent = survivalSource.content;
+  const consumptionEntries = requireObjectArray(survivalContent, ["consumption_profiles"]);
+  const consumptionProfiles = Object.fromEntries(consumptionEntries.flatMap((entry) => {
+    const consumableId = optionalString(entry, ["consumable_id"]);
+    if (!consumableId) return [];
+    return [[consumableId, {
+      consumableId, hydrationDelta: requireNonNegativeNumber(entry, ["hydration_delta"]),
+      satietyDelta: requireNonNegativeNumber(entry, ["satiety_delta"]),
+      requirements: requireStringArray(entry, ["requirements"]),
+    }]];
+  }));
+  const categoryRejections = Object.fromEntries(consumptionEntries.flatMap((entry) => {
+    const category = optionalString(entry, ["consumable_category"]);
+    if (!category) return [];
+    if (optionalBoolean(entry, ["direct_consumption_allowed_in_prologue"]) !== false) throw new Error(`consumption category ${category} must be explicitly rejected`);
+    return [[category, { category, rejectionCode: requireString(entry, ["rejection_code"]) }]];
+  }));
+  const consumptionContract = requireObject(survivalContent, ["transaction_contract"]);
+  const wildlifeInventoryConsumableIds = Object.keys(consumptionProfiles).filter((itemId) => {
+    const wildlifeItem = wildlifeProcessing.items[itemId];
+    const profile = consumptionProfiles[itemId];
+    return wildlifeItem !== undefined && profile !== undefined && wildlifeItem.category !== "raw_meat" &&
+      profile.requirements.includes("cooked") && profile.requirements.includes("not_spoiled");
+  });
+  const survivalConsumptionBody = {
+    sourcePath: survivalSource.path,
+    profileId: requireString(survivalContent, ["profile_id"]),
+    eventId: requireExactString(consumptionContract, ["event_id"], "survival_consumption_committed"),
+    transactionKind: requireExactString(consumptionContract, ["transaction_kind"], "consume"),
+    idempotencyKeyFields: requireStringArray(consumptionContract, ["idempotency_key_fields"]),
+    wildlifeInventoryConsumableIds,
+    profiles: consumptionProfiles, categoryRejections,
+  } as const;
+  const survivalConsumption = {
+    ...survivalConsumptionBody,
+    sourceDigest: `sha256:${createHash("sha256").update(stableStringify(survivalConsumptionBody)).digest("hex")}` as `sha256:${string}`,
+  };  return {
     schemaVersion: RUNTIME_CONTENT_SCHEMA_VERSION,
     sourceDigest: `sha256:${createHash("sha256").update(stableStringify(content)).digest("hex")}`,
     source: { path: source.path, schemaVersion: source.schemaVersion, contentVersion: source.contentVersion },
@@ -470,6 +526,255 @@ export function buildRuntimeContentArtifact(manifest: ContentManifest): RuntimeC
     },
     capabilityProgression,
     ecology,
+    wildlifeProcessing,
+    trade,
+    survivalConsumption,
+  };
+}
+
+function projectSettlementTrade(
+  manifest: ContentManifest,
+  scenes: Readonly<Record<string, RuntimeSceneManifest>>,
+): RuntimeTradeManifest {
+  const sources = manifest.byKind.settlement_trade;
+  if (sources.length !== 1) throw new Error(`Expected exactly one settlement trade source, received ${sources.length}.`);
+  const source = sources[0]!;
+  const content = source.content;
+  const wildlifeSource = manifest.byKind.wildlife_economy[0];
+  if (!wildlifeSource) throw new Error("Wildlife economy is required by settlement trade.");
+  const walSource = manifest.byKind.persistence.find((candidate) => candidate.schemaVersion === "w04.cross-save-wal.v0.1");
+  if (!walSource) throw new Error("Cross-save WAL is required by settlement trade.");
+  const wildlifeItems = new Map(requireObjectArray(wildlifeSource.content, ["item_definitions"]).map((entry) =>
+    [requireString(entry, ["item_id"]), entry] as const));
+  const activeMerchants = Object.fromEntries(requireObjectArray(content, ["merchants"]).flatMap((entry) => {
+    if (requireString(entry, ["runtime"]) !== "active") return [];
+    const merchantId = requireString(entry, ["id"]);
+    const conditionalBuys = optionalObjectArray(entry, ["conditional_buys"]).map((condition) => requireString(condition, ["category"]));
+    return [[merchantId, {
+      merchantId, status: "active" as const, buys: requireStringArray(entry, ["buys"]), conditionalBuys,
+      fullPriceUnitsPerRestock: requirePositiveInteger(entry, ["full_price_units_per_restock"]),
+      excessPolicy: requireExactString(entry, ["excess_policy"], optionalString(entry, ["excess_policy"]) === "reject" ? "reject" : "quarter_price") as "quarter_price" | "reject",
+      ownershipPolicy: (optionalString(entry, ["ownership_policy"]) ?? "legal_only") as "legal_only" | "fence",
+    }]];
+  }));
+  const items = Object.fromEntries(requireObjectArray(content, ["prologue_items"]).map((entry) => {
+    const itemId = requireString(entry, ["id"]);
+    const category = requireString(entry, ["category"]);
+    const basePlayerSellCoin = requireNonNegativeNumber(entry, ["base_player_sell_coin"]);
+    const playerCanSell = optionalBoolean(entry, ["player_can_sell"]) === true;
+    const authoredWildlife = wildlifeItems.get(itemId);
+    if (authoredWildlife && (requireString(authoredWildlife, ["category"]) !== category ||
+        (playerCanSell && requireNonNegativeNumber(authoredWildlife, ["base_buy_price_coin"]) !== basePlayerSellCoin))) {
+      throw new Error(`Trade item ${itemId} conflicts with the authoritative wildlife catalog.`);
+    }
+    const buyer = optionalString(entry, ["buyer"]);
+    if (buyer && !activeMerchants[buyer]) throw new Error(`Trade item ${itemId} buyer ${buyer} is not active.`);
+    return [itemId, { itemId, category, basePlayerSellCoin, playerCanSell, buyer }];
+  }));
+  const authoredPrice = requireObject(content, ["price", "freshness_multiplier"]);
+  const wildlifePrice = requireObject(wildlifeSource.content, ["settlement_market", "freshness_multipliers"]);
+  const freshnessMultipliers: Record<string, number | null> = {};
+  for (const [state, value] of [...Object.entries(authoredPrice), ...Object.entries(wildlifePrice)]) {
+    const projected = value === "forbidden" ? null : typeof value === "number" ? value : (() => { throw new Error(`Invalid trade freshness multiplier ${state}.`); })();
+    if (state in freshnessMultipliers && freshnessMultipliers[state] !== projected) {
+      const existing = freshnessMultipliers[state];
+      if ((existing === null && projected === 0) || (existing === 0 && projected === null)) freshnessMultipliers[state] = null;
+      else throw new Error(`Trade freshness multiplier ${state} conflicts across sources.`);
+    } else freshnessMultipliers[state] = projected;
+  }
+  const quoteContract = requireObject(wildlifeSource.content, ["settlement_market", "quote_contract"]);
+  if (requirePositiveInteger(content, ["flow", "quote_lifetime_active_seconds"]) !==
+      requirePositiveInteger(quoteContract, ["expires_after_active_seconds"])) throw new Error("Trade quote lifetime conflicts across sources.");
+  const stationAuthorities = Object.values(scenes).flatMap((scene) => scene.tradeEntries.flatMap((entry) => {
+    if (entry.authoritativeEconomySourcePath !== source.path) return [];
+    if (entry.merchantIds.some((merchantId) => !activeMerchants[merchantId])) throw new Error(`Trade entry ${entry.id} references an inactive merchant.`);
+    const interaction = scene.interactions.find((candidate) => candidate.id === entry.interactionId);
+    const target = interaction ? scene.targets.find((candidate) => candidate.id === interaction.targetId) : undefined;
+    if (!interaction || !target?.interactionPointTiles) throw new Error(`Trade entry ${entry.id} requires an authored interaction point.`);
+    return [{ sceneId: scene.sceneId, tradeEntryId: entry.id, npcId: entry.npcId, interactionId: entry.interactionId, merchantIds: [...entry.merchantIds],
+      targetId: target.id, interactionPointPx: { x: target.interactionPointTiles[0] * 16 + 8, y: target.interactionPointTiles[1] * 16 + 8 } }];
+  }));
+  const sellContract = requireObject(wildlifeSource.content, ["transaction_contracts", "sell"]);
+  const sellWal = requireObjectArray(walSource.content, ["registered_transaction_kinds"])
+    .find((entry) => optionalString(entry, ["kind"]) === "sell");
+  if (!sellWal) throw new Error("Sell WAL transaction is not registered.");
+  const body = {
+    sourcePath: source.path as "data/economy/settlement-trade.v0.1.yaml", contentVersion: source.contentVersion,
+    priceTableVersion: requireString(content, ["price_table_version"]),
+    quoteLifetimeActiveSeconds: requirePositiveInteger(content, ["flow", "quote_lifetime_active_seconds"]),
+    quoteClock: requireExactString(content, ["flow", "quote_clock"], "session_monotonic_active_seconds"),
+    transactionKind: requireExactString(sellContract, ["transaction_kind"], "sell"),
+    idempotencyKeyFields: requireStringArray(sellContract, ["idempotency_key_fields"]),
+    quote: {
+      requiredFields: requireStringArray(quoteContract, ["required_fields"]),
+      lineItemFields: requireStringArray(quoteContract, ["line_item_fields"]),
+      quoteIdFormula: requireExactString(quoteContract, ["quote_id_formula"], "sha256(merchant_id, player_save_id, demand_revision, sorted_lot_revisions, quote_sequence)"),
+      singleConsumption: requireExactBoolean(quoteContract, ["single_consumption"], true),
+    },
+    activeMerchants, items, freshnessMultipliers, stationAuthorities,
+    priceFormula: requireExactString(content, ["price", "formula"], "floor(base * freshness * quality * demand * full_units) + floor(base * freshness * quality * demand * 0.25 * excess_units)"),
+    quarterPriceMultiplier: .25 as const,
+    qualityMultiplierRange: requireFiniteNumberPair(wildlifeSource.content, ["settlement_market", "quality_multiplier_range"]),
+    minimumSellQuality: .5, demandMultiplierRange: requireFiniteNumberPair(wildlifeSource.content, ["settlement_market", "demand_multiplier_range"]),
+    currentDemandMultiplier: requirePositiveNumber(content, ["price", "demand_multiplier", "current"]),
+    restrictions: (() => { const value = requireObject(wildlifeSource.content, ["settlement_market", "raw_or_spoiled_restrictions"]); return {
+      spoiledMeatAccepted: requireExactBoolean(value, ["spoiled_meat_accepted"], false), rottenHideAccepted: requireExactBoolean(value, ["rotten_hide_accepted"], false),
+      rawHideAcceptedInPrologue: requireExactBoolean(value, ["raw_hide_accepted_in_prologue"], false),
+    }; })(),
+    restock: (() => { const value = requireObject(wildlifeSource.content, ["settlement_market", "restock_contract"]); return {
+      requiredDistinctEligibleEvents: requirePositiveInteger(value, ["required_distinct_eligible_events"]), eligibleEventFilter: requireStringArray(value, ["eligible_event_filter"]),
+      reloadRestocks: requireExactBoolean(value, ["reload_restocks"], false), checkpointResetRestocks: requireExactBoolean(value, ["checkpoint_reset_restocks"], false),
+      repeatedEventRestocks: requireExactBoolean(value, ["repeated_event_restocks"], false),
+    }; })(),
+    walParticipants: requireStringArray(sellWal, ["participants"]),
+  } as const;
+  return { sourceDigest: `sha256:${createHash("sha256").update(stableStringify(body)).digest("hex")}`, ...body } as RuntimeTradeManifest;
+}
+function projectWildlifeProcessing(manifest: ContentManifest): RuntimeWildlifeProcessingManifest {
+  const sources = manifest.byKind.wildlife_economy;
+  if (sources.length !== 1) throw new Error(`Expected exactly one wildlife economy source, received ${sources.length}.`);
+  const source = sources[0]!;
+  const walSource = manifest.byKind.persistence.find((candidate) => candidate.schemaVersion === "w04.cross-save-wal.v0.1");
+  if (!walSource) throw new Error("Cross-save WAL source is required by wildlife processing.");
+  const content = source.content;
+  const walContent = walSource.content;
+  const items = Object.fromEntries(requireObjectArray(content, ["item_definitions"]).map((entry) => {
+    const itemId = requireString(entry, ["item_id"]);
+    return [itemId, {
+      itemId,
+      category: requireString(entry, ["category"]),
+      preservationProfileId: optionalString(entry, ["preservation_profile_id"]),
+    }];
+  }));
+  const harvestProfiles = Object.fromEntries(requireObjectArray(content, ["harvest_profiles"]).map((entry) => {
+    const profileId = requireString(entry, ["profile_id"]);
+    return [profileId, {
+      profileId,
+      species: requireString(entry, ["species"]),
+      adultFullYield: requireObjectArray(entry, ["adult_full_yield"]).map((slot) => ({
+        tissueSlotId: requireString(slot, ["tissue_slot_id"]),
+        itemId: requireString(slot, ["item_id"]),
+        quantity: requirePositiveInteger(slot, ["quantity"]),
+      })),
+    }];
+  }));
+  const damageQuality = Object.fromEntries(Object.entries(requireObject(content, ["damage_quality"])).map(([cause, raw]) => {
+    if (!isContentObject(raw)) throw new Error(`damage_quality.${cause} must be an object.`);
+    return [cause, {
+      meatYieldMultiplier: requireNonNegativeNumber(raw, ["meat_yield_multiplier"]),
+      hideQualityMultiplier: requireNonNegativeNumber(raw, ["hide_quality_multiplier"]),
+    }];
+  }));
+  const decayProfiles = Object.fromEntries(Object.entries(requireObject(content, ["time_and_decay", "profiles"])).map(([profileId, raw]) => {
+    if (!isContentObject(raw)) throw new Error(`time_and_decay.profiles.${profileId} must be an object.`);
+    if (raw.stable === true) return [profileId, { profileId, stable: true, thresholdsSeconds: [{ state: "stable" as const, untilSeconds: null }] }];
+    const stages: { state: RuntimeFreshnessState; untilSeconds: number | null }[] = [];
+    let cumulative = 0;
+    for (const [field, value] of Object.entries(raw)) {
+      if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) throw new Error(`${profileId}.${field} must be positive hours.`);
+      const seconds = exactProduct(value, 3600, `${profileId}.${field}.seconds`);
+      if (field.endsWith("_after_hours")) {
+        stages.push({ state: field.slice(0, -"_after_hours".length) as RuntimeFreshnessState, untilSeconds: null });
+      } else if (field.endsWith("_hours")) {
+        cumulative += seconds;
+        stages.push({ state: field.slice(0, -"_hours".length) as RuntimeFreshnessState, untilSeconds: cumulative });
+      } else throw new Error(`${profileId}.${field} is not a supported decay threshold.`);
+    }
+    if (!stages.some((stage) => stage.untilSeconds === null)) throw new Error(`${profileId} must define a terminal decay state.`);
+    return [profileId, { profileId, stable: false, thresholdsSeconds: stages }];
+  }));
+  const processingRecipes = Object.fromEntries(requireObjectArray(content, ["processing_recipes"])
+    .map((entry) => {
+      const recipeId = requireString(entry, ["recipe_id"]);
+      const stationOrToolAny = readPath(entry, ["station_or_tool_any"]) !== undefined
+        ? requireStringArray(entry, ["station_or_tool_any"])
+        : readPath(entry, ["station_any"]) !== undefined
+          ? requireStringArray(entry, ["station_any"])
+          : [requireString(entry, ["station"])];
+      const station = optionalString(entry, ["station"])
+        ?? (readPath(entry, ["station_any"]) === undefined ? null : requireStringArray(entry, ["station_any"])[0])
+        ?? "unspecified_station";
+      return [recipeId, {
+        recipeId,
+        recipeVersion: source.contentVersion,
+        inputs: readPath(entry, ["inputs"]) === undefined ? [] : requireObjectArray(entry, ["inputs"]).map((input) => ({
+          itemId: optionalString(input, ["item_id"]),
+          category: optionalString(input, ["category"]),
+          quantity: requirePositiveInteger(input, ["quantity"]),
+        })),
+        outputs: readPath(entry, ["outputs"]) === undefined ? [] : requireObjectArray(entry, ["outputs"]).map((output) => ({
+          itemId: requireString(output, ["item_id"]), quantity: requirePositiveInteger(output, ["quantity"]),
+        })),
+        rejectInputStates: readPath(entry, ["reject_input_states"]) === undefined ? [] : requireStringArray(entry, ["reject_input_states"]),
+        requiredDistinctEligibleEvents: readPath(entry, ["required_distinct_eligible_events"]) === undefined
+          ? 0 : requireNonNegativeInteger(entry, ["required_distinct_eligible_events"]),
+        eligibleEventFilter: readPath(entry, ["eligible_event_filter"]) === undefined ? [] : requireStringArray(entry, ["eligible_event_filter"]),
+        interactionWorkUnits: requirePositiveInteger(entry, ["interaction_work_units"]),
+        stationStorageProfile: station,
+        manifestedHeatAllowedAsEnergyOnly: optionalBoolean(entry, ["manifested_heat_allowed_as_energy_only"]) ?? false,
+        stationOrToolAny,
+        energyRequirement: readPath(entry, ["energy_requirement"]) === undefined ? null : (() => { const energy = requireObject(entry, ["energy_requirement"]); return { kind: requireString(energy, ["kind"]), eu: requirePositiveInteger(energy, ["eu"]) }; })(),
+        completionRule: optionalString(entry, ["completion_rule"]) ?? "immediate_after_active_work",
+        outputFreshnessFormula: optionalString(entry, ["output_freshness_formula"]),
+        outputQualityFormula: requireString(content, ["provenance_contract", "processed_output_quality_formula"]),
+        genericProcessOutputPathForbidden: optionalBoolean(entry, ["generic_process_output_path_forbidden"]) ?? false,
+        transactionKind: optionalString(entry, ["transaction_kind"]) ?? "process_workorder",
+      }];
+    }));
+  const sceneSources = manifest.byKind.scene;
+  const stationBindings = Object.fromEntries(requireObjectArray(content, ["processing_contract", "station_interaction_bindings"]).map((entry) => {
+    const stationId = requireString(entry, ["station_id"]), sceneId = requireString(entry, ["scene_id"]);
+    const targetId = requireString(entry, ["target_id"]), interactionId = requireString(entry, ["interaction_id"]);
+    const scene = sceneSources.find((candidate) => requireString(candidate.content, ["scene_id"]) === sceneId)?.content;
+    if (!scene) throw new Error(`processing station ${stationId} references missing scene ${sceneId}`);
+    const target = requireObjectArray(scene, ["targets"]).find((candidate) => requireString(candidate, ["target_id"]) === targetId);
+    if (!target) throw new Error(`processing station ${stationId} target missing`);
+    const point = requireNumberPair(target, ["interaction_point_tiles"]);
+    if (!requireObjectArray(scene, ["interactions"]).some((interaction) => requireString(interaction, ["interaction_id"]) === interactionId && requireString(interaction, ["target_id"]) === targetId)) throw new Error(`processing station ${stationId} interaction missing`);
+    const facility = requireObjectArray(scene, ["facilities"]).find((candidate) => requireString(candidate, ["target_id"]) === targetId);
+    const energy = facility && readPath(facility, ["energy_provision"]) !== undefined
+      ? (() => { const provision = requireObject(facility, ["energy_provision"]); return {
+        kind: requireString(provision, ["kind"]), euPerWork: requirePositiveInteger(provision, ["eu_per_work"]),
+        source: requireString(provision, ["source"]),
+      }; })() : null;
+    return [stationId, { stationId, sceneId, targetId, interactionId,
+      interactionPointPx: { x: point[0] * 16 + 8, y: point[1] * 16 + 8 }, energyProvision: energy }];
+  }));
+  const stationIds = requireObjectArray(content, ["processing_contract", "station_interaction_bindings"])
+    .map((entry) => requireString(entry, ["station_id"]));
+  if (new Set(stationIds).size !== stationIds.length) throw new Error("processing station binding IDs must be unique");
+  const authoredStationIds = new Set(Object.values(processingRecipes).flatMap((recipe) => recipe.stationOrToolAny));
+  if (authoredStationIds.size !== stationIds.length || stationIds.some((stationId) => !authoredStationIds.has(stationId))) {
+    throw new Error("processing recipe stations must exactly match station interaction bindings");
+  }
+  const identity = requireObject(walContent, ["transaction_identity"]);
+  const registeredTransactionEntries = requireObjectArray(walContent, ["registered_transaction_kinds"]);
+  const registeredTransactionKinds = registeredTransactionEntries.map((entry) => requireString(entry, ["kind"]));
+  if (new Set(registeredTransactionKinds).size !== registeredTransactionKinds.length) throw new Error("WAL registered kinds must be unique");
+  const registeredTransactions = Object.fromEntries(registeredTransactionEntries
+    .map((entry) => { const kind = requireString(entry, ["kind"]); return [kind, { kind, participants: requireStringArray(entry, ["participants"]) }]; }));
+  const registeredKinds = Object.keys(registeredTransactions);
+  const body = {
+    sourcePath: source.path,
+    contractRevision: source.contentVersion,
+    economyId: requireExactString(content, ["economy_id"], "valley_wildlife_products"),
+    clockId: requireExactString(content, ["time_and_decay", "clock_id"], "active_world_simulation_tick"),
+    workUnitActiveSeconds: requirePositiveInteger(content, ["processing_contract", "work_unit_active_seconds"]),
+    juvenileHarvestOutputs: requireExactNumber(content, ["contracts", "juvenile_harvest_outputs"], 0) as 0,
+    items, harvestProfiles, damageQuality, decayProfiles, processingRecipes, stationBindings,
+    wal: {
+      sourcePath: walSource.path,
+      sourceDigest: `sha256:${createHash("sha256").update(stableStringify(walContent)).digest("hex")}` as `sha256:${string}`,
+      coordinatorId: requireExactString(walContent, ["coordinator_id"], "cross_save_wal.v0.1"),
+      transactionIdFormula: requireExactString(identity, ["transaction_id_formula"], "sha256(coordinator_id, transaction_kind, canonical_idempotency_key)"),
+      outputIdFormula: requireExactString(identity, ["output_id_formula"], "sha256(transaction_id, output_kind, output_index)"),
+      receiptIdFormula: requireExactString(identity, ["receipt_id_formula"], "sha256(transaction_id, receipt_kind)"),
+      registeredKinds, registeredTransactions,
+    },
+  };
+  return {
+    sourceDigest: `sha256:${createHash("sha256").update(stableStringify(body)).digest("hex")}`,
+    ...body,
   };
 }
 
@@ -540,6 +845,7 @@ function requireExactNumber(root: ContentObject, path: readonly string[], expect
 function requireObjectArray(root: ContentObject, path: readonly string[]): ContentObject[] { const value = readPath(root, path); if (!Array.isArray(value) || !value.every(isContentObject)) throw new Error(`${path.join(".")} must be an object array.`); return value; }
 function optionalObjectArray(root: ContentObject, path: readonly string[]): ContentObject[] { const value = readPath(root, path); if (value === undefined) return []; if (!Array.isArray(value) || !value.every(isContentObject)) throw new Error(`${path.join(".")} must be an object array when provided.`); return value; }
 function requireStringArray(root: ContentObject, path: readonly string[]): string[] { const value = readPath(root, path); if (!Array.isArray(value) || !value.every((item) => typeof item === "string" && item.length > 0)) throw new Error(`${path.join(".")} must be a string array.`); return value; }
+function requireFiniteNumberPair(root: ContentObject, path: readonly string[]): readonly [number, number] { const value = readPath(root, path); if (!Array.isArray(value) || value.length !== 2 || !value.every((item) => typeof item === "number" && Number.isFinite(item) && item >= 0)) throw new Error(`${path.join(".")} must be a non-negative finite number pair.`); return [value[0] as number, value[1] as number]; }
 function requireNumberPair(root: ContentObject, path: readonly string[]): readonly [number, number] { const value = readPath(root, path); if (!Array.isArray(value) || value.length !== 2 || !value.every((item) => typeof item === "number" && Number.isInteger(item) && item >= 0)) throw new Error(`${path.join(".")} must be a non-negative integer pair.`); return [value[0] as number, value[1] as number]; }
 function requireTileRect(root: ContentObject, path: readonly string[]): RuntimeTileRect { const value = requireObject(root, path); return { x: requireNonNegativeInteger(value, ["x"]), y: requireNonNegativeInteger(value, ["y"]), width: requirePositiveInteger(value, ["width"]), height: requirePositiveInteger(value, ["height"]) }; }
 function requireObject(root: ContentObject, path: readonly string[]): ContentObject { const value = readPath(root, path); if (!isContentObject(value)) throw new Error(`${path.join(".")} must be an object.`); return value; }

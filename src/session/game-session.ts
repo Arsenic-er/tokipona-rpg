@@ -1,3 +1,4 @@
+import { createCrossSaveReceiptId, sha256Canonical, type JsonValue } from "../persistence/cross-save-wal";
 import {
   LEARNING_SAVE_SCHEMA,
   createLearningProgression,
@@ -11,6 +12,8 @@ import {
   type SurvivalSave,
 } from "../game/survival";
 import type { MerchantState, TradeLot, TradeReceipt, TradeSave, TradeSnapshot } from "../game/trade";
+import { commitVerifiedSellQuote, createVerifiedSellQuote, verifiedSellReceiptId, verifiedTradeManifest,
+  type VerifiedSellQuote } from "../game/verified-trade";
 import {
   adaptTradeSaveToSessionEconomy,
   adaptTradeSnapshotToSessionEconomy,
@@ -25,6 +28,7 @@ import {
   type LegacySessionEconomySummary,
   type SessionEconomyState,
 } from "../game/economy-state";
+import { applyInventoryConsumption, type InventoryConsumptionAction } from "../game/inventory-consumption";
 import type { MpLedgerSnapshot } from "../spells/cast-plan";
 import {
   createDeterministicCorpseId,
@@ -41,6 +45,20 @@ import {
   type WildlifeDeathCommitPayload,
   type WildlifeLifeRegistrationPayload,
 } from "../game/life-corpse-ledger";
+import {
+  applyWildlifeProcessingAction,
+  canonicalWildlifeProcessingIdempotencyKey,
+  createWildlifeProcessingTransactionId,
+  canonicalWildlifeProcessingWorkIdempotencyKey,
+  createWildlifeProcessingWorkTransactionId,
+  wildlifeProcessingWorkPayloadHash,
+  wildlifeProcessingManifest,
+  wildlifeProcessingPayloadHash,
+  wildlifeProcessingTransactionKind,
+  type WildlifeProcessingAction,
+  type WildlifeProcessingApplyContext,
+  type WildlifeProcessingWorkOrder,
+} from "../game/wildlife-processing";
 
 export const GAME_SESSION_SAVE_SCHEMA = "tokipona.game-session.v0.2" as const;
 export const LEGACY_GAME_SESSION_SAVE_SCHEMA = "tokipona.game-session.v0.1" as const;
@@ -202,6 +220,54 @@ export type GameSessionEvent =
   | SessionEventBase<"wildlife_life_registered", WildlifeLifeRegistrationPayload>
   | SessionEventBase<"wildlife_damage_committed", WildlifeDamageCommitPayload>
   | SessionEventBase<"wildlife_death_committed", WildlifeDeathCommitPayload>
+  | SessionEventBase<"wildlife_processing_interaction_committed", {
+      readonly stationId: string;
+      readonly sceneId: string;
+      readonly targetId: string;
+      readonly interactionId: string;
+      readonly playerPositionPx: Readonly<{ readonly x: number; readonly y: number }>;
+      readonly runtimeSceneRevision: number;
+      readonly runtimeInteractionSequence: number;
+      readonly operationId: string;
+    }>
+  | SessionEventBase<"wildlife_processing_work_advanced", {
+      readonly transactionId: string;
+      readonly canonicalIdempotencyKey: string;
+      readonly workOrderId: string;
+      readonly expectedWorkOrderRevision: number;
+      readonly expectedSurvivalRevision: number;
+      readonly expectedWorldTicks: number;
+      readonly interactionReceiptId: string;
+    }>
+  | SessionEventBase<"wildlife_processing_evidence_committed", {
+      readonly evidenceId: string;
+      readonly workOrderId: string;
+      readonly subjectEventId: string;
+      readonly subjectEventType: "quest_stage_set" | "world_flag_set" | "scene_entered";
+      readonly classification: "mainline_world_predicate_commit" | "non_replayed_side_task_commit" | "region_transition_commit";
+    }>
+  | SessionEventBase<"wildlife_processing_committed", { readonly action: WildlifeProcessingAction }>
+  | SessionEventBase<"inventory_consumption_committed", { readonly action: InventoryConsumptionAction }>
+  | SessionEventBase<"verified_trade_quote_issued", {
+      readonly quote: VerifiedSellQuote;
+      readonly decayedLot: TradeLot;
+      readonly sceneId: string;
+      readonly targetId: string;
+      readonly interactionId: string;
+      readonly playerPositionPx: Readonly<{ readonly x: number; readonly y: number }>;
+      readonly runtimeSceneRevision: number;
+      readonly operationId: string;
+    }>
+  | SessionEventBase<"verified_trade_sale_committed", {
+      readonly quote: VerifiedSellQuote;
+      readonly issuedEventId: string;
+      readonly quotePayloadHash: string;
+      readonly sceneId: string;
+      readonly targetId: string;
+      readonly interactionId: string;
+      readonly playerPositionPx: Readonly<{ readonly x: number; readonly y: number }>;
+      readonly runtimeSceneRevision: number;
+    }>
   | SessionEventBase<"scene_entered", { readonly sceneId: string }>
   | SessionEventBase<"checkpoint_set", { readonly checkpoint: SessionCheckpointState }>
   | SessionEventBase<"world_flag_set", WorldFlagSetPayload>
@@ -553,7 +619,7 @@ const isSessionStateCore = (value: Record<string, unknown>): boolean =>
 const isSessionState = (value: unknown): value is GameSessionState => {
   if (!isRecord(value) || !isSessionStateCore(value) || !isCapabilityState(value.capabilities) ||
       !isSessionLifeCorpseLedger(value.lifeCorpseLedger) || !isSessionEconomyState(value.economy) ||
-      !isSessionMpState(value.mp)) return false;
+      !isSessionMpState(value.mp) || value.economy.activeWorldTick !== (value.survival as SurvivalSave).worldTicks) return false;
   const maxMp = value.mp.maxMp;
   return Object.values(value.capabilities.appliedMilestones).every((milestone) =>
     milestone.maxMp <= maxMp);
@@ -595,6 +661,13 @@ const isEventEnvelope = (value: unknown): value is GameSessionEvent => {
     "wildlife_life_registered",
     "wildlife_damage_committed",
     "wildlife_death_committed",
+    "wildlife_processing_interaction_committed",
+    "wildlife_processing_work_advanced",
+    "wildlife_processing_evidence_committed",
+    "wildlife_processing_committed",
+    "inventory_consumption_committed",
+    "verified_trade_quote_issued",
+    "verified_trade_sale_committed",
     "scene_entered",
     "checkpoint_set",
     "world_flag_set",
@@ -683,7 +756,11 @@ const createInitialState = (initial: GameSessionInitialState): GameSessionState 
     }),
     learning: clone(initial.learning ?? createLearningProgression()),
     survival,
-    economy: initial.economy === undefined ? emptyEconomy() : normalizeSessionEconomy(initial.economy),
+    economy: {
+      ...(initial.economy === undefined ? emptyEconomy() : normalizeSessionEconomy(initial.economy)),
+      // Derived mirror only; survival owns the authoritative active-world clock.
+      activeWorldTick: survival.worldTicks,
+    },
     quests: clone(initial.quests ?? {}),
     receiptIndex: { ...indexInheritedSurvivalReceipts(survival), ...clone(initial.receiptIndex ?? {}) },
     processedEventPayloads: {},
@@ -718,6 +795,8 @@ export class GameSession {
   private readonly origin: GameSessionState;
   private readonly ledger: GameSessionEvent[];
   private readonly legacyEconomyReplacementSequences: ReadonlySet<number>;
+  private readonly liveVerifiedTradeQuotes: Map<string, string>;
+  private replaying = false;
 
   private constructor(
     readonly sessionId: string,
@@ -725,11 +804,13 @@ export class GameSession {
     state = origin,
     ledger: readonly GameSessionEvent[] = [],
     legacyEconomyReplacementSequences: readonly number[] = [],
+    liveVerifiedTradeQuotes: readonly (readonly [string, string])[] = [],
   ) {
     this.origin = clone(origin);
     this.state = clone(state);
     this.ledger = clone([...ledger]);
     this.legacyEconomyReplacementSequences = new Set(legacyEconomyReplacementSequences);
+    this.liveVerifiedTradeQuotes = new Map(liveVerifiedTradeQuotes);
   }
 
   static create(initial: GameSessionInitialState): GameSession {
@@ -752,7 +833,7 @@ export class GameSession {
     }
     const economyDomainTypes = new Set<GameSessionEvent["type"]>([
       "economy_wallet_changed", "quote_sequence_advanced", "economy_lot_changed",
-      "merchant_state_changed", "trade_sale_committed",
+      "merchant_state_changed", "trade_sale_committed", "verified_trade_quote_issued", "verified_trade_sale_committed", "wildlife_processing_interaction_committed", "wildlife_processing_evidence_committed", "wildlife_processing_committed", "wildlife_processing_work_advanced", "inventory_consumption_committed",
     ]);
     const legacyEconomyEvents = events.filter((event) => event.type === "economy_replaced");
     if (legacyEconomyEvents.length > 0 && events.some((event) => economyDomainTypes.has(event.type))) {
@@ -761,10 +842,13 @@ export class GameSession {
     const session = new GameSession(
       sessionId, origin, origin, [], legacyEconomyEvents.map((event) => event.sequence),
     );
-    for (const event of events) {
-      const result = session.apply(event);
-      if (!result.applied) return { ok: false, failedEventId: event.eventId, reason: result.reason };
-    }
+    session.replaying = true;
+    try {
+      for (const event of events) {
+        const result = session.apply(event);
+        if (!result.applied) return { ok: false, failedEventId: event.eventId, reason: result.reason };
+      }
+    } finally { session.replaying = false; }
     return { ok: true, session };
   }
 
@@ -790,6 +874,12 @@ export class GameSession {
     const result = GameSession.load(candidate);
     if (!result.ok) throw new Error(`GameSession save rejected: ${result.error}`);
     return result.session;
+  }
+
+  /** Internal transaction clone that preserves non-serialized live command capabilities. */
+  forkForProposal(): GameSession {
+    return new GameSession(this.sessionId, this.origin, this.state, this.ledger,
+      [...this.legacyEconomyReplacementSequences], [...this.liveVerifiedTradeQuotes.entries()]);
   }
 
   snapshot(): GameSessionState {
@@ -1006,7 +1096,7 @@ export class GameSession {
             this.state.lifeCorpseLedger.corpses[payload.corpseId] !== undefined) {
           return { reason: "invalid_event", duplicate: false };
         }
-        const receiptId = "wildlife:" + payload.transactionId;
+        const receiptId = createCrossSaveReceiptId(payload.transactionId, "death");
         const receiptHash = "wildlife-death:" + payload.deathEventId + ":" + payload.corpseId;
         const priorReceipt = this.state.receiptIndex[receiptId];
         if (priorReceipt) {
@@ -1067,7 +1157,283 @@ export class GameSession {
           }),
         };
       }
-      case "scene_entered": {
+      case "inventory_consumption_committed": {
+        const action = event.payload.action;
+        if (!action || typeof action !== "object" || action.playerSaveId !== this.sessionId) {
+          return { reason: "invalid_event", duplicate: false };
+        }
+        const expectedReceiptId = createCrossSaveReceiptId(action.transactionId, "consume");
+        const expectedPayloadHash = `consume-request:${sha256Canonical(action as unknown as JsonValue)}`;
+        const priorReceipt = this.state.receiptIndex[expectedReceiptId];
+        if (priorReceipt) return priorReceipt.payloadHash === expectedPayloadHash
+          ? { reason: "duplicate_receipt", duplicate: true }
+          : { reason: "receipt_payload_conflict", duplicate: false };
+        const applied = applyInventoryConsumption(this.state.economy, this.state.survival, action);
+        if (!applied.committed) return {
+          reason: applied.reason === "revision_conflict" ? "economy_revision_conflict" : "invalid_event",
+          duplicate: false,
+        };
+        const receipt: SessionReceiptIndexEntry = {
+          receiptId: applied.receipt.receiptId,
+          domain: "survival",
+          payloadHash: expectedPayloadHash,
+          recordedByEventId: event.eventId,
+          recordedAtSequence: event.sequence,
+        };
+        return { state: withAppliedEvent(this.state, event, {
+          economy: applied.economy,
+          survival: applied.survival,
+          receiptIndex: { ...this.state.receiptIndex, [receipt.receiptId]: receipt },
+        }) };
+      }
+      case "wildlife_processing_interaction_committed": {
+        const payload = event.payload;
+        if (!isNonEmptyString(payload.stationId) || !isNonEmptyString(payload.sceneId) ||
+            !isNonEmptyString(payload.targetId) || !isNonEmptyString(payload.interactionId) ||
+            !isNonNegativeSafeInteger(payload.runtimeSceneRevision) || !isNonNegativeSafeInteger(payload.runtimeInteractionSequence) ||
+            !isNonEmptyString(payload.operationId) || !Number.isFinite(payload.playerPositionPx?.x) || !Number.isFinite(payload.playerPositionPx?.y)) {
+          return { reason: "invalid_event", duplicate: false };
+        }
+        const binding = wildlifeProcessingManifest().stationBindings[payload.stationId];
+        const dx = payload.playerPositionPx.x - (binding?.interactionPointPx.x ?? Number.POSITIVE_INFINITY);
+        const dy = payload.playerPositionPx.y - (binding?.interactionPointPx.y ?? Number.POSITIVE_INFINITY);
+        if (!binding || payload.sceneId !== binding.sceneId || payload.targetId !== binding.targetId ||
+            payload.interactionId !== binding.interactionId || this.state.world.currentSceneId !== binding.sceneId ||
+            payload.runtimeSceneRevision !== this.state.world.revision || Math.hypot(dx, dy) > 16) {
+          return { reason: "invalid_event", duplicate: false };
+        }
+        const receiptId = `wildlife-processing-interaction:${payload.stationId}:${payload.runtimeSceneRevision}:${payload.operationId}`;
+        const existing = this.state.receiptIndex[receiptId];
+        if (existing) return { reason: "duplicate_receipt", duplicate: true };
+        const receipt: SessionReceiptIndexEntry = {
+          receiptId, domain: "wildlife", payloadHash: `interaction:${payload.stationId}:${payload.sceneId}:${payload.targetId}:${payload.interactionId}:${payload.runtimeSceneRevision}:${payload.runtimeInteractionSequence}:${payload.playerPositionPx.x}:${payload.playerPositionPx.y}`,
+          recordedByEventId: event.eventId, recordedAtSequence: event.sequence,
+        };
+        return { state: withAppliedEvent(this.state, event, { receiptIndex: { ...this.state.receiptIndex, [receiptId]: receipt } }) };
+      }      case "wildlife_processing_work_advanced": {
+        const payload = event.payload;
+        if (!isNonEmptyString(payload.transactionId) || !isNonEmptyString(payload.canonicalIdempotencyKey) ||
+            !isNonEmptyString(payload.workOrderId) || !isNonNegativeSafeInteger(payload.expectedWorkOrderRevision) ||
+            !isNonNegativeSafeInteger(payload.expectedSurvivalRevision) || !isNonNegativeSafeInteger(payload.expectedWorldTicks) ||
+            !isNonEmptyString(payload.interactionReceiptId)) {
+          return { reason: "invalid_event", duplicate: false };
+        }
+        const order = this.state.economy.workOrders.find((candidate) => candidate.workOrderId === payload.workOrderId) as
+          WildlifeProcessingWorkOrder | undefined;
+        if (!order) return { reason: "invalid_event", duplicate: false };
+        const workIdentity = { workOrderId: order.workOrderId, expectedWorkOrderRevision: payload.expectedWorkOrderRevision,
+          stationInteractionId: payload.interactionReceiptId };
+        if (payload.canonicalIdempotencyKey !== canonicalWildlifeProcessingWorkIdempotencyKey(workIdentity) ||
+            payload.transactionId !== createWildlifeProcessingWorkTransactionId(workIdentity)) {
+          return { reason: "invalid_event", duplicate: false };
+        }
+        const receiptId = createCrossSaveReceiptId(payload.transactionId, "workorder_work");
+        if (this.state.receiptIndex[receiptId]) return { reason: "duplicate_receipt", duplicate: true };
+        if (order.status !== "reserved" || order.revision !== payload.expectedWorkOrderRevision ||
+            this.state.survival.revision !== payload.expectedSurvivalRevision ||
+            this.state.survival.worldTicks !== payload.expectedWorldTicks ||
+            this.state.economy.activeWorldTick !== this.state.survival.worldTicks) {
+          return { reason: "economy_revision_conflict", duplicate: false };
+        }
+        const binding = wildlifeProcessingManifest().stationBindings[order.stationId];
+        const interactionReceipt = this.state.receiptIndex[payload.interactionReceiptId];
+        const interactionUseId = `wildlife-processing-interaction-use:${payload.interactionReceiptId}`;
+        if (!binding || this.state.world.currentSceneId !== binding.sceneId || !interactionReceipt ||
+            interactionReceipt.domain !== "wildlife" || !interactionReceipt.payloadHash.startsWith(`interaction:${order.stationId}:${binding.sceneId}:${binding.targetId}:${binding.interactionId}:${this.state.world.revision}:`) ||
+            this.state.receiptIndex[interactionUseId]) {
+          return { reason: "invalid_event", duplicate: false };
+        }        const recipe = wildlifeProcessingManifest().processingRecipes[order.recipeId];
+        if (!recipe || recipe.recipeVersion !== order.recipeVersion || recipe.transactionKind === "harvest" ||
+            recipe.genericProcessOutputPathForbidden) return { reason: "invalid_event", duplicate: false };
+        const seconds = recipe.interactionWorkUnits * wildlifeProcessingManifest().workUnitActiveSeconds;
+        const nextWorldTicks = this.state.survival.worldTicks + seconds;
+        if (!Number.isSafeInteger(seconds) || seconds <= 0 || !Number.isSafeInteger(nextWorldTicks)) {
+          return { reason: "invalid_event", duplicate: false };
+        }
+        const workPayloadHash = wildlifeProcessingWorkPayloadHash(workIdentity, seconds);
+        const receipt: SessionReceiptIndexEntry = {
+          receiptId, domain: "wildlife", payloadHash: workPayloadHash,
+          recordedByEventId: event.eventId, recordedAtSequence: event.sequence,
+        };
+        const energy = binding.energyProvision;
+        if (recipe.energyRequirement && (!energy || energy.kind !== recipe.energyRequirement.kind ||
+            energy.euPerWork < recipe.energyRequirement.eu)) return { reason: "invalid_event", duplicate: false };
+        const energyReceiptId = recipe.energyRequirement
+          ? `wildlife-processing-energy:${order.workOrderId}:${payload.expectedWorkOrderRevision}:${binding.interactionId}` : null;
+        if (energyReceiptId && this.state.receiptIndex[energyReceiptId]) return { reason: "duplicate_receipt", duplicate: true };
+        const energyReceipt: SessionReceiptIndexEntry | null = energyReceiptId && energy ? {
+          receiptId: energyReceiptId, domain: "wildlife",
+          payloadHash: `processing-energy:${order.workOrderId}:${binding.interactionId}:${energy.source}:${energy.kind}:${energy.euPerWork}`,
+          recordedByEventId: event.eventId, recordedAtSequence: event.sequence,
+        } : null;
+        const nextOrder: WildlifeProcessingWorkOrder = { ...order, revision: order.revision + 1 };
+        const economyReceipt = { receiptId, transactionId: payload.transactionId, transactionKind: "workorder_work", action: "work",
+          payloadHash: workPayloadHash, workOrderId: order.workOrderId, corpseId: null, tissueSlotId: null,
+          inputLotIds: [...order.inputLotIds], outputLotIds: [], zeroYieldReason: null, committedWorldTick: nextWorldTicks };
+        return { state: withAppliedEvent(this.state, event, {
+          survival: { ...this.state.survival, worldTicks: nextWorldTicks, revision: this.state.survival.revision + 1,
+            receipts: [...this.state.survival.receipts, receiptId, ...(energyReceiptId ? [energyReceiptId] : [])] },
+          economy: { ...this.state.economy, activeWorldTick: nextWorldTicks,
+            workOrders: this.state.economy.workOrders.map((candidate) => candidate.workOrderId === order.workOrderId ? nextOrder : candidate),
+            processingReceipts: [...this.state.economy.processingReceipts, economyReceipt] },
+          receiptIndex: { ...this.state.receiptIndex, [receiptId]: receipt,
+            [interactionUseId]: { receiptId: interactionUseId, domain: "wildlife", payloadHash: `interaction-use:${payload.interactionReceiptId}:${order.workOrderId}`,
+              recordedByEventId: event.eventId, recordedAtSequence: event.sequence },
+            ...(energyReceipt ? { [energyReceipt.receiptId]: energyReceipt } : {}) },
+        }) };
+      }
+      case "wildlife_processing_evidence_committed": {
+        const payload = event.payload;
+        if (!isNonEmptyString(payload.evidenceId) || !isNonEmptyString(payload.workOrderId) || !isNonEmptyString(payload.subjectEventId) ||
+            !["quest_stage_set", "world_flag_set", "scene_entered"].includes(payload.subjectEventType) ||
+            !["mainline_world_predicate_commit", "non_replayed_side_task_commit", "region_transition_commit"].includes(payload.classification)) {
+          return { reason: "invalid_event", duplicate: false };
+        }
+        const order = this.state.economy.workOrders.find((candidate) => candidate.workOrderId === payload.workOrderId) as WildlifeProcessingWorkOrder | undefined;
+        const subject = this.ledger.find((candidate) => candidate.eventId === payload.subjectEventId);
+        if (!order || order.status !== "reserved" || !subject || subject.sequence <= order.startEventSequence || subject.sequence >= event.sequence ||
+            subject.type !== payload.subjectEventType || !order.eligibleEventFilter.includes(payload.classification)) {
+          return { reason: "invalid_event", duplicate: false };
+        }
+        const priorSceneId = subject.type === "scene_entered"
+          ? [...this.ledger].filter((candidate): candidate is Extract<GameSessionEvent, { type: "scene_entered" }> =>
+              candidate.sequence < subject.sequence && candidate.type === "scene_entered").at(-1)?.payload.sceneId ?? this.origin.world.currentSceneId
+          : null;
+        const classificationValid = payload.classification === "non_replayed_side_task_commit"
+          ? subject.type === "quest_stage_set" && subject.payload.stageOrdinal > 0
+          : payload.classification === "mainline_world_predicate_commit"
+            ? subject.type === "world_flag_set" && subject.payload.value === true && subject.payload.scope !== "area"
+            : subject.type === "scene_entered" && subject.payload.sceneId !== priorSceneId;
+        if (!classificationValid) return { reason: "invalid_event", duplicate: false };
+        const receiptId = `wildlife-processing-evidence:${payload.evidenceId}`;
+        const payloadHash = sha256Canonical({ work_order_id: payload.workOrderId, subject_event_id: payload.subjectEventId,
+          subject_event_type: payload.subjectEventType, classification: payload.classification } as JsonValue);
+        const prior = this.state.receiptIndex[receiptId];
+        if (prior) return prior.payloadHash === payloadHash ? { reason: "duplicate_receipt", duplicate: true } : { reason: "receipt_payload_conflict", duplicate: false };
+        const subjectAlreadyUsed = Object.values(this.state.receiptIndex).some((receipt) => {
+          if (receipt.domain !== "wildlife") return false;
+          const recorder = this.ledger.find((candidate) => candidate.eventId === receipt.recordedByEventId);
+          return recorder?.type === "wildlife_processing_evidence_committed" &&
+            recorder.payload.workOrderId === payload.workOrderId && recorder.payload.subjectEventId === payload.subjectEventId;
+        });
+        if (subjectAlreadyUsed) return { reason: "receipt_payload_conflict", duplicate: false };
+        return { state: withAppliedEvent(this.state, event, { receiptIndex: { ...this.state.receiptIndex,
+          [receiptId]: { receiptId, domain: "wildlife", payloadHash, recordedByEventId: event.eventId, recordedAtSequence: event.sequence },
+        } }) };
+      }
+      case "wildlife_processing_committed": {
+        const action = event.payload.action;
+        if (!isRecord(action) || !isNonEmptyString(action.action)) return { reason: "invalid_event", duplicate: false };
+        try {
+          const currentCursor = event.sequence - 1;
+          const canonicalKey = canonicalWildlifeProcessingIdempotencyKey(action, {
+            requiredEventCursor: currentCursor,
+            cancellationSequence: event.sequence,
+          });
+          const transactionKind = wildlifeProcessingTransactionKind(action);
+          if (action.canonicalIdempotencyKey !== canonicalKey ||
+              action.transactionId !== createWildlifeProcessingTransactionId(transactionKind, canonicalKey)) {
+            return { reason: "invalid_event", duplicate: false };
+          }
+          const manifest = wildlifeProcessingManifest();
+          const fieldDress = manifest.processingRecipes["process.field_dress.v0.1"];
+          const workSeconds = action.action === "harvest"
+            ? (fieldDress?.interactionWorkUnits ?? 0) * manifest.workUnitActiveSeconds : 0;
+          if (action.action === "harvest" && (!fieldDress || fieldDress.transactionKind !== "harvest" || workSeconds <= 0)) {
+            return { reason: "invalid_event", duplicate: false };
+          }
+          const authoritativeTick = this.state.survival.worldTicks + workSeconds;
+          if (!Number.isSafeInteger(authoritativeTick) || action.currentWorldTick !== authoritativeTick ||
+              this.state.economy.activeWorldTick !== this.state.survival.worldTicks ||
+              (action.action === "reserve" && action.startEventSequence !== currentCursor)) {
+            return { reason: "invalid_event", duplicate: false };
+          }
+          const order = action.action === "harvest" ? undefined : this.state.economy.workOrders.find((candidate) =>
+            candidate.workOrderId === ("workOrderId" in action ? action.workOrderId : "")) as WildlifeProcessingWorkOrder | undefined;
+          const actionPlayerSaveId = action.action === "harvest" || action.action === "reserve" ? action.playerSaveId :
+            action.action === "claim" ? action.claimantPlayerSaveId : order?.initiatingPlayerSaveId;
+          if (actionPlayerSaveId !== this.sessionId || (order && order.initiatingPlayerSaveId !== this.sessionId)) {
+            return { reason: "invalid_event", duplicate: false };
+          }
+          const stationId = action.action === "harvest" ? action.stationOrToolId : action.action === "reserve" ? action.stationId : order?.stationId;
+          const binding = stationId ? manifest.stationBindings[stationId] : undefined;
+          const interactionReceiptId = action.interactionReceiptId;
+          const interactionReceipt = interactionReceiptId ? this.state.receiptIndex[interactionReceiptId] : undefined;
+          const interactionUseId = interactionReceiptId ? `wildlife-processing-interaction-use:${interactionReceiptId}` : null;
+          if (!stationId || !binding || !interactionReceiptId || !interactionUseId || this.state.world.currentSceneId !== binding.sceneId ||
+              interactionReceipt?.domain !== "wildlife" || !interactionReceipt.payloadHash.startsWith(`interaction:${stationId}:${binding.sceneId}:${binding.targetId}:${binding.interactionId}:${this.state.world.revision}:`) ||
+              this.state.receiptIndex[interactionUseId]) {
+            return { reason: "invalid_event", duplicate: false };
+          }
+          const eligibleWorldEvents: WildlifeProcessingApplyContext["eligibleWorldEvents"] = order
+            ? Object.values(this.state.receiptIndex).flatMap((receipt) => {
+                const recorder = this.ledger.find((candidate) => candidate.eventId === receipt.recordedByEventId);
+                if (receipt.domain !== "wildlife" || recorder?.type !== "wildlife_processing_evidence_committed" ||
+                    receipt.recordedAtSequence !== recorder.sequence || recorder.sequence > currentCursor ||
+                    recorder.payload.workOrderId !== order.workOrderId ||
+                    receipt.receiptId !== `wildlife-processing-evidence:${recorder.payload.evidenceId}` ||
+                    receipt.payloadHash !== sha256Canonical({ work_order_id: order.workOrderId,
+                      subject_event_id: recorder.payload.subjectEventId, subject_event_type: recorder.payload.subjectEventType,
+                      classification: recorder.payload.classification } as JsonValue)) return [];
+                const subject = this.ledger.find((candidate) => candidate.eventId === recorder.payload.subjectEventId);
+                if (!subject || subject.type !== recorder.payload.subjectEventType) return [];
+                return [{ eventId: receipt.receiptId, classification: recorder.payload.classification, sequence: subject.sequence }];
+              })
+            : [];
+          const energyReceipts: WildlifeProcessingApplyContext["energyReceipts"] = order ? Object.values(this.state.receiptIndex).flatMap((receipt) => {
+            const binding = manifest.stationBindings[order.stationId];
+            const recipe = manifest.processingRecipes[order.recipeId];
+            const energy = binding?.energyProvision;
+            const expectedPrefix = `wildlife-processing-energy:${order.workOrderId}:`;
+            const expectedHash = energy ? `processing-energy:${order.workOrderId}:${binding.interactionId}:${energy.source}:${energy.kind}:${energy.euPerWork}` : null;
+            if (!recipe?.energyRequirement || !energy || !receipt.receiptId.startsWith(expectedPrefix) ||
+                receipt.payloadHash !== expectedHash || receipt.recordedAtSequence <= order.startEventSequence ||
+                receipt.recordedAtSequence > currentCursor) return [];
+            return [{ eventId: receipt.receiptId, kind: energy.kind, eu: energy.euPerWork,
+              sequence: receipt.recordedAtSequence, workOrderId: order.workOrderId }];
+          }).sort((left, right) => left.sequence - right.sequence || left.eventId.localeCompare(right.eventId)) : [];
+          if (action.action === "complete") {
+            const proof = energyReceipts.at(-1)?.eventId ?? null;
+            if (action.energyEventId !== proof) return { reason: "invalid_event", duplicate: false };
+          }
+          const applied = applyWildlifeProcessingAction({
+            lifeCorpseLedger: this.state.lifeCorpseLedger,
+            economy: this.state.economy,
+          }, action, {
+            currentLastEventSequence: currentCursor,
+            currentWorldTick: authoritativeTick,
+            eligibleWorldEvents,
+            energyReceipts,
+          });
+          if (!applied.committed) return {
+            reason: applied.duplicate ? "duplicate_receipt" :
+              applied.reason === "revision_conflict" ? "economy_revision_conflict" : "invalid_event",
+            duplicate: applied.duplicate,
+          };
+          const processingReceipt = applied.receipt;
+          if (this.state.receiptIndex[processingReceipt.receiptId]) {
+            return { reason: "receipt_payload_conflict", duplicate: false };
+          }
+          const receipt: SessionReceiptIndexEntry = {
+            receiptId: processingReceipt.receiptId, domain: "wildlife",
+            payloadHash: wildlifeProcessingPayloadHash(action), recordedByEventId: event.eventId,
+            recordedAtSequence: event.sequence,
+          };
+          const survival = workSeconds === 0 ? this.state.survival : {
+            ...this.state.survival, worldTicks: authoritativeTick, revision: this.state.survival.revision + 1,
+          };
+          return { state: withAppliedEvent(this.state, event, {
+            lifeCorpseLedger: applied.aggregate.lifeCorpseLedger,
+            economy: applied.aggregate.economy,
+            survival,
+            receiptIndex: { ...this.state.receiptIndex, [receipt.receiptId]: receipt,
+              [interactionUseId!]: { receiptId: interactionUseId!, domain: "wildlife", payloadHash: `interaction-use:${interactionReceiptId}:${action.transactionId}`,
+                recordedByEventId: event.eventId, recordedAtSequence: event.sequence } },
+          }) };
+        } catch {
+          return { reason: "invalid_event", duplicate: false };
+        }
+      }      case "scene_entered": {
         if (!isNonEmptyString(event.payload.sceneId)) return { reason: "invalid_event", duplicate: false };
         return {
           state: withAppliedEvent(this.state, event, {
@@ -1142,7 +1508,10 @@ export class GameSession {
             next.metabolismTicks < this.state.survival.metabolismTicks) {
           return { reason: "state_regression", duplicate: false };
         }
-        return { state: withAppliedEvent(this.state, event, { survival: clone(next) }) };
+        return { state: withAppliedEvent(this.state, event, {
+          survival: clone(next),
+          economy: { ...this.state.economy, activeWorldTick: next.worldTicks },
+        }) };
       }
       case "economy_replaced": {
         // Only exact sequences from a verified pre-domain replay are allowed. A live modern apply fails closed.
@@ -1153,7 +1522,7 @@ export class GameSession {
         if (!isSessionEconomyState(candidate) && !isEconomySummary(candidate)) {
           return { reason: "invalid_event", duplicate: false };
         }
-        const next = normalizeSessionEconomy(candidate);
+        const next = { ...normalizeSessionEconomy(candidate), activeWorldTick: this.state.survival.worldTicks };
         if (next.walletRevision < this.state.economy.walletRevision ||
             next.inventoryRevision < this.state.economy.inventoryRevision ||
             next.quoteSequence < this.state.economy.quoteSequence) {
@@ -1332,6 +1701,59 @@ export class GameSession {
           }),
         };
       }
+      case "verified_trade_quote_issued": {
+        const payload = event.payload;
+        if (!isNonEmptyString(payload.operationId) || payload.quote.playerSaveId !== this.sessionId ||
+            payload.runtimeSceneRevision !== this.state.world.revision || payload.sceneId !== this.state.world.currentSceneId ||
+            this.state.economy.activeWorldTick !== this.state.survival.worldTicks) return { reason: "invalid_event", duplicate: false };
+        const authority = verifiedTradeManifest().stationAuthorities.find((candidate) => candidate.sceneId === payload.sceneId &&
+          candidate.targetId === payload.targetId && candidate.interactionId === payload.interactionId &&
+          candidate.merchantIds.includes(payload.quote.merchantId));
+        if (!authority || !Number.isFinite(payload.playerPositionPx.x) || !Number.isFinite(payload.playerPositionPx.y) ||
+            Math.hypot(payload.playerPositionPx.x - authority.interactionPointPx.x,
+              payload.playerPositionPx.y - authority.interactionPointPx.y) > 16) return { reason: "invalid_event", duplicate: false };
+        const issued = createVerifiedSellQuote(this.state.economy, { playerSaveId: this.sessionId,
+          merchantId: payload.quote.merchantId, lotId: payload.quote.lineItems[0]?.lotId ?? "", quantity: payload.quote.lineItems[0]?.quantity ?? 0,
+          currentWorldTick: this.state.survival.worldTicks });
+        if (!issued.accepted || !same(issued.quote, payload.quote) || !same(issued.decayedLot, payload.decayedLot)) {
+          return { reason: "invalid_event", duplicate: false };
+        }
+        const currentLot = this.state.economy.lots.find((lot) => lot.lotId === payload.decayedLot.lotId);
+        if (!currentLot) return { reason: "economy_revision_conflict", duplicate: false };
+        const changed = !same(currentLot, payload.decayedLot);
+        if (payload.quote.inventoryRevision !== this.state.economy.inventoryRevision + (changed ? 1 : 0) ||
+            payload.quote.quoteSequence !== this.state.economy.quoteSequence + 1) return { reason: "invalid_event", duplicate: false };
+        if (!this.replaying) this.liveVerifiedTradeQuotes.set(event.eventId, payload.quote.quotePayloadHash);
+        return { state: withAppliedEvent(this.state, event, { economy: { ...this.state.economy,
+          quoteSequence: payload.quote.quoteSequence, inventoryRevision: payload.quote.inventoryRevision,
+          lots: this.state.economy.lots.map((lot) => lot.lotId === payload.decayedLot.lotId ? clone(payload.decayedLot) : lot),
+        } }) };
+      }
+      case "verified_trade_sale_committed": {
+        const payload = event.payload;
+        const issued = this.ledger.find((candidate) => candidate.eventId === payload.issuedEventId);
+        const authority = verifiedTradeManifest().stationAuthorities.find((candidate) => candidate.sceneId === payload.sceneId &&
+          candidate.targetId === payload.targetId && candidate.interactionId === payload.interactionId &&
+          candidate.merchantIds.includes(payload.quote.merchantId));
+        if (!authority || payload.runtimeSceneRevision !== this.state.world.revision || payload.sceneId !== this.state.world.currentSceneId ||
+            !Number.isFinite(payload.playerPositionPx.x) || !Number.isFinite(payload.playerPositionPx.y) ||
+            Math.hypot(payload.playerPositionPx.x - authority.interactionPointPx.x,
+              payload.playerPositionPx.y - authority.interactionPointPx.y) > 16 || issued?.type !== "verified_trade_quote_issued" || !same(issued.payload.quote, payload.quote) ||
+            issued.payload.runtimeSceneRevision !== this.state.world.revision || issued.payload.sceneId !== this.state.world.currentSceneId ||
+            payload.quote.quotePayloadHash !== payload.quotePayloadHash ||
+            (!this.replaying && this.liveVerifiedTradeQuotes.get(payload.issuedEventId) !== payload.quotePayloadHash)) {
+          return { reason: "invalid_event", duplicate: false };
+        }
+        const result = commitVerifiedSellQuote(this.state.economy, payload.quote, this.state.survival.worldTicks);
+        if (!result.committed) return { reason: result.duplicate ? "duplicate_receipt" : "invalid_event", duplicate: result.duplicate };
+        const receiptId = verifiedSellReceiptId(payload.quote);
+        if (this.state.receiptIndex[receiptId]) return { reason: "duplicate_receipt", duplicate: true };
+        if (!this.replaying) this.liveVerifiedTradeQuotes.delete(payload.issuedEventId);
+        return { state: withAppliedEvent(this.state, event, { economy: result.economy,
+          receiptIndex: { ...this.state.receiptIndex, [receiptId]: { receiptId, domain: "trade",
+            payloadHash: payload.quotePayloadHash, recordedByEventId: event.eventId, recordedAtSequence: event.sequence } },
+        }) };
+      }
       case "quest_stage_set": {
         const { questId, stageId, stageOrdinal } = event.payload;
         if (!isNonEmptyString(questId) || !isNonEmptyString(stageId) || !isNonNegativeSafeInteger(stageOrdinal)) {
@@ -1440,8 +1862,8 @@ const upgradePreCapabilityOnlyV02Save = (
   const withoutIntegrity: Omit<GameSessionSave, "integrity"> = {
     schema: GAME_SESSION_SAVE_SCHEMA,
     sessionId: save.sessionId,
-    origin: { ...clone(save.origin), capabilities: clone(INITIAL_SESSION_CAPABILITIES), economy: normalizeSessionEconomy(save.origin.economy) },
-    state: { ...clone(save.state), capabilities: clone(INITIAL_SESSION_CAPABILITIES), economy: normalizeSessionEconomy(save.state.economy) },
+    origin: { ...clone(save.origin), capabilities: clone(INITIAL_SESSION_CAPABILITIES), economy: { ...normalizeSessionEconomy(save.origin.economy), activeWorldTick: save.origin.survival.worldTicks } },
+    state: { ...clone(save.state), capabilities: clone(INITIAL_SESSION_CAPABILITIES), economy: { ...normalizeSessionEconomy(save.state.economy), activeWorldTick: save.state.survival.worldTicks } },
     eventLedger: clone(save.eventLedger),
   };
   return { ...withoutIntegrity, integrity: { algorithm: GAME_SESSION_INTEGRITY_ALGORITHM, digest: fingerprint(withoutIntegrity) } };
@@ -1470,8 +1892,8 @@ const upgradePreCapabilityV02Save = (
   const withoutIntegrity: Omit<GameSessionSave, "integrity"> = {
     schema: GAME_SESSION_SAVE_SCHEMA,
     sessionId: save.sessionId,
-    origin: { ...clone(save.origin), capabilities: clone(INITIAL_SESSION_CAPABILITIES), lifeCorpseLedger: createEmptyLifeCorpseLedger(), economy: normalizeSessionEconomy(save.origin.economy) },
-    state: { ...clone(save.state), capabilities: clone(INITIAL_SESSION_CAPABILITIES), lifeCorpseLedger: createEmptyLifeCorpseLedger(), economy: normalizeSessionEconomy(save.state.economy) },
+    origin: { ...clone(save.origin), capabilities: clone(INITIAL_SESSION_CAPABILITIES), lifeCorpseLedger: createEmptyLifeCorpseLedger(), economy: { ...normalizeSessionEconomy(save.origin.economy), activeWorldTick: save.origin.survival.worldTicks } },
+    state: { ...clone(save.state), capabilities: clone(INITIAL_SESSION_CAPABILITIES), lifeCorpseLedger: createEmptyLifeCorpseLedger(), economy: { ...normalizeSessionEconomy(save.state.economy), activeWorldTick: save.state.survival.worldTicks } },
     eventLedger: clone(save.eventLedger),
   };
   return {
@@ -1504,8 +1926,8 @@ const upgradePreLifeLedgerV02Save = (
   const withoutIntegrity: Omit<GameSessionSave, "integrity"> = {
     schema: GAME_SESSION_SAVE_SCHEMA,
     sessionId: save.sessionId,
-    origin: { ...clone(save.origin), lifeCorpseLedger: createEmptyLifeCorpseLedger(), economy: normalizeSessionEconomy(save.origin.economy) },
-    state: { ...clone(save.state), lifeCorpseLedger: createEmptyLifeCorpseLedger(), economy: normalizeSessionEconomy(save.state.economy) },
+    origin: { ...clone(save.origin), lifeCorpseLedger: createEmptyLifeCorpseLedger(), economy: { ...normalizeSessionEconomy(save.origin.economy), activeWorldTick: save.origin.survival.worldTicks } },
+    state: { ...clone(save.state), lifeCorpseLedger: createEmptyLifeCorpseLedger(), economy: { ...normalizeSessionEconomy(save.state.economy), activeWorldTick: save.state.survival.worldTicks } },
     eventLedger: clone(save.eventLedger),
   };
   return {
@@ -1537,8 +1959,8 @@ const upgradePreEconomyV02Save = (
   const withoutIntegrity: Omit<GameSessionSave, "integrity"> = {
     schema: GAME_SESSION_SAVE_SCHEMA,
     sessionId: save.sessionId,
-    origin: { ...clone(save.origin), economy: normalizeSessionEconomy(save.origin.economy) },
-    state: { ...clone(save.state), economy: normalizeSessionEconomy(save.state.economy) },
+    origin: { ...clone(save.origin), economy: { ...normalizeSessionEconomy(save.origin.economy), activeWorldTick: save.origin.survival.worldTicks } },
+    state: { ...clone(save.state), economy: { ...normalizeSessionEconomy(save.state.economy), activeWorldTick: save.state.survival.worldTicks } },
     eventLedger: clone(save.eventLedger),
   };
   return { ...withoutIntegrity, integrity: { algorithm: GAME_SESSION_INTEGRITY_ALGORITHM, digest: fingerprint(withoutIntegrity) } };
@@ -1614,7 +2036,7 @@ export const migrateGameSessionSave = (candidate: unknown): GameSessionMigration
     },
     learning: clone(candidate.learning),
     survival: clone(candidate.survival),
-    economy: normalizeSessionEconomy(candidate.economy),
+    economy: { ...normalizeSessionEconomy(candidate.economy), activeWorldTick: candidate.survival.worldTicks },
     quests: clone(candidate.quests),
     receiptIndex: indexInheritedSurvivalReceipts(candidate.survival),
     processedEventPayloads: {},

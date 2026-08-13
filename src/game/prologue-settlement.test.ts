@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { migrateLegacyEconomySummary, type SessionEconomyState } from "./economy-state";
+import { createEmptySessionEconomy, migrateLegacyEconomySummary, type SessionEconomyState } from "./economy-state";
+import { createDemoTradeLots } from "./trade";
+import { GIFTED_RABBIT_RECEIPT_HASH } from "./gifted-carcass";
 import { GameSession, type SessionEconomySummary } from "../session/game-session";
 import {
   PROLOGUE_SETTLEMENT_AREA_ID,
@@ -188,9 +190,9 @@ describe("PrologueSettlementSession", () => {
     });
   });
 
-  it("serves three structured NPC dialogues and clarification without mutating session truth", () => {
+  it("serves five structured NPC dialogues and clarification without mutating session truth", () => {
     const target = createSettlement("dialogue");
-    expect(PROLOGUE_SETTLEMENT_NPC_IDS).toHaveLength(3);
+    expect(PROLOGUE_SETTLEMENT_NPC_IDS).toHaveLength(5);
     for (const npcId of PROLOGUE_SETTLEMENT_NPC_IDS) {
       const before = target.snapshot().session;
       const role = target.talk(npcId, "role");
@@ -204,6 +206,14 @@ describe("PrologueSettlementSession", () => {
       accepted: false,
       reason: "unsupported_topic",
     });
+  });
+
+  it("uses runtime position for processing station authorization and rejects remote activation", () => {
+    const target = createSettlement("processing-station-distance");
+    const before = target.snapshot();
+    const denied = target.authorizeWildlifeProcessingStation("communal_kitchen", "test.remote-kitchen");
+    expect(denied).toMatchObject({ accepted: false, reason: "session_rejected" });
+    expect(denied.snapshot.session).toEqual(before.session);
   });
 
   it("authorizes public relief from the exact manifest facilities and keeps it free", () => {
@@ -362,6 +372,113 @@ describe("PrologueSettlementSession", () => {
       merchantIds: ["settlement.grocer"],
     });
     expect(target.openTrade("trade.auth.good")).toMatchObject({ accepted: true, duplicate: true });
+  });
+
+  it("keeps verified quotes in coordinator memory and clears them across fromSave", () => {
+    const sessionId = "save.settlement.verified-trade";
+    const lot = createDemoTradeLots().find((candidate) => candidate.itemId === "food.cooked_game_meat")!;
+    const target = new PrologueSettlementSession(createPrologueSettlementInitialSession({ sessionId,
+      economy: { ...createEmptySessionEconomy(), lots: [{ ...lot, legalOwnerId: sessionId, quantity: 2 }] },
+    }));
+    expect(target.issueVerifiedSellQuote({ merchantId: "settlement.butcher", lotId: lot.lotId,
+      quantity: 1, operationId: "settlement.sell.remote" })).toMatchObject({ accepted: false, reason: "session_rejected" });
+    for (let step = 0; step < 500 && target.snapshot().runtime.player.position.x < 480; step += 1) {
+      target.advanceTicks(1, { moveX: 1 });
+    }
+    expect(target.snapshot().runtime.player.position.x).toBeGreaterThanOrEqual(480);
+    const issued = target.issueVerifiedSellQuote({ merchantId: "settlement.butcher", lotId: lot.lotId,
+      quantity: 1, operationId: "settlement.sell.0" });
+    expect(issued).toMatchObject({ accepted: true, duplicate: false });
+    if (!issued.accepted) return;
+    expect(target.issueVerifiedSellQuote({ merchantId: "settlement.butcher", lotId: lot.lotId,
+      quantity: 1, operationId: "settlement.sell.0" })).toMatchObject({ accepted: true, duplicate: true,
+        quote: { quoteId: issued.quote.quoteId } });
+    expect(target.issueVerifiedSellQuote({ merchantId: "settlement.butcher", lotId: lot.lotId,
+      quantity: 2, operationId: "settlement.sell.0" })).toMatchObject({ accepted: false, reason: "transaction_conflict" });
+    const reloaded = PrologueSettlementSession.fromSave(JSON.parse(JSON.stringify(target.toSave())));
+    expect(reloaded.confirmVerifiedSellQuote(issued.quote.quoteId)).toMatchObject({ accepted: false,
+      reason: "quote_not_issued_in_this_session" });
+    expect(reloaded.issueVerifiedSellQuote({ merchantId: "settlement.butcher", lotId: lot.lotId,
+      quantity: 1, operationId: "settlement.sell.0" })).toMatchObject({ accepted: false,
+        reason: "quote_expired_after_reload" });
+    expect(reloaded.issueVerifiedSellQuote({ merchantId: "settlement.butcher", lotId: lot.lotId,
+      quantity: 2, operationId: "settlement.sell.0" })).toMatchObject({ accepted: false,
+        reason: "transaction_conflict" });
+    expect(reloaded.snapshot().session.economy.quoteSequence).toBe(1);
+    expect(target.confirmVerifiedSellQuote(issued.quote.quoteId)).toMatchObject({ accepted: false, reason: "session_rejected" });
+    for (let step = 0; step < 500 && target.snapshot().runtime.player.position.x < 480; step += 1) {
+      target.advanceTicks(1, { moveX: 1 });
+    }
+    expect(target.confirmVerifiedSellQuote(issued.quote.quoteId)).toEqual({ accepted: true, duplicate: false });
+    expect(target.snapshot().session.economy).toMatchObject({ coin: 2, quoteSequence: 1 });
+  });
+
+  it("creates one reload-idempotent gifted rabbit corpse with zero player rewards", () => {
+    const target = new PrologueSettlementSession(createPrologueSettlementInitialSession({
+      sessionId: "save.settlement.gifted-carcass", economy: createEmptySessionEconomy(),
+    }));
+    const before = target.snapshot().session;
+    expect(target.acceptGiftedRabbitCarcass("gift.remote")).toMatchObject({ accepted: false, reason: "unauthorized_interaction" });
+    for (let step = 0; step < 500 && target.snapshot().runtime.player.position.x < 480; step += 1) {
+      target.advanceTicks(1, { moveX: 1 });
+    }
+    expect(target.acceptGiftedRabbitCarcass("gift.accept")).toMatchObject({ accepted: true, duplicate: false });
+    const after = target.snapshot().session;
+    expect(Object.values(after.lifeCorpseLedger.lives)).toHaveLength(1);
+    const life = Object.values(after.lifeCorpseLedger.lives)[0]!;
+    const corpse = Object.values(after.lifeCorpseLedger.corpses)[0]!;
+    expect(life).toMatchObject({ species: "rabbit", ageClass: "adult", state: "dead", currentHp: 0 });
+    expect(life.lifeInstanceId).toMatch(/^wildlife-life:sha256:[0-9a-f]{64}$/);
+    expect(after.lifeCorpseLedger.lives[life.lifeInstanceId]).toEqual(life);
+    expect(corpse).toMatchObject({ species: "rabbit", causeClass: "clean_tool", populationDelta: { adultLivingDelta: -1 } });
+    expect(after.receiptIndex["gifted-carcass:save.settlement.gifted-carcass:n02.rabbit.v0.1"]?.payloadHash)
+      .toBe(GIFTED_RABBIT_RECEIPT_HASH);
+    expect(corpse.tissueSlots).toEqual(expect.arrayContaining([
+      expect.objectContaining({ tissueSlotId: "meat", remainingQuantity: 2 }),
+      expect.objectContaining({ tissueSlotId: "hide", remainingQuantity: 1 }),
+    ]));
+    expect(after.mp).toEqual(before.mp); expect(after.learning).toEqual(before.learning);
+    expect(after.economy).toEqual(before.economy); expect(after.survival).toEqual(before.survival);
+    const deathEvent = target.session.events().find((event) => event.type === "wildlife_death_committed");
+    expect(deathEvent?.payload.rewardDelta).toEqual({ kills: 0, drops: 0, languageXp: 0, learningEvidence: 0,
+      expressionCapacityGrowth: 0, focusSlotGrowth: 0, maxMpGrowth: 0, currency: 0, questKeys: 0 });
+    expect(Object.keys(after.receiptIndex).some((id) => /^wal-receipt:sha256:[0-9a-f]{64}$/.test(id))).toBe(true);
+    const loaded = PrologueSettlementSession.fromSave(JSON.parse(JSON.stringify(target.toSave())));
+    expect(loaded.acceptGiftedRabbitCarcass("gift.retry.after.reload")).toMatchObject({ accepted: true, duplicate: true });
+    expect(loaded.snapshot().session.lifeCorpseLedger).toEqual(after.lifeCorpseLedger);
+  });
+
+  it("runs the gifted carcass through semantic harvest, cook, claim, and consume wrappers", () => {
+    const target = new PrologueSettlementSession(createPrologueSettlementInitialSession({
+      sessionId: "save.settlement.semantic-processing", economy: createEmptySessionEconomy(),
+    }));
+    const moveRightTo = (x: number): void => {
+      for (let step = 0; step < 600 && target.snapshot().runtime.player.position.x < x; step += 1) {
+        target.advanceTicks(1, { moveX: 1 });
+      }
+      expect(target.snapshot().runtime.player.position.x).toBeGreaterThanOrEqual(x);
+    };
+    moveRightTo(480);
+    expect(target.acceptGiftedRabbitCarcass("semantic.gift")).toMatchObject({ accepted: true });
+    moveRightTo(192);
+    expect(target.harvestGiftedMeat("semantic.harvest")).toMatchObject({ accepted: true });
+    expect(target.snapshot().session.economy.lots.find((lot) => lot.itemId === "food.raw_small_game_meat"))
+      .toMatchObject({ quantity: 2, legalOwnerId: "save.settlement.semantic-processing" });
+    moveRightTo(160);
+    expect(target.startCooking("semantic.cook.start")).toMatchObject({ accepted: true });
+    moveRightTo(160);
+    expect(target.workCooking("semantic.cook.work")).toMatchObject({ accepted: true });
+    moveRightTo(160);
+    expect(target.completeCooking("semantic.cook.complete")).toMatchObject({ accepted: true });
+    expect(target.snapshot().session.economy.workOrders[0]).toMatchObject({ status: "completed" });
+    moveRightTo(160);
+    expect(target.claimCooking("semantic.cook.claim")).toMatchObject({ accepted: true });
+    const beforeEat = target.snapshot().session.survival.satiety;
+    expect(target.consumeCooked(1)).toMatchObject({ accepted: true });
+    expect(target.snapshot().session.survival.satiety).toBeGreaterThan(beforeEat);
+    expect(target.snapshot().session.economy.workOrders[0]).toMatchObject({ status: "claimed" });
+    expect(target.snapshot().session.economy.lots.find((lot) => lot.itemId === "food.cooked_game_meat"))
+      .toMatchObject({ quantity: 0 });
   });
 
   it("fails closed when completed quest and reward receipt disagree", () => {

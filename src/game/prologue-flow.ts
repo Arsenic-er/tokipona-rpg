@@ -14,6 +14,7 @@ import {
   type GameSessionState,
 } from "../session/game-session";
 import type { LivingSafetyZone, PointPx } from "../spells/cast-plan";
+import type { CrossSaveTransactionCoordinator } from "./cross-save-transaction-coordinator";
 import {
   PROLOGUE_ARRIVAL_SCENE_ID,
   PROLOGUE_STREAM_SCENE_ID,
@@ -30,6 +31,8 @@ import {
   type SettlementDialogueResult,
   type SettlementDialogueTopic,
   type SettlementTradeOpenResult,
+  type SettlementVerifiedQuoteResult,
+  type SettlementVerifiedSaleResult,
 } from "./prologue-settlement";
 import {
   PROLOGUE_SERVICE_CHANNEL_SCENE_ID,
@@ -73,6 +76,7 @@ export type PrologueFlowActionReason = "delegated" | "wrong_mode" | "delegate_re
 
 export interface PrologueFlowSnapshot {
   readonly mode: PrologueFlowMode;
+  readonly sessionId: string;
   readonly session: GameSessionState;
   readonly runtime: RuntimeSnapshot;
   readonly arrival: PrologueArrivalStreamSnapshot | null;
@@ -103,7 +107,7 @@ export interface PrologueFlowFreshOptions {
 }
 
 type ArrivalAcceptedResult = PrologueActionResult;
-type SettlementAcceptedResult = SettlementActionResult | SettlementDialogueResult;
+type SettlementAcceptedResult = SettlementActionResult | SettlementDialogueResult | SettlementVerifiedQuoteResult | SettlementVerifiedSaleResult;
 type InfrastructureAcceptedResult = InfrastructureActionResult | InfrastructureLanguageActionResult;
 type CisternAcceptedResult = PrologueCisternActionResult | PrologueCisternLearningResult;
 
@@ -141,6 +145,7 @@ export class PrologueFlowSession {
   private wildlife: PrologueWildlifeSession | null;
   private wildlifePlayerPositionPx: PointPx | null;
   private wildlifeRuntimeTick = 0;
+  private crossSaveCoordinator: CrossSaveTransactionCoordinator | null = null;
 
   private constructor(session: GameSession) {
     const sceneId = session.snapshot().world.currentSceneId;
@@ -199,39 +204,49 @@ export class PrologueFlowSession {
     return new PrologueFlowSession(adoption.cistern.session);
   }
 
+  attachCrossSaveTransactionCoordinator(coordinator: CrossSaveTransactionCoordinator): void {
+    coordinator.synchronizeOrdinarySession(this.session);
+    this.crossSaveCoordinator = coordinator;
+    if (this.settlement) this.settlement = new PrologueSettlementSession(coordinator.readSession(), coordinator);
+  }
+
   get session(): GameSession {
     return this.arrival?.session ?? this.settlement?.session ?? this.infrastructure?.session ??
       this.cistern?.session ?? this.wildlife!.session;
   }
 
   toSave(): GameSessionSave {
+    if (this.crossSaveCoordinator) {
+      this.crossSaveCoordinator.synchronizeOrdinarySession(this.session);
+      return this.crossSaveCoordinator.toSessionSave();
+    }
     return this.session.toSave();
   }
 
   snapshot(): PrologueFlowSnapshot {
     if (this.arrival) {
       const arrival = this.arrival.snapshot();
-      return Object.freeze({ mode: "arrival_stream", session: arrival.session, runtime: arrival.runtime,
+      return Object.freeze({ mode: "arrival_stream", sessionId: this.session.sessionId, session: arrival.session, runtime: arrival.runtime,
         arrival, settlement: null, infrastructure: null, cistern: null, wildlife: null, killCount: 0 });
     }
     if (this.settlement) {
       const settlement = this.settlement.snapshot();
-      return Object.freeze({ mode: "settlement", session: settlement.session, runtime: settlement.runtime,
+      return Object.freeze({ mode: "settlement", sessionId: this.session.sessionId, session: settlement.session, runtime: settlement.runtime,
         arrival: null, settlement, infrastructure: null, cistern: null, wildlife: null, killCount: 0 });
     }
     if (this.infrastructure) {
       const infrastructure = this.infrastructure.snapshot();
-      return Object.freeze({ mode: "infrastructure", session: infrastructure.session, runtime: infrastructure.runtime,
+      return Object.freeze({ mode: "infrastructure", sessionId: this.session.sessionId, session: infrastructure.session, runtime: infrastructure.runtime,
         arrival: null, settlement: null, infrastructure, cistern: null, wildlife: null, killCount: 0 });
     }
     if (this.cistern) {
       const cistern = this.cistern.snapshot();
-      return Object.freeze({ mode: "cistern", session: cistern.session, runtime: cistern.runtime,
+      return Object.freeze({ mode: "cistern", sessionId: this.session.sessionId, session: cistern.session, runtime: cistern.runtime,
         arrival: null, settlement: null, infrastructure: null, cistern, wildlife: null, killCount: 0 });
     }
     const wildlife = this.wildlife!.snapshot();
     const playerPosition = this.wildlifePlayerPositionPx ?? wildlife.session.checkpoint.position;
-    return Object.freeze({ mode: "wildlife", session: wildlife.session,
+    return Object.freeze({ mode: "wildlife", sessionId: this.session.sessionId, session: wildlife.session,
       runtime: wildlifeRuntimeSnapshot(wildlife.session, playerPosition, this.wildlifeRuntimeTick),
       arrival: null, settlement: null, infrastructure: null, cistern: null, wildlife, killCount: 0 });
   }
@@ -281,12 +296,29 @@ export class PrologueFlowSession {
   openTrade(transactionId: string): PrologueFlowAction<SettlementTradeOpenResult> {
     return this.delegateSettlement((x) => x.openTrade(transactionId));
   }
+  acceptGiftedRabbitCarcass(transactionId: string): PrologueFlowAction<SettlementActionResult> {
+    return this.delegateSettlement((x) => x.acceptGiftedRabbitCarcass(transactionId));
+  }
+  harvestGiftedMeat(operationId: string) { return this.delegateSettlement((x) => x.harvestGiftedMeat(operationId)); }
+  startCooking(operationId: string) { return this.delegateSettlement((x) => x.startCooking(operationId)); }
+  workCooking(operationId: string) { return this.delegateSettlement((x) => x.workCooking(operationId)); }
+  completeCooking(operationId: string) { return this.delegateSettlement((x) => x.completeCooking(operationId)); }
+  claimCooking(operationId: string) { return this.delegateSettlement((x) => x.claimCooking(operationId)); }
+  consumeCooked(consumptionSequence: number) { return this.delegateSettlement((x) => x.consumeCooked(consumptionSequence)); }
+  issueVerifiedSellQuote(request: Readonly<{ merchantId: string; lotId: string; quantity: number; operationId: string }>):
+  PrologueFlowAction<SettlementVerifiedQuoteResult> {
+    return this.delegateSettlement((x) => x.issueVerifiedSellQuote(request));
+  }
+  confirmVerifiedSellQuote(quoteId: string): PrologueFlowAction<SettlementVerifiedSaleResult> {
+    return this.delegateSettlement((x) => x.confirmVerifiedSellQuote(quoteId));
+  }
 
   enterWaterwheel(transactionId: string): PrologueFlowAction<PrologueWaterwheelEntryResult> {
     if (!this.settlement) return this.rejectedMode();
     try {
       const result = PrologueWaterwheelSession.enterFromSettlement(this.settlement.session, transactionId);
       if (result.accepted && result.infrastructure) {
+        this.commitCrossSaveRegionExit(result.infrastructure.session);
         this.arrival = null;
         this.settlement = null;
         this.infrastructure = result.infrastructure;
@@ -314,7 +346,7 @@ export class PrologueFlowSession {
       if (result.accepted && result.session) {
         this.arrival = null;
         this.infrastructure = null;
-        this.settlement = new PrologueSettlementSession(result.session);
+        this.settlement = new PrologueSettlementSession(result.session, this.crossSaveCoordinator);
       }
       return this.delegated(result, result.accepted);
     } catch { return this.rejectedDelegate(); }
@@ -715,7 +747,9 @@ export class PrologueFlowSession {
       );
       if (!adoption.accepted || !adoption.settlement) throw new Error(`settlement entry rejected: ${adoption.reason}`);
       this.arrival = null;
-      this.settlement = adoption.settlement;
+      this.settlement = this.crossSaveCoordinator
+        ? new PrologueSettlementSession(adoption.settlement.session, this.crossSaveCoordinator)
+        : adoption.settlement;
       return;
     }
     if (this.settlement && sceneId === PROLOGUE_WATERWHEEL_SCENE_ID) {
@@ -725,6 +759,7 @@ export class PrologueFlowSession {
         `${PROLOGUE_FLOW_WATERWHEEL_ENTRY_TRANSACTION_PREFIX}:${session.sessionId}`,
       );
       if (!adoption.accepted || !adoption.infrastructure) throw new Error(`waterwheel entry rejected: ${adoption.reason}`);
+      this.commitCrossSaveRegionExit(adoption.infrastructure.session);
       this.settlement = null;
       this.infrastructure = adoption.infrastructure;
       return;
@@ -742,6 +777,7 @@ export class PrologueFlowSession {
     }
     if (this.settlement && arrivalScene(sceneId)) {
       const session = this.settlement.session;
+      this.commitCrossSaveRegionExit(session);
       this.settlement = null;
       this.arrival = new PrologueArrivalStreamSession(session);
       return;
@@ -751,6 +787,13 @@ export class PrologueFlowSession {
         sceneId !== PROLOGUE_WILDLIFE_SCENE_ID) {
       throw new Error(`unsupported prologue scene: ${sceneId}`);
     }
+  }
+
+  private commitCrossSaveRegionExit(session: GameSession): void {
+    if (!this.crossSaveCoordinator) return;
+    this.crossSaveCoordinator.synchronizeOrdinarySession(session);
+    const recovery = this.crossSaveCoordinator.regionExitBarrier();
+    if (recovery.sceneActivationBlocked) throw new Error("cross-save region exit recovery blocks activation");
   }
 
   private delegated<T>(result: T, accepted: boolean): PrologueFlowAction<T> {

@@ -102,9 +102,10 @@ checkpoint_and_region_exit_barrier:
 
 registered_transaction_kinds:
   - {kind: "death", participants: [valley_ecology_save, valley_resource_save]}
-  - {kind: "harvest", participants: [valley_resource_save, player_inventory_save, economy_ledger_save]}
+  - {kind: "harvest", participants: [world_clock_save, player_survival_save, valley_resource_save, player_inventory_save, economy_ledger_save]}
   - {kind: "consume", participants: [player_inventory_save, player_survival_save, economy_ledger_save]}
   - {kind: "workorder_start", participants: [player_inventory_save, settlement_workorder_save, economy_ledger_save]}
+  - {kind: "workorder_work", participants: [world_clock_save, player_survival_save, settlement_workorder_save, economy_ledger_save]}
   - {kind: "workorder_complete", participants: [settlement_workorder_save, player_inventory_save, economy_ledger_save]}
   - {kind: "workorder_claim", participants: [settlement_workorder_save, player_inventory_save, economy_ledger_save]}
   - {kind: "workorder_cancel", participants: [settlement_workorder_save, player_inventory_save, economy_ledger_save]}

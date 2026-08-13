@@ -97,12 +97,20 @@ targets:
   - {target_id: "settlement.npc.facility_manager", target_kind: "npc", material: "living_noncombatant"}
   - {target_id: "settlement.npc.repair_contractor", target_kind: "npc", material: "living_noncombatant"}
   - {target_id: "settlement.npc.supply_trader", target_kind: "npc", material: "living_noncombatant"}
+  - {target_id: "settlement.npc.butcher", target_kind: "npc", material: "living_noncombatant"}
+  - {target_id: "settlement.npc.tanner", target_kind: "npc", material: "living_noncombatant"}
   - {target_id: "settlement.public_well", target_kind: "public_relief", material: "stone_and_water"}
-  - {target_id: "settlement.communal_kitchen", target_kind: "public_relief", material: "wood_and_food"}
+  - {target_id: "settlement.communal_kitchen", target_kind: "public_relief", material: "wood_and_food", interaction_point_tiles: [10, 28]}
+  - {target_id: "settlement.butcher_table", target_kind: "processing_station", material: "wood_and_iron", interaction_point_tiles: [12, 28]}
+  - {target_id: "settlement.field_knife_loan", target_kind: "public_tool_loan", material: "wood_and_iron", interaction_point_tiles: [14, 28]}
+  - {target_id: "settlement.drying_rack", target_kind: "processing_station", material: "wood_and_rope", interaction_point_tiles: [18, 28]}
+  - {target_id: "settlement.tannery", target_kind: "processing_station", material: "wood_stone_and_water", interaction_point_tiles: [22, 28]}
   - {target_id: "settlement.meditation_court", target_kind: "learning_facility", material: "stone"}
   - {target_id: "settlement.repair_board", target_kind: "job_board", material: "wood"}
   - {target_id: "settlement.survey_markers", target_kind: "survey_route", material: "wood_and_charcoal"}
-  - {target_id: "settlement.supply_stall", target_kind: "trade_counter", material: "wood"}
+  - {target_id: "settlement.supply_stall", target_kind: "trade_counter", material: "wood", interaction_point_tiles: [26, 28]}
+  - {target_id: "settlement.butcher_counter", target_kind: "trade_counter", material: "wood_and_iron", interaction_point_tiles: [30, 28]}
+  - {target_id: "settlement.tanner_counter", target_kind: "trade_counter", material: "wood_and_leather", interaction_point_tiles: [34, 28]}
 
 npcs:
   - npc_id: "settlement.npc.facility_manager"
@@ -120,6 +128,16 @@ npcs:
     profession_label_zh: "补给商"
     functions: [trade_entry, ration_explanation, canteen_refill]
     interaction_ids: [settlement.talk_supply_trader, settlement.open_supply_trade]
+  - npc_id: "settlement.npc.butcher"
+    profession_id: "settlement.butcher"
+    profession_label_zh: "屠户"
+    functions: [trade_entry, meat_processing_explanation]
+    interaction_ids: [settlement.talk_butcher, settlement.open_butcher_trade]
+  - npc_id: "settlement.npc.tanner"
+    profession_id: "settlement.tanner"
+    profession_label_zh: "制革匠"
+    functions: [trade_entry, leather_processing_explanation]
+    interaction_ids: [settlement.talk_tanner, settlement.open_tanner_trade]
 
 facilities:
   - facility_id: "settlement.facility.public_well"
@@ -131,9 +149,34 @@ facilities:
   - facility_id: "settlement.facility.communal_kitchen"
     facility_kind: "communal_plant_meal"
     target_id: "settlement.communal_kitchen"
-    interaction_ids: [settlement.take_plant_meal]
+    interaction_ids: [settlement.take_plant_meal, settlement.prepare_game_meat]
     public_relief: true
     economy_eligible: false
+    energy_provision: {kind: "heat_work", eu_per_work: 8, source: "public_hearth"}
+  - facility_id: "settlement.facility.butcher_table"
+    facility_kind: "butcher_table"
+    target_id: "settlement.butcher_table"
+    interaction_ids: [settlement.field_dress_at_butcher]
+    public_relief: false
+    economy_eligible: true
+  - facility_id: "settlement.facility.field_knife_loan"
+    facility_kind: "field_knife_public_loan"
+    target_id: "settlement.field_knife_loan"
+    interaction_ids: [settlement.borrow_field_knife_for_field_dress]
+    public_relief: true
+    economy_eligible: false
+  - facility_id: "settlement.facility.drying_rack"
+    facility_kind: "drying_rack"
+    target_id: "settlement.drying_rack"
+    interaction_ids: [settlement.use_drying_rack]
+    public_relief: false
+    economy_eligible: true
+  - facility_id: "settlement.facility.tannery"
+    facility_kind: "settlement_tannery"
+    target_id: "settlement.tannery"
+    interaction_ids: [settlement.use_tannery]
+    public_relief: false
+    economy_eligible: true
   - facility_id: "settlement.facility.meditation_court"
     facility_kind: "public_meditation_court"
     target_id: "settlement.meditation_court"
@@ -152,19 +195,40 @@ facilities:
     interaction_ids: [settlement.open_supply_trade]
     public_relief: false
     economy_eligible: true
+  - facility_id: "settlement.facility.butcher_counter"
+    facility_kind: "trade_entry"
+    target_id: "settlement.butcher_counter"
+    interaction_ids: [settlement.open_butcher_trade]
+    public_relief: false
+    economy_eligible: true
+  - facility_id: "settlement.facility.tanner_counter"
+    facility_kind: "trade_entry"
+    target_id: "settlement.tanner_counter"
+    interaction_ids: [settlement.open_tanner_trade]
+    public_relief: false
+    economy_eligible: true
 
 interactions:
   - {interaction_id: "settlement.talk_facility_manager", target_id: "settlement.npc.facility_manager", verb: "talk", npc_id: "settlement.npc.facility_manager", tool_or_magic_required: false}
   - {interaction_id: "settlement.talk_repair_contractor", target_id: "settlement.npc.repair_contractor", verb: "talk", npc_id: "settlement.npc.repair_contractor", tool_or_magic_required: false}
   - {interaction_id: "settlement.talk_supply_trader", target_id: "settlement.npc.supply_trader", verb: "talk", npc_id: "settlement.npc.supply_trader", tool_or_magic_required: false}
+  - {interaction_id: "settlement.talk_butcher", target_id: "settlement.npc.butcher", verb: "talk", npc_id: "settlement.npc.butcher", tool_or_magic_required: false}
+  - {interaction_id: "settlement.talk_tanner", target_id: "settlement.npc.tanner", verb: "talk", npc_id: "settlement.npc.tanner", tool_or_magic_required: false}
   - {interaction_id: "settlement.draw_public_water", target_id: "settlement.public_well", verb: "drink_or_fill", facility_id: "settlement.facility.public_well", tool_or_magic_required: false}
   - {interaction_id: "settlement.take_plant_meal", target_id: "settlement.communal_kitchen", verb: "eat", facility_id: "settlement.facility.communal_kitchen", tool_or_magic_required: false}
+  - {interaction_id: "settlement.prepare_game_meat", target_id: "settlement.communal_kitchen", verb: "process_food", facility_id: "settlement.facility.communal_kitchen", tool_or_magic_required: false}
+  - {interaction_id: "settlement.field_dress_at_butcher", target_id: "settlement.butcher_table", verb: "field_dress", facility_id: "settlement.facility.butcher_table", tool_or_magic_required: false}
+  - {interaction_id: "settlement.borrow_field_knife_for_field_dress", target_id: "settlement.field_knife_loan", verb: "borrow_and_field_dress", facility_id: "settlement.facility.field_knife_loan", tool_or_magic_required: false}
+  - {interaction_id: "settlement.use_drying_rack", target_id: "settlement.drying_rack", verb: "process_food", facility_id: "settlement.facility.drying_rack", tool_or_magic_required: false}
+  - {interaction_id: "settlement.use_tannery", target_id: "settlement.tannery", verb: "tan_hide", facility_id: "settlement.facility.tannery", tool_or_magic_required: false}
   - {interaction_id: "settlement.meditate", target_id: "settlement.meditation_court", verb: "meditate", facility_id: "settlement.facility.meditation_court", tool_or_magic_required: false}
   - {interaction_id: "settlement.inspect_repair_board", target_id: "settlement.repair_board", verb: "inspect", npc_id: "settlement.npc.repair_contractor", facility_id: "settlement.facility.repair_board", task_id: "ch01_settlement_orientation", tool_or_magic_required: false}
   - {interaction_id: "settlement.accept_survey", target_id: "settlement.repair_board", verb: "accept_job", npc_id: "settlement.npc.repair_contractor", facility_id: "settlement.facility.repair_board", task_id: "ch01_settlement_orientation", tool_or_magic_required: false}
   - {interaction_id: "settlement.inspect_survey_markers", target_id: "settlement.survey_markers", verb: "survey", task_id: "ch01_settlement_orientation", tool_or_magic_required: false}
   - {interaction_id: "settlement.submit_survey", target_id: "settlement.npc.repair_contractor", verb: "submit_job", npc_id: "settlement.npc.repair_contractor", task_id: "ch01_settlement_orientation", tool_or_magic_required: false}
   - {interaction_id: "settlement.open_supply_trade", target_id: "settlement.supply_stall", verb: "trade", npc_id: "settlement.npc.supply_trader", facility_id: "settlement.facility.supply_stall", tool_or_magic_required: false}
+  - {interaction_id: "settlement.open_butcher_trade", target_id: "settlement.butcher_counter", verb: "trade", npc_id: "settlement.npc.butcher", facility_id: "settlement.facility.butcher_counter", tool_or_magic_required: false}
+  - {interaction_id: "settlement.open_tanner_trade", target_id: "settlement.tanner_counter", verb: "trade", npc_id: "settlement.npc.tanner", facility_id: "settlement.facility.tanner_counter", tool_or_magic_required: false}
 
 tasks:
   - task_id: "ch01_settlement_orientation"
@@ -186,6 +250,18 @@ trade_entries:
     interaction_id: "settlement.open_supply_trade"
     authoritative_economy_ref: "../economy/settlement-trade.v0.1.yaml"
     merchant_ids: [settlement.grocer]
+    scene_defines_catalog_or_prices: false
+  - trade_entry_id: "settlement.trade.butcher_counter"
+    npc_id: "settlement.npc.butcher"
+    interaction_id: "settlement.open_butcher_trade"
+    authoritative_economy_ref: "../economy/settlement-trade.v0.1.yaml"
+    merchant_ids: [settlement.butcher]
+    scene_defines_catalog_or_prices: false
+  - trade_entry_id: "settlement.trade.tanner_counter"
+    npc_id: "settlement.npc.tanner"
+    interaction_id: "settlement.open_tanner_trade"
+    authoritative_economy_ref: "../economy/settlement-trade.v0.1.yaml"
+    merchant_ids: [settlement.tanner]
     scene_defines_catalog_or_prices: false
 
 soft_failure_recoveries:

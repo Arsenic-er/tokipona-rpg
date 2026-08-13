@@ -91,6 +91,7 @@ damage_quality:
   no_tool: {meat_yield_multiplier: 0.5, hide_quality_multiplier: 0.0}
   fire_or_explosion: {meat_yield_multiplier: 0.5, hide_quality_multiplier: 0.25}
   crushing_impact: {meat_yield_multiplier: 0.75, hide_quality_multiplier: 0.5}
+  other_physical: {meat_yield_multiplier: 0.5, hide_quality_multiplier: 0.0}
 zero_quality_output_policy: "omit_output_lot_and_record_zero_yield_reason"
 yield_quantity_rounding: "floor_each_output_after_multiplier"
 
@@ -98,6 +99,12 @@ processing_contract:
   work_unit_active_seconds: 60
   safe_zone_work_advances_world_clock_but_not_survival_metabolism: true
   field_knife_public_loan_at_settlement: true
+  station_interaction_bindings:
+    - {station_id: "butcher_table", scene_id: "scene.valley.settlement", target_id: "settlement.butcher_table", interaction_id: "settlement.field_dress_at_butcher"}
+    - {station_id: "field_knife", scene_id: "scene.valley.settlement", target_id: "settlement.field_knife_loan", interaction_id: "settlement.borrow_field_knife_for_field_dress"}
+    - {station_id: "communal_kitchen", scene_id: "scene.valley.settlement", target_id: "settlement.communal_kitchen", interaction_id: "settlement.prepare_game_meat"}
+    - {station_id: "drying_rack", scene_id: "scene.valley.settlement", target_id: "settlement.drying_rack", interaction_id: "settlement.use_drying_rack"}
+    - {station_id: "settlement_tannery", scene_id: "scene.valley.settlement", target_id: "settlement.tannery", interaction_id: "settlement.use_tannery"}
 
 processing_recipes:
   - recipe_id: "process.field_dress.v0.1"
@@ -110,7 +117,7 @@ processing_recipes:
     real_time_wait: false
     direct_language_evidence: false
   - recipe_id: "cook.game_meat.v0.1"
-    station_any: [communal_kitchen, campfire_with_pan]
+    station_any: [communal_kitchen]
     inputs: [{category: "raw_meat", quantity: 1}]
     energy_requirement: {kind: "heat_work", eu: 8}
     outputs: [{item_id: "food.cooked_game_meat", quantity: 1}]
@@ -183,10 +190,10 @@ transaction_contracts:
   harvest:
     transaction_kind: "harvest"
     idempotency_key_fields: [corpse_id, tissue_slot_id, harvest_sequence]
-    compare_and_swap_fields: [expected_corpse_revision, expected_remaining_tissue_quantity]
+    compare_and_swap_fields: [expected_corpse_revision, expected_remaining_tissue_quantity, active_world_simulation_tick, survival_revision]
     deterministic_output_fields: [lot_id, receipt_id]
     contention_policy: "fail_stale_revision_then_refresh_and_require_explicit_retry"
-    atomic_steps: [decrement_tissue_slot, create_inventory_lot, write_harvest_receipt]
+    atomic_steps: [advance_active_world_clock_by_machine_work_seconds, preserve_metabolism_ticks, write_metabolism_exempt_audit, decrement_tissue_slot, create_inventory_lot, write_harvest_receipt]
     field_dress_recipe_uses_this_transaction_only: true
   process_workorder:
     save_owner: "settlement_workorder_save"
@@ -196,6 +203,11 @@ transaction_contracts:
     forbidden_transitions: ["completed -> cancelled", "claimed -> cancelled", "cancelled -> completed", "failed_spoiled -> completed"]
     distinct_event_ids_only: true
     repeated_or_replayed_events_do_not_advance: true
+    work:
+      transaction_kind: "workorder_work"
+      idempotency_key_fields: [work_order_id, work_order_revision, station_interaction_id]
+      compare_and_swap_fields: [active_world_simulation_tick, survival_revision, workorder_revision]
+      atomic_steps: [advance_active_world_clock_by_machine_work_seconds, preserve_metabolism_ticks, write_metabolism_exempt_audit, write_work_receipt]
     start:
       transaction_kind: "workorder_start"
       idempotency_key_fields: [player_save_id, station_id, recipe_version, sorted_input_lot_ids, start_sequence]
@@ -238,8 +250,8 @@ settlement_market:
     - {merchant_id: "settlement.tanner", accepts_categories: [leather], full_price_units_per_restock: 1, excess_policy: "quarter_price_or_refuse"}
   quote_contract:
     persistence: "session_ephemeral_reload_invalidates"
-    required_fields: [quote_id, merchant_id, player_save_id, price_table_version, demand_revision, line_items, total_coin, issued_tick, expires_tick, consumed]
-    line_item_fields: [lot_id, quantity, ownership_revision, freshness_revision, quality_multiplier, unit_price_coin]
+    required_fields: [quote_id, quote_payload_hash, merchant_id, player_save_id, price_table_version, demand_revision, line_items, total_coin, issued_tick, expires_tick, wallet_revision, inventory_revision, quote_sequence, consumed]
+    line_item_fields: [lot_id, item_id, quantity, ownership_revision, freshness_revision, quality_multiplier, demand_multiplier, unit_price_coin]
     quote_id_formula: "sha256(merchant_id, player_save_id, demand_revision, sorted_lot_revisions, quote_sequence)"
     expires_after_active_seconds: 300
     single_consumption: true
@@ -324,6 +336,7 @@ golden_tests:
   - {id: "economy.fox_fastest_raw_sale", expect: {raw_hide_quote_created: false, gross_coin_maximum: 1, active_minutes_minimum: 4, coin_per_active_minute_maximum: 0.25}}
   - {id: "economy.rabbit_full_processing_gross_cap", expect: {gross_coin_maximum: 6, active_minutes_minimum: 15, coin_per_active_minute_maximum: 0.40}}
   - {id: "economy.no_tool_zero_hide_omitted", input: {hide_quality_multiplier: 0.0}, expect: {hide_lot_count: 0, zero_yield_reason_count: 1}}
+  - {id: "economy.other_physical_conservative_yield", input: {cause_class: "other_physical"}, expect: {meat_yield_multiplier: 0.5, hide_lot_count: 0, zero_yield_reason_count: 1}}
   - {id: "economy.workorder_spoils_before_complete", expect: {state: "failed_spoiled", output_lot_count: 0, input_tombstone_count: 0}}
   - {id: "economy.replenishment_idempotent", input: {duplicate_commit_count: 2}, expect: {new_life_instance_count: 1, population_increment_count: 1, spawn_sequence_increment_count: 1}}
   - {id: "economy.death_decrements_population_once", input: {duplicate_death_commit: 2, age_class: "adult"}, expect: {population_decrement_count: 1, population_revision_increment_count: 1}}

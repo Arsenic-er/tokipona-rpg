@@ -12,9 +12,19 @@ import {
   type RuntimeSnapshot,
 } from "../runtime";
 import type { SceneDefinition } from "../runtime/scene";
+import { createCrossSaveTransactionId } from "../persistence/cross-save-wal";
+import type { CrossSaveTransactionCoordinator } from "./cross-save-transaction-coordinator";
 import {
   commitSessionProposal,
+  proposeInventoryConsumption,
   proposeMpRecovery,
+  proposeWildlifeDamage,
+  proposeWildlifeLifeRegistration,
+  proposeWildlifeProcessing,
+  proposeWildlifeProcessingInteraction,
+  proposeWildlifeProcessingWork,
+  proposeVerifiedTradeQuote,
+  proposeVerifiedTradeSale,
   proposeSurvivalTransaction,
   type SessionEventDraft,
   type SessionProposalBatch,
@@ -29,6 +39,14 @@ import {
 } from "../session/game-session";
 import { CastExecutionLedger } from "../spells/cast-plan";
 import { SurvivalSystem } from "./survival";
+import {
+  GIFTED_RABBIT_DEATH_CAUSE_CLASS,
+  GIFTED_RABBIT_ENTITY_ID,
+  GIFTED_RABBIT_RECEIPT_HASH,
+  createGiftedRabbitLife,
+} from "./gifted-carcass";
+import type { WildlifeProcessingAction, WildlifeProcessingWorkOrder } from "./wildlife-processing";
+import { verifiedTradeManifest, type VerifiedSellQuote } from "./verified-trade";
 import {
   authorizedTradeEntry,
   classifySettlementOperation,
@@ -96,9 +114,6 @@ for (const professionId of REQUIRED_PROFESSIONS) {
   if (!SETTLEMENT_MANIFEST.npcs.some((npc) => npc.professionId === professionId)) {
     throw new Error(`settlement is missing required profession ${professionId}`);
   }
-}
-if (SETTLEMENT_MANIFEST.npcs.length !== REQUIRED_PROFESSIONS.length) {
-  throw new Error("settlement orientation expects exactly three service NPCs");
 }
 
 const isSceneTargetExit = (
@@ -231,6 +246,11 @@ export interface SettlementTradeOpenResult extends SettlementActionResult {
   readonly merchantIds: readonly string[];
 }
 
+export type SettlementVerifiedQuoteResult = Readonly<{ accepted: true; duplicate: boolean; quote: VerifiedSellQuote }> |
+  Readonly<{ accepted: false; duplicate: false; reason: "wrong_scene" | "quote_rejected" | "session_rejected" | "transaction_conflict" | "quote_expired_after_reload" }>;
+export type SettlementVerifiedSaleResult = Readonly<{ accepted: true; duplicate: boolean }> |
+  Readonly<{ accepted: false; duplicate: boolean; reason: "quote_not_issued_in_this_session" | "session_rejected" }>;
+
 export interface PrologueSettlementSnapshot {
   readonly session: GameSessionState;
   readonly runtime: RuntimeSnapshot;
@@ -358,12 +378,20 @@ const taskStage = (state: GameSessionState): PrologueSettlementSnapshot["orienta
 export class PrologueSettlementSession {
   private authoritativeSession: GameSession;
   private bridge!: GameSessionRuntimeBridge;
+  private readonly liveTradeQuotes = new Map<string, Readonly<{ quote: VerifiedSellQuote; issuedEventId: string }>>();
+  private readonly liveTradeOperations = new Map<string, Readonly<{ fingerprint: string; quote: VerifiedSellQuote }>>();
+  private readonly completedTradeQuoteIds = new Set<string>();
 
-  constructor(session: GameSession) {
+  constructor(session: GameSession, private readonly transactionCoordinator: CrossSaveTransactionCoordinator | null = null) {
     if (!SCENE_INDEX.byId[session.snapshot().world.currentSceneId]) {
       throw new Error("settlement session requires a scene present in the generated runtime manifest");
     }
-    this.authoritativeSession = session;
+    if (this.transactionCoordinator) {
+      this.transactionCoordinator.synchronizeOrdinarySession(session);
+      this.authoritativeSession = this.transactionCoordinator.readSession();
+    } else {
+      this.authoritativeSession = session;
+    }
     this.rebuildBridge();
   }
 
@@ -505,6 +533,20 @@ export class PrologueSettlementSession {
       }),
       killCount: 0,
     });
+  }
+
+  authorizeWildlifeProcessingStation(stationId: string, operationId: string): SettlementActionResult {
+    if (!this.inSettlement()) return this.result(false, false, "wrong_scene");
+    const runtime = this.bridge.runtime.snapshot();
+    try {
+      return this.commit(proposeWildlifeProcessingInteraction(this.authoritativeSession, stationId, {
+        playerPositionPx: runtime.player.position,
+        sceneRevision: this.authoritativeSession.snapshot().world.revision,
+        runtimeInteractionSequence: runtime.tick, operationId,
+      }));
+    } catch {
+      return this.result(false, false, "unauthorized_interaction");
+    }
   }
 
   advanceTicks(ticks: number, input: RuntimeInput = {}): PrologueSettlementSnapshot {
@@ -831,6 +873,220 @@ export class PrologueSettlementSession {
     );
   }
 
+  acceptGiftedRabbitCarcass(transactionId: string): SettlementActionResult {
+    const id = requiredId(transactionId, "gifted carcass transactionId");
+    const giftReceiptId = `gifted-carcass:${this.authoritativeSession.sessionId}:n02.rabbit.v0.1`;
+    const giftHash = GIFTED_RABBIT_RECEIPT_HASH;
+    const prior = this.authoritativeSession.snapshot().receiptIndex[giftReceiptId];
+    if (prior) return prior.domain === "wildlife" && prior.payloadHash === giftHash
+      ? this.result(true, true, "duplicate") : this.result(false, false, "transaction_conflict");
+    if (!this.inSettlement()) return this.result(false, false, "wrong_scene");
+    const authority = verifiedTradeManifest().stationAuthorities.find((candidate) => candidate.merchantIds.includes("settlement.butcher"));
+    const runtime = this.bridge.runtime.snapshot();
+    this.synchronizeCoordinatedSession();
+    if (!authority || runtime.sceneId !== authority.sceneId ||
+        Math.hypot(runtime.player.position.x - authority.interactionPointPx.x,
+          runtime.player.position.y - authority.interactionPointPx.y) > 16) {
+      return this.result(false, false, "unauthorized_interaction");
+    }
+    const stablePrefix = `gifted-carcass:${this.authoritativeSession.sessionId}:n02.rabbit.v0.1`;
+    const expectedLife = createGiftedRabbitLife({ playerSaveId: this.authoritativeSession.sessionId,
+      regionId: PROLOGUE_SETTLEMENT_AREA_ID, worldTick: this.authoritativeSession.snapshot().survival.worldTicks });
+    if (!this.transactionCoordinator) {
+      const registration = proposeWildlifeLifeRegistration(`${stablePrefix}:register`, expectedLife);
+      const registered = commitSessionProposal(this.authoritativeSession, registration);
+      if (!registered.committed) return this.result(false, false, "session_rejected");
+      const death = proposeWildlifeDamage(registered.session, { transactionId: createCrossSaveTransactionId("death", `${stablePrefix}:death`),
+        lifeInstanceId: expectedLife.lifeInstanceId, expectedLifeRevision: 0, damage: expectedLife.maxHp,
+        causeClass: GIFTED_RABBIT_DEATH_CAUSE_CLASS, worldTick: registered.session.snapshot().survival.worldTicks,
+        position: { sceneId: authority.sceneId, x: authority.interactionPointPx.x, y: authority.interactionPointPx.y } });
+      return this.commit({ transactionId: id, drafts: [...registration.drafts, ...death.drafts,
+        receiptDraft(`session.settlement.gifted-carcass.${id}`, giftReceiptId, "wildlife", giftHash)] });
+    }
+    try {
+      const currentLife = this.authoritativeSession.snapshot().lifeCorpseLedger.lives[expectedLife.lifeInstanceId];
+      if (!currentLife) {
+        const registered = this.transactionCoordinator.commitOrdinary(
+          proposeWildlifeLifeRegistration(`${stablePrefix}:register`, expectedLife));
+        if (!registered.committed) return this.result(false, false, "session_rejected");
+        this.installCoordinatedSession();
+      } else if (currentLife.entityId !== expectedLife.entityId || currentLife.regionSaveId !== expectedLife.regionSaveId ||
+          currentLife.spawnGeneration !== expectedLife.spawnGeneration || currentLife.spawnSequence !== expectedLife.spawnSequence) {
+        return this.result(false, false, "transaction_conflict");
+      }
+      const registeredLife = this.authoritativeSession.snapshot().lifeCorpseLedger.lives[expectedLife.lifeInstanceId]!;
+      if (registeredLife.state === "alive") {
+        this.transactionCoordinator.commitDeath({ transactionId: "materialized-by-coordinator",
+          lifeInstanceId: registeredLife.lifeInstanceId, expectedLifeRevision: registeredLife.lifeRevision,
+          damage: registeredLife.currentHp, causeClass: GIFTED_RABBIT_DEATH_CAUSE_CLASS,
+          worldTick: this.authoritativeSession.snapshot().survival.worldTicks,
+          position: { sceneId: authority.sceneId, x: authority.interactionPointPx.x, y: authority.interactionPointPx.y } });
+        this.installCoordinatedSession();
+      }
+      const marker = this.transactionCoordinator.commitOrdinary({ transactionId: id,
+        drafts: [receiptDraft(`session.settlement.gifted-carcass.${id}`, giftReceiptId, "wildlife", giftHash)] });
+      if (!marker.committed) return this.result(false, false, "session_rejected");
+      this.installCoordinatedSession();
+      return this.result(true, false, "committed");
+    } catch { return this.result(false, false, "session_rejected"); }
+  }
+
+  harvestGiftedMeat(operationId: string): SettlementActionResult {
+    const replay = this.semanticProcessingReplay("butcher_table", operationId, "harvest");
+    if (replay) return replay;
+    const corpse = Object.values(this.authoritativeSession.snapshot().lifeCorpseLedger.corpses).find((candidate) =>
+      candidate.entityId === GIFTED_RABBIT_ENTITY_ID && candidate.tissueSlots.some((slot) => slot.tissueSlotId === "meat" && slot.remainingQuantity > 0));
+    const slot = corpse?.tissueSlots.find((candidate) => candidate.tissueSlotId === "meat");
+    if (!corpse || !slot) return this.result(false, false, "prerequisite_missing");
+    return this.commitSemanticProcessingStep("butcher_table", operationId, (staged, interactionReceiptId) => {
+      const snapshot = staged.snapshot();
+      const action: WildlifeProcessingAction = { action: "harvest", transactionId: "materialized-by-session",
+        canonicalIdempotencyKey: "materialized-by-session", currentWorldTick: 0, interactionReceiptId,
+        corpseId: corpse.corpseId, tissueSlotId: slot.tissueSlotId, harvestSequence: 0,
+        expectedCorpseRevision: corpse.revision, expectedRemainingTissueQuantity: slot.remainingQuantity,
+        expectedInventoryRevision: snapshot.economy.inventoryRevision, playerSaveId: staged.sessionId,
+        stationOrToolId: "butcher_table" };
+      return proposeWildlifeProcessing(staged, action);
+    });
+  }
+
+  startCooking(operationId: string): SettlementActionResult {
+    const replay = this.semanticProcessingReplay("communal_kitchen", operationId, "reserve");
+    if (replay) return replay;
+    const state = this.authoritativeSession.snapshot();
+    const lot = state.economy.lots.find((candidate) => candidate.itemId === "food.raw_small_game_meat" &&
+      candidate.legalOwnerId === this.authoritativeSession.sessionId && !candidate.reserved && candidate.quantity > 0);
+    if (!lot?.wildlifeProvenance) return this.result(false, false, "prerequisite_missing");
+    return this.commitSemanticProcessingStep("communal_kitchen", operationId, (staged, interactionReceiptId) => {
+      const current = staged.snapshot();
+      const currentLot = current.economy.lots.find((candidate) => candidate.lotId === lot.lotId)!;
+      const action: WildlifeProcessingAction = { action: "reserve", transactionId: "materialized-by-session",
+        canonicalIdempotencyKey: "materialized-by-session", currentWorldTick: 0, interactionReceiptId,
+        expectedInventoryRevision: current.economy.inventoryRevision, playerSaveId: staged.sessionId,
+        stationId: "communal_kitchen", recipeId: "cook.game_meat.v0.1", startEventSequence: 0,
+        inputs: [{ lotId: currentLot.lotId, quantity: 1, expectedOwnershipRevision: currentLot.ownershipRevision,
+          expectedFreshnessRevision: currentLot.freshnessRevision,
+          expectedReservationRevision: currentLot.wildlifeProvenance!.reservationRevision }] };
+      return proposeWildlifeProcessing(staged, action);
+    });
+  }
+
+  workCooking(operationId: string): SettlementActionResult {
+    const replay = this.semanticProcessingReplay("communal_kitchen", operationId, "work");
+    if (replay) return replay;
+    const order = this.currentCookingOrder("reserved");
+    if (!order) return this.result(false, false, "prerequisite_missing");
+    return this.commitSemanticProcessingStep("communal_kitchen", operationId,
+      (staged, interactionReceiptId) => proposeWildlifeProcessingWork(staged, order.workOrderId, interactionReceiptId));
+  }
+
+  completeCooking(operationId: string): SettlementActionResult {
+    const replay = this.semanticProcessingReplay("communal_kitchen", operationId, "complete");
+    if (replay) return replay;
+    const order = this.currentCookingOrder("reserved");
+    if (!order) return this.result(false, false, "prerequisite_missing");
+    return this.commitSemanticProcessingStep("communal_kitchen", operationId, (staged, interactionReceiptId) => {
+      const current = staged.snapshot();
+      const currentOrder = current.economy.workOrders.find((candidate) => candidate.workOrderId === order.workOrderId) as WildlifeProcessingWorkOrder;
+      return proposeWildlifeProcessing(staged, { action: "complete", transactionId: "materialized-by-session",
+        canonicalIdempotencyKey: "materialized-by-session", currentWorldTick: 0, interactionReceiptId,
+        workOrderId: currentOrder.workOrderId, expectedWorkOrderRevision: currentOrder.revision,
+        expectedInventoryRevision: current.economy.inventoryRevision, energyEventId: null });
+    });
+  }
+
+  claimCooking(operationId: string): SettlementActionResult {
+    const replay = this.semanticProcessingReplay("communal_kitchen", operationId, "claim");
+    if (replay) return replay;
+    const order = this.currentCookingOrder("completed");
+    if (!order) return this.result(false, false, "prerequisite_missing");
+    return this.commitSemanticProcessingStep("communal_kitchen", operationId, (staged, interactionReceiptId) => {
+      const current = staged.snapshot();
+      const currentOrder = current.economy.workOrders.find((candidate) => candidate.workOrderId === order.workOrderId) as WildlifeProcessingWorkOrder;
+      return proposeWildlifeProcessing(staged, { action: "claim", transactionId: "materialized-by-session",
+        canonicalIdempotencyKey: "materialized-by-session", currentWorldTick: 0, interactionReceiptId,
+        workOrderId: currentOrder.workOrderId, expectedWorkOrderRevision: currentOrder.revision,
+        expectedInventoryRevision: current.economy.inventoryRevision, claimantPlayerSaveId: staged.sessionId });
+    });
+  }
+
+  consumeCooked(consumptionSequence: number): SettlementActionResult {
+    const prior = this.authoritativeSession.events().find((event) => event.type === "inventory_consumption_committed" &&
+      event.payload.action.playerSaveId === this.authoritativeSession.sessionId &&
+      event.payload.action.consumptionSequence === consumptionSequence);
+    if (prior?.type === "inventory_consumption_committed") {
+      const priorLot = this.authoritativeSession.snapshot().economy.lots.find((candidate) => candidate.lotId === prior.payload.action.lotId);
+      return prior.payload.action.quantity === 1 && priorLot?.itemId === "food.cooked_game_meat"
+        ? this.result(true, true, "duplicate") : this.result(false, false, "transaction_conflict");
+    }
+    const lot = this.authoritativeSession.snapshot().economy.lots.find((candidate) =>
+      candidate.itemId === "food.cooked_game_meat" && candidate.legalOwnerId === this.authoritativeSession.sessionId && candidate.quantity > 0);
+    if (!lot) return this.result(false, false, "prerequisite_missing");
+    try {
+      const request = { playerSaveId: this.authoritativeSession.sessionId, lotId: lot.lotId, quantity: 1, consumptionSequence };
+      if (!this.transactionCoordinator) return this.commit(proposeInventoryConsumption(this.authoritativeSession, request));
+      this.transactionCoordinator.commitConsumption(request); this.installCoordinatedSession();
+      return this.result(true, false, "committed");
+    } catch { return this.result(false, false, "session_rejected"); }
+  }
+
+  issueVerifiedSellQuote(request: Readonly<{ merchantId: string; lotId: string; quantity: number; operationId: string }>): SettlementVerifiedQuoteResult {
+    if (!this.inSettlement()) return { accepted: false, duplicate: false, reason: "wrong_scene" };
+    const fingerprint = JSON.stringify(request);
+    const prior = this.liveTradeOperations.get(request.operationId);
+    if (prior) return prior.fingerprint === fingerprint ? { accepted: true, duplicate: true, quote: prior.quote } :
+      { accepted: false, duplicate: false, reason: "transaction_conflict" };
+    const persisted = this.authoritativeSession.events().find((event) =>
+      event.type === "verified_trade_quote_issued" && event.payload.operationId === request.operationId);
+    if (persisted?.type === "verified_trade_quote_issued") {
+      const persistedRequest = JSON.stringify({ merchantId: persisted.payload.quote.merchantId,
+        lotId: persisted.payload.quote.lineItems[0]?.lotId ?? "", quantity: persisted.payload.quote.lineItems[0]?.quantity ?? 0,
+        operationId: persisted.payload.operationId });
+      return persistedRequest === fingerprint
+        ? { accepted: false, duplicate: false, reason: "quote_expired_after_reload" }
+        : { accepted: false, duplicate: false, reason: "transaction_conflict" };
+    }
+    const runtime = this.bridge.runtime.snapshot();
+    this.synchronizeCoordinatedSession();
+    const proposed = proposeVerifiedTradeQuote(this.authoritativeSession, {
+      playerSaveId: this.authoritativeSession.toSave().sessionId, merchantId: request.merchantId,
+      lotId: request.lotId, quantity: request.quantity,
+    }, { playerPositionPx: runtime.player.position, sceneRevision: this.authoritativeSession.snapshot().world.revision,
+      operationId: request.operationId });
+    if (!proposed.accepted) return { accepted: false, duplicate: false, reason: "quote_rejected" };
+    const committed = this.transactionCoordinator
+      ? this.transactionCoordinator.commitOrdinary(proposed.batch)
+      : commitSessionProposal(this.authoritativeSession, proposed.batch);
+    if (!committed.committed) return { accepted: false, duplicate: false, reason: "session_rejected" };
+    if (this.transactionCoordinator) this.installCoordinatedSession();
+    else { this.authoritativeSession = committed.session; this.rebuildBridge(); }
+    this.liveTradeQuotes.set(proposed.quote.quoteId, { quote: proposed.quote, issuedEventId: proposed.issuedEventId });
+    this.liveTradeOperations.set(request.operationId, { fingerprint, quote: proposed.quote });
+    return { accepted: true, duplicate: false, quote: proposed.quote };
+  }
+
+  confirmVerifiedSellQuote(quoteId: string): SettlementVerifiedSaleResult {
+    if (this.completedTradeQuoteIds.has(quoteId)) return { accepted: true, duplicate: true };
+    const remembered = this.liveTradeQuotes.get(quoteId);
+    if (!remembered) return { accepted: false, duplicate: false, reason: "quote_not_issued_in_this_session" };
+    const runtime = this.bridge.runtime.snapshot();
+    this.synchronizeCoordinatedSession();
+    if (this.transactionCoordinator) {
+      try { this.transactionCoordinator.commitSell(remembered.quote, remembered.issuedEventId,
+        { playerPositionPx: runtime.player.position, sceneRevision: this.authoritativeSession.snapshot().world.revision }); }
+      catch { return { accepted: false, duplicate: false, reason: "session_rejected" }; }
+      this.installCoordinatedSession(); this.liveTradeQuotes.delete(quoteId); this.completedTradeQuoteIds.add(quoteId);
+      return { accepted: true, duplicate: false };
+    }
+    const committed = commitSessionProposal(this.authoritativeSession, proposeVerifiedTradeSale(this.authoritativeSession,
+      remembered.quote, remembered.issuedEventId, { playerPositionPx: runtime.player.position,
+        sceneRevision: this.authoritativeSession.snapshot().world.revision }));
+    if (!committed.committed) return { accepted: false,
+      duplicate: committed.reason === "duplicate_event" || committed.reason === "duplicate_receipt", reason: "session_rejected" };
+    this.authoritativeSession = committed.session; this.rebuildBridge(); this.liveTradeQuotes.delete(quoteId); this.completedTradeQuoteIds.add(quoteId);
+    return { accepted: true, duplicate: false };
+  }
+
   setCheckpoint(transactionId: string, checkpointId: string): SettlementActionResult {
     const id = requiredId(transactionId, "transactionId");
     const normalizedCheckpointId = requiredId(checkpointId, "checkpointId");
@@ -1002,12 +1258,81 @@ export class PrologueSettlementSession {
     });
   }
 
+  private semanticProcessingReplay(stationId: string, operationId: string,
+    expectedAction: "harvest" | "reserve" | "work" | "complete" | "claim"): SettlementActionResult | null {
+    const id = requiredId(operationId, "processing operationId");
+    const interactionReceiptId = `wildlife-processing-interaction:${stationId}:${this.authoritativeSession.snapshot().world.revision}:${id}`;
+    const useReceipt = this.authoritativeSession.snapshot().receiptIndex[`wildlife-processing-interaction-use:${interactionReceiptId}`];
+    if (!useReceipt) return null;
+    const event = this.authoritativeSession.events().find((candidate) => candidate.eventId === useReceipt.recordedByEventId);
+    const action = event?.type === "wildlife_processing_work_advanced" ? "work" :
+      event?.type === "wildlife_processing_committed" ? event.payload.action.action : null;
+    return action === expectedAction ? this.result(true, true, "duplicate") :
+      this.result(false, false, "transaction_conflict");
+  }
+
+  private currentCookingOrder(status: "reserved" | "completed"): WildlifeProcessingWorkOrder | null {
+    return (this.authoritativeSession.snapshot().economy.workOrders.find((candidate) =>
+      candidate.recipeId === "cook.game_meat.v0.1" && candidate.status === status &&
+      (candidate as WildlifeProcessingWorkOrder).initiatingPlayerSaveId === this.authoritativeSession.sessionId) as WildlifeProcessingWorkOrder | undefined) ?? null;
+  }
+
+  private commitSemanticProcessingStep(stationId: string, operationId: string,
+    build: (staged: GameSession, interactionReceiptId: string) => SessionProposalBatch): SettlementActionResult {
+    if (!this.inSettlement()) return this.result(false, false, "wrong_scene");
+    const id = requiredId(operationId, "processing operationId");
+    const runtime = this.bridge.runtime.snapshot();
+    this.synchronizeCoordinatedSession();
+    try {
+      const receiptId = `wildlife-processing-interaction:${stationId}:${this.authoritativeSession.snapshot().world.revision}:${id}`;
+      let staged = this.authoritativeSession;
+      if (!staged.snapshot().receiptIndex[receiptId]) {
+        const interaction = proposeWildlifeProcessingInteraction(staged, stationId, {
+          playerPositionPx: runtime.player.position, sceneRevision: staged.snapshot().world.revision,
+          runtimeInteractionSequence: runtime.tick, operationId: id });
+        if (!this.transactionCoordinator) {
+          const action = build(commitSessionProposal(staged, interaction).session, receiptId);
+          return this.commit({ transactionId: `semantic-processing:${id}`, drafts: [...interaction.drafts, ...action.drafts] });
+        }
+        const committed = this.transactionCoordinator.commitOrdinary(interaction);
+        if (!committed.committed) return this.result(false, false, "unauthorized_interaction");
+        this.installCoordinatedSession(); staged = this.authoritativeSession;
+      }
+      const action = build(staged, receiptId);
+      if (!this.transactionCoordinator) return this.commit(action);
+      const draft = action.drafts[0];
+      if (draft?.type === "wildlife_processing_committed") {
+        this.transactionCoordinator.commitProcessing((draft.payload as { action: WildlifeProcessingAction }).action);
+      } else if (draft?.type === "wildlife_processing_work_advanced") {
+        const payload = draft.payload as { workOrderId: string; interactionReceiptId: string };
+        this.transactionCoordinator.commitWork(payload.workOrderId, payload.interactionReceiptId);
+      } else throw new Error("unsupported coordinated processing proposal");
+      this.installCoordinatedSession();
+      return this.result(true, false, "committed");
+    } catch { return this.result(false, false, "unauthorized_interaction"); }
+  }
+
   private commit(batch: SessionProposalBatch): SettlementActionResult {
-    const commit = commitSessionProposal(this.authoritativeSession, batch);
+    this.synchronizeCoordinatedSession();
+    const commit = this.transactionCoordinator
+      ? this.transactionCoordinator.commitOrdinary(batch)
+      : commitSessionProposal(this.authoritativeSession, batch);
     if (!commit.committed) return this.result(false, false, "session_rejected");
-    this.authoritativeSession = commit.session;
-    this.rebuildBridge();
+    if (this.transactionCoordinator) this.installCoordinatedSession();
+    else { this.authoritativeSession = commit.session; this.rebuildBridge(); }
     return this.result(true, false, "committed");
+  }
+
+  private synchronizeCoordinatedSession(): void {
+    if (!this.transactionCoordinator) return;
+    this.transactionCoordinator.synchronizeOrdinarySession(this.authoritativeSession);
+    this.authoritativeSession = this.transactionCoordinator.readSession();
+  }
+
+  private installCoordinatedSession(): void {
+    if (!this.transactionCoordinator) throw new Error("cross-save coordinator is unavailable");
+    this.authoritativeSession = this.transactionCoordinator.readSession();
+    this.rebuildBridge();
   }
 
   private dialogueResult(

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { createCrossSaveReceiptId } from "../persistence/cross-save-wal";
 import {
   createWildlifeLifeRecord,
   ZERO_WILDLIFE_REWARD_DELTA,
@@ -96,9 +97,9 @@ describe("GameSession wildlife mortality port", () => {
     expect(first).toMatchObject({ committed: true, reason: "committed" });
     expect(first.receipt).toMatchObject({ currentHp: 0, deathEventId: expect.any(String), corpseId: expect.any(String) });
     expect(first.receipt?.rewardDelta).toEqual(ZERO_WILDLIFE_REWARD_DELTA);
-    expect(first.session.snapshot().receiptIndex["wildlife:death.rabbit.1"]).toMatchObject({
+    expect(first.session.snapshot().receiptIndex[createCrossSaveReceiptId("death.rabbit.1", "death")]).toMatchObject({
       domain: "wildlife",
-      receiptId: "wildlife:death.rabbit.1",
+      receiptId: createCrossSaveReceiptId("death.rabbit.1", "death"),
     });
     const ledger = first.session.lifeCorpseLedgerSnapshot();
     expect(Object.keys(ledger.corpses)).toHaveLength(1);

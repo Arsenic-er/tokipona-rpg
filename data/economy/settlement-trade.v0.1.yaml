@@ -1,5 +1,6 @@
 schema_version: "economy.settlement-trade.v0.1"
 content_version: "prologue.1"
+price_table_version: "settlement.prologue.v0.1"
 status: "graybox"
 runtime_scope: "demo_only_player_sells_to_merchant"
 authoritative_item_catalog: "wildlife-products.v0.1.yaml"
@@ -31,7 +32,8 @@ flow:
 price:
   currency: coin
   rounding: "floor_each_demand_tier_after_multiplying_the_line_quantity"
-  formula: "floor(base * freshness * quality * full_units) + floor(base * freshness * quality * 0.25 * excess_units)"
+  formula: "floor(base * freshness * quality * demand * full_units) + floor(base * freshness * quality * demand * 0.25 * excess_units)"
+  demand_multiplier: {current: 1.0}
   freshness_multiplier:
     fresh: 1.0
     aging: 0.75

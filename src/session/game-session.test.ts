@@ -414,6 +414,12 @@ describe("GameSession", () => {
         equipped: false,
         ownershipRevision: 0,
         freshnessRevision: 0,
+        wildlifeProvenance: {
+          lifeInstanceId: "life.fixture.meat", deathEventId: "death.fixture.meat", harvestEventId: "harvest.fixture.meat",
+          parentLotIds: [], transformEventId: null, matterOrigin: "natural" as const, freshnessCreatedTick: 0,
+          preservationProfileId: "raw_meat_temperate", lastDecayEvalTick: 0, remainingFreshnessSeconds: 3600,
+          reservationRevision: 0, reservedByWorkOrderId: null,
+        },
       }],
       merchantStates: [],
     };

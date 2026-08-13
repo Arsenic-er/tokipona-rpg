@@ -33,7 +33,7 @@
     }
   },
   "scenes": {
-    "sourceDigest": "sha256:7bc2c1c258007cc738ef1cae1a5b0d0eeac54209fd79b07fe1e6c84e29002a23",
+    "sourceDigest": "sha256:4acb5cdfc246b3832a56bb6229a4a32eb18305cfc590bc3d37c009e6d25ff4d4",
     "byId": {
       "scene.valley.arrival_shelf": {
         "sceneId": "scene.valley.arrival_shelf",
@@ -1948,6 +1948,18 @@
             "interactionPointTiles": null
           },
           {
+            "id": "settlement.npc.butcher",
+            "kind": "npc",
+            "material": "living_noncombatant",
+            "interactionPointTiles": null
+          },
+          {
+            "id": "settlement.npc.tanner",
+            "kind": "npc",
+            "material": "living_noncombatant",
+            "interactionPointTiles": null
+          },
+          {
             "id": "settlement.public_well",
             "kind": "public_relief",
             "material": "stone_and_water",
@@ -1957,7 +1969,46 @@
             "id": "settlement.communal_kitchen",
             "kind": "public_relief",
             "material": "wood_and_food",
-            "interactionPointTiles": null
+            "interactionPointTiles": [
+              10,
+              28
+            ]
+          },
+          {
+            "id": "settlement.butcher_table",
+            "kind": "processing_station",
+            "material": "wood_and_iron",
+            "interactionPointTiles": [
+              12,
+              28
+            ]
+          },
+          {
+            "id": "settlement.field_knife_loan",
+            "kind": "public_tool_loan",
+            "material": "wood_and_iron",
+            "interactionPointTiles": [
+              14,
+              28
+            ]
+          },
+          {
+            "id": "settlement.drying_rack",
+            "kind": "processing_station",
+            "material": "wood_and_rope",
+            "interactionPointTiles": [
+              18,
+              28
+            ]
+          },
+          {
+            "id": "settlement.tannery",
+            "kind": "processing_station",
+            "material": "wood_stone_and_water",
+            "interactionPointTiles": [
+              22,
+              28
+            ]
           },
           {
             "id": "settlement.meditation_court",
@@ -1981,7 +2032,28 @@
             "id": "settlement.supply_stall",
             "kind": "trade_counter",
             "material": "wood",
-            "interactionPointTiles": null
+            "interactionPointTiles": [
+              26,
+              28
+            ]
+          },
+          {
+            "id": "settlement.butcher_counter",
+            "kind": "trade_counter",
+            "material": "wood_and_iron",
+            "interactionPointTiles": [
+              30,
+              28
+            ]
+          },
+          {
+            "id": "settlement.tanner_counter",
+            "kind": "trade_counter",
+            "material": "wood_and_leather",
+            "interactionPointTiles": [
+              34,
+              28
+            ]
           }
         ],
         "interactions": [
@@ -2016,6 +2088,26 @@
             "taskId": null
           },
           {
+            "id": "settlement.talk_butcher",
+            "targetId": "settlement.npc.butcher",
+            "verb": "talk",
+            "toolOrMagicRequired": false,
+            "optionalWordId": null,
+            "npcId": "settlement.npc.butcher",
+            "facilityId": null,
+            "taskId": null
+          },
+          {
+            "id": "settlement.talk_tanner",
+            "targetId": "settlement.npc.tanner",
+            "verb": "talk",
+            "toolOrMagicRequired": false,
+            "optionalWordId": null,
+            "npcId": "settlement.npc.tanner",
+            "facilityId": null,
+            "taskId": null
+          },
+          {
             "id": "settlement.draw_public_water",
             "targetId": "settlement.public_well",
             "verb": "drink_or_fill",
@@ -2033,6 +2125,56 @@
             "optionalWordId": null,
             "npcId": null,
             "facilityId": "settlement.facility.communal_kitchen",
+            "taskId": null
+          },
+          {
+            "id": "settlement.prepare_game_meat",
+            "targetId": "settlement.communal_kitchen",
+            "verb": "process_food",
+            "toolOrMagicRequired": false,
+            "optionalWordId": null,
+            "npcId": null,
+            "facilityId": "settlement.facility.communal_kitchen",
+            "taskId": null
+          },
+          {
+            "id": "settlement.field_dress_at_butcher",
+            "targetId": "settlement.butcher_table",
+            "verb": "field_dress",
+            "toolOrMagicRequired": false,
+            "optionalWordId": null,
+            "npcId": null,
+            "facilityId": "settlement.facility.butcher_table",
+            "taskId": null
+          },
+          {
+            "id": "settlement.borrow_field_knife_for_field_dress",
+            "targetId": "settlement.field_knife_loan",
+            "verb": "borrow_and_field_dress",
+            "toolOrMagicRequired": false,
+            "optionalWordId": null,
+            "npcId": null,
+            "facilityId": "settlement.facility.field_knife_loan",
+            "taskId": null
+          },
+          {
+            "id": "settlement.use_drying_rack",
+            "targetId": "settlement.drying_rack",
+            "verb": "process_food",
+            "toolOrMagicRequired": false,
+            "optionalWordId": null,
+            "npcId": null,
+            "facilityId": "settlement.facility.drying_rack",
+            "taskId": null
+          },
+          {
+            "id": "settlement.use_tannery",
+            "targetId": "settlement.tannery",
+            "verb": "tan_hide",
+            "toolOrMagicRequired": false,
+            "optionalWordId": null,
+            "npcId": null,
+            "facilityId": "settlement.facility.tannery",
             "taskId": null
           },
           {
@@ -2094,6 +2236,26 @@
             "npcId": "settlement.npc.supply_trader",
             "facilityId": "settlement.facility.supply_stall",
             "taskId": null
+          },
+          {
+            "id": "settlement.open_butcher_trade",
+            "targetId": "settlement.butcher_counter",
+            "verb": "trade",
+            "toolOrMagicRequired": false,
+            "optionalWordId": null,
+            "npcId": "settlement.npc.butcher",
+            "facilityId": "settlement.facility.butcher_counter",
+            "taskId": null
+          },
+          {
+            "id": "settlement.open_tanner_trade",
+            "targetId": "settlement.tanner_counter",
+            "verb": "trade",
+            "toolOrMagicRequired": false,
+            "optionalWordId": null,
+            "npcId": "settlement.npc.tanner",
+            "facilityId": "settlement.facility.tanner_counter",
+            "taskId": null
           }
         ],
         "npcs": [
@@ -2139,6 +2301,32 @@
               "settlement.talk_supply_trader",
               "settlement.open_supply_trade"
             ]
+          },
+          {
+            "id": "settlement.npc.butcher",
+            "professionId": "settlement.butcher",
+            "professionLabelZh": "屠户",
+            "functions": [
+              "trade_entry",
+              "meat_processing_explanation"
+            ],
+            "interactionIds": [
+              "settlement.talk_butcher",
+              "settlement.open_butcher_trade"
+            ]
+          },
+          {
+            "id": "settlement.npc.tanner",
+            "professionId": "settlement.tanner",
+            "professionLabelZh": "制革匠",
+            "functions": [
+              "trade_entry",
+              "leather_processing_explanation"
+            ],
+            "interactionIds": [
+              "settlement.talk_tanner",
+              "settlement.open_tanner_trade"
+            ]
           }
         ],
         "facilities": [
@@ -2157,10 +2345,51 @@
             "kind": "communal_plant_meal",
             "targetId": "settlement.communal_kitchen",
             "interactionIds": [
-              "settlement.take_plant_meal"
+              "settlement.take_plant_meal",
+              "settlement.prepare_game_meat"
             ],
             "publicRelief": true,
             "economyEligible": false
+          },
+          {
+            "id": "settlement.facility.butcher_table",
+            "kind": "butcher_table",
+            "targetId": "settlement.butcher_table",
+            "interactionIds": [
+              "settlement.field_dress_at_butcher"
+            ],
+            "publicRelief": false,
+            "economyEligible": true
+          },
+          {
+            "id": "settlement.facility.field_knife_loan",
+            "kind": "field_knife_public_loan",
+            "targetId": "settlement.field_knife_loan",
+            "interactionIds": [
+              "settlement.borrow_field_knife_for_field_dress"
+            ],
+            "publicRelief": true,
+            "economyEligible": false
+          },
+          {
+            "id": "settlement.facility.drying_rack",
+            "kind": "drying_rack",
+            "targetId": "settlement.drying_rack",
+            "interactionIds": [
+              "settlement.use_drying_rack"
+            ],
+            "publicRelief": false,
+            "economyEligible": true
+          },
+          {
+            "id": "settlement.facility.tannery",
+            "kind": "settlement_tannery",
+            "targetId": "settlement.tannery",
+            "interactionIds": [
+              "settlement.use_tannery"
+            ],
+            "publicRelief": false,
+            "economyEligible": true
           },
           {
             "id": "settlement.facility.meditation_court",
@@ -2189,6 +2418,26 @@
             "targetId": "settlement.supply_stall",
             "interactionIds": [
               "settlement.open_supply_trade"
+            ],
+            "publicRelief": false,
+            "economyEligible": true
+          },
+          {
+            "id": "settlement.facility.butcher_counter",
+            "kind": "trade_entry",
+            "targetId": "settlement.butcher_counter",
+            "interactionIds": [
+              "settlement.open_butcher_trade"
+            ],
+            "publicRelief": false,
+            "economyEligible": true
+          },
+          {
+            "id": "settlement.facility.tanner_counter",
+            "kind": "trade_entry",
+            "targetId": "settlement.tanner_counter",
+            "interactionIds": [
+              "settlement.open_tanner_trade"
             ],
             "publicRelief": false,
             "economyEligible": true
@@ -2241,6 +2490,24 @@
             "authoritativeEconomySourcePath": "data/economy/settlement-trade.v0.1.yaml",
             "merchantIds": [
               "settlement.grocer"
+            ]
+          },
+          {
+            "id": "settlement.trade.butcher_counter",
+            "npcId": "settlement.npc.butcher",
+            "interactionId": "settlement.open_butcher_trade",
+            "authoritativeEconomySourcePath": "data/economy/settlement-trade.v0.1.yaml",
+            "merchantIds": [
+              "settlement.butcher"
+            ]
+          },
+          {
+            "id": "settlement.trade.tanner_counter",
+            "npcId": "settlement.npc.tanner",
+            "interactionId": "settlement.open_tanner_trade",
+            "authoritativeEconomySourcePath": "data/economy/settlement-trade.v0.1.yaml",
+            "merchantIds": [
+              "settlement.tanner"
             ]
           }
         ],
@@ -3978,5 +4245,939 @@
         "height": 4
       }
     }
+  },
+  "wildlifeProcessing": {
+    "sourceDigest": "sha256:e5d14687150feda2103000f7a43ca3beeab72354a7191a4e1aa0888199b7cc6c",
+    "sourcePath": "data/economy/wildlife-products.v0.1.yaml",
+    "contractRevision": "chapter-01.prologue.1",
+    "economyId": "valley_wildlife_products",
+    "clockId": "active_world_simulation_tick",
+    "workUnitActiveSeconds": 60,
+    "juvenileHarvestOutputs": 0,
+    "items": {
+      "carcass.rabbit": {
+        "itemId": "carcass.rabbit",
+        "category": "corpse",
+        "preservationProfileId": null
+      },
+      "carcass.fox": {
+        "itemId": "carcass.fox",
+        "category": "corpse",
+        "preservationProfileId": null
+      },
+      "carcass.bat": {
+        "itemId": "carcass.bat",
+        "category": "corpse",
+        "preservationProfileId": null
+      },
+      "carcass.frog": {
+        "itemId": "carcass.frog",
+        "category": "corpse",
+        "preservationProfileId": null
+      },
+      "food.raw_small_game_meat": {
+        "itemId": "food.raw_small_game_meat",
+        "category": "raw_meat",
+        "preservationProfileId": "raw_meat_temperate"
+      },
+      "food.raw_predator_meat": {
+        "itemId": "food.raw_predator_meat",
+        "category": "raw_meat",
+        "preservationProfileId": "raw_meat_temperate"
+      },
+      "food.cooked_game_meat": {
+        "itemId": "food.cooked_game_meat",
+        "category": "cooked_meat",
+        "preservationProfileId": "cooked_meat_temperate"
+      },
+      "food.dried_game_meat": {
+        "itemId": "food.dried_game_meat",
+        "category": "preserved_meat",
+        "preservationProfileId": "dried_meat_temperate"
+      },
+      "material.raw_small_hide": {
+        "itemId": "material.raw_small_hide",
+        "category": "raw_hide",
+        "preservationProfileId": "raw_hide_temperate"
+      },
+      "material.raw_medium_pelt": {
+        "itemId": "material.raw_medium_pelt",
+        "category": "raw_hide",
+        "preservationProfileId": "raw_hide_temperate"
+      },
+      "material.cured_small_leather": {
+        "itemId": "material.cured_small_leather",
+        "category": "leather",
+        "preservationProfileId": "cured_leather"
+      },
+      "material.cured_medium_leather": {
+        "itemId": "material.cured_medium_leather",
+        "category": "leather",
+        "preservationProfileId": "cured_leather"
+      },
+      "material.salt": {
+        "itemId": "material.salt",
+        "category": "tannin_or_salt",
+        "preservationProfileId": null
+      }
+    },
+    "harvestProfiles": {
+      "harvest.rabbit.v0.1": {
+        "profileId": "harvest.rabbit.v0.1",
+        "species": "rabbit",
+        "adultFullYield": [
+          {
+            "tissueSlotId": "meat",
+            "itemId": "food.raw_small_game_meat",
+            "quantity": 2
+          },
+          {
+            "tissueSlotId": "hide",
+            "itemId": "material.raw_small_hide",
+            "quantity": 1
+          }
+        ]
+      },
+      "harvest.fox.v0.1": {
+        "profileId": "harvest.fox.v0.1",
+        "species": "fox",
+        "adultFullYield": [
+          {
+            "tissueSlotId": "meat",
+            "itemId": "food.raw_predator_meat",
+            "quantity": 1
+          },
+          {
+            "tissueSlotId": "hide",
+            "itemId": "material.raw_medium_pelt",
+            "quantity": 1
+          }
+        ]
+      },
+      "harvest.bat.v0.1": {
+        "profileId": "harvest.bat.v0.1",
+        "species": "cave_bat",
+        "adultFullYield": [
+          {
+            "tissueSlotId": "meat",
+            "itemId": "food.raw_small_game_meat",
+            "quantity": 1
+          }
+        ]
+      },
+      "harvest.frog.v0.1": {
+        "profileId": "harvest.frog.v0.1",
+        "species": "mud_frog",
+        "adultFullYield": [
+          {
+            "tissueSlotId": "meat",
+            "itemId": "food.raw_small_game_meat",
+            "quantity": 1
+          }
+        ]
+      }
+    },
+    "damageQuality": {
+      "clean_tool": {
+        "meatYieldMultiplier": 1,
+        "hideQualityMultiplier": 1
+      },
+      "no_tool": {
+        "meatYieldMultiplier": 0.5,
+        "hideQualityMultiplier": 0
+      },
+      "fire_or_explosion": {
+        "meatYieldMultiplier": 0.5,
+        "hideQualityMultiplier": 0.25
+      },
+      "crushing_impact": {
+        "meatYieldMultiplier": 0.75,
+        "hideQualityMultiplier": 0.5
+      },
+      "other_physical": {
+        "meatYieldMultiplier": 0.5,
+        "hideQualityMultiplier": 0
+      }
+    },
+    "decayProfiles": {
+      "raw_meat_temperate": {
+        "profileId": "raw_meat_temperate",
+        "stable": false,
+        "thresholdsSeconds": [
+          {
+            "state": "fresh",
+            "untilSeconds": 21600
+          },
+          {
+            "state": "aging",
+            "untilSeconds": 43200
+          },
+          {
+            "state": "spoiled",
+            "untilSeconds": 86400
+          },
+          {
+            "state": "decomposed",
+            "untilSeconds": null
+          }
+        ]
+      },
+      "cooked_meat_temperate": {
+        "profileId": "cooked_meat_temperate",
+        "stable": false,
+        "thresholdsSeconds": [
+          {
+            "state": "fresh",
+            "untilSeconds": 64800
+          },
+          {
+            "state": "aging",
+            "untilSeconds": 129600
+          },
+          {
+            "state": "spoiled",
+            "untilSeconds": 259200
+          },
+          {
+            "state": "decomposed",
+            "untilSeconds": null
+          }
+        ]
+      },
+      "dried_meat_temperate": {
+        "profileId": "dried_meat_temperate",
+        "stable": false,
+        "thresholdsSeconds": [
+          {
+            "state": "fresh",
+            "untilSeconds": 259200
+          },
+          {
+            "state": "aging",
+            "untilSeconds": 518400
+          },
+          {
+            "state": "spoiled",
+            "untilSeconds": 1036800
+          },
+          {
+            "state": "decomposed",
+            "untilSeconds": null
+          }
+        ]
+      },
+      "raw_hide_temperate": {
+        "profileId": "raw_hide_temperate",
+        "stable": false,
+        "thresholdsSeconds": [
+          {
+            "state": "raw",
+            "untilSeconds": 86400
+          },
+          {
+            "state": "slipping",
+            "untilSeconds": 172800
+          },
+          {
+            "state": "rotten",
+            "untilSeconds": null
+          }
+        ]
+      },
+      "cured_leather": {
+        "profileId": "cured_leather",
+        "stable": true,
+        "thresholdsSeconds": [
+          {
+            "state": "stable",
+            "untilSeconds": null
+          }
+        ]
+      }
+    },
+    "processingRecipes": {
+      "process.field_dress.v0.1": {
+        "recipeId": "process.field_dress.v0.1",
+        "recipeVersion": "chapter-01.prologue.1",
+        "inputs": [],
+        "outputs": [],
+        "rejectInputStates": [],
+        "requiredDistinctEligibleEvents": 0,
+        "eligibleEventFilter": [],
+        "interactionWorkUnits": 4,
+        "stationStorageProfile": "unspecified_station",
+        "manifestedHeatAllowedAsEnergyOnly": false,
+        "stationOrToolAny": [
+          "butcher_table",
+          "field_knife"
+        ],
+        "energyRequirement": null,
+        "completionRule": "immediate_after_active_work",
+        "outputFreshnessFormula": null,
+        "outputQualityFormula": "minimum_input_quality_times_recipe_quality_multiplier",
+        "genericProcessOutputPathForbidden": true,
+        "transactionKind": "harvest"
+      },
+      "cook.game_meat.v0.1": {
+        "recipeId": "cook.game_meat.v0.1",
+        "recipeVersion": "chapter-01.prologue.1",
+        "inputs": [
+          {
+            "itemId": null,
+            "category": "raw_meat",
+            "quantity": 1
+          }
+        ],
+        "outputs": [
+          {
+            "itemId": "food.cooked_game_meat",
+            "quantity": 1
+          }
+        ],
+        "rejectInputStates": [
+          "spoiled",
+          "decomposed"
+        ],
+        "requiredDistinctEligibleEvents": 0,
+        "eligibleEventFilter": [],
+        "interactionWorkUnits": 3,
+        "stationStorageProfile": "communal_kitchen",
+        "manifestedHeatAllowedAsEnergyOnly": true,
+        "stationOrToolAny": [
+          "communal_kitchen"
+        ],
+        "energyRequirement": {
+          "kind": "heat_work",
+          "eu": 8
+        },
+        "completionRule": "immediate_after_active_work",
+        "outputFreshnessFormula": "min(recipe_freshness_cap, weighted_input_remaining_freshness)",
+        "outputQualityFormula": "minimum_input_quality_times_recipe_quality_multiplier",
+        "genericProcessOutputPathForbidden": false,
+        "transactionKind": "process_workorder"
+      },
+      "dry.game_meat.v0.1": {
+        "recipeId": "dry.game_meat.v0.1",
+        "recipeVersion": "chapter-01.prologue.1",
+        "inputs": [
+          {
+            "itemId": null,
+            "category": "raw_meat",
+            "quantity": 1
+          },
+          {
+            "itemId": "material.salt",
+            "category": null,
+            "quantity": 1
+          }
+        ],
+        "outputs": [
+          {
+            "itemId": "food.dried_game_meat",
+            "quantity": 1
+          }
+        ],
+        "rejectInputStates": [
+          "spoiled",
+          "decomposed"
+        ],
+        "requiredDistinctEligibleEvents": 2,
+        "eligibleEventFilter": [
+          "mainline_world_predicate_commit",
+          "non_replayed_side_task_commit",
+          "region_transition_commit"
+        ],
+        "interactionWorkUnits": 6,
+        "stationStorageProfile": "drying_rack",
+        "manifestedHeatAllowedAsEnergyOnly": false,
+        "stationOrToolAny": [
+          "drying_rack"
+        ],
+        "energyRequirement": null,
+        "completionRule": "after_two_unrelated_world_events",
+        "outputFreshnessFormula": null,
+        "outputQualityFormula": "minimum_input_quality_times_recipe_quality_multiplier",
+        "genericProcessOutputPathForbidden": false,
+        "transactionKind": "process_workorder"
+      },
+      "tan.small_hide.v0.1": {
+        "recipeId": "tan.small_hide.v0.1",
+        "recipeVersion": "chapter-01.prologue.1",
+        "inputs": [
+          {
+            "itemId": "material.raw_small_hide",
+            "category": null,
+            "quantity": 1
+          },
+          {
+            "itemId": null,
+            "category": "tannin_or_salt",
+            "quantity": 1
+          }
+        ],
+        "outputs": [
+          {
+            "itemId": "material.cured_small_leather",
+            "quantity": 1
+          }
+        ],
+        "rejectInputStates": [
+          "rotten"
+        ],
+        "requiredDistinctEligibleEvents": 1,
+        "eligibleEventFilter": [
+          "mainline_world_predicate_commit",
+          "non_replayed_side_task_commit",
+          "region_transition_commit"
+        ],
+        "interactionWorkUnits": 5,
+        "stationStorageProfile": "settlement_tannery",
+        "manifestedHeatAllowedAsEnergyOnly": false,
+        "stationOrToolAny": [
+          "settlement_tannery"
+        ],
+        "energyRequirement": null,
+        "completionRule": "after_one_unrelated_world_event",
+        "outputFreshnessFormula": null,
+        "outputQualityFormula": "minimum_input_quality_times_recipe_quality_multiplier",
+        "genericProcessOutputPathForbidden": false,
+        "transactionKind": "process_workorder"
+      },
+      "tan.medium_pelt.v0.1": {
+        "recipeId": "tan.medium_pelt.v0.1",
+        "recipeVersion": "chapter-01.prologue.1",
+        "inputs": [
+          {
+            "itemId": "material.raw_medium_pelt",
+            "category": null,
+            "quantity": 1
+          },
+          {
+            "itemId": null,
+            "category": "tannin_or_salt",
+            "quantity": 1
+          }
+        ],
+        "outputs": [
+          {
+            "itemId": "material.cured_medium_leather",
+            "quantity": 1
+          }
+        ],
+        "rejectInputStates": [
+          "rotten"
+        ],
+        "requiredDistinctEligibleEvents": 1,
+        "eligibleEventFilter": [
+          "mainline_world_predicate_commit",
+          "non_replayed_side_task_commit",
+          "region_transition_commit"
+        ],
+        "interactionWorkUnits": 5,
+        "stationStorageProfile": "settlement_tannery",
+        "manifestedHeatAllowedAsEnergyOnly": false,
+        "stationOrToolAny": [
+          "settlement_tannery"
+        ],
+        "energyRequirement": null,
+        "completionRule": "after_one_unrelated_world_event",
+        "outputFreshnessFormula": null,
+        "outputQualityFormula": "minimum_input_quality_times_recipe_quality_multiplier",
+        "genericProcessOutputPathForbidden": false,
+        "transactionKind": "process_workorder"
+      }
+    },
+    "stationBindings": {
+      "butcher_table": {
+        "stationId": "butcher_table",
+        "sceneId": "scene.valley.settlement",
+        "targetId": "settlement.butcher_table",
+        "interactionId": "settlement.field_dress_at_butcher",
+        "interactionPointPx": {
+          "x": 200,
+          "y": 456
+        },
+        "energyProvision": null
+      },
+      "field_knife": {
+        "stationId": "field_knife",
+        "sceneId": "scene.valley.settlement",
+        "targetId": "settlement.field_knife_loan",
+        "interactionId": "settlement.borrow_field_knife_for_field_dress",
+        "interactionPointPx": {
+          "x": 232,
+          "y": 456
+        },
+        "energyProvision": null
+      },
+      "communal_kitchen": {
+        "stationId": "communal_kitchen",
+        "sceneId": "scene.valley.settlement",
+        "targetId": "settlement.communal_kitchen",
+        "interactionId": "settlement.prepare_game_meat",
+        "interactionPointPx": {
+          "x": 168,
+          "y": 456
+        },
+        "energyProvision": {
+          "kind": "heat_work",
+          "euPerWork": 8,
+          "source": "public_hearth"
+        }
+      },
+      "drying_rack": {
+        "stationId": "drying_rack",
+        "sceneId": "scene.valley.settlement",
+        "targetId": "settlement.drying_rack",
+        "interactionId": "settlement.use_drying_rack",
+        "interactionPointPx": {
+          "x": 296,
+          "y": 456
+        },
+        "energyProvision": null
+      },
+      "settlement_tannery": {
+        "stationId": "settlement_tannery",
+        "sceneId": "scene.valley.settlement",
+        "targetId": "settlement.tannery",
+        "interactionId": "settlement.use_tannery",
+        "interactionPointPx": {
+          "x": 360,
+          "y": 456
+        },
+        "energyProvision": null
+      }
+    },
+    "wal": {
+      "sourcePath": "data/persistence/cross-save-wal.v0.1.yaml",
+      "sourceDigest": "sha256:e6a85e881848ff72a99688539aea66c1489c624e813ba56336643773610b41d9",
+      "coordinatorId": "cross_save_wal.v0.1",
+      "transactionIdFormula": "sha256(coordinator_id, transaction_kind, canonical_idempotency_key)",
+      "outputIdFormula": "sha256(transaction_id, output_kind, output_index)",
+      "receiptIdFormula": "sha256(transaction_id, receipt_kind)",
+      "registeredKinds": [
+        "death",
+        "harvest",
+        "consume",
+        "workorder_start",
+        "workorder_work",
+        "workorder_complete",
+        "workorder_claim",
+        "workorder_cancel",
+        "sell",
+        "survival_grant",
+        "survival_floor_release",
+        "wildlife_replenish"
+      ],
+      "registeredTransactions": {
+        "death": {
+          "kind": "death",
+          "participants": [
+            "valley_ecology_save",
+            "valley_resource_save"
+          ]
+        },
+        "harvest": {
+          "kind": "harvest",
+          "participants": [
+            "world_clock_save",
+            "player_survival_save",
+            "valley_resource_save",
+            "player_inventory_save",
+            "economy_ledger_save"
+          ]
+        },
+        "consume": {
+          "kind": "consume",
+          "participants": [
+            "player_inventory_save",
+            "player_survival_save",
+            "economy_ledger_save"
+          ]
+        },
+        "workorder_start": {
+          "kind": "workorder_start",
+          "participants": [
+            "player_inventory_save",
+            "settlement_workorder_save",
+            "economy_ledger_save"
+          ]
+        },
+        "workorder_work": {
+          "kind": "workorder_work",
+          "participants": [
+            "world_clock_save",
+            "player_survival_save",
+            "settlement_workorder_save",
+            "economy_ledger_save"
+          ]
+        },
+        "workorder_complete": {
+          "kind": "workorder_complete",
+          "participants": [
+            "settlement_workorder_save",
+            "player_inventory_save",
+            "economy_ledger_save"
+          ]
+        },
+        "workorder_claim": {
+          "kind": "workorder_claim",
+          "participants": [
+            "settlement_workorder_save",
+            "player_inventory_save",
+            "economy_ledger_save"
+          ]
+        },
+        "workorder_cancel": {
+          "kind": "workorder_cancel",
+          "participants": [
+            "settlement_workorder_save",
+            "player_inventory_save",
+            "economy_ledger_save"
+          ]
+        },
+        "sell": {
+          "kind": "sell",
+          "participants": [
+            "player_inventory_save",
+            "player_wallet_save",
+            "economy_ledger_save"
+          ]
+        },
+        "survival_grant": {
+          "kind": "survival_grant",
+          "participants": [
+            "player_survival_save",
+            "player_inventory_save",
+            "economy_ledger_save"
+          ]
+        },
+        "survival_floor_release": {
+          "kind": "survival_floor_release",
+          "participants": [
+            "world_clock_save",
+            "player_survival_save",
+            "chapter_progress_save",
+            "economy_ledger_save"
+          ]
+        },
+        "wildlife_replenish": {
+          "kind": "wildlife_replenish",
+          "participants": [
+            "valley_ecology_save"
+          ]
+        }
+      }
+    }
+  },
+  "trade": {
+    "sourceDigest": "sha256:b2a0a39ffcd271cbf8e01b3de080c26aca1967cdd4a870fd0bc13576714a94a7",
+    "sourcePath": "data/economy/settlement-trade.v0.1.yaml",
+    "contentVersion": "prologue.1",
+    "priceTableVersion": "settlement.prologue.v0.1",
+    "quoteLifetimeActiveSeconds": 300,
+    "quoteClock": "session_monotonic_active_seconds",
+    "transactionKind": "sell",
+    "idempotencyKeyFields": [
+      "player_save_id",
+      "merchant_id",
+      "quote_id"
+    ],
+    "quote": {
+      "requiredFields": [
+        "quote_id",
+        "quote_payload_hash",
+        "merchant_id",
+        "player_save_id",
+        "price_table_version",
+        "demand_revision",
+        "line_items",
+        "total_coin",
+        "issued_tick",
+        "expires_tick",
+        "wallet_revision",
+        "inventory_revision",
+        "quote_sequence",
+        "consumed"
+      ],
+      "lineItemFields": [
+        "lot_id",
+        "item_id",
+        "quantity",
+        "ownership_revision",
+        "freshness_revision",
+        "quality_multiplier",
+        "demand_multiplier",
+        "unit_price_coin"
+      ],
+      "quoteIdFormula": "sha256(merchant_id, player_save_id, demand_revision, sorted_lot_revisions, quote_sequence)",
+      "singleConsumption": true
+    },
+    "activeMerchants": {
+      "settlement.butcher": {
+        "merchantId": "settlement.butcher",
+        "status": "active",
+        "buys": [
+          "raw_meat",
+          "cooked_meat",
+          "preserved_meat"
+        ],
+        "conditionalBuys": [],
+        "fullPriceUnitsPerRestock": 2,
+        "excessPolicy": "quarter_price",
+        "ownershipPolicy": "legal_only"
+      },
+      "settlement.tanner": {
+        "merchantId": "settlement.tanner",
+        "status": "active",
+        "buys": [
+          "leather"
+        ],
+        "conditionalBuys": [
+          "raw_hide"
+        ],
+        "fullPriceUnitsPerRestock": 1,
+        "excessPolicy": "reject",
+        "ownershipPolicy": "legal_only"
+      },
+      "settlement.grocer": {
+        "merchantId": "settlement.grocer",
+        "status": "active",
+        "buys": [
+          "food_supply"
+        ],
+        "conditionalBuys": [],
+        "fullPriceUnitsPerRestock": 3,
+        "excessPolicy": "quarter_price",
+        "ownershipPolicy": "legal_only"
+      }
+    },
+    "items": {
+      "food.raw_small_game_meat": {
+        "itemId": "food.raw_small_game_meat",
+        "category": "raw_meat",
+        "basePlayerSellCoin": 1,
+        "playerCanSell": true,
+        "buyer": "settlement.butcher"
+      },
+      "food.raw_predator_meat": {
+        "itemId": "food.raw_predator_meat",
+        "category": "raw_meat",
+        "basePlayerSellCoin": 1,
+        "playerCanSell": true,
+        "buyer": "settlement.butcher"
+      },
+      "food.cooked_game_meat": {
+        "itemId": "food.cooked_game_meat",
+        "category": "cooked_meat",
+        "basePlayerSellCoin": 2,
+        "playerCanSell": true,
+        "buyer": "settlement.butcher"
+      },
+      "food.dried_game_meat": {
+        "itemId": "food.dried_game_meat",
+        "category": "preserved_meat",
+        "basePlayerSellCoin": 3,
+        "playerCanSell": true,
+        "buyer": "settlement.butcher"
+      },
+      "material.raw_small_hide": {
+        "itemId": "material.raw_small_hide",
+        "category": "raw_hide",
+        "basePlayerSellCoin": 2,
+        "playerCanSell": false,
+        "buyer": "settlement.tanner"
+      },
+      "material.raw_medium_pelt": {
+        "itemId": "material.raw_medium_pelt",
+        "category": "raw_hide",
+        "basePlayerSellCoin": 4,
+        "playerCanSell": false,
+        "buyer": "settlement.tanner"
+      },
+      "material.cured_small_leather": {
+        "itemId": "material.cured_small_leather",
+        "category": "leather",
+        "basePlayerSellCoin": 2,
+        "playerCanSell": true,
+        "buyer": "settlement.tanner"
+      },
+      "material.cured_medium_leather": {
+        "itemId": "material.cured_medium_leather",
+        "category": "leather",
+        "basePlayerSellCoin": 3,
+        "playerCanSell": true,
+        "buyer": "settlement.tanner"
+      },
+      "material.salt": {
+        "itemId": "material.salt",
+        "category": "tannin_or_salt",
+        "basePlayerSellCoin": 0,
+        "playerCanSell": false,
+        "buyer": null
+      },
+      "food.travel_ration": {
+        "itemId": "food.travel_ration",
+        "category": "food_supply",
+        "basePlayerSellCoin": 1,
+        "playerCanSell": true,
+        "buyer": "settlement.grocer"
+      }
+    },
+    "freshnessMultipliers": {
+      "fresh": 1,
+      "aging": 0.75,
+      "near_spoil": 0.5,
+      "spoiled": null,
+      "decomposed": null,
+      "rotten": null,
+      "cured": 1,
+      "stable": 1,
+      "raw": 0.85,
+      "slipping": 0.5
+    },
+    "stationAuthorities": [
+      {
+        "sceneId": "scene.valley.settlement",
+        "tradeEntryId": "settlement.trade.supply_stall",
+        "npcId": "settlement.npc.supply_trader",
+        "interactionId": "settlement.open_supply_trade",
+        "merchantIds": [
+          "settlement.grocer"
+        ],
+        "targetId": "settlement.supply_stall",
+        "interactionPointPx": {
+          "x": 424,
+          "y": 456
+        }
+      },
+      {
+        "sceneId": "scene.valley.settlement",
+        "tradeEntryId": "settlement.trade.butcher_counter",
+        "npcId": "settlement.npc.butcher",
+        "interactionId": "settlement.open_butcher_trade",
+        "merchantIds": [
+          "settlement.butcher"
+        ],
+        "targetId": "settlement.butcher_counter",
+        "interactionPointPx": {
+          "x": 488,
+          "y": 456
+        }
+      },
+      {
+        "sceneId": "scene.valley.settlement",
+        "tradeEntryId": "settlement.trade.tanner_counter",
+        "npcId": "settlement.npc.tanner",
+        "interactionId": "settlement.open_tanner_trade",
+        "merchantIds": [
+          "settlement.tanner"
+        ],
+        "targetId": "settlement.tanner_counter",
+        "interactionPointPx": {
+          "x": 552,
+          "y": 456
+        }
+      }
+    ],
+    "priceFormula": "floor(base * freshness * quality * demand * full_units) + floor(base * freshness * quality * demand * 0.25 * excess_units)",
+    "quarterPriceMultiplier": 0.25,
+    "qualityMultiplierRange": [
+      0.25,
+      1
+    ],
+    "minimumSellQuality": 0.5,
+    "demandMultiplierRange": [
+      0.75,
+      1.15
+    ],
+    "currentDemandMultiplier": 1,
+    "restrictions": {
+      "spoiledMeatAccepted": false,
+      "rottenHideAccepted": false,
+      "rawHideAcceptedInPrologue": false
+    },
+    "restock": {
+      "requiredDistinctEligibleEvents": 3,
+      "eligibleEventFilter": [
+        "mainline_world_predicate_commit",
+        "non_replayed_side_task_commit",
+        "region_transition_commit"
+      ],
+      "reloadRestocks": false,
+      "checkpointResetRestocks": false,
+      "repeatedEventRestocks": false
+    },
+    "walParticipants": [
+      "player_inventory_save",
+      "player_wallet_save",
+      "economy_ledger_save"
+    ]
+  },
+  "survivalConsumption": {
+    "sourcePath": "data/player/survival-needs.v0.1.yaml",
+    "profileId": "survival.soft-needs.default.v0.1",
+    "eventId": "survival_consumption_committed",
+    "transactionKind": "consume",
+    "idempotencyKeyFields": [
+      "player_save_id",
+      "consumable_source_id",
+      "consumption_sequence"
+    ],
+    "wildlifeInventoryConsumableIds": [
+      "food.cooked_game_meat"
+    ],
+    "profiles": {
+      "water.clean": {
+        "consumableId": "water.clean",
+        "hydrationDelta": 35,
+        "satietyDelta": 0,
+        "requirements": [
+          "potable"
+        ]
+      },
+      "water.manifested_telo": {
+        "consumableId": "water.manifested_telo",
+        "hydrationDelta": 20,
+        "satietyDelta": 0,
+        "requirements": [
+          "non_toxic",
+          "direct_immediate_consumption"
+        ]
+      },
+      "food.travel_ration": {
+        "consumableId": "food.travel_ration",
+        "hydrationDelta": 0,
+        "satietyDelta": 30,
+        "requirements": [
+          "not_spoiled"
+        ]
+      },
+      "food.cooked_game_meat": {
+        "consumableId": "food.cooked_game_meat",
+        "hydrationDelta": 0,
+        "satietyDelta": 35,
+        "requirements": [
+          "cooked",
+          "not_spoiled"
+        ]
+      },
+      "food.root_stew": {
+        "consumableId": "food.root_stew",
+        "hydrationDelta": 10,
+        "satietyDelta": 50,
+        "requirements": [
+          "cooked",
+          "not_spoiled"
+        ]
+      }
+    },
+    "categoryRejections": {
+      "raw_meat": {
+        "category": "raw_meat",
+        "rejectionCode": "cook_before_eating"
+      }
+    },
+    "sourceDigest": "sha256:0f847ec9a94ab2496c6d7e57e8c4ae1803c616c1d4d2172249c9eda0daeef5de"
   }
 }

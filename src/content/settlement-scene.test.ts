@@ -55,13 +55,15 @@ describe("canonical N02 settlement content", () => {
       "settlement.facility_manager",
       "settlement.repair_contractor",
       "settlement.supply_trader",
+      "settlement.butcher",
+      "settlement.tanner",
     ]);
     expect(facilities.map((facility) => facility.facility_kind)).toEqual(expect.arrayContaining([
       "public_well",
       "communal_plant_meal",
       "public_meditation_court",
     ]));
-    expect(facilities.filter((facility) => facility.public_relief)).toHaveLength(2);
+    expect(facilities.filter((facility) => facility.public_relief)).toHaveLength(3);
     expect(facilities.filter((facility) => facility.public_relief).every((facility) => facility.economy_eligible === false)).toBe(true);
     expect(tasks).toEqual([
       expect.objectContaining({
@@ -72,11 +74,9 @@ describe("canonical N02 settlement content", () => {
       }),
     ]);
     expect(trade).toEqual([
-      expect.objectContaining({
-        authoritative_economy_ref: "../economy/settlement-trade.v0.1.yaml",
-        merchant_ids: ["settlement.grocer"],
-        scene_defines_catalog_or_prices: false,
-      }),
+      expect.objectContaining({ merchant_ids: ["settlement.grocer"], scene_defines_catalog_or_prices: false }),
+      expect.objectContaining({ merchant_ids: ["settlement.butcher"], scene_defines_catalog_or_prices: false }),
+      expect.objectContaining({ merchant_ids: ["settlement.tanner"], scene_defines_catalog_or_prices: false }),
     ]);
   });
 

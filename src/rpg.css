@@ -184,3 +184,28 @@ button:disabled { color: #625f59; cursor: not-allowed; }
   .wildlife-tools { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 370px) { .wildlife-route-grid, .wildlife-state { grid-template-columns: 1fr; } }
+
+
+.economy-panel { margin-top: 6px; padding: 8px; border: 1px solid #514333; background: #100e0c; }
+.economy-panel h2, .economy-panel p { margin: 0; }
+.economy-panel h2 { margin-top: 2px; color: #d6ad72; font-size: 13px; }
+.economy-state { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; margin-top: 7px; }
+.economy-state span { min-width: 0; padding: 5px; color: #92877a; border: 1px solid #3b3229; background: #0b0a09; font-size: 7px; }
+.economy-state strong { display: block; overflow-wrap: anywhere; margin-top: 2px; color: #d9c29e; font-size: 8px; }
+.economy-copy { margin-top: 7px !important; color: #999083; font-size: 7px; line-height: 1.55; }
+.economy-action-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; margin-top: 7px; }
+.economy-action-grid button { min-height: 34px; padding: 4px; font-size: 7px; }
+.economy-sell { display: grid; grid-template-columns: minmax(0, 2fr) repeat(2, minmax(0, 1fr)); gap: 4px; align-items: end; margin-top: 7px; padding-top: 7px; border-top: 1px solid #3a3128; }
+.economy-sell label { min-width: 0; color: #9d9284; font-size: 7px; }
+.economy-sell select { display: block; width: 100%; min-height: 29px; margin-top: 3px; color: #ded4c2; border: 1px solid #51483a; background: #18191a; font: inherit; }
+.economy-sell button { min-height: 29px; padding: 4px; font-size: 7px; }
+.economy-sell small { grid-column: 1 / -1; overflow-wrap: anywhere; color: #837b70; font-size: 6px; line-height: 1.45; }
+@media (max-width: 440px) {
+  .economy-state, .economy-action-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .economy-sell { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .economy-sell label, .economy-sell small { grid-column: 1 / -1; }
+}
+@media (max-width: 370px) {
+  .economy-state, .economy-action-grid, .economy-sell { grid-template-columns: 1fr; }
+  .economy-sell label, .economy-sell small { grid-column: auto; }
+}

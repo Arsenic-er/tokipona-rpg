@@ -1,7 +1,9 @@
+import { canonicalInventoryConsumptionKey, inventoryConsumptionTransactionId, materializeInventoryConsumptionAction } from "../game/inventory-consumption";
 import type { CisternConfirmResult, CisternMpRecoveryResult } from "../game/cistern-demo";
 import type { DemoActionResult, SettlementDemoSave } from "../game/settlement-demo";
 import type { SurvivalSave, SurvivalTransactionResult } from "../game/survival";
 import type { CommitResult, QuoteResult, TradeSave } from "../game/trade";
+import { createVerifiedSellQuote, createVerifiedSellTransactionId, verifiedTradeManifest, type VerifiedQuoteRequest, type VerifiedSellQuote } from "../game/verified-trade";
 import { adaptTradeSaveToSessionEconomy } from "../game/economy-state";
 import type { EvidenceProposalResult } from "../learning/cistern-session";
 import type { LearningProgressionSnapshot } from "../learning/progression";
@@ -16,6 +18,16 @@ import {
   type WildlifeDamageRequest,
 } from "../game/life-corpse-ledger";
 import type { CastExecutionResult, MpRecoveryReceipt } from "../spells/cast-plan";
+import {
+  canonicalWildlifeProcessingIdempotencyKey,
+  createWildlifeProcessingTransactionId,
+  canonicalWildlifeProcessingWorkIdempotencyKey,
+  createWildlifeProcessingWorkTransactionId,
+  wildlifeProcessingManifest,
+  wildlifeProcessingTransactionKind,
+  type WildlifeProcessingAction,
+  type WildlifeProcessingWorkOrder,
+} from "../game/wildlife-processing";
 import {
   assertVerifiedCapabilityMilestoneContract,
   type VerifiedCapabilityMilestoneContract,
@@ -456,7 +468,235 @@ export const adaptRuntimeCheckpoint = (checkpoint: RuntimeCheckpointSnapshot): S
   revision: checkpoint.revision,
 });
 
+/** @internal Runtime authority must supply position and the matching Session scene revision. */
+export const proposeWildlifeProcessingInteraction = (
+  authoritative: GameSession,
+  stationId: string,
+  runtime: Readonly<{ playerPositionPx: Readonly<{ x: number; y: number }>; sceneRevision: number; runtimeInteractionSequence: number; operationId: string }>,
+): SessionProposalBatch => {
+  requiredId(stationId, "stationId");
+  const snapshot = authoritative.snapshot();
+  const binding = wildlifeProcessingManifest().stationBindings[stationId];
+  if (!binding || snapshot.world.currentSceneId !== binding.sceneId) {
+    throw new Error(`processing station ${stationId} is not available in the current scene`);
+  }
+  requiredId(runtime.operationId, "processing interaction operationId");
+  const transactionId = `wildlife-processing-interaction:${stationId}:${runtime.sceneRevision}:${runtime.operationId}`;
+  return {
+    transactionId,
+    drafts: [{
+      eventId: `session.wildlife.interaction.${stationId}.${runtime.sceneRevision}.${runtime.operationId}`,
+      type: "wildlife_processing_interaction_committed",
+      payload: { stationId: binding.stationId, sceneId: binding.sceneId, targetId: binding.targetId,
+        interactionId: binding.interactionId, playerPositionPx: { ...runtime.playerPositionPx }, runtimeSceneRevision: runtime.sceneRevision,
+        runtimeInteractionSequence: runtime.runtimeInteractionSequence, operationId: runtime.operationId },
+    }],
+  };
+};
+
+
+/**
+ * Session is authoritative for tick, ledger cursor, transaction ID, and canonical idempotency key.
+ * Caller-provided values for those fields are overwritten before the immutable event is proposed.
+ */
+export const proposeWildlifeProcessing = (
+  authoritative: GameSession,
+  requested: WildlifeProcessingAction,
+): SessionProposalBatch => {
+  const snapshot = authoritative.snapshot();
+  const sessionId = authoritative.toSave().sessionId;
+  if ((requested.action === "harvest" || requested.action === "reserve") && requested.playerSaveId !== sessionId) {
+    throw new Error("processing playerSaveId does not match the authoritative Session");
+  }
+  if (requested.action === "claim" && requested.claimantPlayerSaveId !== sessionId) {
+    throw new Error("processing claimant does not match the authoritative Session");
+  }
+  const currentCursor = snapshot.lastEventSequence;
+  const eventSequence = authoritative.nextSequence();
+  const manifest = wildlifeProcessingManifest();
+  const fieldDress = manifest.processingRecipes["process.field_dress.v0.1"];
+  if (requested.action === "harvest" && (!fieldDress || fieldDress.transactionKind !== "harvest")) {
+    throw new Error("field-dress harvest contract unavailable");
+  }
+  const requestedOrder = requested.action === "harvest" || requested.action === "reserve" ? undefined :
+    snapshot.economy.workOrders.find((order) => order.workOrderId === requested.workOrderId) as
+      WildlifeProcessingWorkOrder | undefined;
+  if (requestedOrder && requestedOrder.initiatingPlayerSaveId !== sessionId) {
+    throw new Error("processing work order is owned by another Session");
+  }
+  const stationId = requested.action === "harvest" ? requested.stationOrToolId :
+    requested.action === "reserve" ? requested.stationId : requestedOrder?.stationId;
+  const binding = stationId ? manifest.stationBindings[stationId] : undefined;
+  const interactionReceiptId = requested.interactionReceiptId;
+  if (!stationId || !binding || !interactionReceiptId || snapshot.world.currentSceneId !== binding.sceneId ||
+      !snapshot.receiptIndex[interactionReceiptId]) {
+    throw new Error(`processing station ${stationId ?? "unknown"} is not authorized in the current scene`);
+  }
+  const harvestSeconds = requested.action === "harvest"
+    ? fieldDress!.interactionWorkUnits * manifest.workUnitActiveSeconds : 0;
+  const authoritativeTick = snapshot.survival.worldTicks + harvestSeconds;
+  const energyEventId = requested.action === "complete"
+    ? Object.values(snapshot.receiptIndex).filter((receipt) => receipt.receiptId.startsWith(`wildlife-processing-energy:${requested.workOrderId}:`))
+        .sort((left, right) => right.recordedAtSequence - left.recordedAtSequence)[0]?.receiptId ?? null
+    : undefined;
+  const materialized = {
+    ...requested,
+    currentWorldTick: authoritativeTick,
+    ...(requested.action === "reserve" ? { startEventSequence: currentCursor } : {}),
+    ...(requested.action === "complete" ? { energyEventId } : {}),
+  } as WildlifeProcessingAction;
+  const canonicalIdempotencyKey = canonicalWildlifeProcessingIdempotencyKey(materialized, {
+    requiredEventCursor: currentCursor,
+    cancellationSequence: eventSequence,
+  });
+  const transactionId = createWildlifeProcessingTransactionId(
+    wildlifeProcessingTransactionKind(materialized), canonicalIdempotencyKey,
+  );
+  const action = { ...materialized, canonicalIdempotencyKey, transactionId } as WildlifeProcessingAction;
+  return {
+    transactionId,
+    drafts: [{ eventId: `session.wildlife.processing.${transactionId}`, type: "wildlife_processing_committed", payload: { action } }],
+  };
+};
+
+
+export type VerifiedTradeQuoteProposal = Readonly<{ accepted: true; quote: VerifiedSellQuote; batch: SessionProposalBatch; issuedEventId: string }> |
+  Readonly<{ accepted: false; reason: string }>;
+
+/** @internal Formal coordinators must source position from their runtime snapshot and retain the quote only in memory. */
+export const proposeVerifiedTradeQuote = (authoritative: GameSession, request: Omit<VerifiedQuoteRequest, "currentWorldTick">,
+  runtime: Readonly<{ playerPositionPx: Readonly<{ x: number; y: number }>; sceneRevision: number; operationId: string }>): VerifiedTradeQuoteProposal => {
+  const snapshot = authoritative.snapshot();
+  if (authoritative.events().some((event) => event.type === "verified_trade_quote_issued" && event.payload.operationId === runtime.operationId)) {
+    return { accepted: false, reason: "operation_already_committed" };
+  }
+  if (request.playerSaveId !== authoritative.toSave().sessionId) return { accepted: false, reason: "wrong_player" };
+  const issued = createVerifiedSellQuote(snapshot.economy, { ...request, currentWorldTick: snapshot.survival.worldTicks });
+  if (!issued.accepted) return issued;
+  const authority = verifiedTradeManifest().stationAuthorities.find((candidate) => candidate.sceneId === snapshot.world.currentSceneId &&
+    candidate.merchantIds.includes(request.merchantId));
+  if (!authority || !runtime.operationId || runtime.sceneRevision !== snapshot.world.revision) return { accepted: false, reason: "unauthorized" };
+  const issuedEventId = `session.trade.quote.${issued.quote.quoteId}.${runtime.operationId}`;
+  return { accepted: true, quote: issued.quote, issuedEventId, batch: { transactionId: `trade-quote:${issued.quote.quoteId}:${runtime.operationId}`, drafts: [{
+    eventId: issuedEventId, type: "verified_trade_quote_issued", payload: { quote: issued.quote, decayedLot: issued.decayedLot,
+      sceneId: authority.sceneId, targetId: authority.targetId, interactionId: authority.interactionId,
+      playerPositionPx: { ...runtime.playerPositionPx }, runtimeSceneRevision: runtime.sceneRevision, operationId: runtime.operationId },
+  }] } };
+};
+
+/** @internal Only an ephemeral verified-trade coordinator may call confirm with a quote it retained from issue. */
+export const proposeVerifiedTradeSale = (authoritative: GameSession, quote: VerifiedSellQuote, issuedEventId: string,
+  runtime: Readonly<{ playerPositionPx: Readonly<{ x: number; y: number }>; sceneRevision: number }>): SessionProposalBatch => {
+  const authority = verifiedTradeManifest().stationAuthorities.find((candidate) => candidate.sceneId === authoritative.snapshot().world.currentSceneId &&
+    candidate.merchantIds.includes(quote.merchantId));
+  if (!authority) throw new Error("trade authority is not available in the current scene");
+  return { transactionId: createVerifiedSellTransactionId(quote), drafts: [{ eventId: `session.trade.sale.${createVerifiedSellTransactionId(quote)}`,
+    type: "verified_trade_sale_committed", payload: { quote, issuedEventId, quotePayloadHash: quote.quotePayloadHash,
+      sceneId: authority.sceneId, targetId: authority.targetId, interactionId: authority.interactionId,
+      playerPositionPx: { ...runtime.playerPositionPx }, runtimeSceneRevision: runtime.sceneRevision } }],
+  };
+};
+
+export const proposeWildlifeProcessingEvidence = (
+  authoritative: GameSession,
+  request: Readonly<{ evidenceId: string; workOrderId: string; subjectEventId: string;
+    classification: "mainline_world_predicate_commit" | "non_replayed_side_task_commit" | "region_transition_commit" }>,
+): SessionProposalBatch => {
+  requiredId(request.evidenceId, "processing evidenceId"); requiredId(request.workOrderId, "processing evidence workOrderId");
+  requiredId(request.subjectEventId, "processing evidence subjectEventId");
+  const subject = authoritative.events().find((event) => event.eventId === request.subjectEventId);
+  if (!subject || (subject.type !== "quest_stage_set" && subject.type !== "world_flag_set" && subject.type !== "scene_entered")) {
+    throw new Error("processing evidence subject event is not authoritative or eligible");
+  }
+  return { transactionId: `wildlife-processing-evidence:${request.evidenceId}`, drafts: [{
+    eventId: `session.wildlife.evidence.${request.evidenceId}`, type: "wildlife_processing_evidence_committed",
+    payload: { ...request, subjectEventType: subject.type },
+  }] };
+};
+
+/** Advances only the authoritative active-world clock; metabolism is explicitly unchanged. */
+export const proposeWildlifeProcessingWork = (
+  authoritative: GameSession,
+  workOrderId: string,
+  interactionReceiptId: string,
+): SessionProposalBatch => {
+  requiredId(workOrderId, "workOrderId");
+  requiredId(interactionReceiptId, "processing work interactionReceiptId");
+  const snapshot = authoritative.snapshot();
+  const order = snapshot.economy.workOrders.find((candidate) => candidate.workOrderId === workOrderId) as
+    WildlifeProcessingWorkOrder | undefined;
+  if (!order) throw new Error(`unknown work order ${workOrderId}`);
+  const binding = wildlifeProcessingManifest().stationBindings[order.stationId];
+  const interactionReceipt = snapshot.receiptIndex[interactionReceiptId];
+  const interactionUseId = `wildlife-processing-interaction-use:${interactionReceiptId}`;
+  if (!binding || snapshot.world.currentSceneId !== binding.sceneId || !interactionReceipt ||
+      !interactionReceiptId.startsWith(`wildlife-processing-interaction:${order.stationId}:${snapshot.world.revision}:`) ||
+      snapshot.receiptIndex[interactionUseId]) {
+    throw new Error(`processing station ${order.stationId} is not authorized in the current scene`);
+  }
+  const identity = { workOrderId, expectedWorkOrderRevision: order.revision, stationInteractionId: interactionReceiptId };
+  const canonicalIdempotencyKey = canonicalWildlifeProcessingWorkIdempotencyKey(identity);
+  const transactionId = createWildlifeProcessingWorkTransactionId(identity);
+  return {
+    transactionId,
+    drafts: [{
+      eventId: `session.wildlife.work.${transactionId}`,
+      type: "wildlife_processing_work_advanced",
+      payload: {
+        transactionId, canonicalIdempotencyKey,
+        workOrderId,
+        expectedWorkOrderRevision: order.revision,
+        expectedSurvivalRevision: snapshot.survival.revision,
+        expectedWorldTicks: snapshot.survival.worldTicks,
+        interactionReceiptId,
+      },
+    }],
+  };
+};
+export const nextInventoryConsumptionSequence = (authoritative: GameSession): number =>
+  authoritative.events().reduce((highest, event) =>
+    event.type === "inventory_consumption_committed"
+      ? Math.max(highest, event.payload.action.consumptionSequence)
+      : highest, 0) + 1;
+export const proposeInventoryConsumption = (
+  authoritative: GameSession,
+  request: Readonly<{ playerSaveId: string; lotId: string; quantity?: number; consumptionSequence: number }>,
+): SessionProposalBatch => {
+  requiredId(request.playerSaveId, "consumption playerSaveId");
+  requiredId(request.lotId, "consumption lotId");
+  const snapshot = authoritative.snapshot();
+  if (request.playerSaveId !== authoritative.toSave().sessionId) {
+    throw new Error("consumption playerSaveId does not match the authoritative Session");
+  }
+  const retryKey = canonicalInventoryConsumptionKey({ playerSaveId: request.playerSaveId, lotId: request.lotId,
+    consumptionSequence: request.consumptionSequence });
+  const retryTransactionId = inventoryConsumptionTransactionId(retryKey);
+  const retryEventId = `session.inventory.consume.${retryTransactionId}`;
+  const prior = authoritative.events().find((event) => event.eventId === retryEventId && event.type === "inventory_consumption_committed") as Extract<GameSessionEvent, { type: "inventory_consumption_committed" }> | undefined;
+  if (prior) {
+    const requestedQuantity = request.quantity ?? 1;
+    const action = prior.payload.action.quantity === requestedQuantity ? prior.payload.action :
+      { ...prior.payload.action, quantity: requestedQuantity };
+    return { transactionId: retryTransactionId, drafts: [{ eventId: retryEventId,
+      type: "inventory_consumption_committed", payload: { action } }] };
+  }
+  const lot = snapshot.economy.lots.find((candidate) => candidate.lotId === request.lotId);
+  if (!lot) throw new Error(`unknown consumption lot ${request.lotId}`);
+  const action = materializeInventoryConsumptionAction({
+    playerSaveId: request.playerSaveId, lotId: request.lotId, quantity: request.quantity ?? 1,
+    consumptionSequence: request.consumptionSequence, currentWorldTick: snapshot.survival.worldTicks,
+    expectedInventoryRevision: snapshot.economy.inventoryRevision,
+    expectedLotOwnershipRevision: lot.ownershipRevision, expectedLotFreshnessRevision: lot.freshnessRevision,
+    expectedSurvivalRevision: snapshot.survival.revision,
+  });
+  return { transactionId: action.transactionId, drafts: [{
+    eventId: `session.inventory.consume.${action.transactionId}`,
+    type: "inventory_consumption_committed", payload: { action },
+  }] };
+};
+
 /** @deprecated Whole-economy settlement replacement is forbidden for new production transactions. */
+
 export const proposeSettlementReplacement = (
   _transactionId: string,
   _result: DemoActionResult,
@@ -484,7 +724,7 @@ export const commitSessionProposal = (
   authoritative: GameSession,
   batch: SessionProposalBatch,
 ): SessionBatchCommitResult => {
-  const working = GameSession.fromSave(authoritative.toSave());
+  const working = authoritative.forkForProposal();
   for (const draft of batch.drafts) {
     const event = materializeDraft(draft, working.nextSequence(), working);
     const result = working.apply(event);

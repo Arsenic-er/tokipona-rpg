@@ -95,6 +95,25 @@ describe("PrologueFlowSession", () => {
     expect(target.snapshot().session.world.flags["region:valley_prologue:settlement_entry_crossed"]?.value).toBe(true);
   });
 
+  it("exposes safe gifted harvest/cook/claim/consume wrappers without raw CAS actions", () => {
+    const target = PrologueFlowSession.fresh({ sessionId: "flow.semantic.processing", currentMp: 8, maxMp: 24 });
+    enterSettlementByTools(target);
+    for (let step = 0; step < 600 && target.snapshot().runtime.player.position.x < 480; step += 1) target.advanceTicks(1, { moveX: 1 });
+    expect(target.acceptGiftedRabbitCarcass("flow.semantic.gift")).toMatchObject({ accepted: true, result: { accepted: true } });
+    for (let step = 0; step < 600 && target.snapshot().runtime.player.position.x < 192; step += 1) target.advanceTicks(1, { moveX: 1 });
+    expect(target.harvestGiftedMeat("flow.semantic.harvest")).toMatchObject({ accepted: true, result: { accepted: true } });
+    for (let step = 0; step < 600 && target.snapshot().runtime.player.position.x < 160; step += 1) target.advanceTicks(1, { moveX: 1 });
+    expect(target.startCooking("flow.semantic.start")).toMatchObject({ accepted: true });
+    for (let step = 0; step < 600 && target.snapshot().runtime.player.position.x < 160; step += 1) target.advanceTicks(1, { moveX: 1 });
+    expect(target.workCooking("flow.semantic.work")).toMatchObject({ accepted: true });
+    for (let step = 0; step < 600 && target.snapshot().runtime.player.position.x < 160; step += 1) target.advanceTicks(1, { moveX: 1 });
+    expect(target.completeCooking("flow.semantic.complete")).toMatchObject({ accepted: true });
+    for (let step = 0; step < 600 && target.snapshot().runtime.player.position.x < 160; step += 1) target.advanceTicks(1, { moveX: 1 });
+    expect(target.claimCooking("flow.semantic.claim")).toMatchObject({ accepted: true });
+    expect(target.consumeCooked(1)).toMatchObject({ accepted: true });
+    expect(target.snapshot().session.economy.workOrders[0]).toMatchObject({ status: "claimed" });
+  });
+
   it("round-trips the unified save in both modes with mutually exclusive child snapshots", () => {
     const target = PrologueFlowSession.fresh({ sessionId: "flow.save", currentMp: 8, maxMp: 24 });
     enterStream(target);

@@ -80,10 +80,12 @@ describe("runtime content artifact generator", () => {
     });
     expect(settlement.npcs.map((npc) => npc.professionId)).toEqual([
       "settlement.facility_manager", "settlement.repair_contractor", "settlement.supply_trader",
+      "settlement.butcher", "settlement.tanner",
     ]);
     expect(settlement.facilities.filter((facility) => facility.publicRelief)).toEqual([
       expect.objectContaining({ kind: "public_well", economyEligible: false }),
       expect.objectContaining({ kind: "communal_plant_meal", economyEligible: false }),
+      expect.objectContaining({ kind: "field_knife_public_loan", economyEligible: false }),
     ]);
     expect(settlement.tasks).toEqual([
       expect.objectContaining({
@@ -92,10 +94,9 @@ describe("runtime content artifact generator", () => {
       }),
     ]);
     expect(settlement.tradeEntries).toEqual([
-      expect.objectContaining({
-        authoritativeEconomySourcePath: "data/economy/settlement-trade.v0.1.yaml",
-        merchantIds: ["settlement.grocer"],
-      }),
+      expect.objectContaining({ authoritativeEconomySourcePath: "data/economy/settlement-trade.v0.1.yaml", merchantIds: ["settlement.grocer"] }),
+      expect.objectContaining({ authoritativeEconomySourcePath: "data/economy/settlement-trade.v0.1.yaml", merchantIds: ["settlement.butcher"] }),
+      expect.objectContaining({ authoritativeEconomySourcePath: "data/economy/settlement-trade.v0.1.yaml", merchantIds: ["settlement.tanner"] }),
     ]);
     expect(settlement.inboundRoutes).toEqual([
       expect.objectContaining({

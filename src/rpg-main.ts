@@ -20,6 +20,10 @@ import {
   PROLOGUE_STREAM_SCENE_ID,
 } from "./game/prologue-arrival-stream";
 import { WORLD_TILE_SIZE_PX, type RuntimeInput, type RuntimeSnapshot } from "./runtime";
+import type { BrowserGameSessionWalCoordinator } from "./persistence/browser-game-session-wal";
+import { bootstrapBrowserPrologue, persistBrowserPrologueCheckpoint } from "./persistence/browser-prologue-persistence";
+import { nextInventoryConsumptionSequence } from "./session/adapters";
+import { createRpgEconomyUi, type EconomyUiCommand } from "./rpg-economy-ui";
 import {
   createRpgInfrastructureUi,
   type InfrastructureUiCommand,
@@ -48,7 +52,13 @@ interface UiResult {
 const WIDTH = 180;
 const HEIGHT = 320;
 const WORLD_Y_OFFSET = 96;
-const STORAGE_KEY = "tokipona.rpg.prologue.v0.2";
+const STORAGE_KEY = "tokipona.rpg.prologue.v0.3";
+const COMPANION_STORAGE_KEY = `${STORAGE_KEY}.cross-save-wal`;
+const STORAGE_KEYS = Object.freeze({
+  checkpointKey: STORAGE_KEY,
+  companionKey: COMPANION_STORAGE_KEY,
+  legacyCheckpointKeys: Object.freeze(["tokipona.rpg.prologue.v0.2"]),
+});
 const GLYPH_POSITION = Object.freeze({ x: 144, y: 100 });
 const GLYPH_RADIUS = 40;
 const SCENES = readRuntimeSceneManifestIndex(generatedRuntimeArtifact).byId;
@@ -57,16 +67,14 @@ const SETTLEMENT_SCENE = requiredScene(PROLOGUE_SETTLEMENT_SCENE_ID);
 class FlowBrowserPort {
   private remainderTicks = 0;
 
-  private constructor(private readonly flow: PrologueFlowSession) {}
-
-  static fresh(): FlowBrowserPort {
-    return new FlowBrowserPort(PrologueFlowSession.fresh({
-      sessionId: `browser-prologue-${globalThis.crypto.randomUUID()}`,
-    }));
+  private constructor(private readonly flow: PrologueFlowSession, private readonly coordinator: BrowserGameSessionWalCoordinator) {
+    this.flow.attachCrossSaveTransactionCoordinator(coordinator);
   }
 
-  static fromSave(candidate: unknown): FlowBrowserPort {
-    return new FlowBrowserPort(PrologueFlowSession.fromSave(candidate));
+  static bootstrap(): FlowBrowserPort {
+    const runtime = bootstrapBrowserPrologue(localStorage, STORAGE_KEYS,
+      () => `browser-prologue-${globalThis.crypto.randomUUID()}`);
+    return new FlowBrowserPort(runtime.flow, runtime.coordinator);
   }
 
   advanceFrame(seconds: number, input: RuntimeInput): void {
@@ -184,6 +192,28 @@ class FlowBrowserPort {
     if (!result.accepted || result.result === null) return flowResult(result, "");
     renderTradeAuthorization(result.result.tradeEntryId, result.result.merchantIds);
     return ui(true, "交易入口已由场景清单授权；当前灰盒只显示商人 allowlist，不执行成交。", "neutral");
+  }
+
+  economy(command: EconomyUiCommand): UiResult {
+    switch (command.kind) {
+      case "accept_gift": return flowResult(this.flow.acceptGiftedRabbitCarcass(nextId("economy-gift")), "Gifted carcass committed through WAL.");
+      case "harvest_meat": return flowResult(this.flow.harvestGiftedMeat(nextId("economy-harvest")), "Harvest committed through WAL.");
+      case "start_cooking": return flowResult(this.flow.startCooking(nextId("economy-cook-start")), "Cooking work order started.");
+      case "work_cooking": return flowResult(this.flow.workCooking(nextId("economy-cook-work")), "Cooking work committed.");
+      case "complete_cooking": return flowResult(this.flow.completeCooking(nextId("economy-cook-complete")), "Cooking completion committed.");
+      case "claim_cooking": return flowResult(this.flow.claimCooking(nextId("economy-cook-claim")), "Cooked output claimed.");
+      case "consume_cooked": return flowResult(this.flow.consumeCooked(nextInventoryConsumptionSequence(this.flow.session)), "Cooked food consumed.");
+      case "issue_sell": {
+        const result = this.flow.issueVerifiedSellQuote({ ...command, operationId: nextId("economy-sell-quote") });
+        if (result.accepted && result.result?.accepted) economyUi.rememberQuote(result.result.quote.quoteId);
+        return flowResult(result, "Verified sell quote issued for this runtime only.");
+      }
+      case "confirm_sell": {
+        const result = this.flow.confirmVerifiedSellQuote(command.quoteId);
+        if (result.accepted && result.result?.accepted) economyUi.clearQuote();
+        return flowResult(result, "Verified sale committed through WAL.");
+      }
+    }
   }
 
   infrastructure(command: InfrastructureUiCommand): UiResult {
@@ -337,7 +367,7 @@ class FlowBrowserPort {
   }
 
   toSave(): unknown {
-    return this.flow.toSave();
+    return persistBrowserPrologueCheckpoint(localStorage, STORAGE_KEYS, { flow: this.flow, coordinator: this.coordinator });
   }
 }
 
@@ -441,10 +471,11 @@ const settlementPanel = required<HTMLElement>(".settlement-panel");
 const taskStageLabel = required<HTMLElement>('[data-ui="task-stage"]');
 const statusLabel = required<HTMLElement>('[data-ui="status"]');
 
-let port = FlowBrowserPort.fresh();
+let port = FlowBrowserPort.bootstrap();
 const infrastructureUi = createRpgInfrastructureUi((command) => run(() => port.infrastructure(command)));
 const cisternUi = createRpgCisternUi((command) => run(() => port.cistern(command)));
 const wildlifeUi = createRpgWildlifeUi((command) => run(() => port.wildlife(command)));
+const economyUi = createRpgEconomyUi((command) => run(() => port.economy(command)));
 let priorTime = performance.now();
 let activationStarted: number | null = null;
 let jumpQueued = false;
@@ -478,6 +509,7 @@ function render(snapshot: PrologueFlowSnapshot, now: number): void {
   infrastructureUi.render(snapshot);
   cisternUi.render(snapshot);
   wildlifeUi.render(snapshot);
+  economyUi.render(snapshot);
   const scene = requiredScene(snapshot.runtime.sceneId);
   drawWorld(snapshot, scene);
   sceneLabel.textContent = sceneTitle(snapshot.runtime.sceneId);
@@ -770,7 +802,8 @@ function bindInputs(): void {
 
 function save(): void {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(port.toSave()));
+    const save = port.toSave();
+    void save; // persistBrowserPrologueCheckpoint already wrote the checked envelope.
     setStatus("存档已写入此浏览器。", "success");
   } catch (error: unknown) {
     setStatus(errorMessage(error, "保存失败。"), "danger");
@@ -780,11 +813,13 @@ function save(): void {
 function load(): void {
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved === null) {
+    const companion = localStorage.getItem(COMPANION_STORAGE_KEY);
+    if (saved === null && companion === null) {
       setStatus("尚无本地存档。", "warning");
       return;
     }
-    port = FlowBrowserPort.fromSave(JSON.parse(saved) as unknown);
+    port = FlowBrowserPort.bootstrap();
+    economyUi.clearQuote();
     clearHeld();
     activationStarted = null;
     setStatus("存档已读取。", "success");
