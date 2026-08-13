@@ -21,8 +21,22 @@ import {
   type SettlementDialogueTopic,
   type SettlementTradeOpenResult,
 } from "./prologue-settlement";
+import {
+  PROLOGUE_SERVICE_CHANNEL_SCENE_ID,
+  PROLOGUE_WATERWHEEL_SCENE_ID,
+  PrologueWaterwheelSession,
+  type InfrastructureActionResult,
+  type InfrastructureLanguageActionResult,
+  type PrologueWaterwheelEntryResult,
+  type PrologueWaterwheelSettlementReturnResult,
+  type PrologueWaterwheelSnapshot,
+  type ServiceSolutionEvidence,
+  type TawaGroundingAttempt,
+  type WaterwheelSolutionEvidence,
+} from "./prologue-waterwheel";
+import type { WaterwheelPhysicalObservation } from "./infrastructure-predicates";
 
-export type PrologueFlowMode = "arrival_stream" | "settlement";
+export type PrologueFlowMode = "arrival_stream" | "settlement" | "infrastructure";
 export type PrologueFlowActionReason = "delegated" | "wrong_mode" | "delegate_rejected";
 
 export interface PrologueFlowSnapshot {
@@ -31,18 +45,19 @@ export interface PrologueFlowSnapshot {
   readonly runtime: RuntimeSnapshot;
   readonly arrival: PrologueArrivalStreamSnapshot | null;
   readonly settlement: PrologueSettlementSnapshot | null;
+  readonly infrastructure: PrologueWaterwheelSnapshot | null;
   readonly killCount: 0;
 }
 
 export interface PrologueFlowAction<T> {
   readonly accepted: boolean;
   readonly reason: PrologueFlowActionReason;
-  /** The delegated coordinator's unmodified result. Null means the mode rejected the action. */
   readonly result: T | null;
   readonly snapshot: PrologueFlowSnapshot;
 }
 
 export const PROLOGUE_FLOW_SETTLEMENT_ENTRY_TRANSACTION_PREFIX = "prologue.flow.settlement.entry";
+export const PROLOGUE_FLOW_WATERWHEEL_ENTRY_TRANSACTION_PREFIX = "prologue.flow.waterwheel.entry";
 
 export interface PrologueFlowFreshOptions {
   readonly sessionId: string;
@@ -52,34 +67,37 @@ export interface PrologueFlowFreshOptions {
 
 type ArrivalAcceptedResult = PrologueActionResult;
 type SettlementAcceptedResult = SettlementActionResult | SettlementDialogueResult;
+type InfrastructureAcceptedResult = InfrastructureActionResult | InfrastructureLanguageActionResult;
 
 const arrivalScene = (sceneId: string): boolean =>
   sceneId === PROLOGUE_ARRIVAL_SCENE_ID || sceneId === PROLOGUE_STREAM_SCENE_ID;
+const infrastructureScene = (sceneId: string): boolean =>
+  sceneId === PROLOGUE_WATERWHEEL_SCENE_ID || sceneId === PROLOGUE_SERVICE_CHANNEL_SCENE_ID;
 
-const acceptedByDelegate = (result: { readonly accepted: boolean }): boolean => result.accepted;
-
-/**
- * Single-save prologue coordinator for N00 -> N01 -> N02 and the return route.
- *
- * The active child is an executor only. It is discarded and reconstructed
- * whenever GameSession's current scene crosses the N01/N02 boundary. This
- * prevents parallel saves, avoids replaying settlement entry, and keeps MP,
- * learning, economy, quests, receipts and global progress on one ledger.
- */
+/** One persisted GameSession coordinating the playable N00 -> N04 prologue. */
 export class PrologueFlowSession {
   private arrival: PrologueArrivalStreamSession | null;
   private settlement: PrologueSettlementSession | null;
+  private infrastructure: PrologueWaterwheelSession | null;
 
   private constructor(session: GameSession) {
     const sceneId = session.snapshot().world.currentSceneId;
     if (arrivalScene(sceneId)) {
       this.arrival = new PrologueArrivalStreamSession(session);
       this.settlement = null;
+      this.infrastructure = null;
       return;
     }
     if (sceneId === PROLOGUE_SETTLEMENT_SCENE_ID) {
       this.arrival = null;
       this.settlement = new PrologueSettlementSession(session);
+      this.infrastructure = null;
+      return;
+    }
+    if (infrastructureScene(sceneId)) {
+      this.arrival = null;
+      this.settlement = null;
+      this.infrastructure = new PrologueWaterwheelSession(session);
       return;
     }
     throw new Error(`unsupported prologue scene: ${sceneId}`);
@@ -94,7 +112,7 @@ export class PrologueFlowSession {
   }
 
   get session(): GameSession {
-    return this.arrival?.session ?? this.settlement!.session;
+    return this.arrival?.session ?? this.settlement?.session ?? this.infrastructure!.session;
   }
 
   toSave(): GameSessionSave {
@@ -104,195 +122,197 @@ export class PrologueFlowSession {
   snapshot(): PrologueFlowSnapshot {
     if (this.arrival) {
       const arrival = this.arrival.snapshot();
-      return Object.freeze({
-        mode: "arrival_stream",
-        session: arrival.session,
-        runtime: arrival.runtime,
-        arrival,
-        settlement: null,
-        killCount: 0,
-      });
+      return Object.freeze({ mode: "arrival_stream", session: arrival.session, runtime: arrival.runtime,
+        arrival, settlement: null, infrastructure: null, killCount: 0 });
     }
-    const settlement = this.settlement!.snapshot();
-    return Object.freeze({
-      mode: "settlement",
-      session: settlement.session,
-      runtime: settlement.runtime,
-      arrival: null,
-      settlement,
-      killCount: 0,
-    });
+    if (this.settlement) {
+      const settlement = this.settlement.snapshot();
+      return Object.freeze({ mode: "settlement", session: settlement.session, runtime: settlement.runtime,
+        arrival: null, settlement, infrastructure: null, killCount: 0 });
+    }
+    const infrastructure = this.infrastructure!.snapshot();
+    return Object.freeze({ mode: "infrastructure", session: infrastructure.session, runtime: infrastructure.runtime,
+      arrival: null, settlement: null, infrastructure, killCount: 0 });
   }
 
   advanceTicks(ticks: number, input: RuntimeInput = {}): PrologueFlowSnapshot {
-    if (!Number.isSafeInteger(ticks) || ticks < 0) {
-      throw new RangeError("ticks must be a non-negative safe integer");
-    }
-    // Advance one fixed step at a time so a boundary handoff never runs the
-    // remainder of a frame batch through the wrong scene coordinator.
+    if (!Number.isSafeInteger(ticks) || ticks < 0) throw new RangeError("ticks must be a non-negative safe integer");
     for (let index = 0; index < ticks; index += 1) {
       if (this.arrival) this.arrival.advanceTicks(1, input);
-      else this.settlement!.advanceTicks(1, input);
+      else if (this.settlement) this.settlement.advanceTicks(1, input);
+      else this.infrastructure!.advanceTicks(1, input);
       this.reconcileMode();
     }
     return this.snapshot();
   }
 
-  pushLooseStone(transactionId: string): PrologueFlowAction<PrologueActionResult> {
-    return this.delegateArrival((target) => target.pushLooseStone(transactionId));
+  pushLooseStone(transactionId: string) { return this.delegateArrival((x) => x.pushLooseStone(transactionId)); }
+  placeRottenLog(transactionId: string) { return this.delegateArrival((x) => x.placeRottenLog(transactionId)); }
+  digSoftSoil(transactionId: string) { return this.delegateArrival((x) => x.digSoftSoil(transactionId)); }
+  discoverTelo(occurrenceId: string) { return this.delegateArrival((x) => x.discoverTelo(occurrenceId)); }
+  attuneTelo(attemptId: string, occurrenceId: string) {
+    return this.delegateArrival((x) => x.attuneTelo(attemptId, occurrenceId));
   }
+  manifestTelo(transactionId: string) { return this.delegateArrival((x) => x.manifestTelo(transactionId)); }
+  damageCrossing(transactionId: string) { return this.delegateArrival((x) => x.damageCrossing(transactionId)); }
+  repairCrossing(transactionId: string) { return this.delegateArrival((x) => x.repairCrossing(transactionId)); }
 
-  placeRottenLog(transactionId: string): PrologueFlowAction<PrologueActionResult> {
-    return this.delegateArrival((target) => target.placeRottenLog(transactionId));
+  talk(npcId: string, topic: SettlementDialogueTopic = "role") {
+    return this.delegateSettlement((x) => x.talk(npcId, topic));
   }
-
-  digSoftSoil(transactionId: string): PrologueFlowAction<PrologueActionResult> {
-    return this.delegateArrival((target) => target.digSoftSoil(transactionId));
+  clarify(npcId: string, topic: SettlementDialogueTopic) {
+    return this.delegateSettlement((x) => x.clarify(npcId, topic));
   }
-
-  discoverTelo(occurrenceId: string): PrologueFlowAction<PrologueActionResult> {
-    return this.delegateArrival((target) => target.discoverTelo(occurrenceId));
+  usePublicRelief(transactionId: string) { return this.delegateSettlement((x) => x.usePublicRelief(transactionId)); }
+  meditate(transactionId: string, answerAccepted: boolean) {
+    return this.delegateSettlement((x) => x.meditate(transactionId, answerAccepted));
   }
-
-  attuneTelo(attemptId: string, occurrenceId: string): PrologueFlowAction<PrologueActionResult> {
-    return this.delegateArrival((target) => target.attuneTelo(attemptId, occurrenceId));
+  acceptSurveyJob(transactionId: string) { return this.delegateSettlement((x) => x.acceptSurveyJob(transactionId)); }
+  inspectSurveyMarker(transactionId: string, markerId: string) {
+    return this.delegateSettlement((x) => x.inspectSurveyMarkers(transactionId, markerId));
   }
-
-  manifestTelo(transactionId: string): PrologueFlowAction<PrologueActionResult> {
-    return this.delegateArrival((target) => target.manifestTelo(transactionId));
+  inspectSurveyMarkers(transactionId: string, markerId?: string) {
+    return this.delegateSettlement((x) => x.inspectSurveyMarkers(transactionId, markerId));
   }
-
-  damageCrossing(transactionId: string): PrologueFlowAction<PrologueActionResult> {
-    return this.delegateArrival((target) => target.damageCrossing(transactionId));
-  }
-
-  repairCrossing(transactionId: string): PrologueFlowAction<PrologueActionResult> {
-    return this.delegateArrival((target) => target.repairCrossing(transactionId));
-  }
-
-  talk(npcId: string, topic: SettlementDialogueTopic = "role"): PrologueFlowAction<SettlementDialogueResult> {
-    return this.delegateSettlement((target) => target.talk(npcId, topic));
-  }
-
-  clarify(npcId: string, topic: SettlementDialogueTopic): PrologueFlowAction<SettlementDialogueResult> {
-    return this.delegateSettlement((target) => target.clarify(npcId, topic));
-  }
-
-  usePublicRelief(transactionId: string): PrologueFlowAction<SettlementActionResult> {
-    return this.delegateSettlement((target) => target.usePublicRelief(transactionId));
-  }
-
-  meditate(transactionId: string, answerAccepted: boolean): PrologueFlowAction<SettlementActionResult> {
-    return this.delegateSettlement((target) => target.meditate(transactionId, answerAccepted));
-  }
-
-  acceptSurveyJob(transactionId: string): PrologueFlowAction<SettlementActionResult> {
-    return this.delegateSettlement((target) => target.acceptSurveyJob(transactionId));
-  }
-
-  inspectSurveyMarker(transactionId: string, markerId: string): PrologueFlowAction<SettlementActionResult> {
-    return this.delegateSettlement((target) => target.inspectSurveyMarkers(transactionId, markerId));
-  }
-
-  inspectSurveyMarkers(transactionId: string, markerId?: string): PrologueFlowAction<SettlementActionResult> {
-    return this.delegateSettlement((target) => target.inspectSurveyMarkers(transactionId, markerId));
-  }
-
-  submitSurveyJob(transactionId: string): PrologueFlowAction<SettlementActionResult> {
-    return this.delegateSettlement((target) => target.submitSurveyJob(transactionId));
-  }
-
+  submitSurveyJob(transactionId: string) { return this.delegateSettlement((x) => x.submitSurveyJob(transactionId)); }
   openTrade(transactionId: string): PrologueFlowAction<SettlementTradeOpenResult> {
-    return this.delegateSettlement((target) => target.openTrade(transactionId));
+    return this.delegateSettlement((x) => x.openTrade(transactionId));
   }
 
-  setCheckpoint(
-    transactionId: string,
-    checkpointId: string,
-  ): PrologueFlowAction<PrologueArrivalStreamSnapshot | SettlementActionResult> {
-    if (this.arrival) {
-      return this.delegateArrivalSnapshot((target) => target.setCheckpoint(transactionId, checkpointId));
-    }
-    return this.delegateSettlement((target) => target.setCheckpoint(transactionId, checkpointId));
-  }
-
-  resetToCheckpoint(
-    transactionId: string,
-  ): PrologueFlowAction<PrologueArrivalStreamSnapshot | SettlementActionResult> {
-    if (this.arrival) {
-      return this.delegateArrivalSnapshot((target) => target.resetToCheckpoint(transactionId));
-    }
-    const delegated = this.delegateSettlement((target) => target.resetToCheckpoint(transactionId));
-    this.reconcileMode();
-    return { ...delegated, snapshot: this.snapshot() };
-  }
-
-  resetArea(
-    transactionId: string,
-  ): PrologueFlowAction<PrologueArrivalStreamSnapshot | SettlementActionResult> {
-    if (this.arrival) {
-      return this.delegateArrivalSnapshot((target) => target.resetArea(transactionId));
-    }
-    const delegated = this.delegateSettlement((target) => target.resetArea(transactionId));
-    this.reconcileMode();
-    return { ...delegated, snapshot: this.snapshot() };
-  }
-
-  private delegateArrival<T extends ArrivalAcceptedResult>(
-    action: (target: PrologueArrivalStreamSession) => T,
-  ): PrologueFlowAction<T> {
-    if (!this.arrival) return this.rejectedMode();
-    try {
-      const result = action(this.arrival);
-      this.reconcileMode();
-      return this.delegated(result, acceptedByDelegate(result));
-    } catch {
-      return this.rejectedDelegate();
-    }
-  }
-
-  private delegateArrivalSnapshot<T extends PrologueArrivalStreamSnapshot>(
-    action: (target: PrologueArrivalStreamSession) => T,
-  ): PrologueFlowAction<T> {
-    if (!this.arrival) return this.rejectedMode();
-    try {
-      const result = action(this.arrival);
-      this.reconcileMode();
-      return this.delegated(result, true);
-    } catch {
-      return this.rejectedDelegate();
-    }
-  }
-
-  private delegateSettlement<T extends SettlementAcceptedResult>(
-    action: (target: PrologueSettlementSession) => T,
-  ): PrologueFlowAction<T> {
+  enterWaterwheel(transactionId: string): PrologueFlowAction<PrologueWaterwheelEntryResult> {
     if (!this.settlement) return this.rejectedMode();
     try {
-      const result = action(this.settlement);
-      this.reconcileMode();
-      return this.delegated(result, acceptedByDelegate(result));
+      const result = PrologueWaterwheelSession.enterFromSettlement(this.settlement.session, transactionId);
+      if (result.accepted && result.infrastructure) {
+        this.arrival = null;
+        this.settlement = null;
+        this.infrastructure = result.infrastructure;
+      }
+      return this.delegated(result, result.accepted);
     } catch {
       return this.rejectedDelegate();
     }
+  }
+
+  observeWaterwheelPhysics(transactionId: string, observation: WaterwheelPhysicalObservation) {
+    return this.delegateInfrastructure((x) => x.observeWaterwheelPhysics(transactionId, observation));
+  }
+  completeWaterwheelSolution(transactionId: string, solutionId: string, evidence: WaterwheelSolutionEvidence) {
+    return this.delegateInfrastructure((x) => x.completeWaterwheelSolution(transactionId, solutionId, evidence));
+  }
+  enterServiceChannel(transactionId: string) {
+    return this.delegateInfrastructure((x) => x.enterServiceChannel(transactionId));
+  }
+  returnToWaterwheel(transactionId: string) {
+    return this.delegateInfrastructure((x) => x.returnToWaterwheel(transactionId));
+  }
+  returnToSettlement(transactionId: string): PrologueFlowAction<PrologueWaterwheelSettlementReturnResult> {
+    if (!this.infrastructure) return this.rejectedMode();
+    try {
+      const result = this.infrastructure.returnToSettlement(transactionId);
+      if (result.accepted && result.session) {
+        this.arrival = null;
+        this.infrastructure = null;
+        this.settlement = new PrologueSettlementSession(result.session);
+      }
+      return this.delegated(result, result.accepted);
+    } catch {
+      return this.rejectedDelegate();
+    }
+  }
+  completeServiceSolution(transactionId: string, solutionId: string, evidence: ServiceSolutionEvidence) {
+    return this.delegateInfrastructure((x) => x.completeServiceSolution(transactionId, solutionId, evidence));
+  }
+  discoverTawa(transactionId: string) { return this.delegateInfrastructure((x) => x.discoverTawa(transactionId)); }
+  attuneTawa(transactionId: string) { return this.delegateInfrastructure((x) => x.attuneTawa(transactionId)); }
+  groundTawa(transactionId: string, attempt: TawaGroundingAttempt) {
+    return this.delegateInfrastructure((x) => x.groundTawa(transactionId, attempt));
+  }
+  readGrammarOSign(transactionId: string) {
+    return this.delegateInfrastructure((x) => x.readGrammarOSign(transactionId));
+  }
+  acceptGrammarOReceptivePrompt(transactionId: string, answerAccepted: boolean) {
+    return this.delegateInfrastructure((x) => x.acceptGrammarOReceptivePrompt(transactionId, answerAccepted));
+  }
+  recoverInfrastructureSoftLock(transactionId: string) {
+    return this.delegateInfrastructure((x) => x.recoverSoftLock(transactionId));
+  }
+
+  setCheckpoint(transactionId: string, checkpointId: string): PrologueFlowAction<
+    PrologueArrivalStreamSnapshot | SettlementActionResult | InfrastructureActionResult
+  > {
+    if (this.arrival) return this.delegateArrivalSnapshot((x) => x.setCheckpoint(transactionId, checkpointId));
+    if (this.settlement) return this.delegateSettlement((x) => x.setCheckpoint(transactionId, checkpointId));
+    return this.delegateInfrastructure((x) => x.setCheckpoint(
+      transactionId,
+      checkpointId,
+      this.snapshot().runtime.player.position,
+    ));
+  }
+
+  resetToCheckpoint(transactionId: string): PrologueFlowAction<
+    PrologueArrivalStreamSnapshot | SettlementActionResult | InfrastructureActionResult
+  > {
+    if (this.arrival) return this.delegateArrivalSnapshot((x) => x.resetToCheckpoint(transactionId));
+    if (this.settlement) return this.delegateSettlement((x) => x.resetToCheckpoint(transactionId));
+    return this.delegateInfrastructure((x) => x.resetToCheckpoint(transactionId));
+  }
+
+  resetArea(transactionId: string): PrologueFlowAction<
+    PrologueArrivalStreamSnapshot | SettlementActionResult | InfrastructureActionResult
+  > {
+    if (this.arrival) return this.delegateArrivalSnapshot((x) => x.resetArea(transactionId));
+    if (this.settlement) return this.delegateSettlement((x) => x.resetArea(transactionId));
+    return this.delegateInfrastructure((x) => x.recoverSoftLock(transactionId));
+  }
+
+  private delegateArrival<T extends ArrivalAcceptedResult>(action: (x: PrologueArrivalStreamSession) => T) {
+    if (!this.arrival) return this.rejectedMode<T>();
+    try { const result = action(this.arrival); this.reconcileMode(); return this.delegated(result, result.accepted); }
+    catch { return this.rejectedDelegate<T>(); }
+  }
+  private delegateArrivalSnapshot<T extends PrologueArrivalStreamSnapshot>(
+    action: (x: PrologueArrivalStreamSession) => T,
+  ): PrologueFlowAction<T> {
+    if (!this.arrival) return this.rejectedMode();
+    try { const result = action(this.arrival); this.reconcileMode(); return this.delegated(result, true); }
+    catch { return this.rejectedDelegate(); }
+  }
+  private delegateSettlement<T extends SettlementAcceptedResult>(action: (x: PrologueSettlementSession) => T) {
+    if (!this.settlement) return this.rejectedMode<T>();
+    try { const result = action(this.settlement); this.reconcileMode(); return this.delegated(result, result.accepted); }
+    catch { return this.rejectedDelegate<T>(); }
+  }
+  private delegateInfrastructure<T extends InfrastructureAcceptedResult>(
+    action: (x: PrologueWaterwheelSession) => T,
+  ): PrologueFlowAction<T> {
+    if (!this.infrastructure) return this.rejectedMode();
+    try { const result = action(this.infrastructure); this.reconcileMode(); return this.delegated(result, result.accepted); }
+    catch { return this.rejectedDelegate(); }
   }
 
   private reconcileMode(): void {
     const sceneId = this.session.snapshot().world.currentSceneId;
     if (this.arrival && sceneId === PROLOGUE_SETTLEMENT_SCENE_ID) {
-      // Arrival owns the runtime scene transition and canonical first-traverse
-      // region flag. Settlement adopts that committed handoff exactly once to
-      // add its entry checkpoint, settlement_reached flag and operation receipt.
       const session = this.arrival.session;
       const adoption = PrologueSettlementSession.adoptRuntimeEntry(
         session,
         `${PROLOGUE_FLOW_SETTLEMENT_ENTRY_TRANSACTION_PREFIX}:${session.sessionId}`,
       );
-      if (!adoption.accepted || !adoption.settlement) {
-        throw new Error(`settlement runtime entry adoption rejected: ${adoption.reason}`);
-      }
+      if (!adoption.accepted || !adoption.settlement) throw new Error(`settlement entry rejected: ${adoption.reason}`);
       this.arrival = null;
       this.settlement = adoption.settlement;
+      return;
+    }
+    if (this.settlement && sceneId === PROLOGUE_WATERWHEEL_SCENE_ID) {
+      const session = this.settlement.session;
+      const adoption = PrologueWaterwheelSession.adoptRuntimeEntry(
+        session,
+        `${PROLOGUE_FLOW_WATERWHEEL_ENTRY_TRANSACTION_PREFIX}:${session.sessionId}`,
+      );
+      if (!adoption.accepted || !adoption.infrastructure) throw new Error(`waterwheel entry rejected: ${adoption.reason}`);
+      this.settlement = null;
+      this.infrastructure = adoption.infrastructure;
       return;
     }
     if (this.settlement && arrivalScene(sceneId)) {
@@ -301,26 +321,18 @@ export class PrologueFlowSession {
       this.arrival = new PrologueArrivalStreamSession(session);
       return;
     }
-    if (!arrivalScene(sceneId) && sceneId !== PROLOGUE_SETTLEMENT_SCENE_ID) {
+    if (!arrivalScene(sceneId) && sceneId !== PROLOGUE_SETTLEMENT_SCENE_ID && !infrastructureScene(sceneId)) {
       throw new Error(`unsupported prologue scene: ${sceneId}`);
     }
   }
 
   private delegated<T>(result: T, accepted: boolean): PrologueFlowAction<T> {
-    return Object.freeze({
-      accepted,
-      reason: accepted ? "delegated" : "delegate_rejected",
-      result,
-      snapshot: this.snapshot(),
-    });
+    return Object.freeze({ accepted, reason: accepted ? "delegated" : "delegate_rejected", result, snapshot: this.snapshot() });
   }
-
   private rejectedMode<T>(): PrologueFlowAction<T> {
     return Object.freeze({ accepted: false, reason: "wrong_mode", result: null, snapshot: this.snapshot() });
   }
-
   private rejectedDelegate<T>(): PrologueFlowAction<T> {
     return Object.freeze({ accepted: false, reason: "delegate_rejected", result: null, snapshot: this.snapshot() });
   }
 }
-

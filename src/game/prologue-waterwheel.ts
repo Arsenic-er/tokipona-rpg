@@ -27,6 +27,12 @@ import {
   type WorldFlagValue,
 } from "../session/game-session";
 import {
+  GameSessionRuntimeBridge,
+  type RuntimeInput,
+  type RuntimeSnapshot,
+} from "../runtime";
+import type { SceneDefinition } from "../runtime/scene";
+import {
   WATERWHEEL_STABLE_TICKS_REQUIRED,
   advanceWaterwheelPhysicalProgress,
   serviceSolutionWorldReady,
@@ -74,6 +80,34 @@ const SERVICE_INBOUND_FROM_WATERWHEEL = requireOne(
   SERVICE_SCENE.inboundRoutes,
   (route) => route.entranceId === SERVICE_ENTRY.id,
   "waterwheel-to-service inbound route",
+);
+const WATERWHEEL_EXIT_TO_SETTLEMENT = requireOne(
+  WATERWHEEL_SCENE.exits,
+  (exit) => exit.id === "waterwheel.to_settlement" && exit.target.kind === "scene",
+  "waterwheel-to-settlement exit",
+);
+if (WATERWHEEL_EXIT_TO_SETTLEMENT.target.kind !== "scene") {
+  throw new Error("waterwheel-to-settlement exit must target a scene");
+}
+const SETTLEMENT_SCENE = SCENE_INDEX.byId[WATERWHEEL_EXIT_TO_SETTLEMENT.target.sceneId];
+if (!SETTLEMENT_SCENE) throw new Error("waterwheel return target scene is absent from generated content");
+const SETTLEMENT_RETURN_ENTRANCE = requireOne(
+  SETTLEMENT_SCENE.entrances,
+  (entrance) => entrance.id === (WATERWHEEL_EXIT_TO_SETTLEMENT.target as Readonly<{ kind: "scene"; sceneId: string; entranceId: string }>).entranceId,
+  "settlement return entrance",
+);
+const toRuntimeScene = (manifest: RuntimeSceneManifest): SceneDefinition => Object.freeze({
+  id: manifest.sceneId,
+  collisionRows: manifest.collisionRows,
+  defaultEntranceId: manifest.recovery.entryEntranceId,
+  entrances: Object.freeze(manifest.entrances.map((entrance) => Object.freeze({
+    id: entrance.id,
+    position: Object.freeze({ ...entrance.spawnPx }),
+  }))),
+  exits: Object.freeze([]),
+});
+const INFRASTRUCTURE_RUNTIME_SCENES = Object.freeze(
+  Object.values(SCENE_INDEX.byId).map(toRuntimeScene),
 );
 
 const taskForScene = (scene: RuntimeSceneManifest): RuntimeInfrastructureTaskManifest => {
@@ -230,6 +264,13 @@ export interface PrologueWaterwheelEntryResult {
   readonly infrastructure: PrologueWaterwheelSession | null;
 }
 
+export interface PrologueWaterwheelSettlementReturnResult {
+  readonly accepted: boolean;
+  readonly duplicate: boolean;
+  readonly reason: InfrastructureActionReason;
+  readonly session: GameSession | null;
+}
+
 export interface WaterwheelSolutionEvidence {
   readonly completedActionIds: readonly string[];
   readonly world: WaterwheelSolutionWorldState;
@@ -252,6 +293,7 @@ export interface TawaGroundingAttempt {
 export interface PrologueWaterwheelSnapshot {
   readonly mode: InfrastructureMode;
   readonly session: GameSessionState;
+  readonly runtime: RuntimeSnapshot;
   readonly sceneManifestId: string;
   readonly taskId: string;
   readonly waterwheel: Readonly<{
@@ -402,6 +444,7 @@ const checkpointForEntrance = (
  */
 export class PrologueWaterwheelSession {
   private authoritativeSession: GameSession;
+  private bridge!: GameSessionRuntimeBridge;
   private temporaryWaterwheelActive = false;
 
   constructor(session: GameSession) {
@@ -410,6 +453,7 @@ export class PrologueWaterwheelSession {
       throw new Error("infrastructure session requires the generated N03 or N04 scene");
     }
     this.authoritativeSession = session;
+    this.rebuildBridge();
   }
 
   static enterFromSettlement(session: GameSession, transactionId: string): PrologueWaterwheelEntryResult {
@@ -531,6 +575,7 @@ export class PrologueWaterwheelSession {
     return Object.freeze({
       mode: inWaterwheel ? "waterwheel" : "service_channel",
       session,
+      runtime: this.bridge.runtime.snapshot(),
       sceneManifestId: scene.sceneId,
       taskId: task.id,
       waterwheel: Object.freeze({
@@ -572,6 +617,13 @@ export class PrologueWaterwheelSession {
       }),
       killCount: 0,
     });
+  }
+
+  advanceTicks(ticks: number, input: RuntimeInput = {}): PrologueWaterwheelSnapshot {
+    if (!Number.isSafeInteger(ticks) || ticks < 0) throw new RangeError("ticks must be a non-negative safe integer");
+    this.bridge.advanceTicks(ticks, input);
+    this.authoritativeSession = this.bridge.session;
+    return this.snapshot();
   }
 
   observeWaterwheelPhysics(
@@ -776,6 +828,59 @@ export class PrologueWaterwheelSession {
     });
     if (result.accepted && !result.duplicate) this.temporaryWaterwheelActive = false;
     return this.result(result.accepted, result.duplicate, result.reason);
+  }
+
+  returnToSettlement(transactionId: string): PrologueWaterwheelSettlementReturnResult {
+    const id = requiredId(transactionId, "transactionId");
+    if (!this.inScene(WATERWHEEL_SCENE)) {
+      return Object.freeze({ accepted: false, duplicate: false, reason: "wrong_scene", session: null });
+    }
+    const fingerprint = operationFingerprint("settlement_return", {
+      sourceSceneId: WATERWHEEL_SCENE.sceneId,
+      sourceExitId: WATERWHEEL_EXIT_TO_SETTLEMENT.id,
+      targetSceneId: SETTLEMENT_SCENE.sceneId,
+      targetEntranceId: SETTLEMENT_RETURN_ENTRANCE.id,
+    });
+    const prior = classifyOperation(this.authoritativeSession, id, fingerprint);
+    if (prior === "conflict") {
+      return Object.freeze({ accepted: false, duplicate: false, reason: "transaction_conflict", session: null });
+    }
+    if (prior === "duplicate") {
+      const atSettlement = this.authoritativeSession.snapshot().world.currentSceneId === SETTLEMENT_SCENE.sceneId;
+      return Object.freeze({
+        accepted: atSettlement,
+        duplicate: atSettlement,
+        reason: atSettlement ? "duplicate" : "wrong_source_scene",
+        session: atSettlement ? this.authoritativeSession : null,
+      });
+    }
+    const state = this.authoritativeSession.snapshot();
+    const commit = commitSessionProposal(this.authoritativeSession, {
+      transactionId: id,
+      drafts: [
+        {
+          eventId: `session.infrastructure.settlement.return.scene.${id}`,
+          type: "scene_entered",
+          payload: { sceneId: SETTLEMENT_SCENE.sceneId },
+        },
+        {
+          eventId: `session.infrastructure.settlement.return.checkpoint.${id}`,
+          type: "checkpoint_set",
+          payload: { checkpoint: checkpointForEntrance(
+            state,
+            "checkpoint.valley.settlement.return",
+            SETTLEMENT_SCENE,
+            SETTLEMENT_RETURN_ENTRANCE,
+          ) },
+        },
+        operationReceiptDraft(this.authoritativeSession.sessionId, id, fingerprint),
+      ],
+    });
+    if (!commit.committed) {
+      return Object.freeze({ accepted: false, duplicate: false, reason: "session_rejected", session: null });
+    }
+    this.authoritativeSession = commit.session;
+    return Object.freeze({ accepted: true, duplicate: false, reason: "committed", session: commit.session });
   }
 
   completeServiceSolution(
@@ -1150,6 +1255,7 @@ export class PrologueWaterwheelSession {
     const commit = commitSessionProposal(this.authoritativeSession, batch);
     if (!commit.committed) return this.result(false, false, "session_rejected");
     this.authoritativeSession = commit.session;
+    this.rebuildBridge();
     return this.result(true, false, "committed");
   }
 
@@ -1176,6 +1282,20 @@ export class PrologueWaterwheelSession {
 
   private currentScene(): RuntimeSceneManifest {
     return this.inScene(WATERWHEEL_SCENE) ? WATERWHEEL_SCENE : SERVICE_SCENE;
+  }
+
+  private rebuildBridge(): void {
+    const manifests = Object.values(SCENE_INDEX.byId);
+    this.bridge = new GameSessionRuntimeBridge({
+      session: this.authoritativeSession,
+      scenes: INFRASTRUCTURE_RUNTIME_SCENES,
+      sceneAreas: Object.fromEntries(Object.values(SCENE_INDEX.byId).map((scene) => [scene.sceneId, scene.regionId])),
+      entranceByScene: Object.fromEntries(
+        manifests.map((scene) => [scene.sceneId, scene.recovery.entryEntranceId]),
+      ),
+      viewportPx: { x: 320, y: 160 },
+      fixedHz: 60,
+    });
   }
 }
 
