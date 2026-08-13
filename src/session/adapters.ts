@@ -1,7 +1,8 @@
 import type { CisternConfirmResult, CisternMpRecoveryResult } from "../game/cistern-demo";
 import type { DemoActionResult, SettlementDemoSave } from "../game/settlement-demo";
 import type { SurvivalSave, SurvivalTransactionResult } from "../game/survival";
-import type { CommitResult, TradeSave } from "../game/trade";
+import type { CommitResult, QuoteResult, TradeSave } from "../game/trade";
+import { adaptTradeSaveToSessionEconomy } from "../game/economy-state";
 import type { EvidenceProposalResult } from "../learning/cistern-session";
 import type { LearningProgressionSnapshot } from "../learning/progression";
 import {
@@ -22,11 +23,9 @@ import {
 import {
   GameSession,
   adaptSurvivalSave,
-  adaptTradeSnapshot,
   type GameSessionEvent,
   type SessionApplyResult,
   type SessionCheckpointState,
-  type SessionEconomySummary,
   type SessionReceiptDomain,
 } from "./game-session";
 
@@ -227,35 +226,99 @@ export const proposeSurvivalTransaction = (
   };
 };
 
-export const proposeTradeTransaction = (
+const tradeReceiptHash = (receipt: NonNullable<CommitResult["receipt"]>): string =>
+  `trade:${receipt.quoteId}:${receipt.itemId}:${receipt.quantity}:${receipt.coinDelta}`;
+
+const sameJson = (left: unknown, right: unknown): boolean => JSON.stringify(left) === JSON.stringify(right);
+
+/** Persist a successful inquiry before allowing a sale. Quotes themselves intentionally expire on load. */
+export const proposeTradeQuoteSequence = (
+  authoritative: GameSession,
+  result: QuoteResult,
+  executorSave: TradeSave,
+): SessionProposalResult => {
+  if (!result.accepted || !result.quote) return { accepted: false, reason: "executor_rejected" };
+  const current = authoritative.snapshot().economy;
+  const projected = adaptTradeSaveToSessionEconomy(executorSave, current);
+  if (projected.quoteSequence !== current.quoteSequence + 1) {
+    throw new Error("trade quote sequence must advance exactly once");
+  }
+  const { quoteSequence: _currentSequence, ...currentStable } = current;
+  const { quoteSequence: _projectedSequence, ...projectedStable } = projected;
+  if (!sameJson(currentStable, projectedStable)) {
+    throw new Error("creating a quote may only change quoteSequence");
+  }
+  return {
+    accepted: true,
+    batch: {
+      transactionId: result.quote.quoteId,
+      drafts: [{
+        eventId: `session.trade.quote.${result.quote.quoteId}`,
+        type: "quote_sequence_advanced",
+        payload: {
+          expectedQuoteSequence: current.quoteSequence,
+          nextQuoteSequence: projected.quoteSequence,
+        },
+      }],
+    },
+  };
+};
+
+/**
+ * Domain-CAS sale projection. The one aggregate event records both the full trade receipt and
+ * the unified session receipt, so a failed revision check cannot leave a half-committed sale.
+ */
+export const proposeTradeSale = (
+  authoritative: GameSession,
   result: CommitResult,
   executorSave: TradeSave,
 ): SessionProposalResult => {
   if (!result.committed) return { accepted: false, reason: result.duplicate ? "executor_duplicate" : "executor_rejected" };
   if (!result.receipt) return { accepted: false, reason: "executor_missing_receipt" };
-  const transactionId = result.receipt.transactionId;
-  if (!executorSave.receipts.some((receipt) => receipt.transactionId === transactionId)) {
-    throw new Error("committed trade transaction is missing its receipt");
+  const receipt = result.receipt;
+  const savedReceipt = executorSave.receipts.find((candidate) => candidate.transactionId === receipt.transactionId);
+  if (!savedReceipt || !sameJson(savedReceipt, receipt)) {
+    throw new Error("committed trade transaction is missing its exact receipt");
   }
-  const economy = adaptTradeSnapshot(executorSave);
+  const current = authoritative.snapshot().economy;
+  const projected = adaptTradeSaveToSessionEconomy(executorSave, current);
+  const currentLot = current.lots.find((lot) => lot.lotId === receipt.lotId);
+  const nextLot = projected.lots.find((lot) => lot.lotId === receipt.lotId);
+  const currentMerchant = current.merchantStates.find((state) => state.merchantId === receipt.merchantId);
+  const nextMerchantState = projected.merchantStates.find((state) => state.merchantId === receipt.merchantId);
+  if (!currentLot || !nextLot || !currentMerchant || !nextMerchantState) {
+    throw new Error("trade sale projection is missing its lot or merchant state");
+  }
   return {
     accepted: true,
     batch: {
-      transactionId,
-      drafts: [
-        {
-          eventId: `session.trade.state.${transactionId}`,
-          type: "economy_replaced",
-          payload: { economy },
+      transactionId: receipt.transactionId,
+      drafts: [{
+        eventId: `session.trade.sale.${receipt.transactionId}`,
+        type: "trade_sale_committed",
+        payload: {
+          expectedWalletRevision: current.walletRevision,
+          expectedInventoryRevision: current.inventoryRevision,
+          expectedQuoteSequence: current.quoteSequence,
+          expectedLotOwnershipRevision: currentLot.ownershipRevision,
+          expectedLotFreshnessRevision: currentLot.freshnessRevision,
+          expectedMerchantDemandRevision: currentMerchant.demandRevision,
+          nextCoin: projected.coin,
+          nextWalletRevision: projected.walletRevision,
+          nextInventoryRevision: projected.inventoryRevision,
+          nextLot,
+          nextMerchantState,
+          tradeReceipt: receipt,
+          sessionReceiptPayloadHash: tradeReceiptHash(receipt),
         },
-        receiptDraft(
-          transactionId,
-          "trade",
-          `trade:${result.receipt.quoteId}:${result.receipt.itemId}:${result.receipt.quantity}:${result.receipt.coinDelta}`,
-        ),
-      ],
+      }],
     },
   };
+};
+
+/** @deprecated Whole-economy replacement is forbidden for new production transactions. */
+export const proposeTradeTransaction = (_result: CommitResult, _executorSave: TradeSave): never => {
+  throw new Error("proposeTradeTransaction is disabled; commit quote sequence and trade sale domain events");
 };
 
 /**
@@ -393,33 +456,13 @@ export const adaptRuntimeCheckpoint = (checkpoint: RuntimeCheckpointSnapshot): S
   revision: checkpoint.revision,
 });
 
+/** @deprecated Whole-economy settlement replacement is forbidden for new production transactions. */
 export const proposeSettlementReplacement = (
-  transactionId: string,
-  result: DemoActionResult,
-  executorSave: SettlementDemoSave,
-): SessionProposalResult => {
-  if (!result.committed) return { accepted: false, reason: result.duplicate ? "executor_duplicate" : "executor_rejected" };
-  if (!executorSave.receipts.includes(transactionId)) throw new Error("settlement action is missing its receipt");
-  const economy: SessionEconomySummary = {
-    coin: executorSave.coins,
-    walletRevision: executorSave.transactionSequence,
-    inventoryRevision: executorSave.transactionSequence,
-    lots: [
-      { lotId: "settlement.raw-meat", itemId: "food.raw_small_game_meat", quantity: executorSave.rawMeat, ownershipRevision: executorSave.transactionSequence, freshnessRevision: 0 },
-      { lotId: "settlement.cooked-meat", itemId: "food.cooked_game_meat", quantity: executorSave.cookedMeat, ownershipRevision: executorSave.transactionSequence, freshnessRevision: 0 },
-    ],
-  };
-  return {
-    accepted: true,
-    batch: {
-      transactionId,
-      drafts: [
-        { eventId: `session.settlement.survival.${transactionId}`, type: "survival_replaced", payload: { survival: executorSave.survival } },
-        { eventId: `session.settlement.economy.${transactionId}`, type: "economy_replaced", payload: { economy } },
-        receiptDraft(transactionId, "other", `settlement:${executorSave.transactionSequence}`),
-      ],
-    },
-  };
+  _transactionId: string,
+  _result: DemoActionResult,
+  _executorSave: SettlementDemoSave,
+): never => {
+  throw new Error("proposeSettlementReplacement is disabled; use economy domain events");
 };
 
 const materializeDraft = (

@@ -10,7 +10,21 @@ import {
   SurvivalSystem,
   type SurvivalSave,
 } from "../game/survival";
-import type { TradeSnapshot } from "../game/trade";
+import type { MerchantState, TradeLot, TradeReceipt, TradeSave, TradeSnapshot } from "../game/trade";
+import {
+  adaptTradeSaveToSessionEconomy,
+  adaptTradeSnapshotToSessionEconomy,
+  createEmptySessionEconomy,
+  isLegacySessionEconomySummary,
+  isMerchantStateValue,
+  isSessionEconomyState,
+  isTradeLotState,
+  isTradeReceiptValue,
+  normalizeSessionEconomy,
+  type LegacyInventoryLotSummary,
+  type LegacySessionEconomySummary,
+  type SessionEconomyState,
+} from "../game/economy-state";
 import type { MpLedgerSnapshot } from "../spells/cast-plan";
 import {
   createDeterministicCorpseId,
@@ -127,20 +141,11 @@ export interface SessionWorldState {
   readonly areaEpochs: Readonly<Record<string, number>>;
 }
 
-export interface InventoryLotSummary {
-  readonly lotId: string;
-  readonly itemId: string;
-  readonly quantity: number;
-  readonly ownershipRevision: number;
-  readonly freshnessRevision: number;
-}
-
-export interface SessionEconomySummary {
-  readonly coin: number;
-  readonly walletRevision: number;
-  readonly inventoryRevision: number;
-  readonly lots: readonly InventoryLotSummary[];
-}
+/** @deprecated Legacy v0.1/v0.2 summary accepted only at migration boundaries. */
+export type InventoryLotSummary = LegacyInventoryLotSummary;
+/** @deprecated Legacy v0.1/v0.2 summary accepted only at migration boundaries. */
+export type SessionEconomySummary = LegacySessionEconomySummary;
+export type { SessionEconomyState };
 
 export interface SessionQuestProgress {
   readonly questId: string;
@@ -178,7 +183,7 @@ export interface GameSessionState {
   readonly checkpoint: SessionCheckpointState;
   readonly learning: LearningProgressionSnapshot;
   readonly survival: SurvivalSave;
-  readonly economy: SessionEconomySummary;
+  readonly economy: SessionEconomyState;
   readonly quests: Readonly<Record<string, SessionQuestProgress>>;
   readonly receiptIndex: Readonly<Record<string, SessionReceiptIndexEntry>>;
   readonly processedEventPayloads: Readonly<Record<string, string>>;
@@ -202,7 +207,46 @@ export type GameSessionEvent =
   | SessionEventBase<"world_flag_set", WorldFlagSetPayload>
   | SessionEventBase<"learning_replaced", { readonly learning: LearningProgressionSnapshot }>
   | SessionEventBase<"survival_replaced", { readonly survival: SurvivalSave }>
-  | SessionEventBase<"economy_replaced", { readonly economy: SessionEconomySummary }>
+  /** @deprecated Retained for replay of ledgers written before economy v0.2 domain events. */
+  | SessionEventBase<"economy_replaced", { readonly economy: SessionEconomySummary | SessionEconomyState }>
+  | SessionEventBase<"economy_wallet_changed", {
+      readonly expectedWalletRevision: number;
+      readonly nextWalletRevision: number;
+      readonly coinDelta: number;
+      readonly nextCoin: number;
+    }>
+  | SessionEventBase<"quote_sequence_advanced", {
+      readonly expectedQuoteSequence: number;
+      readonly nextQuoteSequence: number;
+    }>
+  | SessionEventBase<"economy_lot_changed", {
+      readonly lotId: string;
+      readonly expectedInventoryRevision: number;
+      readonly nextInventoryRevision: number;
+      readonly expectedOwnershipRevision: number | null;
+      readonly expectedFreshnessRevision: number | null;
+      readonly nextLot: TradeLot | null;
+    }>
+  | SessionEventBase<"merchant_state_changed", {
+      readonly merchantId: MerchantState["merchantId"];
+      readonly expectedDemandRevision: number;
+      readonly nextState: MerchantState;
+    }>
+  | SessionEventBase<"trade_sale_committed", {
+      readonly expectedWalletRevision: number;
+      readonly expectedInventoryRevision: number;
+      readonly expectedQuoteSequence: number;
+      readonly expectedLotOwnershipRevision: number;
+      readonly expectedLotFreshnessRevision: number;
+      readonly expectedMerchantDemandRevision: number;
+      readonly nextCoin: number;
+      readonly nextWalletRevision: number;
+      readonly nextInventoryRevision: number;
+      readonly nextLot: TradeLot;
+      readonly nextMerchantState: MerchantState;
+      readonly tradeReceipt: TradeReceipt;
+      readonly sessionReceiptPayloadHash: string;
+    }>
   | SessionEventBase<"quest_stage_set", {
       readonly questId: string;
       readonly stageId: string;
@@ -233,7 +277,8 @@ export type SessionApplyReason =
   | "life_registration_conflict"
   | "life_not_registered"
   | "life_revision_conflict"
-  | "life_already_tombstoned";
+  | "life_already_tombstoned"
+  | "economy_revision_conflict";
 
 export interface SessionApplyResult {
   readonly applied: boolean;
@@ -250,7 +295,7 @@ export interface GameSessionInitialState {
   readonly checkpoint?: SessionCheckpointState;
   readonly learning?: LearningProgressionSnapshot;
   readonly survival?: SurvivalSave;
-  readonly economy?: SessionEconomySummary;
+  readonly economy?: SessionEconomySummary | SessionEconomyState;
   readonly quests?: Readonly<Record<string, SessionQuestProgress>>;
   readonly receiptIndex?: Readonly<Record<string, SessionReceiptIndexEntry>>;
 }
@@ -277,7 +322,7 @@ export interface LegacyGameSessionSaveV1 {
   readonly world: SessionWorldState;
   readonly learning: LearningProgressionSnapshot;
   readonly survival: SurvivalSave;
-  readonly economy: SessionEconomySummary;
+  readonly economy: SessionEconomySummary | SessionEconomyState;
   readonly quests: Readonly<Record<string, SessionQuestProgress>>;
 }
 
@@ -430,19 +475,7 @@ const isSurvivalSave = (value: unknown): value is SurvivalSave => {
     receipts.every(isNonEmptyString) && valuesAreUnique(receipts);
 };
 
-const isInventoryLotSummary = (value: unknown): value is InventoryLotSummary => {
-  if (!isRecord(value)) return false;
-  return isNonEmptyString(value.lotId) && isNonEmptyString(value.itemId) &&
-    isNonNegativeSafeInteger(value.quantity) && isNonNegativeSafeInteger(value.ownershipRevision) &&
-    isNonNegativeSafeInteger(value.freshnessRevision);
-};
-
-const isEconomySummary = (value: unknown): value is SessionEconomySummary => {
-  if (!isRecord(value) || !isNonNegativeSafeInteger(value.coin) ||
-      !isNonNegativeSafeInteger(value.walletRevision) || !isNonNegativeSafeInteger(value.inventoryRevision) ||
-      !Array.isArray(value.lots) || !value.lots.every(isInventoryLotSummary)) return false;
-  return valuesAreUnique(value.lots.map((lot) => lot.lotId));
-};
+const isEconomySummary = isLegacySessionEconomySummary;
 
 const isQuestProgress = (value: unknown): value is SessionQuestProgress => {
   if (!isRecord(value)) return false;
@@ -512,34 +545,46 @@ const isReceiptRecord = (value: unknown): value is Readonly<Record<string, Sessi
 const isSessionStateCore = (value: Record<string, unknown>): boolean =>
   isNonNegativeSafeInteger(value.revision) && isNonNegativeSafeInteger(value.lastEventSequence) &&
   value.revision === value.lastEventSequence && isSessionMpState(value.mp) && isWorldState(value.world) &&
-  isCheckpointState(value.checkpoint) && isLearningSnapshot(value.learning) && isSurvivalSave(value.survival) && isEconomySummary(value.economy) &&
+  isCheckpointState(value.checkpoint) && isLearningSnapshot(value.learning) && isSurvivalSave(value.survival) &&
   isQuestRecord(value.quests) && isReceiptRecord(value.receiptIndex) &&
   isStringRecord(value.processedEventPayloads) &&
   Object.keys(value.processedEventPayloads).length === value.lastEventSequence;
 
 const isSessionState = (value: unknown): value is GameSessionState => {
   if (!isRecord(value) || !isSessionStateCore(value) || !isCapabilityState(value.capabilities) ||
-      !isSessionLifeCorpseLedger(value.lifeCorpseLedger) || !isSessionMpState(value.mp)) return false;
+      !isSessionLifeCorpseLedger(value.lifeCorpseLedger) || !isSessionEconomyState(value.economy) ||
+      !isSessionMpState(value.mp)) return false;
   const maxMp = value.mp.maxMp;
   return Object.values(value.capabilities.appliedMilestones).every((milestone) =>
     milestone.maxMp <= maxMp);
 };
 
-type PreLifeLedgerState = Omit<GameSessionState, "lifeCorpseLedger">;
-type PreCapabilityState = Omit<GameSessionState, "capabilities">;
-type PreCapabilityAndLifeLedgerState = Omit<GameSessionState, "capabilities" | "lifeCorpseLedger">;
+type MigratableEconomy = SessionEconomyState | SessionEconomySummary;
+type PreEconomyState = Omit<GameSessionState, "economy"> & { readonly economy: SessionEconomySummary };
+type PreLifeLedgerState = Omit<GameSessionState, "lifeCorpseLedger" | "economy"> & { readonly economy: MigratableEconomy };
+type PreCapabilityState = Omit<GameSessionState, "capabilities" | "economy"> & { readonly economy: MigratableEconomy };
+type PreCapabilityAndLifeLedgerState = Omit<GameSessionState, "capabilities" | "lifeCorpseLedger" | "economy"> & {
+  readonly economy: MigratableEconomy;
+};
+
+const isMigratableEconomy = (value: unknown): value is MigratableEconomy =>
+  isSessionEconomyState(value) || isEconomySummary(value);
+
+const isPreEconomyV02SessionState = (value: unknown): value is PreEconomyState =>
+  isRecord(value) && isSessionStateCore(value) && isCapabilityState(value.capabilities) &&
+  isSessionLifeCorpseLedger(value.lifeCorpseLedger) && isEconomySummary(value.economy);
 
 const isPreLifeLedgerV02SessionState = (value: unknown): value is PreLifeLedgerState =>
   isRecord(value) && value.lifeCorpseLedger === undefined && isCapabilityState(value.capabilities) &&
-  isSessionStateCore(value);
+  isMigratableEconomy(value.economy) && isSessionStateCore(value);
 
 const isPreCapabilityOnlyV02SessionState = (value: unknown): value is PreCapabilityState =>
   isRecord(value) && value.capabilities === undefined && isSessionLifeCorpseLedger(value.lifeCorpseLedger) &&
-  isSessionStateCore(value);
+  isMigratableEconomy(value.economy) && isSessionStateCore(value);
 
 const isPreCapabilityV02SessionState = (value: unknown): value is PreCapabilityAndLifeLedgerState =>
   isRecord(value) && value.capabilities === undefined && value.lifeCorpseLedger === undefined &&
-  isSessionStateCore(value);
+  isMigratableEconomy(value.economy) && isSessionStateCore(value);
 
 const isEventEnvelope = (value: unknown): value is GameSessionEvent => {
   if (!isRecord(value) || !isNonEmptyString(value.eventId) || !isNonNegativeSafeInteger(value.sequence) ||
@@ -556,6 +601,11 @@ const isEventEnvelope = (value: unknown): value is GameSessionEvent => {
     "learning_replaced",
     "survival_replaced",
     "economy_replaced",
+    "economy_wallet_changed",
+    "quote_sequence_advanced",
+    "economy_lot_changed",
+    "merchant_state_changed",
+    "trade_sale_committed",
     "quest_stage_set",
     "receipt_recorded",
     "area_reset",
@@ -567,12 +617,7 @@ const eventPayloadFingerprint = (event: GameSessionEvent): string => fingerprint
   payload: event.payload,
 });
 
-const emptyEconomy = (): SessionEconomySummary => ({
-  coin: 0,
-  walletRevision: 0,
-  inventoryRevision: 0,
-  lots: [],
-});
+const emptyEconomy = (): SessionEconomyState => createEmptySessionEconomy();
 
 const indexInheritedSurvivalReceipts = (
   survival: SurvivalSave,
@@ -609,22 +654,10 @@ export const adaptSurvivalSave = (save: SurvivalSave): SurvivalSave => {
   return clone(save);
 };
 
-export const adaptTradeSnapshot = (snapshot: TradeSnapshot): SessionEconomySummary => {
-  const economy: SessionEconomySummary = {
-    coin: snapshot.coin,
-    walletRevision: snapshot.walletRevision,
-    inventoryRevision: snapshot.inventoryRevision,
-    lots: snapshot.lots.map((lot) => ({
-      lotId: lot.lotId,
-      itemId: lot.itemId,
-      quantity: lot.quantity,
-      ownershipRevision: lot.ownershipRevision,
-      freshnessRevision: lot.freshnessRevision,
-    })),
-  };
-  if (!isEconomySummary(economy)) throw new Error("invalid trade snapshot");
-  return clone(economy);
-};
+export const adaptTradeSnapshot = (snapshot: TradeSnapshot): SessionEconomyState =>
+  adaptTradeSnapshotToSessionEconomy(snapshot);
+
+export const adaptTradeSave = (save: TradeSave): SessionEconomyState => adaptTradeSaveToSessionEconomy(save);
 
 const createInitialState = (initial: GameSessionInitialState): GameSessionState => {
   if (!isNonEmptyString(initial.sessionId) || !isSessionMpState(initial.mp) ||
@@ -650,7 +683,7 @@ const createInitialState = (initial: GameSessionInitialState): GameSessionState 
     }),
     learning: clone(initial.learning ?? createLearningProgression()),
     survival,
-    economy: clone(initial.economy ?? emptyEconomy()),
+    economy: initial.economy === undefined ? emptyEconomy() : normalizeSessionEconomy(initial.economy),
     quests: clone(initial.quests ?? {}),
     receiptIndex: { ...indexInheritedSurvivalReceipts(survival), ...clone(initial.receiptIndex ?? {}) },
     processedEventPayloads: {},
@@ -676,20 +709,27 @@ const withAppliedEvent = (
 
 const same = (left: unknown, right: unknown): boolean => canonicalJson(left) === canonicalJson(right);
 
+type ReplayResult =
+  | Readonly<{ ok: true; session: GameSession }>
+  | Readonly<{ ok: false; failedEventId: string | null; reason: SessionApplyReason | "invalid_origin" }>;
+
 export class GameSession {
   private state: GameSessionState;
   private readonly origin: GameSessionState;
   private readonly ledger: GameSessionEvent[];
+  private readonly legacyEconomyReplacementSequences: ReadonlySet<number>;
 
   private constructor(
     readonly sessionId: string,
     origin: GameSessionState,
     state = origin,
     ledger: readonly GameSessionEvent[] = [],
+    legacyEconomyReplacementSequences: readonly number[] = [],
   ) {
     this.origin = clone(origin);
     this.state = clone(state);
     this.ledger = clone([...ledger]);
+    this.legacyEconomyReplacementSequences = new Set(legacyEconomyReplacementSequences);
   }
 
   static create(initial: GameSessionInitialState): GameSession {
@@ -699,6 +739,33 @@ export class GameSession {
 
   static fromReplayOrigin(sessionId: string, origin: GameSessionState): GameSession {
     return new GameSession(sessionId, origin);
+  }
+
+  static replayLedger(
+    sessionId: string,
+    origin: GameSessionState,
+    events: readonly GameSessionEvent[],
+  ): ReplayResult {
+    if (!isNonEmptyString(sessionId) || !isSessionState(origin) || origin.revision !== 0 ||
+        origin.lastEventSequence !== 0 || Object.keys(origin.processedEventPayloads).length !== 0) {
+      return { ok: false, failedEventId: null, reason: "invalid_origin" };
+    }
+    const economyDomainTypes = new Set<GameSessionEvent["type"]>([
+      "economy_wallet_changed", "quote_sequence_advanced", "economy_lot_changed",
+      "merchant_state_changed", "trade_sale_committed",
+    ]);
+    const legacyEconomyEvents = events.filter((event) => event.type === "economy_replaced");
+    if (legacyEconomyEvents.length > 0 && events.some((event) => economyDomainTypes.has(event.type))) {
+      return { ok: false, failedEventId: legacyEconomyEvents[0]!.eventId, reason: "invalid_event" };
+    }
+    const session = new GameSession(
+      sessionId, origin, origin, [], legacyEconomyEvents.map((event) => event.sequence),
+    );
+    for (const event of events) {
+      const result = session.apply(event);
+      if (!result.applied) return { ok: false, failedEventId: event.eventId, reason: result.reason };
+    }
+    return { ok: true, session };
   }
 
   static load(candidate: unknown): GameSessionLoadResult {
@@ -1078,13 +1145,192 @@ export class GameSession {
         return { state: withAppliedEvent(this.state, event, { survival: clone(next) }) };
       }
       case "economy_replaced": {
-        if (!isEconomySummary(event.payload.economy)) return { reason: "invalid_event", duplicate: false };
-        const next = event.payload.economy;
+        // Only exact sequences from a verified pre-domain replay are allowed. A live modern apply fails closed.
+        if (!this.legacyEconomyReplacementSequences.has(event.sequence)) {
+          return { reason: "invalid_event", duplicate: false };
+        }
+        const candidate = event.payload.economy;
+        if (!isSessionEconomyState(candidate) && !isEconomySummary(candidate)) {
+          return { reason: "invalid_event", duplicate: false };
+        }
+        const next = normalizeSessionEconomy(candidate);
         if (next.walletRevision < this.state.economy.walletRevision ||
-            next.inventoryRevision < this.state.economy.inventoryRevision) {
+            next.inventoryRevision < this.state.economy.inventoryRevision ||
+            next.quoteSequence < this.state.economy.quoteSequence) {
           return { reason: "state_regression", duplicate: false };
         }
-        return { state: withAppliedEvent(this.state, event, { economy: clone(next) }) };
+        return { state: withAppliedEvent(this.state, event, { economy: next }) };
+      }
+      case "economy_wallet_changed": {
+        const payload = event.payload;
+        if (!isNonNegativeSafeInteger(payload.expectedWalletRevision) ||
+            !isNonNegativeSafeInteger(payload.nextWalletRevision) ||
+            !Number.isSafeInteger(payload.coinDelta) || !isNonNegativeSafeInteger(payload.nextCoin) ||
+            payload.nextWalletRevision !== payload.expectedWalletRevision + 1 ||
+            payload.nextCoin !== this.state.economy.coin + payload.coinDelta) {
+          return { reason: "invalid_event", duplicate: false };
+        }
+        if (this.state.economy.walletRevision !== payload.expectedWalletRevision) {
+          return { reason: "economy_revision_conflict", duplicate: false };
+        }
+        return {
+          state: withAppliedEvent(this.state, event, {
+            economy: {
+              ...this.state.economy,
+              coin: payload.nextCoin,
+              walletRevision: payload.nextWalletRevision,
+            },
+          }),
+        };
+      }
+      case "quote_sequence_advanced": {
+        const { expectedQuoteSequence, nextQuoteSequence } = event.payload;
+        if (!isNonNegativeSafeInteger(expectedQuoteSequence) || !isNonNegativeSafeInteger(nextQuoteSequence) ||
+            nextQuoteSequence !== expectedQuoteSequence + 1) return { reason: "invalid_event", duplicate: false };
+        if (this.state.economy.quoteSequence !== expectedQuoteSequence) {
+          return { reason: "economy_revision_conflict", duplicate: false };
+        }
+        return {
+          state: withAppliedEvent(this.state, event, {
+            economy: { ...this.state.economy, quoteSequence: nextQuoteSequence },
+          }),
+        };
+      }
+      case "economy_lot_changed": {
+        const payload = event.payload;
+        if (!isNonEmptyString(payload.lotId) || !isNonNegativeSafeInteger(payload.expectedInventoryRevision) ||
+            !isNonNegativeSafeInteger(payload.nextInventoryRevision) ||
+            payload.nextInventoryRevision !== payload.expectedInventoryRevision + 1 ||
+            !(payload.expectedOwnershipRevision === null || isNonNegativeSafeInteger(payload.expectedOwnershipRevision)) ||
+            !(payload.expectedFreshnessRevision === null || isNonNegativeSafeInteger(payload.expectedFreshnessRevision)) ||
+            !(payload.nextLot === null || (isTradeLotState(payload.nextLot) && payload.nextLot.lotId === payload.lotId))) {
+          return { reason: "invalid_event", duplicate: false };
+        }
+        const current = this.state.economy.lots.find((lot) => lot.lotId === payload.lotId);
+        if (this.state.economy.inventoryRevision !== payload.expectedInventoryRevision ||
+            (current?.ownershipRevision ?? null) !== payload.expectedOwnershipRevision ||
+            (current?.freshnessRevision ?? null) !== payload.expectedFreshnessRevision) {
+          return { reason: "economy_revision_conflict", duplicate: false };
+        }
+        if (current && payload.nextLot &&
+            (payload.nextLot.itemId !== current.itemId || !same(payload.nextLot.sourceLotIds, current.sourceLotIds) ||
+              payload.nextLot.originKind !== current.originKind ||
+              payload.nextLot.naturalFraction !== current.naturalFraction ||
+              payload.nextLot.economyEligible !== current.economyEligible ||
+              payload.nextLot.processingTransactionId !== current.processingTransactionId)) {
+          return { reason: "invalid_event", duplicate: false };
+        }
+        if (payload.nextLot && payload.expectedOwnershipRevision !== null &&
+            (payload.nextLot.ownershipRevision < payload.expectedOwnershipRevision ||
+              payload.nextLot.freshnessRevision < payload.expectedFreshnessRevision!)) {
+          return { reason: "state_regression", duplicate: false };
+        }
+        const lots = this.state.economy.lots.filter((lot) => lot.lotId !== payload.lotId);
+        if (payload.nextLot) lots.push(clone(payload.nextLot));
+        return {
+          state: withAppliedEvent(this.state, event, {
+            economy: { ...this.state.economy, inventoryRevision: payload.nextInventoryRevision, lots },
+          }),
+        };
+      }
+      case "merchant_state_changed": {
+        const payload = event.payload;
+        if (!isNonEmptyString(payload.merchantId) || !isNonNegativeSafeInteger(payload.expectedDemandRevision) ||
+            !isMerchantStateValue(payload.nextState) || payload.nextState.merchantId !== payload.merchantId ||
+            payload.nextState.demandRevision !== payload.expectedDemandRevision + 1) {
+          return { reason: "invalid_event", duplicate: false };
+        }
+        const current = this.state.economy.merchantStates.find((state) => state.merchantId === payload.merchantId);
+        if (!current || current.demandRevision !== payload.expectedDemandRevision) {
+          return { reason: "economy_revision_conflict", duplicate: false };
+        }
+        return {
+          state: withAppliedEvent(this.state, event, {
+            economy: {
+              ...this.state.economy,
+              merchantStates: this.state.economy.merchantStates.map((state) =>
+                state.merchantId === payload.merchantId ? clone(payload.nextState) : state),
+            },
+          }),
+        };
+      }
+      case "trade_sale_committed": {
+        const payload = event.payload;
+        if (!isNonNegativeSafeInteger(payload.expectedWalletRevision) ||
+            !isNonNegativeSafeInteger(payload.expectedInventoryRevision) ||
+            !isNonNegativeSafeInteger(payload.expectedQuoteSequence) ||
+            !isNonNegativeSafeInteger(payload.expectedLotOwnershipRevision) ||
+            !isNonNegativeSafeInteger(payload.expectedLotFreshnessRevision) ||
+            !isNonNegativeSafeInteger(payload.expectedMerchantDemandRevision) || !isNonNegativeSafeInteger(payload.nextCoin) ||
+            payload.nextWalletRevision !== payload.expectedWalletRevision + 1 ||
+            payload.nextInventoryRevision !== payload.expectedInventoryRevision + 1 ||
+            !isTradeLotState(payload.nextLot) || !isMerchantStateValue(payload.nextMerchantState) ||
+            !isTradeReceiptValue(payload.tradeReceipt) || !isNonEmptyString(payload.sessionReceiptPayloadHash) ||
+            payload.tradeReceipt.lotId !== payload.nextLot.lotId ||
+            payload.tradeReceipt.merchantId !== payload.nextMerchantState.merchantId ||
+            payload.nextMerchantState.demandRevision !== payload.expectedMerchantDemandRevision + 1) {
+          return { reason: "invalid_event", duplicate: false };
+        }
+        const priorTradeReceipt = this.state.economy.tradeReceipts.find((receipt) =>
+          receipt.transactionId === payload.tradeReceipt.transactionId);
+        const receiptId = payload.tradeReceipt.transactionId;
+        const priorSessionReceipt = this.state.receiptIndex[receiptId];
+        if (priorTradeReceipt || priorSessionReceipt) {
+          return priorTradeReceipt && same(priorTradeReceipt, payload.tradeReceipt) && priorSessionReceipt?.domain === "trade" &&
+            priorSessionReceipt.payloadHash === payload.sessionReceiptPayloadHash
+            ? { reason: "duplicate_receipt", duplicate: true }
+            : { reason: "receipt_payload_conflict", duplicate: false };
+        }
+        const currentLot = this.state.economy.lots.find((lot) => lot.lotId === payload.nextLot.lotId);
+        const currentMerchant = this.state.economy.merchantStates.find((state) =>
+          state.merchantId === payload.nextMerchantState.merchantId);
+        if (this.state.economy.walletRevision !== payload.expectedWalletRevision ||
+            this.state.economy.inventoryRevision !== payload.expectedInventoryRevision ||
+            this.state.economy.quoteSequence !== payload.expectedQuoteSequence ||
+            currentLot?.ownershipRevision !== payload.expectedLotOwnershipRevision ||
+            currentLot.freshnessRevision !== payload.expectedLotFreshnessRevision ||
+            currentMerchant?.demandRevision !== payload.expectedMerchantDemandRevision) {
+          return { reason: "economy_revision_conflict", duplicate: false };
+        }
+        const { quantity: _currentQuantity, ownershipRevision: _currentOwnership, ...currentLotStable } = currentLot;
+        const { quantity: _nextQuantity, ownershipRevision: _nextOwnership, ...nextLotStable } = payload.nextLot;
+        const { demandRevision: _currentDemand, soldUnitsSinceRestock: _currentSold, ...currentMerchantStable } = currentMerchant;
+        const { demandRevision: _nextDemand, soldUnitsSinceRestock: _nextSold, ...nextMerchantStable } = payload.nextMerchantState;
+        const expectedReceiptHash = `trade:${payload.tradeReceipt.quoteId}:${payload.tradeReceipt.itemId}:` +
+          `${payload.tradeReceipt.quantity}:${payload.tradeReceipt.coinDelta}`;
+        if (payload.nextLot.ownershipRevision !== payload.expectedLotOwnershipRevision + 1 ||
+            payload.nextLot.freshnessRevision !== payload.expectedLotFreshnessRevision ||
+            payload.nextLot.quantity + payload.tradeReceipt.quantity !== currentLot.quantity ||
+            payload.tradeReceipt.itemId !== currentLot.itemId || !same(currentLotStable, nextLotStable) ||
+            !same(currentMerchantStable, nextMerchantStable) ||
+            payload.nextMerchantState.soldUnitsSinceRestock !==
+              currentMerchant.soldUnitsSinceRestock + payload.tradeReceipt.quantity ||
+            payload.nextCoin !== this.state.economy.coin + payload.tradeReceipt.coinDelta ||
+            payload.sessionReceiptPayloadHash !== expectedReceiptHash) {
+          return { reason: "invalid_event", duplicate: false };
+        }
+        const receiptEntry: SessionReceiptIndexEntry = {
+          receiptId,
+          domain: "trade",
+          payloadHash: payload.sessionReceiptPayloadHash,
+          recordedByEventId: event.eventId,
+          recordedAtSequence: event.sequence,
+        };
+        return {
+          state: withAppliedEvent(this.state, event, {
+            economy: {
+              ...this.state.economy,
+              coin: payload.nextCoin,
+              walletRevision: payload.nextWalletRevision,
+              inventoryRevision: payload.nextInventoryRevision,
+              lots: this.state.economy.lots.map((lot) => lot.lotId === payload.nextLot.lotId ? clone(payload.nextLot) : lot),
+              merchantStates: this.state.economy.merchantStates.map((state) =>
+                state.merchantId === payload.nextMerchantState.merchantId ? clone(payload.nextMerchantState) : state),
+              tradeReceipts: [...this.state.economy.tradeReceipts, clone(payload.tradeReceipt)],
+            },
+            receiptIndex: { ...this.state.receiptIndex, [receiptId]: receiptEntry },
+          }),
+        };
       }
       case "quest_stage_set": {
         const { questId, stageId, stageOrdinal } = event.payload;
@@ -1160,26 +1406,11 @@ export class GameSession {
   }
 }
 
-type ReplayResult =
-  | Readonly<{ ok: true; session: GameSession }>
-  | Readonly<{ ok: false; failedEventId: string | null; reason: SessionApplyReason | "invalid_origin" }>;
-
 export const replayGameSession = (
   sessionId: string,
   origin: GameSessionState,
   events: readonly GameSessionEvent[],
-): ReplayResult => {
-  if (!isNonEmptyString(sessionId) || !isSessionState(origin) || origin.revision !== 0 ||
-      origin.lastEventSequence !== 0 || Object.keys(origin.processedEventPayloads).length !== 0) {
-    return { ok: false, failedEventId: null, reason: "invalid_origin" };
-  }
-  const session = GameSession.fromReplayOrigin(sessionId, origin);
-  for (const event of events) {
-    const result = session.apply(event);
-    if (!result.applied) return { ok: false, failedEventId: event.eventId, reason: result.reason };
-  }
-  return { ok: true, session };
-};
+): ReplayResult => GameSession.replayLedger(sessionId, origin, events);
 
 const saveDigest = (save: GameSessionSave): string => fingerprint({
   schema: save.schema,
@@ -1209,8 +1440,8 @@ const upgradePreCapabilityOnlyV02Save = (
   const withoutIntegrity: Omit<GameSessionSave, "integrity"> = {
     schema: GAME_SESSION_SAVE_SCHEMA,
     sessionId: save.sessionId,
-    origin: { ...clone(save.origin), capabilities: clone(INITIAL_SESSION_CAPABILITIES) },
-    state: { ...clone(save.state), capabilities: clone(INITIAL_SESSION_CAPABILITIES) },
+    origin: { ...clone(save.origin), capabilities: clone(INITIAL_SESSION_CAPABILITIES), economy: normalizeSessionEconomy(save.origin.economy) },
+    state: { ...clone(save.state), capabilities: clone(INITIAL_SESSION_CAPABILITIES), economy: normalizeSessionEconomy(save.state.economy) },
     eventLedger: clone(save.eventLedger),
   };
   return { ...withoutIntegrity, integrity: { algorithm: GAME_SESSION_INTEGRITY_ALGORITHM, digest: fingerprint(withoutIntegrity) } };
@@ -1239,8 +1470,8 @@ const upgradePreCapabilityV02Save = (
   const withoutIntegrity: Omit<GameSessionSave, "integrity"> = {
     schema: GAME_SESSION_SAVE_SCHEMA,
     sessionId: save.sessionId,
-    origin: { ...clone(save.origin), capabilities: clone(INITIAL_SESSION_CAPABILITIES), lifeCorpseLedger: createEmptyLifeCorpseLedger() },
-    state: { ...clone(save.state), capabilities: clone(INITIAL_SESSION_CAPABILITIES), lifeCorpseLedger: createEmptyLifeCorpseLedger() },
+    origin: { ...clone(save.origin), capabilities: clone(INITIAL_SESSION_CAPABILITIES), lifeCorpseLedger: createEmptyLifeCorpseLedger(), economy: normalizeSessionEconomy(save.origin.economy) },
+    state: { ...clone(save.state), capabilities: clone(INITIAL_SESSION_CAPABILITIES), lifeCorpseLedger: createEmptyLifeCorpseLedger(), economy: normalizeSessionEconomy(save.state.economy) },
     eventLedger: clone(save.eventLedger),
   };
   return {
@@ -1273,14 +1504,44 @@ const upgradePreLifeLedgerV02Save = (
   const withoutIntegrity: Omit<GameSessionSave, "integrity"> = {
     schema: GAME_SESSION_SAVE_SCHEMA,
     sessionId: save.sessionId,
-    origin: { ...clone(save.origin), lifeCorpseLedger: createEmptyLifeCorpseLedger() },
-    state: { ...clone(save.state), lifeCorpseLedger: createEmptyLifeCorpseLedger() },
+    origin: { ...clone(save.origin), lifeCorpseLedger: createEmptyLifeCorpseLedger(), economy: normalizeSessionEconomy(save.origin.economy) },
+    state: { ...clone(save.state), lifeCorpseLedger: createEmptyLifeCorpseLedger(), economy: normalizeSessionEconomy(save.state.economy) },
     eventLedger: clone(save.eventLedger),
   };
   return {
     ...withoutIntegrity,
     integrity: { algorithm: GAME_SESSION_INTEGRITY_ALGORITHM, digest: fingerprint(withoutIntegrity) },
   };
+};
+
+const isPreEconomyV02SaveStructurallyValid = (value: unknown): value is Omit<GameSessionSave, "origin" | "state"> & {
+  readonly origin: PreEconomyState;
+  readonly state: PreEconomyState;
+} => {
+  if (!isRecord(value) || value.schema !== GAME_SESSION_SAVE_SCHEMA || !isNonEmptyString(value.sessionId) ||
+      !isPreEconomyV02SessionState(value.origin) || value.origin.revision !== 0 || value.origin.lastEventSequence !== 0 ||
+      Object.keys(value.origin.processedEventPayloads).length !== 0 || !isPreEconomyV02SessionState(value.state) ||
+      !Array.isArray(value.eventLedger) || !value.eventLedger.every(isEventEnvelope) ||
+      value.eventLedger.some((event) => event.type === "economy_wallet_changed" ||
+        event.type === "quote_sequence_advanced" ||
+        event.type === "economy_lot_changed" || event.type === "merchant_state_changed" ||
+        event.type === "trade_sale_committed") ||
+      !isRecord(value.integrity) || value.integrity.algorithm !== GAME_SESSION_INTEGRITY_ALGORITHM ||
+      typeof value.integrity.digest !== "string" || !/^[0-9a-f]{8}$/.test(value.integrity.digest)) return false;
+  return value.eventLedger.length === value.state.lastEventSequence;
+};
+
+const upgradePreEconomyV02Save = (
+  save: Omit<GameSessionSave, "origin" | "state"> & { readonly origin: PreEconomyState; readonly state: PreEconomyState },
+): GameSessionSave => {
+  const withoutIntegrity: Omit<GameSessionSave, "integrity"> = {
+    schema: GAME_SESSION_SAVE_SCHEMA,
+    sessionId: save.sessionId,
+    origin: { ...clone(save.origin), economy: normalizeSessionEconomy(save.origin.economy) },
+    state: { ...clone(save.state), economy: normalizeSessionEconomy(save.state.economy) },
+    eventLedger: clone(save.eventLedger),
+  };
+  return { ...withoutIntegrity, integrity: { algorithm: GAME_SESSION_INTEGRITY_ALGORITHM, digest: fingerprint(withoutIntegrity) } };
 };
 
 const isCurrentSaveStructurallyValid = (value: unknown): value is GameSessionSave => {
@@ -1297,7 +1558,7 @@ const isLegacySaveStructurallyValid = (value: unknown): value is LegacyGameSessi
   if (!isRecord(value) || value.schema !== LEGACY_GAME_SESSION_SAVE_SCHEMA ||
       !isNonEmptyString(value.sessionId) || !isSessionMpState(value.mp) || !isWorldState(value.world) ||
       !isLearningSnapshot(value.learning) || !isSurvivalSave(value.survival) ||
-      !isEconomySummary(value.economy) || !isQuestRecord(value.quests)) return false;
+      !isMigratableEconomy(value.economy) || !isQuestRecord(value.quests)) return false;
   return true;
 };
 
@@ -1308,6 +1569,12 @@ export const migrateGameSessionSave = (candidate: unknown): GameSessionMigration
   if (candidate.schema === GAME_SESSION_SAVE_SCHEMA) {
     if (isCurrentSaveStructurallyValid(candidate)) {
       return { ok: true, save: clone(candidate), migratedFrom: null };
+    }
+    if (isPreEconomyV02SaveStructurallyValid(candidate)) {
+      if (candidate.integrity.digest !== saveDigest(candidate as unknown as GameSessionSave)) {
+        return { ok: false, error: "invalid_save" };
+      }
+      return { ok: true, save: upgradePreEconomyV02Save(candidate), migratedFrom: null };
     }
     if (isPreCapabilityOnlyV02SaveStructurallyValid(candidate)) {
       if (candidate.integrity.digest !== saveDigest(candidate as unknown as GameSessionSave)) {
@@ -1347,7 +1614,7 @@ export const migrateGameSessionSave = (candidate: unknown): GameSessionMigration
     },
     learning: clone(candidate.learning),
     survival: clone(candidate.survival),
-    economy: clone(candidate.economy),
+    economy: normalizeSessionEconomy(candidate.economy),
     quests: clone(candidate.quests),
     receiptIndex: indexInheritedSurvivalReceipts(candidate.survival),
     processedEventPayloads: {},

@@ -14,10 +14,7 @@
   type UnseenTransferCompletedEvent,
   type VisualActivationFrame,
 } from "./progression";
-import type {
-  GameSessionState,
-  SessionEconomySummary,
-} from "../session/game-session";
+import type { GameSessionState, SessionEconomyState } from "../session/game-session";
 import type {
   SessionEventDraft,
   SessionProposalBatch,
@@ -251,11 +248,14 @@ const proposeLearningEvent = (
 };
 
 interface ConsumptionResult {
-  readonly economy: SessionEconomySummary;
+  readonly drafts: readonly SessionEventDraft[];
   readonly consumedItems: Readonly<Record<string, number>>;
 }
 
-const consumeAttunementItems = (economy: SessionEconomySummary): ConsumptionResult | null => {
+const consumeAttunementItems = (
+  economy: SessionEconomyState,
+  transactionId: string,
+): ConsumptionResult | null => {
   const costs = Object.entries(TELO_ATTUNEMENT_RESOURCE_POLICY).map(([itemId, policy]) => ({
     itemId,
     quantity: policy.quantity,
@@ -267,28 +267,36 @@ const consumeAttunementItems = (economy: SessionEconomySummary): ConsumptionResu
     if (available < cost.quantity) return null;
   }
 
-  const nextRevision = economy.inventoryRevision + 1;
   const remainingByItem = new Map<string, number>(costs.map((cost) => [cost.itemId, cost.quantity]));
-  const lots = [...economy.lots]
-    .sort((left, right) => left.lotId.localeCompare(right.lotId))
-    .map((lot) => {
-      const remaining = remainingByItem.get(lot.itemId) ?? 0;
-      if (remaining === 0) return lot;
-      const deducted = Math.min(remaining, lot.quantity);
-      remainingByItem.set(lot.itemId, remaining - deducted);
-      return {
-        ...lot,
-        quantity: lot.quantity - deducted,
-        ownershipRevision: nextRevision,
-      };
+  let expectedInventoryRevision = economy.inventoryRevision;
+  const drafts: SessionEventDraft[] = [];
+  [...economy.lots].sort((left, right) => left.lotId.localeCompare(right.lotId)).forEach((lot) => {
+    const remaining = remainingByItem.get(lot.itemId) ?? 0;
+    if (remaining === 0) return;
+    const deducted = Math.min(remaining, lot.quantity);
+    if (deducted === 0) return;
+    remainingByItem.set(lot.itemId, remaining - deducted);
+    drafts.push({
+      eventId: `session.economy.telo.${transactionId}.lot.${lot.lotId}`,
+      type: "economy_lot_changed",
+      payload: {
+        lotId: lot.lotId,
+        expectedInventoryRevision,
+        nextInventoryRevision: expectedInventoryRevision + 1,
+        expectedOwnershipRevision: lot.ownershipRevision,
+        expectedFreshnessRevision: lot.freshnessRevision,
+        nextLot: {
+          ...lot,
+          quantity: lot.quantity - deducted,
+          ownershipRevision: lot.ownershipRevision + 1,
+        },
+      },
     });
+    expectedInventoryRevision += 1;
+  });
 
   return {
-    economy: {
-      ...economy,
-      inventoryRevision: nextRevision,
-      lots,
-    },
+    drafts,
     consumedItems: Object.fromEntries(costs.map((cost) => [cost.itemId, cost.quantity])),
   };
 };
@@ -364,18 +372,13 @@ export class TeloLearningSlice {
     const reduction = reduceLearningEvidence(state.learning, event);
     if (!reduction.applied) return reject(reductionFailureReason(reduction), event, reduction);
 
-    const consumption = consumeAttunementItems(state.economy);
+    const consumption = consumeAttunementItems(state.economy, event.idempotencyKey);
     if (consumption === null) return reject("missing_materials", event, reduction);
-    const economyDraft: SessionEventDraft = {
-      eventId: `session.economy.telo.${event.idempotencyKey}`,
-      type: "economy_replaced",
-      payload: { economy: consumption.economy },
-    };
     return proposeLearningEvent(
       state,
       event.idempotencyKey,
       event,
-      [economyDraft],
+      consumption.drafts,
       consumption.consumedItems,
     );
   }

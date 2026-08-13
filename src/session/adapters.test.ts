@@ -5,7 +5,7 @@ import { SurvivalSystem } from "../game/survival";
 import { TradeSystem, createDemoTradeLots } from "../game/trade";
 import { CisternLearningSession } from "../learning/cistern-session";
 import { readVerifiedCapabilityMilestoneContract } from "./capability-contract";
-import { GameSession, type CapabilityMilestoneCommitPayload } from "./game-session";
+import { GameSession, adaptTradeSave, type CapabilityMilestoneCommitPayload } from "./game-session";
 import {
   adaptRuntimeCheckpoint,
   commitSessionProposal,
@@ -16,7 +16,8 @@ import {
   proposeLearningReplacement,
   proposeQuestStage,
   proposeSurvivalTransaction,
-  proposeTradeTransaction,
+  proposeTradeQuoteSequence,
+  proposeTradeSale,
   proposeWildlifeDamage,
   proposeWildlifeLifeRegistration,
 } from "./adapters";
@@ -31,10 +32,12 @@ const requireBatch = (
 
 describe("GameSession transaction adapters", () => {
   it("persists an end-to-end executor chain once and replays it without duplication", () => {
+    const trade = new TradeSystem(createDemoTradeLots());
     let session = GameSession.create({
       sessionId: "save.adapter.e2e",
       mp: { currentMp: 24, maxMp: 26, worldVersion: 1 },
       currentSceneId: "scene.n00.arrival",
+      economy: adaptTradeSave(trade.toSave()),
     });
 
     const cistern = new CisternDemoController({ initialMp: 24, maxMp: 26 });
@@ -86,7 +89,6 @@ describe("GameSession transaction adapters", () => {
     session = commit.session;
     expect(session.snapshot().survival.travelRations).toBe(0);
 
-    const trade = new TradeSystem(createDemoTradeLots());
     const sellable = trade.snapshot().lots.find((lot) => lot.economyEligible && lot.quantity > 0);
     expect(sellable).toBeDefined();
     const merchant: import("../game/trade").MerchantId = sellable?.itemId.includes("meat")
@@ -94,8 +96,12 @@ describe("GameSession transaction adapters", () => {
       : "settlement.tanner";
     const quote = trade.createSellQuote(merchant, sellable!.lotId, 1, 1);
     expect(quote.accepted).toBe(true);
+    commit = commitSessionProposal(session, requireBatch(proposeTradeQuoteSequence(session, quote, trade.toSave())));
+    expect(commit.committed).toBe(true);
+    session = commit.session;
+    expect(session.snapshot().economy.quoteSequence).toBe(1);
     const tradeResult = trade.commitSellQuote(quote.quote!.quoteId, "trade.e2e.sale", 1);
-    commit = commitSessionProposal(session, requireBatch(proposeTradeTransaction(tradeResult, trade.toSave())));
+    commit = commitSessionProposal(session, requireBatch(proposeTradeSale(session, tradeResult, trade.toSave())));
     expect(commit.committed).toBe(true);
     session = commit.session;
     expect(session.snapshot().economy.coin).toBeGreaterThan(0);

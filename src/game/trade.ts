@@ -28,7 +28,7 @@ export type TradeCategory =
   | "hazard"
   | "relic";
 
-export type TradeOrigin = "natural" | "manifested" | "relief" | "quest" | "borrowed" | "stolen";
+export type TradeOrigin = "natural" | "manifested" | "relief" | "quest" | "borrowed" | "stolen" | "legacy_unknown";
 export type TradeFreshness =
   | "fresh"
   | "aging"
@@ -629,7 +629,8 @@ export class TradeSystem {
       return refusal("knowledge_or_quest_bound");
     }
     if (lot.reserved || lot.equipped) return refusal("reserved_or_equipped");
-    if (!lot.economyEligible || lot.originKind === "manifested" || lot.originKind === "relief" || lot.naturalFraction !== 1) {
+    if (!lot.economyEligible || lot.originKind === "manifested" || lot.originKind === "relief" ||
+        lot.originKind === "legacy_unknown" || lot.naturalFraction !== 1) {
       return refusal("origin_not_natural");
     }
     if (lot.originKind === "borrowed") return refusal("stolen_or_ownership_invalid");
@@ -778,7 +779,9 @@ const refusal = (reason: TradeRefusalReason): TradeEligibility => ({
 const nonNegativeInteger = (candidate: unknown, fallback: number): number =>
   typeof candidate === "number" && Number.isInteger(candidate) && candidate >= 0 ? candidate : fallback;
 
-const TRADE_ORIGINS: readonly TradeOrigin[] = ["natural", "manifested", "relief", "quest", "borrowed", "stolen"];
+const TRADE_ORIGINS: readonly TradeOrigin[] = [
+  "natural", "manifested", "relief", "quest", "borrowed", "stolen", "legacy_unknown",
+];
 const TRADE_FRESHNESS_STATES: readonly TradeFreshness[] = [
   "fresh",
   "aging",

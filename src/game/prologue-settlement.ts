@@ -23,6 +23,7 @@ import {
   GameSession,
   type GameSessionSave,
   type GameSessionState,
+  type SessionEconomyState,
   type SessionEconomySummary,
   type SessionReceiptDomain,
 } from "../session/game-session";
@@ -306,12 +307,19 @@ const receiptMatches = (
   return prior.domain === domain && prior.payloadHash === payloadHash ? "duplicate" : "conflict";
 };
 
-const economyWithCoinDelta = (state: GameSessionState, amount: number): SessionEconomySummary => ({
-  coin: state.economy.coin + amount,
-  walletRevision: state.economy.walletRevision + 1,
-  // A wallet-only reward must preserve the canonical inventory revision and every lot.
-  inventoryRevision: state.economy.inventoryRevision,
-  lots: state.economy.lots.map((lot) => ({ ...lot })),
+const economyWalletRewardDraft = (
+  eventId: string,
+  state: GameSessionState,
+  amount: number,
+): SessionEventDraft => ({
+  eventId,
+  type: "economy_wallet_changed",
+  payload: {
+    expectedWalletRevision: state.economy.walletRevision,
+    nextWalletRevision: state.economy.walletRevision + 1,
+    coinDelta: amount,
+    nextCoin: state.economy.coin + amount,
+  },
 });
 
 const factsForNpc = (npc: RuntimeSceneNpcManifest, topic: SettlementDialogueTopic): readonly string[] | null => {
@@ -773,11 +781,11 @@ export class PrologueSettlementSession {
           type: "quest_stage_set",
           payload: { questId: ORIENTATION_TASK.id, stageId: "completed", stageOrdinal: 3 },
         },
-        {
-          eventId: `session.settlement.reward.wallet.${id}`,
-          type: "economy_replaced",
-          payload: { economy: economyWithCoinDelta(state, ORIENTATION_TASK.reward.amount) },
-        },
+        economyWalletRewardDraft(
+          `session.settlement.reward.wallet.${id}`,
+          state,
+          ORIENTATION_TASK.reward.amount,
+        ),
         receiptDraft(`session.settlement.reward.receipt.${id}`, rewardId, "quest", rewardHash),
         settlementOperationReceiptDraft(id, fingerprint),
       ],
@@ -1049,7 +1057,7 @@ export const createPrologueSettlementInitialSession = (options: Readonly<{
   sessionId: string;
   currentMp?: number;
   maxMp?: number;
-  economy?: SessionEconomySummary;
+  economy?: SessionEconomySummary | SessionEconomyState;
 }>): GameSession => {
   const maxMp = options.maxMp ?? 24;
   return GameSession.create({

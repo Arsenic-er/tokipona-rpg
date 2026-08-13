@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { migrateLegacyEconomySummary, type SessionEconomyState } from "./economy-state";
 import { GameSession, type SessionEconomySummary } from "../session/game-session";
 import {
   PROLOGUE_SETTLEMENT_AREA_ID,
@@ -42,6 +43,41 @@ const economyWithExistingLots = (): SessionEconomySummary => ({
     },
   ],
 });
+
+const fullEconomyWithLedgers = (): SessionEconomyState => {
+  const base = migrateLegacyEconomySummary(economyWithExistingLots());
+  return {
+    ...base,
+    quoteSequence: 7,
+    merchantStates: base.merchantStates.map((state, index) => index === 0
+      ? { ...state, demandRevision: 3, soldUnitsSinceRestock: 2 }
+      : state),
+    workOrders: [{
+      workOrderId: "work.preserve.001",
+      recipeId: "recipe.future.001",
+      inputLotIds: [base.lots[0]!.lotId],
+      status: "queued" as const,
+      revision: 2,
+    }],
+    tradeReceipts: [{
+      transactionId: "trade.preserve.001",
+      quoteId: "quote.preserve.001",
+      merchantId: "settlement.butcher" as const,
+      lotId: base.lots[0]!.lotId,
+      itemId: base.lots[0]!.itemId,
+      quantity: 1,
+      coinDelta: 2,
+      committedWorldTick: 10,
+    }],
+    processingReceipts: [{
+      transactionId: "process.preserve.001",
+      workOrderId: "work.preserve.001",
+      inputLotIds: [base.lots[0]!.lotId],
+      outputLotIds: ["lot.future.output"],
+      committedWorldTick: 11,
+    }],
+  };
+};
 
 const createSettlement = (suffix: string, currentMp = 12, maxMp = 24): PrologueSettlementSession =>
   new PrologueSettlementSession(createPrologueSettlementInitialSession({
@@ -389,5 +425,30 @@ describe("PrologueSettlementSession", () => {
       regionFlagKey(PROLOGUE_SETTLEMENT_REGION_FLAG_IDS.meditationCourtActivated)
     ]?.value).toBe(true);
     expect(reset.snapshot.killCount).toBe(0);
+  });
+
+  it("adds the survey reward through wallet CAS without replacing any other economy ledger", () => {
+    const economy = fullEconomyWithLedgers();
+    const target = new PrologueSettlementSession(createPrologueSettlementInitialSession({
+      sessionId: "save.settlement.full-economy",
+      economy,
+    }));
+    completeSurvey(target, "full-economy");
+    const before = target.snapshot().session.economy;
+    expect(target.submitSurveyJob("full-economy.submit")).toMatchObject({ accepted: true, reason: "committed" });
+    const after = target.snapshot().session.economy;
+    expect(after).toMatchObject({
+      schema: economy.schema,
+      coin: before.coin + PROLOGUE_SETTLEMENT_REWARD_COIN,
+      walletRevision: before.walletRevision + 1,
+      inventoryRevision: before.inventoryRevision,
+      quoteSequence: before.quoteSequence,
+    });
+    expect(after.lots).toEqual(before.lots);
+    expect(after.merchantStates).toEqual(before.merchantStates);
+    expect(after.workOrders).toEqual(before.workOrders);
+    expect(after.tradeReceipts).toEqual(before.tradeReceipts);
+    expect(after.processingReceipts).toEqual(before.processingReceipts);
+    expect(target.toSave().eventLedger.some((event) => event.type === "economy_replaced")).toBe(false);
   });
 });

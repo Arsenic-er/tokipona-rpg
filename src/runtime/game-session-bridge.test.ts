@@ -133,7 +133,8 @@ describe("GameSessionRuntimeBridge", () => {
     });
 
     const beforeSave = bridge.sessionSnapshot();
-    expect(beforeSave.economy).toEqual(ECONOMY);
+    expect(beforeSave.economy).toMatchObject(ECONOMY);
+    expect(beforeSave.economy.schema).toBe("tokipona.economy-state.v0.2");
     const loaded = GameSession.load(JSON.parse(JSON.stringify(bridge.session.toSave())));
     expect(loaded.ok).toBe(true);
     if (!loaded.ok) return;

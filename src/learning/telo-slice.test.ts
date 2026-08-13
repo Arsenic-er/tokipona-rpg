@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { migrateLegacyEconomySummary, type SessionEconomyState } from "../game/economy-state";
 import { commitSessionProposal } from "../session/adapters";
 import { GameSession, type SessionEconomySummary } from "../session/game-session";
 import {
@@ -18,6 +19,41 @@ const economyWithItems = (): SessionEconomySummary => ({
     { lotId: "lot.water", itemId: TELO_ATTUNEMENT_ITEMS.waterSample, quantity: 2, ownershipRevision: 0, freshnessRevision: 0 },
   ],
 });
+
+const fullTeloEconomyWithLedgers = (): SessionEconomyState => {
+  const base = migrateLegacyEconomySummary({ ...economyWithItems(), lots: [...economyWithItems().lots, { lotId: "lot.unrelated", itemId: "legacy.unrelated", quantity: 5, ownershipRevision: 4, freshnessRevision: 2 }] });
+  return {
+    ...base,
+    quoteSequence: 7,
+    merchantStates: base.merchantStates.map((state, index) => index === 0
+      ? { ...state, demandRevision: 3, soldUnitsSinceRestock: 2 }
+      : state),
+    workOrders: [{
+      workOrderId: "work.preserve.001",
+      recipeId: "recipe.future.001",
+      inputLotIds: [base.lots[0]!.lotId],
+      status: "queued" as const,
+      revision: 2,
+    }],
+    tradeReceipts: [{
+      transactionId: "trade.preserve.001",
+      quoteId: "quote.preserve.001",
+      merchantId: "settlement.butcher" as const,
+      lotId: base.lots[0]!.lotId,
+      itemId: base.lots[0]!.itemId,
+      quantity: 1,
+      coinDelta: 2,
+      committedWorldTick: 10,
+    }],
+    processingReceipts: [{
+      transactionId: "process.preserve.001",
+      workOrderId: "work.preserve.001",
+      inputLotIds: [base.lots[0]!.lotId],
+      outputLotIds: ["lot.future.output"],
+      committedWorldTick: 11,
+    }],
+  };
+};
 
 const createSession = (economy = economyWithItems()): GameSession => GameSession.create({
   sessionId: "save.telo.test",
@@ -192,5 +228,29 @@ describe("TeloLearningSlice", () => {
     expect(bypass).toMatchObject({ accepted: false, reason: "ineligible_evidence" });
     expect(color).toMatchObject({ accepted: false, reason: "ineligible_evidence" });
     expect(session.snapshot().learning).toEqual(before);
+  });
+
+  it("attunes through lot CAS without replacing unrelated economy ledgers", () => {
+    const economy = fullTeloEconomyWithLedgers();
+    const slice = new TeloLearningSlice("save.telo.test");
+    let session = createSession(economy);
+    session = commit(session, discover(slice, session));
+    const before = session.snapshot().economy;
+    session = commit(session, attune(slice, session, "attune.full-economy"));
+    const after = session.snapshot().economy;
+    expect(after).toMatchObject({
+      schema: before.schema,
+      coin: before.coin,
+      walletRevision: before.walletRevision,
+      inventoryRevision: before.inventoryRevision + 2,
+      quoteSequence: before.quoteSequence,
+    });
+    expect(after.lots.find((lot) => lot.lotId === "lot.unrelated"))
+      .toEqual(before.lots.find((lot) => lot.lotId === "lot.unrelated"));
+    expect(after.merchantStates).toEqual(before.merchantStates);
+    expect(after.workOrders).toEqual(before.workOrders);
+    expect(after.tradeReceipts).toEqual(before.tradeReceipts);
+    expect(after.processingReceipts).toEqual(before.processingReceipts);
+    expect(session.events().some((event) => event.type === "economy_replaced")).toBe(false);
   });
 });

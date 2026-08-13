@@ -225,7 +225,6 @@ describe("GameSession", () => {
   it("resets only an area's ephemeral world state without rolling learning or receipts back", () => {
     const session = createSession();
     const learning = discoverTelo();
-    const economy = initialEconomy(7);
     const events: GameSessionEvent[] = [
       {
         eventId: "event.learning.telo",
@@ -236,8 +235,13 @@ describe("GameSession", () => {
       {
         eventId: "event.economy.first-wage",
         sequence: 2,
-        type: "economy_replaced",
-        payload: { economy },
+        type: "economy_wallet_changed",
+        payload: {
+          expectedWalletRevision: 0,
+          nextWalletRevision: 1,
+          coinDelta: 7,
+          nextCoin: 7,
+        },
       },
       {
         eventId: "event.receipt.first-wage",
@@ -551,6 +555,38 @@ describe("GameSession", () => {
       type: "mp_replaced",
       payload: { mp: { currentMp: 24, maxMp: 30, worldVersion: 2 } },
     })).toMatchObject({ applied: false, reason: "invalid_event" });
+  });
+
+  it("rejects live whole-economy replacement while replaying an unmixed historical ledger", () => {
+    const live = createSession();
+    const legacyEconomy = initialEconomy(7);
+    const event: GameSessionEvent = {
+      eventId: "event.legacy.economy-replaced",
+      sequence: 1,
+      type: "economy_replaced",
+      payload: { economy: legacyEconomy },
+    };
+    expect(live.apply(event)).toMatchObject({ applied: false, reason: "invalid_event" });
+    expect(live.nextSequence()).toBe(1);
+
+    const replayed = replayGameSession(live.sessionId, live.toSave().origin, [event]);
+    expect(replayed.ok).toBe(true);
+    if (!replayed.ok) return;
+    expect(replayed.session.snapshot().economy).toMatchObject(legacyEconomy);
+    expect(replayed.session.apply({
+      ...event,
+      eventId: "event.legacy.economy-replaced.live-after-load",
+      sequence: 2,
+    })).toMatchObject({ applied: false, reason: "invalid_event" });
+    expect(replayGameSession(live.sessionId, live.toSave().origin, [
+      event,
+      {
+        eventId: "event.modern.wallet",
+        sequence: 2,
+        type: "economy_wallet_changed",
+        payload: { expectedWalletRevision: 1, nextWalletRevision: 2, coinDelta: 1, nextCoin: 8 },
+      },
+    ])).toMatchObject({ ok: false, reason: "invalid_event" });
   });
 
   it("deduplicates milestones by milestone ID, rejects conflicting payloads, and keeps capacity monotonic", () => {
