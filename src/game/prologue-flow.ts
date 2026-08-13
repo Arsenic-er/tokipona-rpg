@@ -1,6 +1,11 @@
 import generatedRuntimeArtifact from "../generated/content-runtime.v0.1.json";
 import { readRuntimeCisternTaskManifest } from "../content/runtime-task-manifest";
-import type { RuntimeInput, RuntimeSnapshot } from "../runtime";
+import {
+  DEFAULT_PLAYER_BODY,
+  WORLD_TILE_SIZE_PX,
+  type RuntimeInput,
+  type RuntimeSnapshot,
+} from "../runtime";
 import { commitSessionProposal, proposeCapabilityMilestone } from "../session/adapters";
 import { readVerifiedCapabilityMilestoneContract } from "../session/capability-contract";
 import {
@@ -52,8 +57,18 @@ import {
   type PrologueCisternSnapshot,
 } from "./prologue-cistern";
 import type { CisternDirectionId, CisternExpressionId } from "./cistern-demo";
+import {
+  PROLOGUE_WILDLIFE_REGION_FLAGS,
+  PROLOGUE_WILDLIFE_SCENE_ID,
+  PrologueWildlifeSession,
+  type PrologueWildlifeActionResult,
+  type PrologueWildlifeDeterrenceResult,
+  type PrologueWildlifeEntryResult,
+  type PrologueWildlifeHandoffResult,
+  type PrologueWildlifeSnapshot,
+} from "./prologue-wildlife";
 
-export type PrologueFlowMode = "arrival_stream" | "settlement" | "infrastructure" | "cistern";
+export type PrologueFlowMode = "arrival_stream" | "settlement" | "infrastructure" | "cistern" | "wildlife";
 export type PrologueFlowActionReason = "delegated" | "wrong_mode" | "delegate_rejected";
 
 export interface PrologueFlowSnapshot {
@@ -64,6 +79,7 @@ export interface PrologueFlowSnapshot {
   readonly settlement: PrologueSettlementSnapshot | null;
   readonly infrastructure: PrologueWaterwheelSnapshot | null;
   readonly cistern: PrologueCisternSnapshot | null;
+  readonly wildlife: PrologueWildlifeSnapshot | null;
   readonly killCount: 0;
 }
 
@@ -78,6 +94,7 @@ export const PROLOGUE_FLOW_SETTLEMENT_ENTRY_TRANSACTION_PREFIX = "prologue.flow.
 export const PROLOGUE_FLOW_WATERWHEEL_ENTRY_TRANSACTION_PREFIX = "prologue.flow.waterwheel.entry";
 export const PROLOGUE_FLOW_CISTERN_ENTRY_TRANSACTION_PREFIX = "prologue.flow.cistern.entry";
 export const PROLOGUE_FLOW_CISTERN_CAPACITY_TRANSACTION_PREFIX = "prologue.flow.cistern.capacity";
+export const PROLOGUE_FLOW_WILDLIFE_ENTRY_TRANSACTION_PREFIX = "prologue.flow.wildlife.entry";
 
 export interface PrologueFlowFreshOptions {
   readonly sessionId: string;
@@ -99,13 +116,31 @@ const arrivalScene = (sceneId: string): boolean =>
   sceneId === PROLOGUE_ARRIVAL_SCENE_ID || sceneId === PROLOGUE_STREAM_SCENE_ID;
 const infrastructureScene = (sceneId: string): boolean =>
   sceneId === PROLOGUE_WATERWHEEL_SCENE_ID || sceneId === PROLOGUE_SERVICE_CHANNEL_SCENE_ID;
+const regionTrue = (state: GameSessionState, flagId: string): boolean =>
+  Object.values(state.world.flags).some((flag) =>
+    flag.scope === "region" && flag.regionId === "valley_prologue" && flag.flagId === flagId && flag.value === true
+  );
+const wildlifeRuntimeSnapshot = (
+  state: GameSessionState,
+  playerPosition: PointPx,
+  tick: number,
+): RuntimeSnapshot => Object.freeze({
+  tick,
+  sceneId: PROLOGUE_WILDLIFE_SCENE_ID,
+  player: Object.freeze({ position: Object.freeze({ ...playerPosition }), velocity: Object.freeze({ x: 0, y: 0 }), grounded: false, body: DEFAULT_PLAYER_BODY }),
+  camera: Object.freeze({ x: Math.max(0, playerPosition.x - 80), y: Math.max(0, playerPosition.y - 45), width: 160, height: 90 }),
+  checkpoint: Object.freeze({ id: state.checkpoint.id, sceneId: state.checkpoint.sceneId, position: Object.freeze({ ...state.checkpoint.position }), tick }),
+});
 
-/** One persisted GameSession coordinating the playable N00 -> N05 prologue. */
+/** One persisted GameSession coordinating the playable N00 -> N06 prologue. */
 export class PrologueFlowSession {
   private arrival: PrologueArrivalStreamSession | null;
   private settlement: PrologueSettlementSession | null;
   private infrastructure: PrologueWaterwheelSession | null;
   private cistern: PrologueCisternSession | null;
+  private wildlife: PrologueWildlifeSession | null;
+  private wildlifePlayerPositionPx: PointPx | null;
+  private wildlifeRuntimeTick = 0;
 
   private constructor(session: GameSession) {
     const sceneId = session.snapshot().world.currentSceneId;
@@ -113,7 +148,9 @@ export class PrologueFlowSession {
     this.settlement = sceneId === PROLOGUE_SETTLEMENT_SCENE_ID ? new PrologueSettlementSession(session) : null;
     this.infrastructure = infrastructureScene(sceneId) ? new PrologueWaterwheelSession(session) : null;
     this.cistern = sceneId === PROLOGUE_CISTERN_SCENE_ID ? new PrologueCisternSession(session) : null;
-    if (!this.arrival && !this.settlement && !this.infrastructure && !this.cistern) {
+    this.wildlife = sceneId === PROLOGUE_WILDLIFE_SCENE_ID ? new PrologueWildlifeSession(session) : null;
+    this.wildlifePlayerPositionPx = this.wildlife ? Object.freeze({ ...session.snapshot().checkpoint.position }) : null;
+    if (!this.arrival && !this.settlement && !this.infrastructure && !this.cistern && !this.wildlife) {
       throw new Error(`unsupported prologue scene: ${sceneId}`);
     }
   }
@@ -126,11 +163,30 @@ export class PrologueFlowSession {
     const session = GameSession.fromSave(candidate);
     const flow = new PrologueFlowSession(session);
     const state = session.snapshot();
+    if (state.world.currentSceneId === PROLOGUE_WILDLIFE_SCENE_ID) {
+      if (regionTrue(state, PROLOGUE_WILDLIFE_REGION_FLAGS.denEntryCrossed) &&
+          state.checkpoint.sceneId === PROLOGUE_WILDLIFE_SCENE_ID) return flow;
+      const entryCount = session.events().filter((event) =>
+        event.type === "scene_entered" && event.payload.sceneId === PROLOGUE_WILDLIFE_SCENE_ID
+      ).length;
+      const adoption = PrologueWildlifeSession.adoptRuntimeEntry(
+        session,
+        `${PROLOGUE_FLOW_WILDLIFE_ENTRY_TRANSACTION_PREFIX}:${session.sessionId}:${entryCount}`,
+      );
+      if (!adoption.accepted || !adoption.wildlife) throw new Error(`wildlife load reconciliation rejected: ${adoption.reason}`);
+      return new PrologueFlowSession(adoption.wildlife.session);
+    }
     const entryCommitted = Object.values(state.world.flags).some((flag) =>
       flag.scope === "region" && flag.regionId === "valley_prologue" &&
       flag.flagId === PROLOGUE_CISTERN_REGION_FLAGS.entryCrossed && flag.value === true
     );
-    if (state.world.currentSceneId !== PROLOGUE_CISTERN_SCENE_ID || entryCommitted) return flow;
+    const latestCisternEntry = [...session.events()].reverse().find((event) =>
+      event.type === "scene_entered" && event.payload.sceneId === PROLOGUE_CISTERN_SCENE_ID
+    );
+    const fromWildlife = state.world.currentSceneId === PROLOGUE_CISTERN_SCENE_ID &&
+      state.checkpoint.sceneId === PROLOGUE_CISTERN_SCENE_ID &&
+      latestCisternEntry?.eventId.endsWith(`${PROLOGUE_WILDLIFE_SCENE_ID}->${PROLOGUE_CISTERN_SCENE_ID}`) === true;
+    if (state.world.currentSceneId !== PROLOGUE_CISTERN_SCENE_ID || entryCommitted || fromWildlife) return flow;
 
     const capableSession = flow.withCisternCapacity(session);
     const adoption = PrologueCisternSession.adoptRuntimeEntry(
@@ -144,7 +200,8 @@ export class PrologueFlowSession {
   }
 
   get session(): GameSession {
-    return this.arrival?.session ?? this.settlement?.session ?? this.infrastructure?.session ?? this.cistern!.session;
+    return this.arrival?.session ?? this.settlement?.session ?? this.infrastructure?.session ??
+      this.cistern?.session ?? this.wildlife!.session;
   }
 
   toSave(): GameSessionSave {
@@ -155,21 +212,28 @@ export class PrologueFlowSession {
     if (this.arrival) {
       const arrival = this.arrival.snapshot();
       return Object.freeze({ mode: "arrival_stream", session: arrival.session, runtime: arrival.runtime,
-        arrival, settlement: null, infrastructure: null, cistern: null, killCount: 0 });
+        arrival, settlement: null, infrastructure: null, cistern: null, wildlife: null, killCount: 0 });
     }
     if (this.settlement) {
       const settlement = this.settlement.snapshot();
       return Object.freeze({ mode: "settlement", session: settlement.session, runtime: settlement.runtime,
-        arrival: null, settlement, infrastructure: null, cistern: null, killCount: 0 });
+        arrival: null, settlement, infrastructure: null, cistern: null, wildlife: null, killCount: 0 });
     }
     if (this.infrastructure) {
       const infrastructure = this.infrastructure.snapshot();
       return Object.freeze({ mode: "infrastructure", session: infrastructure.session, runtime: infrastructure.runtime,
-        arrival: null, settlement: null, infrastructure, cistern: null, killCount: 0 });
+        arrival: null, settlement: null, infrastructure, cistern: null, wildlife: null, killCount: 0 });
     }
-    const cistern = this.cistern!.snapshot();
-    return Object.freeze({ mode: "cistern", session: cistern.session, runtime: cistern.runtime,
-      arrival: null, settlement: null, infrastructure: null, cistern, killCount: 0 });
+    if (this.cistern) {
+      const cistern = this.cistern.snapshot();
+      return Object.freeze({ mode: "cistern", session: cistern.session, runtime: cistern.runtime,
+        arrival: null, settlement: null, infrastructure: null, cistern, wildlife: null, killCount: 0 });
+    }
+    const wildlife = this.wildlife!.snapshot();
+    const playerPosition = this.wildlifePlayerPositionPx ?? wildlife.session.checkpoint.position;
+    return Object.freeze({ mode: "wildlife", session: wildlife.session,
+      runtime: wildlifeRuntimeSnapshot(wildlife.session, playerPosition, this.wildlifeRuntimeTick),
+      arrival: null, settlement: null, infrastructure: null, cistern: null, wildlife, killCount: 0 });
   }
 
   advanceTicks(ticks: number, input: RuntimeInput = {}): PrologueFlowSnapshot {
@@ -178,7 +242,8 @@ export class PrologueFlowSession {
       if (this.arrival) this.arrival.advanceTicks(1, input);
       else if (this.settlement) this.settlement.advanceTicks(1, input);
       else if (this.infrastructure) this.infrastructure.advanceTicks(1, input);
-      else this.cistern!.advanceTicks(1, input);
+      else if (this.cistern) this.cistern.advanceTicks(1, input);
+      else return this.snapshot();
       this.reconcileMode();
     }
     return this.snapshot();
@@ -272,6 +337,203 @@ export class PrologueFlowSession {
     return this.delegateInfrastructure((x) => x.recoverSoftLock(transactionId));
   }
 
+  enterWildlife(
+    transactionId: string,
+    source: "service" | "cistern",
+  ): PrologueFlowAction<PrologueWildlifeEntryResult> {
+    if (source === "service") {
+      if (!this.infrastructure || this.infrastructure.snapshot().mode !== "service_channel") return this.rejectedMode();
+      try {
+        const result = PrologueWildlifeSession.enterFromService(this.infrastructure.session, transactionId);
+        if (result.accepted && result.wildlife) this.activateWildlife(result.wildlife);
+        return this.delegated(result, result.accepted);
+      } catch { return this.rejectedDelegate(); }
+    }
+    if (!this.cistern) return this.rejectedMode();
+    try {
+      const result = PrologueWildlifeSession.enterFromCistern(this.cistern.session, transactionId);
+      if (result.accepted && result.wildlife) this.activateWildlife(result.wildlife);
+      return this.delegated(result, result.accepted);
+    } catch { return this.rejectedDelegate(); }
+  }
+
+  observeWildlife(operationId: string): PrologueFlowAction<PrologueWildlifeSnapshot> {
+    if (!this.wildlife) return this.rejectedMode();
+    const snapshot = this.wildlife.snapshot();
+    const warningCenter = this.boundsCenter(snapshot.spatialBinding.warningBoundsTiles);
+    return this.advanceWildlifeSemantic(operationId, "observe", 44, warningCenter, snapshot.foxPositionTiles, false);
+  }
+
+  retreatWildlife(operationId: string): PrologueFlowAction<PrologueWildlifeSnapshot> {
+    if (!this.wildlife) return this.rejectedMode();
+    const snapshot = this.wildlife.snapshot();
+    return this.advanceWildlifeSemantic(operationId, "retreat", 1, this.outsideWarningPoint(snapshot), snapshot.foxPositionTiles, true);
+  }
+
+  waitForWildlifeExit(operationId: string): PrologueFlowAction<PrologueWildlifeSnapshot> {
+    if (!this.wildlife) return this.rejectedMode();
+    const snapshot = this.wildlife.snapshot();
+    const exit = this.boundsCenter(snapshot.spatialBinding.escapeBoundsTiles);
+    const ticks = Math.max(1, Math.ceil(Math.hypot(snapshot.foxPositionTiles.x - exit.x, snapshot.foxPositionTiles.y - exit.y) / 0.25));
+    return this.advanceWildlifeSemantic(operationId, "wait_exit", ticks, this.outsideWarningPoint(snapshot), exit, true);
+  }
+
+  makeWildlifeNoise(transactionId: string): PrologueFlowAction<PrologueWildlifeDeterrenceResult> {
+    const point = this.wildlife?.snapshot().interactionPoints.noise;
+    const positioned = point && this.positionWildlifePlayer(point, false);
+    if (!positioned?.accepted) return this.rejectedMode();
+    return this.delegateWildlife((x) => x.makeLowForceNoise(transactionId));
+  }
+
+  useWildlifeStaff(transactionId: string): PrologueFlowAction<PrologueWildlifeDeterrenceResult> {
+    const point = this.wildlife?.snapshot().interactionPoints.staff;
+    const positioned = point && this.positionWildlifePlayer(point, true);
+    if (!positioned?.accepted) return this.rejectedMode();
+    return this.delegateWildlife((x) => x.useWoodStaff(transactionId));
+  }
+
+  openWildlifeLatch(transactionId: string): PrologueFlowAction<PrologueWildlifeActionResult> {
+    const point = this.wildlife?.snapshot().interactionPoints.latch;
+    const positioned = point && this.positionWildlifePlayer(point, false);
+    if (!positioned?.accepted) return this.rejectedMode();
+    return this.delegateWildlife((x) => x.openOldServiceLatch(transactionId));
+  }
+
+  markWildlifeDigLine(transactionId: string): PrologueFlowAction<PrologueWildlifeActionResult> {
+    if (!this.positionWildlifeForDig()) return this.rejectedMode();
+    return this.delegateWildlife((x) => x.inspectAndMarkUpperLine(transactionId));
+  }
+
+  digWildlifeUpperBypass(transactionId: string): PrologueFlowAction<PrologueWildlifeActionResult> {
+    if (!this.positionWildlifeForDig()) return this.rejectedMode();
+    return this.delegateWildlife((x) => x.digUpperBypass(transactionId));
+  }
+
+  installWildlifeBraces(transactionId: string): PrologueFlowAction<PrologueWildlifeActionResult> {
+    if (!this.positionWildlifeForDig()) return this.rejectedMode();
+    return this.delegateWildlife((x) => x.installUpperBypassBraces(transactionId));
+  }
+
+  completeWildlifeRoute(
+    transactionId: string,
+    solutionId: "den.wait_and_observe" | "den.dig_upper_bypass" | "den.low_force_noise" | "den.low_force_staff",
+  ): PrologueFlowAction<PrologueWildlifeActionResult> {
+    if (!this.wildlife) return this.rejectedMode();
+    if (solutionId === "den.wait_and_observe") return this.delegateWildlife((x) => x.completeWaitAndObserve(transactionId));
+    if (solutionId === "den.dig_upper_bypass") return this.delegateWildlife((x) => x.completeDigUpperBypass(transactionId));
+    if (solutionId === "den.low_force_noise") return this.delegateWildlife((x) => x.completeLowForceNoise(transactionId));
+    return this.delegateWildlife((x) => x.completeLowForceStaff(transactionId));
+  }
+
+  returnWildlifeToService(transactionId: string): PrologueFlowAction<PrologueWildlifeHandoffResult> {
+    if (!this.wildlife) return this.rejectedMode();
+    try {
+      const result = this.wildlife.returnToService(transactionId);
+      if (result.accepted && result.session) {
+        this.wildlife = null;
+        this.wildlifePlayerPositionPx = null;
+        this.wildlifeRuntimeTick = 0;
+        this.infrastructure = new PrologueWaterwheelSession(result.session);
+      }
+      return this.delegated(result, result.accepted);
+    } catch { return this.rejectedDelegate(); }
+  }
+
+  handoffWildlifeToCistern(transactionId: string): PrologueFlowAction<PrologueWildlifeHandoffResult> {
+    if (!this.wildlife) return this.rejectedMode();
+    try {
+      const result = this.wildlife.handoffToHighCistern(transactionId);
+      if (result.accepted && result.session) {
+        const capableSession = this.withCisternCapacity(result.session);
+        this.wildlife = null;
+        this.wildlifePlayerPositionPx = null;
+        this.wildlifeRuntimeTick = 0;
+        this.cistern = new PrologueCisternSession(capableSession);
+      }
+      return this.delegated(result, result.accepted);
+    } catch { return this.rejectedDelegate(); }
+  }
+
+  recoverWildlifeSoftLock(transactionId: string): PrologueFlowAction<PrologueWildlifeActionResult> {
+    return this.resetWildlife((x) => x.recoverSoftLock(transactionId));
+  }
+
+  resetWildlifeCheckpoint(transactionId: string): PrologueFlowAction<PrologueWildlifeActionResult> {
+    return this.resetWildlife((x) => x.resetToCheckpoint(transactionId));
+  }
+
+  private advanceWildlifeSemantic(
+    operationId: string,
+    actionId: "observe" | "retreat" | "wait_exit",
+    ticks: number,
+    playerPositionTiles: Readonly<{ x: number; y: number }>,
+    foxPositionTiles: Readonly<{ x: number; y: number }>,
+    playerRetreating: boolean,
+  ): PrologueFlowAction<PrologueWildlifeSnapshot> {
+    if (!this.wildlife) return this.rejectedMode();
+    try {
+      const semantic = this.wildlife.recordSemanticAction(operationId, actionId);
+      if (!semantic.accepted) return this.delegated(this.wildlife.snapshot(), false);
+      if (semantic.duplicate) return this.delegated(this.wildlife.snapshot(), true);
+      const result = this.wildlife.advanceTicks(ticks, {
+        playerPositionTiles,
+        foxPositionTiles,
+        playerProfile: { id: "human", massKg: 70, buoyancyCoefficient: 1, heatToleranceC: 55 },
+        world: { playerRetreating, lineOfSight: true, localDangerCleared: false, returnWorldConditionsSatisfied: false },
+      });
+      this.wildlifePlayerPositionPx = Object.freeze({ x: playerPositionTiles.x * WORLD_TILE_SIZE_PX, y: playerPositionTiles.y * WORLD_TILE_SIZE_PX });
+      this.wildlifeRuntimeTick += ticks;
+      return this.delegated(result, true);
+    } catch { return this.rejectedDelegate(); }
+  }
+
+  private positionWildlifePlayer(
+    point: Readonly<{ x: number; y: number }>,
+    playerRetreating: boolean,
+  ): PrologueFlowAction<PrologueWildlifeSnapshot> {
+    if (!this.wildlife) return this.rejectedMode();
+    const fox = this.wildlife.snapshot().foxPositionTiles;
+    try {
+      const result = this.wildlife.advanceTicks(1, {
+        playerPositionTiles: point,
+        foxPositionTiles: fox,
+        playerProfile: { id: "human", massKg: 70, buoyancyCoefficient: 1, heatToleranceC: 55 },
+        world: { playerRetreating, lineOfSight: true, localDangerCleared: false, returnWorldConditionsSatisfied: false },
+      });
+      this.wildlifePlayerPositionPx = Object.freeze({ x: point.x * WORLD_TILE_SIZE_PX, y: point.y * WORLD_TILE_SIZE_PX });
+      this.wildlifeRuntimeTick += 1;
+      return this.delegated(result, true);
+    } catch { return this.rejectedDelegate(); }
+  }
+
+  private boundsCenter(bounds: Readonly<{ x: number; y: number; width: number; height: number }>) {
+    return Object.freeze({ x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 });
+  }
+
+  private outsideWarningPoint(snapshot: PrologueWildlifeSnapshot) {
+    const bounds = snapshot.spatialBinding.warningBoundsTiles;
+    return Object.freeze({ x: Math.max(0, bounds.x - 1), y: bounds.y + bounds.height / 2 });
+  }
+
+  private positionWildlifeForDig(): boolean {
+    if (!this.wildlife) return false;
+    const snapshot = this.wildlife.snapshot();
+    const den = snapshot.spatialBinding.denBoundsTiles;
+    const foxClear = Object.freeze({ x: den.x + den.width + 1, y: snapshot.foxPositionTiles.y });
+    const ticks = Math.max(1, Math.ceil(Math.hypot(snapshot.foxPositionTiles.x - foxClear.x, snapshot.foxPositionTiles.y - foxClear.y) / 0.25));
+    try {
+      this.wildlife.advanceTicks(ticks, {
+        playerPositionTiles: snapshot.interactionPoints.dig,
+        foxPositionTiles: foxClear,
+        playerProfile: { id: "human", massKg: 70, buoyancyCoefficient: 1, heatToleranceC: 55 },
+        world: { playerRetreating: false, lineOfSight: true, localDangerCleared: false, returnWorldConditionsSatisfied: false },
+      });
+      this.wildlifePlayerPositionPx = Object.freeze({ x: snapshot.interactionPoints.dig.x * WORLD_TILE_SIZE_PX, y: snapshot.interactionPoints.dig.y * WORLD_TILE_SIZE_PX });
+      this.wildlifeRuntimeTick += ticks;
+      return true;
+    } catch { return false; }
+  }
+
   enterCistern(transactionId: string): PrologueFlowAction<PrologueCisternEntryResult> {
     if (!this.infrastructure) return this.rejectedMode();
     const infrastructure = this.infrastructure.snapshot();
@@ -354,21 +616,23 @@ export class PrologueFlowSession {
   }
 
   resetToCheckpoint(transactionId: string): PrologueFlowAction<
-    PrologueArrivalStreamSnapshot | SettlementActionResult | InfrastructureActionResult | PrologueCisternActionResult
+    PrologueArrivalStreamSnapshot | SettlementActionResult | InfrastructureActionResult | PrologueCisternActionResult | PrologueWildlifeActionResult
   > {
     if (this.arrival) return this.delegateArrivalSnapshot((x) => x.resetToCheckpoint(transactionId));
     if (this.settlement) return this.delegateSettlement((x) => x.resetToCheckpoint(transactionId));
     if (this.infrastructure) return this.delegateInfrastructure((x) => x.resetToCheckpoint(transactionId));
-    return this.delegateCistern((x) => x.resetToCheckpoint(transactionId));
+    if (this.cistern) return this.delegateCistern((x) => x.resetToCheckpoint(transactionId));
+    return this.resetWildlife((x) => x.resetToCheckpoint(transactionId));
   }
 
   resetArea(transactionId: string): PrologueFlowAction<
-    PrologueArrivalStreamSnapshot | SettlementActionResult | InfrastructureActionResult | PrologueCisternActionResult
+    PrologueArrivalStreamSnapshot | SettlementActionResult | InfrastructureActionResult | PrologueCisternActionResult | PrologueWildlifeActionResult
   > {
     if (this.arrival) return this.delegateArrivalSnapshot((x) => x.resetArea(transactionId));
     if (this.settlement) return this.delegateSettlement((x) => x.resetArea(transactionId));
     if (this.infrastructure) return this.delegateInfrastructure((x) => x.recoverSoftLock(transactionId));
-    return this.delegateCistern((x) => x.recoverSoftLock(transactionId));
+    if (this.cistern) return this.delegateCistern((x) => x.recoverSoftLock(transactionId));
+    return this.resetWildlife((x) => x.resetToCheckpoint(transactionId));
   }
 
   private delegateArrival<T extends ArrivalAcceptedResult>(action: (x: PrologueArrivalStreamSession) => T) {
@@ -407,6 +671,24 @@ export class PrologueFlowSession {
     try { return this.delegated(action(this.cistern), true); }
     catch { return this.rejectedDelegate(); }
   }
+  private delegateWildlife<T extends PrologueWildlifeActionResult>(action: (x: PrologueWildlifeSession) => T): PrologueFlowAction<T> {
+    if (!this.wildlife) return this.rejectedMode();
+    try {
+      const result = action(this.wildlife);
+      return this.delegated(result, result.accepted);
+    } catch { return this.rejectedDelegate(); }
+  }
+  private resetWildlife(action: (x: PrologueWildlifeSession) => PrologueWildlifeActionResult): PrologueFlowAction<PrologueWildlifeActionResult> {
+    if (!this.wildlife) return this.rejectedMode();
+    try {
+      const result = action(this.wildlife);
+      if (result.accepted) {
+        this.wildlifePlayerPositionPx = Object.freeze({ ...this.wildlife.session.snapshot().checkpoint.position });
+        this.wildlifeRuntimeTick = 0;
+      }
+      return this.delegated(result, result.accepted);
+    } catch { return this.rejectedDelegate(); }
+  }
 
   private withCisternCapacity(session: GameSession): GameSession {
     if (session.snapshot().capabilities.appliedMilestones[CISTERN_CAPACITY_CONTRACT.milestoneId]) return session;
@@ -414,6 +696,13 @@ export class PrologueFlowSession {
     const commit = commitSessionProposal(session, proposeCapabilityMilestone(transactionId, CISTERN_CAPACITY_CONTRACT));
     if (!commit.committed) throw new Error(`cistern capacity milestone rejected: ${commit.reason}`);
     return commit.session;
+  }
+
+  private activateWildlife(wildlife: PrologueWildlifeSession): void {
+    this.arrival = null; this.settlement = null; this.infrastructure = null; this.cistern = null;
+    this.wildlife = wildlife;
+    this.wildlifePlayerPositionPx = Object.freeze({ ...wildlife.session.snapshot().checkpoint.position });
+    this.wildlifeRuntimeTick = 0;
   }
 
   private reconcileMode(): void {
@@ -458,7 +747,8 @@ export class PrologueFlowSession {
       return;
     }
     if (!arrivalScene(sceneId) && sceneId !== PROLOGUE_SETTLEMENT_SCENE_ID &&
-        !infrastructureScene(sceneId) && sceneId !== PROLOGUE_CISTERN_SCENE_ID) {
+        !infrastructureScene(sceneId) && sceneId !== PROLOGUE_CISTERN_SCENE_ID &&
+        sceneId !== PROLOGUE_WILDLIFE_SCENE_ID) {
       throw new Error(`unsupported prologue scene: ${sceneId}`);
     }
   }

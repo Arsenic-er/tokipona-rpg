@@ -165,9 +165,16 @@ export interface PrologueWildlifeSnapshot {
   readonly sceneManifestId: string;
   readonly taskId: string;
   readonly fox: WildlifeStateMachineSnapshot;
+  readonly minimumWarningTicks: number;
   readonly foxPositionTiles: Point;
   readonly spatialBinding: Readonly<{
     warningBoundsTiles: Bounds; escapeBoundsTiles: Bounds; denBoundsTiles: Bounds; defensiveContactTiles: number;
+  }>;
+  readonly interactionPoints: Readonly<{
+    noise: Point;
+    staff: Point;
+    latch: Point;
+    dig: Point;
   }>;
   readonly visitEvidence: PrologueWildlifeVisitEvidence;
   readonly digProgress: PrologueWildlifeDigProgress;
@@ -319,8 +326,14 @@ export class PrologueWildlifeSession {
   snapshot(): PrologueWildlifeSnapshot {
     const state = this.authoritativeSession.snapshot();
     return Object.freeze({
-      session: state, sceneManifestId: DEN_SCENE.sceneId, taskId: DEN_TASK.id, fox: this.fox.snapshot(), foxPositionTiles: this.foxPosition,
+      session: state, sceneManifestId: DEN_SCENE.sceneId, taskId: DEN_TASK.id, fox: this.fox.snapshot(), minimumWarningTicks: Math.ceil(ECOLOGY.minimumWarningTelegraphSeconds * 60), foxPositionTiles: this.foxPosition,
       spatialBinding: Object.freeze({ warningBoundsTiles: BINDING.warningBoundsTiles, escapeBoundsTiles: BINDING.escapeBoundsTiles, denBoundsTiles: BINDING.denBoundsTiles, defensiveContactTiles: ECOLOGY.defensiveContactTiles }),
+      interactionPoints: Object.freeze({
+        noise: Object.freeze({ x: NOISE_POINT[0], y: NOISE_POINT[1] }),
+        staff: Object.freeze({ x: STAFF_POINT[0], y: STAFF_POINT[1] }),
+        latch: Object.freeze({ x: LATCH_POINT[0], y: LATCH_POINT[1] }),
+        dig: Object.freeze({ x: DIG_POINT[0], y: DIG_POINT[1] }),
+      }),
       visitEvidence: this.evidence, digProgress: this.digProgress, denRouteOpen: regionTrue(state, PROLOGUE_WILDLIFE_REGION_FLAGS.denRouteOpen),
       routeSolutionId: typeof regionValue(state, PROLOGUE_WILDLIFE_REGION_FLAGS.routeSolutionId) === "string" ? regionValue(state, PROLOGUE_WILDLIFE_REGION_FLAGS.routeSolutionId) as string : null,
       foxDenIntact: this.foxDenIntact(), serviceReturnAlwaysOpen: true,
@@ -433,6 +446,9 @@ export class PrologueWildlifeSession {
 
   resetToCheckpoint(transactionId: string): PrologueWildlifeActionResult { return this.reset(transactionId, "checkpoint_reset", false); }
   recoverSoftLock(transactionId: string): PrologueWildlifeActionResult { return this.reset(transactionId, "softlock_recovery", true); }
+  recordSemanticAction(transactionId: string, actionId: "observe" | "retreat" | "wait_exit"): PrologueWildlifeActionResult {
+    return this.transientOperation(transactionId, `semantic_${actionId}`, {}, () => undefined);
+  }
 
   private atGeneratedPoint(point: readonly [number, number]): boolean { return this.lastPlayerPosition !== null && distance(this.lastPlayerPosition, { x: point[0], y: point[1] }) <= INTERACTION_RADIUS_TILES; }
   private foxClearOfDen(): boolean { return !inside(this.foxPosition, BINDING.denBoundsTiles); }

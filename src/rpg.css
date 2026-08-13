@@ -144,3 +144,43 @@ button:disabled { color: #625f59; cursor: not-allowed; }
 .cistern-flags span[data-complete="true"] b { color: #91c49d; }
 @media (max-width: 440px) { .cistern-state { grid-template-columns: repeat(2, minmax(0, 1fr)); } .cistern-recovery-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 370px) { .cistern-expression-grid, .cistern-flags { grid-template-columns: 1fr; } }
+
+.wildlife-panel { margin-top: 6px; padding: 8px; border: 1px solid #514333; background: #100e0c; }
+.wildlife-panel h2, .wildlife-panel h3, .wildlife-panel p { margin: 0; }
+.wildlife-panel h2 { margin-top: 2px; color: #d0a56c; font-size: 13px; }
+.wildlife-gateway { border-color: #66523b; background: #15110d; }
+.wildlife-gateway button { width: 100%; min-height: 32px; margin-top: 6px; }
+.wildlife-copy, .wildlife-safety-copy { color: #999083; font-size: 7px; line-height: 1.55; }
+.wildlife-state { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; margin-top: 7px; }
+.wildlife-state span { min-width: 0; padding: 5px; color: #8e8377; border: 1px solid #3b3229; background: #0b0a09; font-size: 7px; }
+.wildlife-state strong { display: block; overflow-wrap: anywhere; margin-top: 2px; color: #d7bf9d; font-size: 8px; }
+.wildlife-warning-track { height: 7px; margin-top: 5px; overflow: hidden; border: 1px solid #43372c; background: #18120f; }
+.wildlife-warning-track b { display: block; width: 0; height: 100%; background: #c08342; }
+.wildlife-safety-chain { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 3px; margin: 6px 0 0; padding: 0; list-style: none; counter-reset: wildlife-step; }
+.wildlife-safety-chain li { min-height: 34px; padding: 4px; color: #81776d; border: 1px dashed #41372e; background: #0b0a09; font-size: 6px; line-height: 1.35; }
+.wildlife-safety-chain li::before { counter-increment: wildlife-step; content: counter(wildlife-step) ". "; color: #b69468; }
+.wildlife-safety-chain li[data-complete="true"] { color: #b9cca3; border-color: #596848; border-style: solid; background: #11160e; }
+.wildlife-action-grid, .wildlife-tools, .wildlife-navigation { display: grid; gap: 4px; margin-top: 6px; }
+.wildlife-action-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.wildlife-tools { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.wildlife-navigation { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.wildlife-action-grid button, .wildlife-tools button, .wildlife-navigation button { min-height: 34px; padding: 4px; font-size: 7px; }
+.wildlife-action-grid strong, .wildlife-action-grid small, .wildlife-tools strong, .wildlife-tools small { display: block; }
+.wildlife-action-grid small, .wildlife-tools small { margin-top: 2px; color: #80766d; font-size: 6px; }
+.wildlife-route-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; margin-top: 7px; }
+.wildlife-route { padding: 6px; border: 1px solid #3c342d; background: #0c0b0a; }
+.wildlife-route > span { color: #8fa97e; font-size: 6px; letter-spacing: .12em; }
+.wildlife-route h3 { margin-top: 2px; color: #c6a77d; font-size: 9px; }
+.wildlife-route p { min-height: 29px; margin-top: 3px; color: #8a8177; font-size: 6px; line-height: 1.45; }
+.wildlife-route small { display: block; min-height: 20px; margin-top: 4px; color: #a39786; font-size: 6px; }
+.wildlife-route button { width: 100%; min-height: 26px; margin-top: 4px; font-size: 7px; }
+.wildlife-route[data-route-state="ready"] { border-color: #8a734f; background: #17130d; }
+.wildlife-route[data-route-state="completed"] { border-color: #617650; background: #12180f; }
+.wildlife-safety-copy { margin-top: 7px !important; padding: 6px; border-left: 2px solid #71835e; background: #0c100a; }
+@media (max-width: 440px) {
+  .wildlife-state, .wildlife-route-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .wildlife-safety-chain { grid-template-columns: 1fr; }
+  .wildlife-action-grid, .wildlife-navigation { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .wildlife-tools { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 370px) { .wildlife-route-grid, .wildlife-state { grid-template-columns: 1fr; } }

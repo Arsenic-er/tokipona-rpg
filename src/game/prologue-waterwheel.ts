@@ -214,6 +214,7 @@ export const PROLOGUE_INFRASTRUCTURE_REGION_FLAGS = Object.freeze({
   waterwheelResultMode: "waterwheel_result_mode",
   waterwheelSolutionId: "waterwheel_solution_id",
   serviceChannelEntryCrossed: "service_channel_entry_crossed",
+  serviceChannelReached: "service_channel_reached",
   serviceGateOpen: "service_gate_open",
   serviceBypassOpen: "service_bypass_open",
   serviceResultMode: "service_result_mode",
@@ -782,6 +783,11 @@ export class PrologueWaterwheelSession {
         regionFlagDraft(
           `session.infrastructure.service.entry.flag.${id}`,
           PROLOGUE_INFRASTRUCTURE_REGION_FLAGS.serviceChannelEntryCrossed,
+          true,
+        ),
+        regionFlagDraft(
+          `session.infrastructure.service.entry.reached.${id}`,
+          PROLOGUE_INFRASTRUCTURE_REGION_FLAGS.serviceChannelReached,
           true,
         ),
         operationReceiptDraft(this.authoritativeSession.sessionId, id, fingerprint),

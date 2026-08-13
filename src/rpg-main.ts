@@ -28,6 +28,11 @@ import {
   createRpgCisternUi,
   type CisternUiCommand,
 } from "./rpg-cistern-ui";
+import { PROLOGUE_WILDLIFE_SCENE_ID } from "./game/prologue-wildlife";
+import {
+  createRpgWildlifeUi,
+  type WildlifeUiCommand,
+} from "./rpg-wildlife-ui";
 
 type GlyphPhase = "undiscovered" | "discovered" | "activated";
 type Tone = "neutral" | "success" | "warning" | "danger";
@@ -273,6 +278,41 @@ class FlowBrowserPort {
     }
   }
 
+  wildlife(command: WildlifeUiCommand): UiResult {
+    switch (command.kind) {
+      case "enter_wildlife":
+        return flowResult(this.flow.enterWildlife(nextId("enter-wildlife-" + command.source), command.source), "进入 N06 可选生态支路。", "neutral");
+      case "observe_warning":
+        return flowResult(this.flow.observeWildlife(nextId("wildlife-observe")), "完整观察了狐狸的警告。", "neutral");
+      case "retreat_safely":
+        return flowResult(this.flow.retreatWildlife(nextId("wildlife-retreat")), "退到警戒区外，并保持逃生通道畅通。", "success");
+      case "wait_for_real_exit":
+        return flowResult(this.flow.waitForWildlifeExit(nextId("wildlife-real-exit")), "狐狸到达真实逃生出口。", "success");
+      case "make_low_force_noise":
+        return flowResult(this.flow.makeWildlifeNoise(nextId("wildlife-noise")), "敲击空木：0 伤害，警觉增加。", "neutral");
+      case "use_wood_staff":
+        return flowResult(this.flow.useWildlifeStaff(nextId("wildlife-staff")), "在距离标记处举杖后退；未击中狐狸。", "neutral");
+      case "open_old_latch":
+        return flowResult(this.flow.openWildlifeLatch(nextId("wildlife-latch")), "旧闩已在安全条件下打开。", "success");
+      case "mark_upper_line":
+        return flowResult(this.flow.markWildlifeDigLine(nextId("wildlife-dig-mark")), "标记了兽穴上方的安全挖掘线。", "neutral");
+      case "dig_upper_bypass":
+        return flowResult(this.flow.digWildlifeUpperBypass(nextId("wildlife-dig")), "在狐狸离巢后挖开上方绕路。", "neutral");
+      case "install_braces":
+        return flowResult(this.flow.installWildlifeBraces(nextId("wildlife-braces")), "安装支撑，将塌落控制在限制内。", "success");
+      case "complete_route":
+        return flowResult(this.flow.completeWildlifeRoute(nextId("wildlife-route-" + command.solutionId), command.solutionId), "N06 零击杀路线已打开。", "success");
+      case "return_to_service":
+        return flowResult(this.flow.returnWildlifeToService(nextId("wildlife-return-service")), "返回 N04 维修水道。", "neutral");
+      case "go_to_cistern":
+        return flowResult(this.flow.handoffWildlifeToCistern(nextId("wildlife-to-cistern")), "从绕道前往 N05 高位蓄水池。", "success");
+      case "recover_softlock":
+        return flowResult(this.flow.recoverWildlifeSoftLock(nextId("wildlife-recover")), "在 60 秒恢复契约内重新开放安全通路。", "neutral");
+      case "reset_checkpoint":
+        return flowResult(this.flow.resetWildlifeCheckpoint(nextId("wildlife-reset")), "回到 N06 权威存档点。", "neutral");
+    }
+  }
+
   setCheckpoint(): UiResult {
     return flowResult(
       this.flow.setCheckpoint(nextId("checkpoint"), "checkpoint.prologue.browser"),
@@ -404,6 +444,7 @@ const statusLabel = required<HTMLElement>('[data-ui="status"]');
 let port = FlowBrowserPort.fresh();
 const infrastructureUi = createRpgInfrastructureUi((command) => run(() => port.infrastructure(command)));
 const cisternUi = createRpgCisternUi((command) => run(() => port.cistern(command)));
+const wildlifeUi = createRpgWildlifeUi((command) => run(() => port.wildlife(command)));
 let priorTime = performance.now();
 let activationStarted: number | null = null;
 let jumpQueued = false;
@@ -436,6 +477,7 @@ function frame(now: number): void {
 function render(snapshot: PrologueFlowSnapshot, now: number): void {
   infrastructureUi.render(snapshot);
   cisternUi.render(snapshot);
+  wildlifeUi.render(snapshot);
   const scene = requiredScene(snapshot.runtime.sceneId);
   drawWorld(snapshot, scene);
   sceneLabel.textContent = sceneTitle(snapshot.runtime.sceneId);
@@ -444,7 +486,7 @@ function render(snapshot: PrologueFlowSnapshot, now: number): void {
   mpFill.style.width = `${Math.max(0, Math.min(100, (snapshot.session.mp.currentMp / snapshot.session.mp.maxMp) * 100))}%`;
   coinLabel.textContent = String(snapshot.session.economy.coin);
   objectiveLabel.textContent = objective(snapshot);
-  required<HTMLButtonElement>('[data-action="checkpoint"]').disabled = snapshot.mode === "cistern";
+  required<HTMLButtonElement>('[data-action="checkpoint"]').disabled = snapshot.mode === "cistern" || snapshot.mode === "wildlife";
 
   const inSettlement = snapshot.mode === "settlement";
   settlementPanel.hidden = !inSettlement;
@@ -454,6 +496,12 @@ function render(snapshot: PrologueFlowSnapshot, now: number): void {
 
   if (snapshot.mode === "cistern") {
     hintLabel.textContent = "Use the N05 panel to preview, confirm, recover or reset.";
+    hintLabel.dataset.active = "true";
+    return;
+  }
+
+  if (snapshot.mode === "wildlife") {
+    hintLabel.textContent = "使用 N06 面板观察警告、后退并选择零击杀路线。";
     hintLabel.dataset.active = "true";
     return;
   }
@@ -523,7 +571,25 @@ function drawWorld(snapshot: PrologueFlowSnapshot, scene: RuntimeSceneManifest):
     drawSettlementNpcs(scene, cameraX);
     drawSurveyMarkers(scene, cameraX);
   }
+  if (snapshot.mode === "wildlife" && snapshot.wildlife) drawWildlifeFox(snapshot, cameraX);
   drawPlayer(snapshot.runtime, cameraX);
+}
+
+function drawWildlifeFox(snapshot: PrologueFlowSnapshot, cameraX: number): void {
+  if (!snapshot.wildlife) return;
+  const position = snapshot.wildlife.foxPositionTiles;
+  const x = Math.round(position.x * WORLD_TILE_SIZE_PX - cameraX);
+  const y = Math.round(position.y * WORLD_TILE_SIZE_PX + WORLD_Y_OFFSET);
+  const fleeing = snapshot.wildlife.fox.behaviorState === "flee" || snapshot.wildlife.fox.behaviorState === "return";
+  context.fillStyle = fleeing ? "#b88b53" : "#9d673f";
+  context.fillRect(x + 3, y + 7, 11, 6);
+  context.fillRect(x + 9, y + 4, 6, 6);
+  context.fillRect(x + 10, y + 2, 2, 3);
+  context.fillRect(x + 14, y + 2, 2, 3);
+  context.fillStyle = "#e4d1a7";
+  context.fillRect(x + 14, y + 7, 1, 1);
+  context.fillStyle = "#6f412f";
+  context.fillRect(x, y + 8, 5, 2);
 }
 
 function drawBackdrop(tick: number, mode: PrologueFlowSnapshot["mode"]): void {
@@ -762,6 +828,11 @@ function topicsForNpc(npc: RuntimeSceneNpcManifest): readonly SettlementDialogue
 }
 
 function objective(snapshot: PrologueFlowSnapshot): string {
+  if (snapshot.mode === "wildlife") {
+    return snapshot.wildlife?.denRouteOpen
+      ? "N06 绕道已打开：返回 N04，或前往 N05；本路线没有击杀与成长奖励。"
+      : "读懂警告，安全后退，并从四种零击杀方案中选择一种。";
+  }
   if (snapshot.mode === "cistern") {
     const stage = snapshot.cistern?.cistern.stage ?? "unavailable";
     return snapshot.cistern?.completed
@@ -903,6 +974,7 @@ function factLabel(fact: string): string {
 }
 
 function sceneTitle(sceneId: string): string {
+  if (sceneId === PROLOGUE_WILDLIFE_SCENE_ID) return "N06 · 兽穴绕道";
   const names: Readonly<Record<string, string>> = {
     [PROLOGUE_ARRIVAL_SCENE_ID]: "N00 · 山谷抵达台",
     [PROLOGUE_STREAM_SCENE_ID]: "N01 · 林缘浅溪",
