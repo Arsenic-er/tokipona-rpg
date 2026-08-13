@@ -109,7 +109,7 @@ nodes:
 
   - node_id: "valley.return_channel"
     scene_id: "scene.valley.return_channel"
-    implementation_status: "planned"
+    implementation_status: "graybox_machine_ready"
     suggested_size_tiles: [30, 26]
     entry_condition: {predicate: "exit_ladder_lowered == true"}
     persistence_scope: "region_persistent"
@@ -157,7 +157,7 @@ connections:
   - {from: "valley.service_channel", to: "valley.den_bypass", traversal: {always: true}}
   - {from: "valley.den_bypass", to: "valley.high_cistern", traversal: {predicate: "den_route_open == true"}}
   - {from: "valley.high_cistern", to: "valley.return_channel", traversal: {predicate: "exit_ladder_lowered == true"}}
-  - {from: "valley.return_channel", to: "valley.settlement", traversal: {always: true}}
+  - {from: "valley.return_channel", to: "valley.settlement", traversal: {predicate: "settlement_supply_stable == true"}}
   - {from: "valley.settlement", to: "valley.safe_range", traversal: {predicate: "range_trial_permission == true"}}
   - {from: "valley.settlement", to: "valley.old_mine_threshold", traversal: {predicate: "prologue_return_observed == true"}}
 

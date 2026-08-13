@@ -34,6 +34,7 @@ import type {
   RuntimeInfrastructureTaskManifestIndex,
   RuntimeInfrastructureTaskModeManifest,
   RuntimeInfrastructureTaskSolutionManifest,
+  RuntimeReturnFlowTaskManifest,
 } from "../../src/content/runtime-task-manifest.ts";
 
 export const RUNTIME_CONTENT_SCHEMA_VERSION = "tokipona.runtime-content.v0.1" as const;
@@ -194,6 +195,12 @@ export function buildRuntimeContentArtifact(manifest: ContentManifest): RuntimeC
       height: requirePositiveNumber(value, ["height"]),
     };
   };
+  const ecologyReturnEvent = requireObjectArray(ecologyContent, ["events"]).find((event) => event.event_id === "wildlife_return_after_flow");
+  const ecologyRabbit = ecologyEntities.find((entity) => entity.entity_id === "wildlife.rabbit.valley");
+  const ecologyFrog = ecologyEntities.find((entity) => entity.entity_id === "wildlife.frog.wet_meadow");
+  if (!ecologyReturnEvent || !ecologyRabbit || !ecologyFrog) throw new Error("Ecology return-after-flow source is incomplete.");
+  const ecologyReturnTriggers = requireStringArray(requireObject(ecologyReturnEvent, ["trigger"]), ["all"]);
+  if (ecologyReturnTriggers.join("|") !== "settlement_supply_stable == true|wet_meadow_restored == true") throw new Error("Ecology return-after-flow triggers are noncanonical.");
   const ecologyBody = {
     ecologyId: requireExactString(ecologyContent, ["ecology_id"], "valley_prologue"),
     minimumWarningTelegraphSeconds: requirePositiveNumber(ecologyTiming, ["minimum_warning_telegraph"]),
@@ -209,6 +216,7 @@ export function buildRuntimeContentArtifact(manifest: ContentManifest): RuntimeC
     mandatoryKills: 0 as const,
     requiredQuestDrops: 0 as const,
     languageEvidenceFromHarmForbidden: true as const,
+    returnAfterFlow: { eventId: requireExactString(ecologyReturnEvent, ["event_id"], "wildlife_return_after_flow"), triggerStateIds: ["settlement_supply_stable", "wet_meadow_restored"] as const, persistentWrite: readPath(ecologyReturnEvent, ["persistent_write"]) === null ? null : (() => { throw new Error("Ecology return persistent_write must be null."); })(), firstVisitVisible: requireExactBoolean(ecologyReturnEvent, ["first_return_channel_visit_visible"], true), learningEvidenceFromHarm: requireExactBoolean(ecologyReturnEvent, ["learning_evidence_from_harm"], false), attackQualificationEvidence: requireExactBoolean(ecologyReturnEvent, ["attack_qualification_evidence"], false), attackUnlock: requireExactBoolean(ecologyReturnEvent, ["attack_unlock"], false), rabbitHomeSceneId: requireExactString(ecologyRabbit, ["home_scene"], "scene.valley.return_channel"), frogReturnCondition: requireString(ecologyFrog, ["cross_scene_return_condition"]) },
     species: {
       rabbit: projectWildlife("wildlife.rabbit.valley", "rabbit"),
       fox: projectWildlife("wildlife.fox.den", "fox"),
@@ -435,6 +443,53 @@ export function buildRuntimeContentArtifact(manifest: ContentManifest): RuntimeC
         completionFlags,
       };
     })() : null;
+    const returnFlow: RuntimeReturnFlowTaskManifest | null = id === "ch01_return_flow" ? (() => {
+      const contract = requireObject(task, ["return_flow_contract"]);
+      const graphSourcePath = resolveRepositoryContentPath(taskSource.path, requireString(task, ["evidence_graph_ref"]));
+      const graphSource = manifest.sources[graphSourcePath];
+      if (!graphSource || graphSource.kind !== "attack_signatures") throw new Error("ch01_return_flow.evidence_graph_ref must resolve to attack signatures");
+      const prerequisiteGraph = requireObjectArray(graphSource.content, ["prerequisite_graphs"]).find(graph => graph.graph_id === "attack.water.forceful_motion.prerequisite_graph");
+      const intensityNode = prerequisiteGraph ? requireObjectArray(prerequisiteGraph, ["required_nodes"]).find(node => node.node_id === "use.intensity.inert") : undefined;
+      if (!intensityNode) throw new Error("canonical inert intensity graph node is missing");
+      const ecologySourcePath = resolveRepositoryContentPath(taskSource.path, requireString(task, ["ecology_ref"]));
+      const ecologySource = manifest.sources[ecologySourcePath];
+      if (!ecologySource || ecologySource.kind !== "ecology") throw new Error("ch01_return_flow.ecology_ref must resolve to ecology");
+      const returnEvent = requireObjectArray(ecologySource.content, ["events"]).find((event) => event.event_id === "wildlife_return_after_flow");
+      if (!returnEvent) throw new Error("wildlife_return_after_flow is missing");
+      const rabbit = requireObjectArray(ecologySource.content, ["entities"]).find((entity) => entity.entity_id === "wildlife.rabbit.valley");
+      const frog = requireObjectArray(ecologySource.content, ["entities"]).find((entity) => entity.entity_id === "wildlife.frog.wet_meadow");
+      if (!rabbit || !frog) throw new Error("return-flow wildlife entities are missing");
+      const regionSource = manifest.byKind.region[0];
+      const returnChapterSource = manifest.byKind.chapter[0];
+      if (!regionSource || !returnChapterSource) throw new Error("return-flow region/chapter is missing");
+      const ecologyContracts = requireObject(ecologySource.content, ["contracts"]);
+      const evidence = requireObject(contract, ["wawa_evidence"]);
+      const sceneSize = requireNumberPair(contract, ["scene_size_tiles"]);
+      return {
+        familyId: requireExactString(task, ["task_family_id"], "ecology_and_return_flow"), sceneId: requireExactString(sceneSource.content, ["scene_id"], "scene.valley.return_channel"), regionId: requireExactString(task, ["region_id"], "valley_prologue"), maximumSoftlockRecoverySeconds: requirePositiveNumber(task, ["recovery", "maximum_softlock_recovery_seconds"]), entryPrerequisiteFlag: (() => { const guards=requireStringArray(task,["entry_guard_any"]); if(guards.join("|")!=="exit_ladder_lowered == true") throw new Error("return-flow entry guard is noncanonical"); return "exit_ladder_lowered" as const; })(), exitPrerequisiteFlag: (() => { const guards=requireStringArray(task,["exit_guard_any"]); if(guards.join("|")!=="settlement_supply_stable == true") throw new Error("return-flow exit guard is noncanonical"); return "settlement_supply_stable" as const; })(),
+        solutions: solutions.map(solution => ({ id: solution.id, routeKind: requireExactString({ routeKind: solution.routeKind } as ContentObject, ["routeKind"], "non_magic"), mainline: requireExactBoolean({ mainline: solution.mainline } as ContentObject, ["mainline"], true), requiredActions: solution.requiredActions })),
+        sceneSizeTiles: [requireExactNumber({ value: sceneSize[0] } as ContentObject, ["value"], 30), requireExactNumber({ value: sceneSize[1] } as ContentObject, ["value"], 26)] as const,
+        targetIds: requireObjectArray(sceneSource.content, ["targets"]).map((target) => requireString(target, ["target_id"])),
+        solutionIds: requireStringArray(contract, ["solution_ids"]),
+        sharedPredicateExpectations: Object.freeze({
+          settlementSupplyFlowInBand: requireExactBoolean(requireObject(contract, ["shared_predicate_expectations"]), ["settlementSupplyFlowInBand"], true),
+          wetMeadowFlowInBand: requireExactBoolean(requireObject(contract, ["shared_predicate_expectations"]), ["wetMeadowFlowInBand"], true),
+          overflowContact: requireExactBoolean(requireObject(contract, ["shared_predicate_expectations"]), ["overflowContact"], false),
+        }),
+        completionEvent: requireExactString(contract, ["completion_event"], "return_flow_committed"),
+        completionFlags: requireStringArray(contract, ["completion_flags"]) as unknown as readonly ["settlement_supply_stable", "wet_meadow_restored"],
+        patchRecordRef: requireExactString(contract, ["patch_record_ref"], "patch.valley.return_flow.v0.1"),
+        wawaEvidence: {
+          wordId: requireExactString(evidence, ["word_id"], "word.wawa"), sourceTargetId: requireExactString(contract, ["source_target_id"], "return_flow.inert_force_indicator"), sourceTargetClass: requireExactString(evidence, ["source_object_class"], "inert_return_flow_mechanism"),
+          prerequisiteGraphId: requireExactString(evidence, ["prerequisite_graph_id"], "attack.water.forceful_motion.prerequisite_graph"), prerequisiteNodeId: requireExactString(evidence, ["prerequisite_node_id"], "use.intensity.inert"), evidenceType: requireExactString(evidence, ["evidence_type"], "noncombat_intensity"), concept: requireExactString(evidence, ["concept"], "word.wawa"), minimumEvidence: requireExactNumber(intensityNode, ["minimum"], 1) as 1,
+          eligibleEvidenceKinds: requireStringArray(evidence, ["eligible_evidence_kinds"]) as unknown as readonly ["discovery", "attunement", "grounding"], maximumPromptLevel: requireExactNumber(evidence, ["maximum_prompt_level"], 1) as 1, answerTokenIdsVisible: requireExactBoolean(evidence, ["answer_token_ids_visible"], false), fixedSlotCueVisible: requireExactBoolean(evidence, ["fixed_slot_cue_visible"], false), colorOnlyCueAllowed: requireExactBoolean(evidence, ["color_only_cue_allowed"], false),
+          independentFromSolution: requireExactBoolean(evidence, ["independent_from_solution"], true), taskCompletionReadsEvidence: requireExactBoolean(evidence, ["task_completion_reads_evidence"], false), toolBypassCountsAsEvidence: requireExactBoolean(evidence, ["tool_bypass_counts_as_evidence"], false), wildlifeActionsCountAsEvidence: requireExactBoolean(evidence, ["wildlife_actions_count_as_evidence"], false), harmCountsAsEvidence: requireExactBoolean(evidence, ["harm_counts_as_evidence"], false),
+          forbiddenTargetClasses: requireStringArray(evidence, ["forbidden_target_classes"]), forbiddenOutputs: requireStringArray(evidence, ["forbidden_outputs"]),
+        },
+        ecologyReturn: { ecologyId: requireExactString(ecologySource.content, ["ecology_id"], "valley_prologue"), eventId: requireExactString(returnEvent, ["event_id"], "wildlife_return_after_flow"), triggerStates: (() => { const triggers=requireStringArray(requireObject(returnEvent, ["trigger"]), ["all"]); if (triggers.join("|")!=="settlement_supply_stable == true|wet_meadow_restored == true") throw new Error("return event triggers are noncanonical"); return ["settlement_supply_stable", "wet_meadow_restored"] as const; })(), persistentWrite: readPath(returnEvent, ["persistent_write"]) === null ? null : (() => { throw new Error("return event persistent_write must be null"); })(), firstReturnChannelVisitVisible: requireExactBoolean(returnEvent, ["first_return_channel_visit_visible"], true), rabbitHomeSceneId: requireExactString(rabbit, ["home_scene"], "scene.valley.return_channel"), frogReturnCondition: requireString(frog, ["cross_scene_return_condition"]) },
+        zeroAttack: { zeroAttackMainline: requireExactBoolean(requireObject(regionSource.content, ["contracts"]), ["zero_attack_mainline"], true), mandatoryKills: requireExactNumber(ecologyContracts, ["mandatory_kills"], 0) as 0, requiredQuestDrops: requireExactNumber(ecologyContracts, ["required_quest_drops"], 0) as 0, languageEvidenceFromHarmForbidden: requireExactBoolean(ecologyContracts, ["language_evidence_from_harm_forbidden"], true), attackQualificationEvidenceFromReturn: requireExactBoolean(returnEvent, ["attack_qualification_evidence"], false), attackUnlockFromReturn: requireExactBoolean(returnEvent, ["attack_unlock"], false), mandatoryCombatEncounters: requireExactNumber(requireObject(returnChapterSource.content, ["prologue_contract"]), ["mandatory_combat_encounters"], 0) as 0, formalAttackFirstValidationTarget: requireExactString(requireObject(returnChapterSource.content, ["prologue_contract"]), ["formal_attack_first_validation_target"], "safe_range_inert_targets") },
+      };
+    })() : null;
     const result: RuntimeInfrastructureTaskManifest = {
       id,
       sourcePath: taskSource.path,
@@ -463,6 +518,7 @@ export function buildRuntimeContentArtifact(manifest: ContentManifest): RuntimeC
       recoveryActions: requireStringArray(task, ["recovery", "actions"]),
       recoveryPreserves: requireStringArray(task, ["recovery", "preserves"]),
       cistern,
+      returnFlow,
     };
     return [id, result];
   }));

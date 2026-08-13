@@ -1,0 +1,121 @@
+schema_version: "g01.task.infrastructure.v0.1"
+content_version: "chapter-01.return-flow.1"
+task_type: "infrastructure_world_predicate"
+task_id: "ch01_return_flow"
+task_family_id: "ecology_and_return_flow"
+chapter_flow_id: "ch01_world_literacy_prologue"
+chapter_segment_id: "den_and_return_flow"
+region_id: "valley_prologue"
+region_node_id: "valley.return_channel"
+scene_ref: "../scenes/valley-return-channel.v0.1.yaml"
+status: "machine_contract_ready"
+ecology_ref: "../ecology/valley-prologue.v0.1.yaml"
+evidence_graph_ref: "../spells/attack-signatures.v0.1.yaml"
+implementation_boundary: "authored_return_flow_contract_not_particle_simulation_or_raw_expression_matching"
+
+enabled_content:
+  word_ids: [word.wawa]
+
+world_goal:
+  evaluation: "world_state_predicates_only"
+  predicate_mode: "all"
+  raw_utterance_string_matching_forbidden: true
+  predicates:
+    - {predicate_id: "return.supply_stable", expression: "settlement_supply_stable == true"}
+    - {predicate_id: "return.wet_meadow_restored", expression: "wet_meadow_restored == true"}
+
+result_modes:
+  - {mode_id: "blocked", completion_valid: false, persistence_scope: "none", persists_across_reload: false, patch_record_ref: null}
+  - {mode_id: "restored", completion_valid: true, persistence_scope: "region_persistent", persists_across_reload: true, patch_record_ref: "patch.valley.return_flow.v0.1"}
+
+solution_families:
+  - solution_id: "return_flow.repair_overflow"
+    route_kind: "non_magic"
+    chapter_solution_family: "repair_overflow"
+    mainline: true
+    result_mode: "restored"
+    required_actions: [return_flow.repair_overflow.inspect_indicator, return_flow.repair_overflow.reseat_gate, return_flow.repair_overflow.repair_seal, return_flow.repair_overflow.clear_conduit]
+    required_world_predicates: [settlementSupplyFlowInBand, wetMeadowFlowInBand, overflowContact, overflowGateSeated, overflowSealIntact, overflowConduitClear]
+  - solution_id: "return_flow.clear_mud"
+    route_kind: "non_magic"
+    chapter_solution_family: "clear_mud"
+    mainline: true
+    result_mode: "restored"
+    required_actions: [return_flow.clear_mud.inspect_indicator, return_flow.clear_mud.loosen_blockage, return_flow.clear_mud.remove_mud, return_flow.clear_mud.restore_grade, return_flow.clear_mud.clear_intake]
+    required_world_predicates: [settlementSupplyFlowInBand, wetMeadowFlowInBand, overflowContact, mudMassBelowLimit, channelGradeContinuous, returnIntakeClear]
+  - solution_id: "return_flow.reuse_old_channel"
+    route_kind: "non_magic"
+    chapter_solution_family: "reuse_old_channel"
+    mainline: true
+    result_mode: "restored"
+    required_actions: [return_flow.reuse_old_channel.inspect_indicator, return_flow.reuse_old_channel.connect_channel, return_flow.reuse_old_channel.clear_channel, return_flow.reuse_old_channel.brace_bank, return_flow.reuse_old_channel.set_split_gauge]
+    required_world_predicates: [settlementSupplyFlowInBand, wetMeadowFlowInBand, overflowContact, oldChannelConnected, oldChannelClear, oldChannelBankStable]
+
+completion:
+  valid_result_modes: [restored]
+  result_events: {restored: "return_flow_committed"}
+  atomic_set_flags: {settlement_supply_stable: true, wet_meadow_restored: true}
+  patch_record_ref: "patch.valley.return_flow.v0.1"
+  forbidden_writes: [prologue_return_observed]
+  raw_expression_never_read_for_success: true
+
+entry_guard_any: ["exit_ladder_lowered == true"]
+exit_guard_any: ["settlement_supply_stable == true"]
+material_patch_refs: [patch.valley.return_flow.v0.1]
+
+language_exposure:
+  - word_id: "word.wawa"
+    discovery_trigger: "observe_inert_force_indicator_change_under_controlled_noncombat_load"
+    learning_prompt: "predict_how_intensity_changes_an_already_valid_inert_effect"
+    eligible_state_proposals: [seen, available, practiced]
+    automatic_mastery_forbidden: true
+    tool_solution_still_allows_observation: true
+
+grammar_contacts: []
+material_reactions:
+  - {material: water, observations: [split_flow_tracks_channel_grade, stable_bands_supply_spout_and_meadow]}
+  - {material: wet_soil, observations: [mud_reduces_flow, restored_grade_guides_water]}
+  - {material: wood, observations: [gate_and_bracing_transfer_inert_force]}
+
+return_flow_contract:
+  scene_size_tiles: [30, 26]
+  source_target_id: "return_flow.inert_force_indicator"
+  source_target_class: "inert_return_flow_mechanism"
+  solution_ids: [return_flow.repair_overflow, return_flow.clear_mud, return_flow.reuse_old_channel]
+  shared_solution_predicates: [settlementSupplyFlowInBand, wetMeadowFlowInBand, overflowContact]
+  shared_predicate_expectations: {settlementSupplyFlowInBand: true, wetMeadowFlowInBand: true, overflowContact: false}
+  completion_event: "return_flow_committed"
+  completion_flags: [settlement_supply_stable, wet_meadow_restored]
+  patch_record_ref: "patch.valley.return_flow.v0.1"
+  wawa_evidence:
+    word_id: "word.wawa"
+    evidence_source: "inert_return_flow_mechanism_only"
+    prerequisite_graph_id: "attack.water.forceful_motion.prerequisite_graph"
+    prerequisite_node_id: "use.intensity.inert"
+    evidence_type: "noncombat_intensity"
+    concept: "word.wawa"
+    source_object_class: "inert_return_flow_mechanism"
+    independent_from_solution: true
+    task_completion_reads_evidence: false
+    wildlife_actions_count_as_evidence: false
+    harm_counts_as_evidence: false
+    eligible_evidence_kinds: [discovery, attunement, grounding]
+    maximum_prompt_level: 1
+    answer_token_ids_visible: false
+    fixed_slot_cue_visible: false
+    color_only_cue_allowed: false
+    tool_bypass_counts_as_evidence: false
+    forbidden_target_classes: [wildlife, living, corpse, harvested_product, processing_station]
+    forbidden_outputs: [expression_capacity_growth, artifact_surface_slot_growth, mp_growth, attack_qualification, attack_unlock, direct_damage]
+
+recovery:
+  maximum_softlock_recovery_seconds: 60
+  actions: [restore_task_local_overflow_parts, reset_uncommitted_mud_band, restore_old_channel_bracing, expose_public_return_bypass]
+  preserves: [learning_evidence, committed_return_patch, region_commits]
+  duplicate_resources_forbidden: true
+
+golden_tests:
+  - {id: "return.repair_overflow_nonmagic", solution_id: "return_flow.repair_overflow", expect: {completion_valid: true, magic_required: false}}
+  - {id: "return.clear_mud_nonmagic", solution_id: "return_flow.clear_mud", expect: {completion_valid: true, magic_required: false}}
+  - {id: "return.reuse_old_channel_nonmagic", solution_id: "return_flow.reuse_old_channel", expect: {completion_valid: true, magic_required: false}}
+  - {id: "return.wawa_inert_only", expect: {source_target_class: "inert_return_flow_mechanism", attack_output: false, wildlife_evidence: false}}

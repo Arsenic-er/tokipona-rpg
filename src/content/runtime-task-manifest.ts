@@ -69,6 +69,49 @@ export interface RuntimeCisternTaskManifest {
   readonly completionFlags: readonly string[];
 }
 
+export interface RuntimeReturnFlowEvidenceManifest {
+  readonly wordId: "word.wawa";
+  readonly sourceTargetId: "return_flow.inert_force_indicator";
+  readonly sourceTargetClass: "inert_return_flow_mechanism";
+  readonly prerequisiteGraphId: "attack.water.forceful_motion.prerequisite_graph";
+  readonly prerequisiteNodeId: "use.intensity.inert";
+  readonly evidenceType: "noncombat_intensity";
+  readonly concept: "word.wawa";
+  readonly minimumEvidence: 1;
+  readonly eligibleEvidenceKinds: readonly ["discovery", "attunement", "grounding"];
+  readonly maximumPromptLevel: 1;
+  readonly answerTokenIdsVisible: false;
+  readonly fixedSlotCueVisible: false;
+  readonly colorOnlyCueAllowed: false;
+  readonly independentFromSolution: true;
+  readonly taskCompletionReadsEvidence: false;
+  readonly toolBypassCountsAsEvidence: false;
+  readonly wildlifeActionsCountAsEvidence: false;
+  readonly harmCountsAsEvidence: false;
+  readonly forbiddenTargetClasses: readonly string[];
+  readonly forbiddenOutputs: readonly string[];
+}
+
+export interface RuntimeReturnFlowTaskManifest {
+  readonly familyId: "ecology_and_return_flow";
+  readonly sceneId: "scene.valley.return_channel";
+  readonly regionId: "valley_prologue";
+  readonly maximumSoftlockRecoverySeconds: number;
+  readonly entryPrerequisiteFlag: "exit_ladder_lowered";
+  readonly exitPrerequisiteFlag: "settlement_supply_stable";
+  readonly solutions: readonly Readonly<{ readonly id: string; readonly routeKind: "non_magic"; readonly mainline: true; readonly requiredActions: readonly string[] }>[];
+  readonly sceneSizeTiles: readonly [30, 26];
+  readonly targetIds: readonly string[];
+  readonly solutionIds: readonly string[];
+  readonly sharedPredicateExpectations: Readonly<Record<string, boolean>>;
+  readonly completionEvent: "return_flow_committed";
+  readonly completionFlags: readonly ["settlement_supply_stable", "wet_meadow_restored"];
+  readonly patchRecordRef: "patch.valley.return_flow.v0.1";
+  readonly wawaEvidence: RuntimeReturnFlowEvidenceManifest;
+  readonly ecologyReturn: Readonly<{ readonly ecologyId: "valley_prologue"; readonly eventId: "wildlife_return_after_flow"; readonly triggerStates: readonly ["settlement_supply_stable", "wet_meadow_restored"]; readonly persistentWrite: null; readonly firstReturnChannelVisitVisible: true; readonly rabbitHomeSceneId: "scene.valley.return_channel"; readonly frogReturnCondition: string }>;
+  readonly zeroAttack: Readonly<{ readonly zeroAttackMainline: true; readonly mandatoryKills: 0; readonly requiredQuestDrops: 0; readonly languageEvidenceFromHarmForbidden: true; readonly attackQualificationEvidenceFromReturn: false; readonly attackUnlockFromReturn: false; readonly mandatoryCombatEncounters: 0; readonly formalAttackFirstValidationTarget: "safe_range_inert_targets" }>;
+}
+
 export interface RuntimeInfrastructureTaskManifest {
   readonly id: string;
   readonly sourcePath: string;
@@ -95,6 +138,7 @@ export interface RuntimeInfrastructureTaskManifest {
   readonly recoveryActions: readonly string[];
   readonly recoveryPreserves: readonly string[];
   readonly cistern: RuntimeCisternTaskManifest | null;
+  readonly returnFlow: RuntimeReturnFlowTaskManifest | null;
 }
 
 export interface RuntimeInfrastructureTaskManifestIndex {
@@ -136,12 +180,48 @@ export function readRuntimeInfrastructureTaskManifestIndex(
     if (taskId === "ch01_length_cistern" && raw.cistern === null) {
       throw new Error("ch01_length_cistern requires its dedicated runtime cistern contract");
     }
+    if (raw.returnFlow !== null) validateRuntimeReturnFlowManifest(raw.returnFlow, taskId);
+    if (taskId === "ch01_return_flow") {
+      if (raw.returnFlow === null) throw new Error("ch01_return_flow requires its dedicated runtime return-flow contract");
+      if (raw.sceneId !== "scene.valley.return_channel" || raw.predicateMode !== "all" || !sameStrings(raw.nonMagicMainlineSolutionIds, ["return_flow.repair_overflow", "return_flow.clear_mud", "return_flow.reuse_old_channel"]) || !sameStrings(raw.entryGuardAny, ["exit_ladder_lowered == true"]) || !sameStrings(raw.exitGuardAny, ["settlement_supply_stable == true"])) throw new Error("ch01_return_flow task envelope is noncanonical");
+      const goals = objectArray(raw.worldGoalPredicates, "ch01_return_flow.worldGoalPredicates").map((goal) => goal.expression);
+      if (!sameStrings(goals, ["settlement_supply_stable == true", "wet_meadow_restored == true"])) throw new Error("ch01_return_flow goals are noncanonical");
+      const solutions = objectArray(raw.solutions, "ch01_return_flow.solutions");
+      if (solutions.length !== 3 || solutions.some((solution) => solution.routeKind !== "non_magic" || solution.mainline !== true || solution.resultMode !== "restored")) throw new Error("ch01_return_flow solutions are noncanonical");
+    }
     byId[taskId] = value as RuntimeInfrastructureTaskManifest;
   }
   return Object.freeze({
     sourceDigest: digest as `sha256:${string}`,
     byId: Object.freeze(byId),
   });
+}
+
+/** Returns and validates the dedicated N07 return-flow and inert-wawa evidence contract. */
+export function readRuntimeReturnFlowTaskManifest(candidate: unknown): RuntimeReturnFlowTaskManifest {
+  const task = readRuntimeInfrastructureTaskManifestIndex(candidate).byId.ch01_return_flow;
+  if (!task?.returnFlow) throw new Error("runtime ch01_return_flow contract is missing");
+  validateRuntimeReturnFlowManifest(task.returnFlow, task.id);
+  return task.returnFlow;
+}
+
+function validateRuntimeReturnFlowManifest(candidate: unknown, taskId: string): asserts candidate is RuntimeReturnFlowTaskManifest {
+  const flow = record(candidate, taskId + ".returnFlow");
+  if (flow.entryPrerequisiteFlag !== "exit_ladder_lowered" || flow.exitPrerequisiteFlag !== "settlement_supply_stable" || flow.familyId !== "ecology_and_return_flow" || flow.sceneId !== "scene.valley.return_channel" || flow.regionId !== "valley_prologue" || typeof flow.maximumSoftlockRecoverySeconds !== "number" || flow.maximumSoftlockRecoverySeconds <= 0 || flow.maximumSoftlockRecoverySeconds > 60) throw new Error("return flow identity/recovery contract is invalid");
+  const projectedSolutions = objectArray(flow.solutions, "returnFlow.solutions");
+  if (!sameStrings(projectedSolutions.map(x => x.id), ["return_flow.repair_overflow", "return_flow.clear_mud", "return_flow.reuse_old_channel"]) || projectedSolutions.some(x => x.routeKind !== "non_magic" || x.mainline !== true || !nonEmptyStringArray(x.requiredActions) || new Set(x.requiredActions).size !== x.requiredActions.length)) throw new Error("return flow executable solution projection is invalid");
+  if (!Array.isArray(flow.sceneSizeTiles) || flow.sceneSizeTiles.length !== 2 || flow.sceneSizeTiles[0] !== 30 || flow.sceneSizeTiles[1] !== 26) throw new Error("return flow scene must remain 30x26");
+  if (!sameStrings(flow.targetIds, ["return_flow.inert_force_indicator", "return_flow.overflow_gate", "return_flow.mud_blockage", "return_flow.old_channel", "return_flow.split_flow_gauge", "return_flow.return_spout"])) throw new Error("return flow targets are noncanonical");
+  if (!sameStrings(flow.solutionIds, ["return_flow.repair_overflow", "return_flow.clear_mud", "return_flow.reuse_old_channel"])) throw new Error("return flow solutions are noncanonical");
+  const expectations = record(flow.sharedPredicateExpectations, "returnFlow.sharedPredicateExpectations");
+  if (Object.keys(expectations).sort().join("|") !== "overflowContact|settlementSupplyFlowInBand|wetMeadowFlowInBand" || expectations.settlementSupplyFlowInBand !== true || expectations.wetMeadowFlowInBand !== true || expectations.overflowContact !== false) throw new Error("return flow shared predicate polarity is invalid");
+  if (flow.completionEvent !== "return_flow_committed" || flow.patchRecordRef !== "patch.valley.return_flow.v0.1" || !sameStrings(flow.completionFlags, ["settlement_supply_stable", "wet_meadow_restored"])) throw new Error("return flow completion contract is invalid");
+  const evidence = record(flow.wawaEvidence, "returnFlow.wawaEvidence");
+  if (!sameStrings(evidence.forbiddenTargetClasses, ["wildlife", "living", "corpse", "harvested_product", "processing_station"]) || !sameStrings(evidence.forbiddenOutputs, ["expression_capacity_growth", "artifact_surface_slot_growth", "mp_growth", "attack_qualification", "attack_unlock", "direct_damage"]) || evidence.wordId !== "word.wawa" || evidence.sourceTargetId !== "return_flow.inert_force_indicator" || evidence.sourceTargetClass !== "inert_return_flow_mechanism" || evidence.prerequisiteGraphId !== "attack.water.forceful_motion.prerequisite_graph" || evidence.prerequisiteNodeId !== "use.intensity.inert" || evidence.evidenceType !== "noncombat_intensity" || evidence.concept !== "word.wawa" || evidence.minimumEvidence !== 1 || !sameStrings(evidence.eligibleEvidenceKinds, ["discovery", "attunement", "grounding"]) || evidence.maximumPromptLevel !== 1 || evidence.answerTokenIdsVisible !== false || evidence.fixedSlotCueVisible !== false || evidence.colorOnlyCueAllowed !== false || evidence.independentFromSolution !== true || evidence.taskCompletionReadsEvidence !== false || evidence.toolBypassCountsAsEvidence !== false || evidence.wildlifeActionsCountAsEvidence !== false || evidence.harmCountsAsEvidence !== false) throw new Error("return flow wawa evidence contract is invalid");
+  const ecology = record(flow.ecologyReturn, "returnFlow.ecologyReturn");
+  if (ecology.ecologyId !== "valley_prologue" || ecology.eventId !== "wildlife_return_after_flow" || !sameStrings(ecology.triggerStates, ["settlement_supply_stable", "wet_meadow_restored"]) || ecology.persistentWrite !== null || ecology.firstReturnChannelVisitVisible !== true || ecology.rabbitHomeSceneId !== "scene.valley.return_channel" || typeof ecology.frogReturnCondition !== "string" || !ecology.frogReturnCondition.includes("settlement_supply_stable") || !ecology.frogReturnCondition.includes("wet_meadow_restored")) throw new Error("return flow ecology-return contract is invalid");
+  const zero = record(flow.zeroAttack, "returnFlow.zeroAttack");
+  if (zero.zeroAttackMainline !== true || zero.mandatoryKills !== 0 || zero.requiredQuestDrops !== 0 || zero.languageEvidenceFromHarmForbidden !== true || zero.attackQualificationEvidenceFromReturn !== false || zero.attackUnlockFromReturn !== false || zero.mandatoryCombatEncounters !== 0 || zero.formalAttackFirstValidationTarget !== "safe_range_inert_targets") throw new Error("return flow zero-attack contract is invalid");
 }
 
 /** Returns the dedicated N05 receiver contract after full infrastructure-index validation. */

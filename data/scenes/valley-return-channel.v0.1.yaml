@@ -1,0 +1,122 @@
+schema_version: "g01.scene.v0.1"
+content_version: "chapter-01.valley-return-channel.1"
+scene_id: "scene.valley.return_channel"
+region_id: "valley_prologue"
+region_node_id: "valley.return_channel"
+chapter_flow_id: "ch01_world_literacy_prologue"
+chapter_segment_id: "den_and_return_flow"
+status: "graybox_machine_ready"
+tile_size_px: 16
+size_tiles: {width: 30, height: 26}
+collision_rows_top_down:
+  - ".............................."
+  - ".............................."
+  - ".............................."
+  - ".............................."
+  - ".............................."
+  - ".............................."
+  - ".............................."
+  - ".............................."
+  - ".............................."
+  - ".............................."
+  - ".............................."
+  - ".............................."
+  - ".............................."
+  - ".............................."
+  - ".............................."
+  - ".............................."
+  - ".............................."
+  - ".............................."
+  - ".............................."
+  - ".............................."
+  - ".............................."
+  - ".............................."
+  - ".............................."
+  - ".............................."
+  - ".............................."
+  - "##############################"
+
+entrances:
+  - entrance_id: "return.from_cistern"
+    spawn_tile: [2, 1]
+    recovery_entry: true
+    checkpoint_policy: "scene_entry_and_softlock_recovery"
+
+inbound_route_refs:
+  - inbound_ref_id: "return.inbound_from_cistern"
+    source_scene_id: "scene.valley.high_cistern"
+    source_exit_id: "cistern.to_return_channel"
+    entrance_id: "return.from_cistern"
+
+exits:
+  - exit_id: "return.to_settlement"
+    trigger_rect_tiles: {x: 28, y: 0, width: 2, height: 7}
+    target_scene_id: "scene.valley.settlement"
+    target_entrance_id: "settlement.from_return"
+    traversal_guard: {predicate: "settlement_supply_stable == true"}
+
+route_objectives:
+  - objective_id: "return_flow.settlement_delivery"
+    predicate: "settlement_supply_stable == true"
+  - objective_id: "return_flow.wet_meadow"
+    predicate: "wet_meadow_restored == true"
+  - objective_id: "return.reach_settlement"
+    predicate: "player_reaches_exit(return.to_settlement)"
+
+routes:
+  - route_id: "return.repair_overflow_route"
+    route_kind: "non_magic"
+    solution_family: "return_flow.repair_overflow"
+    from_entrance_id: "return.from_cistern"
+    to_exit_id: "return.to_settlement"
+    objective_ids: [return_flow.settlement_delivery, return_flow.wet_meadow, return.reach_settlement]
+  - route_id: "return.clear_mud_route"
+    route_kind: "non_magic"
+    solution_family: "return_flow.clear_mud"
+    from_entrance_id: "return.from_cistern"
+    to_exit_id: "return.to_settlement"
+    objective_ids: [return_flow.settlement_delivery, return_flow.wet_meadow, return.reach_settlement]
+  - route_id: "return.reuse_old_channel_route"
+    route_kind: "non_magic"
+    solution_family: "return_flow.reuse_old_channel"
+    from_entrance_id: "return.from_cistern"
+    to_exit_id: "return.to_settlement"
+    objective_ids: [return_flow.settlement_delivery, return_flow.wet_meadow, return.reach_settlement]
+
+targets:
+  - {target_id: "return_flow.inert_force_indicator", target_kind: "inert_return_flow_mechanism", material: "wood_copper_and_stone", interaction_point_tiles: [5, 1]}
+  - {target_id: "return_flow.overflow_gate", target_kind: "repairable_overflow_gate", material: "wood_iron_and_seal_fiber", interaction_point_tiles: [9, 1]}
+  - {target_id: "return_flow.mud_blockage", target_kind: "removable_channel_blockage", material: "wet_soil_and_silt", interaction_point_tiles: [13, 1]}
+  - {target_id: "return_flow.old_channel", target_kind: "reusable_old_channel", material: "stone_wet_soil_and_wood", interaction_point_tiles: [17, 1]}
+  - {target_id: "return_flow.split_flow_gauge", target_kind: "inert_flow_gauge", material: "copper_and_wood", interaction_point_tiles: [21, 1]}
+  - {target_id: "return_flow.return_spout", target_kind: "potable_return_spout", material: "stone_copper_and_water", interaction_point_tiles: [25, 1]}
+
+interactions:
+  - {interaction_id: "return.inspect_inert_force_indicator", target_id: "return_flow.inert_force_indicator", verb: "observe_inert_force_response", optional_word_id: "word.wawa", tool_or_magic_required: false}
+  - {interaction_id: "return.repair_overflow_gate", target_id: "return_flow.overflow_gate", verb: "reseat_seal_and_clear_conduit", tool_or_magic_required: false}
+  - {interaction_id: "return.clear_mud_blockage", target_id: "return_flow.mud_blockage", verb: "remove_mud_and_restore_grade", tool_or_magic_required: false}
+  - {interaction_id: "return.reuse_old_channel", target_id: "return_flow.old_channel", verb: "connect_clear_and_brace", tool_or_magic_required: false}
+  - {interaction_id: "return.read_split_flow_gauge", target_id: "return_flow.split_flow_gauge", verb: "verify_flow_bands", tool_or_magic_required: false}
+  - {interaction_id: "return.use_return_spout", target_id: "return_flow.return_spout", verb: "drink_or_fill", tool_or_magic_required: false}
+
+task_refs:
+  - task_id: "ch01_return_flow"
+    task_ref: "../tasks/ch01-return-flow.v0.1.yaml"
+    objective_ids: [return_flow.settlement_delivery, return_flow.wet_meadow]
+
+material_patches:
+  - patch_id: "scene.patch.return_flow"
+    patch_record_ref: "patch.valley.return_flow.v0.1"
+    activation_predicate: "settlement_supply_stable == true && wet_meadow_restored == true"
+    ordered_ops: [restore_channel_delta, restore_water_band, rebuild_collision, activate_wetland_variant]
+
+soft_failure_recoveries:
+  - {failure_id: "return.lost_repair_parts", action: "restore_task_local_overflow_parts", preserves: [learning_evidence, region_commits]}
+  - {failure_id: "return.mud_slump", action: "reset_uncommitted_mud_band", preserves: [learning_evidence, region_commits]}
+  - {failure_id: "return.old_channel_collapse", action: "restore_old_channel_bracing", preserves: [learning_evidence, region_commits]}
+
+recovery:
+  entry_entrance_id: "return.from_cistern"
+  maximum_softlock_recovery_seconds: 60
+  actions: [restore_task_local_overflow_parts, reset_uncommitted_mud_band, restore_old_channel_bracing, expose_public_return_bypass]
+  preserves: [learning_evidence, committed_return_patch, region_commits, survival_state, life_state, corpse_ledger, processing_ledger]

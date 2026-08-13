@@ -209,3 +209,32 @@ button:disabled { color: #625f59; cursor: not-allowed; }
   .economy-state, .economy-action-grid, .economy-sell { grid-template-columns: 1fr; }
   .economy-sell label, .economy-sell small { grid-column: auto; }
 }
+
+.return-flow-panel { margin-top: 6px; padding: 8px; border: 1px solid #36515a; background: #0b1012; }
+.return-flow-panel h2, .return-flow-panel p { margin: 0; }
+.return-flow-panel h2 { margin-top: 2px; color: #8fcbd0; font-size: 13px; }
+.return-flow-boundary, .return-flow-recovery, .return-flow-live { margin-top: 6px !important; color: #91a1a2; font-size: 7px; line-height: 1.5; }
+.return-flow-sequence { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 3px; margin-top: 7px; }
+.return-flow-sequence span { padding: 4px 2px; color: #91a8a8; border: 1px solid #2d4348; background: #0a1518; font-size: 6px; text-align: center; }
+.return-flow-routes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; margin-top: 7px; }
+.return-flow-route { min-width: 0; padding: 5px; border: 1px solid #33484b; background: #0a0e0f; }
+.return-flow-route > strong { display: block; color: #b0d2ce; font-size: 8px; }
+.return-flow-route ol { margin: 5px 0; padding-left: 15px; }
+.return-flow-route li { margin-top: 3px; color: #607778; font-size: 6px; }
+.return-flow-route button { width: 100%; min-height: 28px; padding: 3px; font-size: 6px; text-align: left; }
+.return-flow-route > button:last-child { text-align: center; }
+.return-flow-route[data-selected="true"] { border-color: #6e9b98; background: #0e1a1b; }
+.return-flow-route[data-completed="true"] { border-color: #708d68; background: #111a12; }
+.return-flow-learning { margin-top: 7px; padding: 6px; border-left: 2px solid #6f61a0; background: #100d18; }
+.return-flow-learning > strong { color: #b4a6df; font-size: 8px; }
+.return-flow-learning > div, .return-flow-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; margin-top: 4px; }
+.return-flow-learning button, .return-flow-actions button { min-height: 29px; padding: 4px; font-size: 7px; }
+.return-flow-actions { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.return-flow-flags { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; margin-top: 7px; }
+.return-flow-flags span { padding: 5px; color: #829194; border: 1px dashed #37474a; font-size: 6px; }
+.return-flow-flags b { display: block; margin-top: 2px; color: #a6c8bc; font-size: 7px; overflow-wrap: anywhere; }
+.return-flow-zero { margin-top: 7px !important; padding: 5px; color: #b5c69a; border: 1px solid #43523a; background: #0d140b; font-size: 7px; }
+.return-flow-live { min-height: 1.5em; color: #b7d8d7; }
+.return-flow-panel button:focus-visible { outline: 2px solid #b8e3df; outline-offset: 2px; }
+@media (max-width: 440px) { .return-flow-routes { grid-template-columns: 1fr; } .return-flow-sequence { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 370px) { .return-flow-flags, .return-flow-actions, .return-flow-learning > div { grid-template-columns: 1fr; } }

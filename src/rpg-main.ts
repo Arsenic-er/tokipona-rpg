@@ -34,6 +34,10 @@ import {
 } from "./rpg-cistern-ui";
 import { PROLOGUE_WILDLIFE_SCENE_ID } from "./game/prologue-wildlife";
 import {
+  createRpgReturnFlowUi,
+  type ReturnFlowUiCommand,
+} from "./rpg-return-flow-ui";
+import {
   createRpgWildlifeUi,
   type WildlifeUiCommand,
 } from "./rpg-wildlife-ui";
@@ -305,6 +309,8 @@ class FlowBrowserPort {
         return flowResult(this.flow.resetToCheckpoint(nextId("cistern-checkpoint-reset")), "Returned to the authoritative N05 checkpoint.", "neutral");
       case "softlock_recovery":
         return flowResult(this.flow.recoverCisternSoftLock(nextId("cistern-softlock-recovery")), "N05 local route recovered within its contract.");
+      case "enter_return_flow":
+        return flowResult(this.flow.enterReturnFlow(nextId("enter-return-flow")), "进入 N07 回流水路。", "neutral");
     }
   }
 
@@ -340,6 +346,30 @@ class FlowBrowserPort {
         return flowResult(this.flow.recoverWildlifeSoftLock(nextId("wildlife-recover")), "在 60 秒恢复契约内重新开放安全通路。", "neutral");
       case "reset_checkpoint":
         return flowResult(this.flow.resetWildlifeCheckpoint(nextId("wildlife-reset")), "回到 N06 权威存档点。", "neutral");
+    }
+  }
+
+  returnFlow(command: ReturnFlowUiCommand): UiResult {
+    switch (command.kind) {
+      case "perform_action":
+        return flowResult(this.flow.performReturnFlowAction(nextId(`return-flow-action-${command.actionId}`), command.actionId), "路线步骤已记录。", "neutral");
+      case "discover_wawa":
+        return flowResult(this.flow.discoverReturnFlowWawa(nextId("return-flow-discover-wawa")), "从惰性水力指示器中辨认了 wawa。", "success");
+      case "attune_wawa":
+        return flowResult(this.flow.attuneReturnFlowWawa(nextId("return-flow-attune-wawa")), "wawa 调谐完成。", "success");
+      case "complete_solution":
+        return flowResult(this.flow.completeReturnFlowSolution(nextId(`return-flow-complete-${command.solutionId}`), command.solutionId), "回流水路修复已原子提交。", "success");
+      case "ground_wawa":
+        return flowResult(this.flow.groundReturnFlowWawa(nextId(`return-flow-ground-h${command.promptLevel}`), {
+          solutionId: command.solutionId, promptLevel: command.promptLevel,
+          predictedForceContrastCorrect: true, worldOutcomeContribution: true, answerVisible: false,
+        }), `wawa H${command.promptLevel} 非战斗语义落地已记录。`, "success");
+      case "return_settlement":
+        return flowResult(this.flow.returnFlowToSettlement(nextId("return-flow-to-settlement")), "沿回流水路返回 N02 聚落。", "success");
+      case "recover_softlock":
+        return flowResult(this.flow.resetArea(nextId("return-flow-recover")), "N07 局部路线已在恢复契约内重置。", "neutral");
+      case "reset_checkpoint":
+        return flowResult(this.flow.resetToCheckpoint(nextId("return-flow-checkpoint-reset")), "已返回 N07 检查点。", "neutral");
     }
   }
 
@@ -476,6 +506,7 @@ const infrastructureUi = createRpgInfrastructureUi((command) => run(() => port.i
 const cisternUi = createRpgCisternUi((command) => run(() => port.cistern(command)));
 const wildlifeUi = createRpgWildlifeUi((command) => run(() => port.wildlife(command)));
 const economyUi = createRpgEconomyUi((command) => run(() => port.economy(command)));
+const returnFlowUi = createRpgReturnFlowUi((command) => run(() => port.returnFlow(command)));
 let priorTime = performance.now();
 let activationStarted: number | null = null;
 let jumpQueued = false;
@@ -510,6 +541,7 @@ function render(snapshot: PrologueFlowSnapshot, now: number): void {
   cisternUi.render(snapshot);
   wildlifeUi.render(snapshot);
   economyUi.render(snapshot);
+  returnFlowUi.render(snapshot);
   const scene = requiredScene(snapshot.runtime.sceneId);
   drawWorld(snapshot, scene);
   sceneLabel.textContent = sceneTitle(snapshot.runtime.sceneId);
@@ -518,7 +550,8 @@ function render(snapshot: PrologueFlowSnapshot, now: number): void {
   mpFill.style.width = `${Math.max(0, Math.min(100, (snapshot.session.mp.currentMp / snapshot.session.mp.maxMp) * 100))}%`;
   coinLabel.textContent = String(snapshot.session.economy.coin);
   objectiveLabel.textContent = objective(snapshot);
-  required<HTMLButtonElement>('[data-action="checkpoint"]').disabled = snapshot.mode === "cistern" || snapshot.mode === "wildlife";
+  required<HTMLButtonElement>('[data-action="checkpoint"]').disabled =
+    snapshot.mode === "cistern" || snapshot.mode === "wildlife" || snapshot.mode === "return_flow";
 
   const inSettlement = snapshot.mode === "settlement";
   settlementPanel.hidden = !inSettlement;
@@ -534,6 +567,12 @@ function render(snapshot: PrologueFlowSnapshot, now: number): void {
 
   if (snapshot.mode === "wildlife") {
     hintLabel.textContent = "使用 N06 面板观察警告、后退并选择零击杀路线。";
+    hintLabel.dataset.active = "true";
+    return;
+  }
+
+  if (snapshot.mode === "return_flow") {
+    hintLabel.textContent = "使用 N07 面板：观察指示器、学习 wawa、修复水路并返回聚落。";
     hintLabel.dataset.active = "true";
     return;
   }
@@ -863,6 +902,14 @@ function topicsForNpc(npc: RuntimeSceneNpcManifest): readonly SettlementDialogue
 }
 
 function objective(snapshot: PrologueFlowSnapshot): string {
+  if (snapshot.mode === "return_flow") {
+    if (snapshot.returnFlow?.taskCompleted) {
+      return snapshot.returnFlow.wawa.learningState === "grounded"
+        ? "N07 已恢复：两项旗标与材质补丁已提交，返回聚落。"
+        : "N07 水路已恢复：完成 wawa 的 H0/H1 非战斗语义落地。";
+    }
+    return "观察惰性指示器，发现并调谐 wawa，再依次完成一条非魔法回流方案。";
+  }
   if (snapshot.mode === "wildlife") {
     return snapshot.wildlife?.denRouteOpen
       ? "N06 绕道已打开：返回 N04，或前往 N05；本路线没有击杀与成长奖励。"
@@ -1009,6 +1056,7 @@ function factLabel(fact: string): string {
 }
 
 function sceneTitle(sceneId: string): string {
+  if (sceneId === "scene.valley.return_channel") return "N07 · 回流水路";
   if (sceneId === PROLOGUE_WILDLIFE_SCENE_ID) return "N06 · 兽穴绕道";
   const names: Readonly<Record<string, string>> = {
     [PROLOGUE_ARRIVAL_SCENE_ID]: "N00 · 山谷抵达台",

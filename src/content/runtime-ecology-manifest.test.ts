@@ -23,6 +23,12 @@ describe("runtime ecology manifest reader", () => {
     });
   });
 
+  it("rejects a re-signed return event that writes attack evidence", () => {
+    const artifact = validArtifact() as { ecology: { returnAfterFlow: { attackQualificationEvidence: boolean } } };
+    artifact.ecology.returnAfterFlow.attackQualificationEvidence = true;
+    expect(() => readRuntimeEcologyManifest(resign(artifact))).toThrow(/return-after-flow/);
+  });
+
   it("rejects an abbreviated warning window", () => {
     const artifact = validArtifact() as { ecology: { minimumWarningTelegraphSeconds: number } };
     artifact.ecology.minimumWarningTelegraphSeconds = 0.69;

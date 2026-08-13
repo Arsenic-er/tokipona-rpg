@@ -31,12 +31,13 @@ describe("runtime content artifact generator", () => {
     expect(() => assertRuntimeArtifactCurrent(generatedRuntimeText, expected)).not.toThrow();
   });
 
-  it("emits the validated N00 through N06 runtime scene manifest", () => {
+  it("emits the validated N00 through N07 runtime scene manifest", () => {
     const artifact = buildRuntimeContentArtifact(compileContent(repositorySources()));
     expect(Object.keys(artifact.scenes.byId).sort()).toEqual([
       "scene.valley.arrival_shelf",
       "scene.valley.den_bypass",
       "scene.valley.high_cistern",
+      "scene.valley.return_channel",
       "scene.valley.service_channel",
       "scene.valley.settlement",
       "scene.valley.stream_section",
@@ -102,6 +103,10 @@ describe("runtime content artifact generator", () => {
       expect.objectContaining({
         sourceSceneId: "scene.valley.stream_section", sourceExitId: "stream.to_settlement",
         entranceId: "settlement.from_stream",
+      }),
+      expect.objectContaining({
+        sourceSceneId: "scene.valley.return_channel", sourceExitId: "return.to_settlement",
+        entranceId: "settlement.from_return",
       }),
     ]);
   });

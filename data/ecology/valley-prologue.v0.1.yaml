@@ -149,6 +149,9 @@ events:
     transition: "eligible_wildlife -> return"
     persistent_write: null
     first_return_channel_visit_visible: true
+    learning_evidence_from_harm: false
+    attack_qualification_evidence: false
+    attack_unlock: false
 
   - event_id: "den_integrity_commit"
     trigger: "meaningful_den_structure_delta_committed"

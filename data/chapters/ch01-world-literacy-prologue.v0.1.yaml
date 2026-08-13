@@ -138,7 +138,7 @@ segments:
     task_ids: [ch01_return_flow]
     optional_task_ids: [ch01_den_bypass]
     task_family_id: "ecology_and_return_flow"
-    implementation_status: "planned"
+    implementation_status: "graybox_machine_ready"
     primary_world_facts: [world.wildlife_has_intent, world.destruction_persists]
     focus_active_new_words: [wawa]
     previously_available_words: [telo, tawa, o, lili, suli]

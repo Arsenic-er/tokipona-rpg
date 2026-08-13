@@ -90,6 +90,7 @@ describe("RPG cistern UI model", () => {
       previewLengthPx: 16,
       previewCanConfirm: true,
       completed: false,
+      returnChannelAvailable: false,
       maximumRecoverySeconds: 60,
     });
     expect(model.stages).toEqual({ short: true, default: false, long: false });
@@ -105,6 +106,20 @@ describe("RPG cistern UI model", () => {
       [PROLOGUE_CISTERN_REGION_FLAGS.upperChannelAvailable]: true,
       [PROLOGUE_CISTERN_REGION_FLAGS.exitLadderLowered]: false,
     });
+  });
+
+  it("enables the explicit N07 entry only after N05 completion exposes the return channel", () => {
+    const base = {
+      mode: "cistern", runtime: { sceneId: PROLOGUE_CISTERN_SCENE_ID }, session: sessionState(), infrastructure: null,
+      cistern: { cistern: { stage: "completed", selectedExpression: null, selectedDirection: null, pendingPlan: null },
+        stages: { short: true, default: true, long: true }, families: {}, completed: true,
+        returnChannelAvailable: true, softLockRecovery: { maximumSeconds: 60 } },
+    };
+    expect(deriveCisternUiModel(asSnapshot(base))).toMatchObject({
+      panelVisible: true, completed: true, returnChannelAvailable: true,
+    });
+    expect(deriveCisternUiModel(asSnapshot({ ...base, cistern: { ...base.cistern, returnChannelAvailable: false } })))
+      .toMatchObject({ completed: true, returnChannelAvailable: false });
   });
 
   it("does not retain a UI-side capacity or preview state between snapshots", () => {

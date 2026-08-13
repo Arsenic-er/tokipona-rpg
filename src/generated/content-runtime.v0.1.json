@@ -33,7 +33,7 @@
     }
   },
   "scenes": {
-    "sourceDigest": "sha256:4acb5cdfc246b3832a56bb6229a4a32eb18305cfc590bc3d37c009e6d25ff4d4",
+    "sourceDigest": "sha256:f1823a57d759eedfca718883d1c005efe5355e1958642f2bd3bd989eb4513bfb",
     "byId": {
       "scene.valley.arrival_shelf": {
         "sceneId": "scene.valley.arrival_shelf",
@@ -880,8 +880,9 @@
               "height": 128
             },
             "target": {
-              "kind": "region_node",
-              "regionNodeId": "valley.return_channel"
+              "kind": "scene",
+              "sceneId": "scene.valley.return_channel",
+              "entranceId": "return.from_cistern"
             },
             "firstTraverseCommit": null,
             "traversalGuardAny": [
@@ -1200,6 +1201,333 @@
         ],
         "materialPatchRecordRefs": [
           "patch.valley.cistern_return_ladder.v0.1"
+        ]
+      },
+      "scene.valley.return_channel": {
+        "sceneId": "scene.valley.return_channel",
+        "sourcePath": "data/scenes/valley-return-channel.v0.1.yaml",
+        "regionId": "valley_prologue",
+        "regionNodeId": "valley.return_channel",
+        "chapterFlowId": "ch01_world_literacy_prologue",
+        "chapterSegmentId": "den_and_return_flow",
+        "tileSizePx": 16,
+        "sizeTiles": {
+          "width": 30,
+          "height": 26
+        },
+        "collisionRows": [
+          "..............................",
+          "..............................",
+          "..............................",
+          "..............................",
+          "..............................",
+          "..............................",
+          "..............................",
+          "..............................",
+          "..............................",
+          "..............................",
+          "..............................",
+          "..............................",
+          "..............................",
+          "..............................",
+          "..............................",
+          "..............................",
+          "..............................",
+          "..............................",
+          "..............................",
+          "..............................",
+          "..............................",
+          "..............................",
+          "..............................",
+          "..............................",
+          "..............................",
+          "##############################"
+        ],
+        "entrances": [
+          {
+            "id": "return.from_cistern",
+            "spawnTile": [
+              2,
+              1
+            ],
+            "spawnPx": {
+              "x": 32,
+              "y": 386
+            },
+            "recoveryEntry": true,
+            "checkpointPolicy": "scene_entry_and_softlock_recovery"
+          }
+        ],
+        "exits": [
+          {
+            "id": "return.to_settlement",
+            "boundsTiles": {
+              "x": 28,
+              "y": 0,
+              "width": 2,
+              "height": 7
+            },
+            "boundsPx": {
+              "x": 448,
+              "y": 304,
+              "width": 32,
+              "height": 112
+            },
+            "target": {
+              "kind": "scene",
+              "sceneId": "scene.valley.settlement",
+              "entranceId": "settlement.from_return"
+            },
+            "firstTraverseCommit": null,
+            "traversalGuardAny": [
+              "settlement_supply_stable == true"
+            ]
+          }
+        ],
+        "recovery": {
+          "entryEntranceId": "return.from_cistern",
+          "maximumSoftlockRecoverySeconds": 60,
+          "actions": [
+            "restore_task_local_overflow_parts",
+            "reset_uncommitted_mud_band",
+            "restore_old_channel_bracing",
+            "expose_public_return_bypass"
+          ],
+          "preserves": [
+            "learning_evidence",
+            "committed_return_patch",
+            "region_commits",
+            "survival_state",
+            "life_state",
+            "corpse_ledger",
+            "processing_ledger"
+          ]
+        },
+        "routeObjectives": [
+          {
+            "id": "return_flow.settlement_delivery",
+            "predicate": "settlement_supply_stable == true"
+          },
+          {
+            "id": "return_flow.wet_meadow",
+            "predicate": "wet_meadow_restored == true"
+          },
+          {
+            "id": "return.reach_settlement",
+            "predicate": "player_reaches_exit(return.to_settlement)"
+          }
+        ],
+        "routes": [
+          {
+            "id": "return.repair_overflow_route",
+            "kind": "non_magic",
+            "solutionFamily": "return_flow.repair_overflow",
+            "fromEntranceId": "return.from_cistern",
+            "toExitId": "return.to_settlement",
+            "objectiveIds": [
+              "return_flow.settlement_delivery",
+              "return_flow.wet_meadow",
+              "return.reach_settlement"
+            ]
+          },
+          {
+            "id": "return.clear_mud_route",
+            "kind": "non_magic",
+            "solutionFamily": "return_flow.clear_mud",
+            "fromEntranceId": "return.from_cistern",
+            "toExitId": "return.to_settlement",
+            "objectiveIds": [
+              "return_flow.settlement_delivery",
+              "return_flow.wet_meadow",
+              "return.reach_settlement"
+            ]
+          },
+          {
+            "id": "return.reuse_old_channel_route",
+            "kind": "non_magic",
+            "solutionFamily": "return_flow.reuse_old_channel",
+            "fromEntranceId": "return.from_cistern",
+            "toExitId": "return.to_settlement",
+            "objectiveIds": [
+              "return_flow.settlement_delivery",
+              "return_flow.wet_meadow",
+              "return.reach_settlement"
+            ]
+          }
+        ],
+        "nonMagicAlternativeRouteIds": [
+          "return.repair_overflow_route",
+          "return.clear_mud_route",
+          "return.reuse_old_channel_route"
+        ],
+        "targets": [
+          {
+            "id": "return_flow.inert_force_indicator",
+            "kind": "inert_return_flow_mechanism",
+            "material": "wood_copper_and_stone",
+            "interactionPointTiles": [
+              5,
+              1
+            ]
+          },
+          {
+            "id": "return_flow.overflow_gate",
+            "kind": "repairable_overflow_gate",
+            "material": "wood_iron_and_seal_fiber",
+            "interactionPointTiles": [
+              9,
+              1
+            ]
+          },
+          {
+            "id": "return_flow.mud_blockage",
+            "kind": "removable_channel_blockage",
+            "material": "wet_soil_and_silt",
+            "interactionPointTiles": [
+              13,
+              1
+            ]
+          },
+          {
+            "id": "return_flow.old_channel",
+            "kind": "reusable_old_channel",
+            "material": "stone_wet_soil_and_wood",
+            "interactionPointTiles": [
+              17,
+              1
+            ]
+          },
+          {
+            "id": "return_flow.split_flow_gauge",
+            "kind": "inert_flow_gauge",
+            "material": "copper_and_wood",
+            "interactionPointTiles": [
+              21,
+              1
+            ]
+          },
+          {
+            "id": "return_flow.return_spout",
+            "kind": "potable_return_spout",
+            "material": "stone_copper_and_water",
+            "interactionPointTiles": [
+              25,
+              1
+            ]
+          }
+        ],
+        "interactions": [
+          {
+            "id": "return.inspect_inert_force_indicator",
+            "targetId": "return_flow.inert_force_indicator",
+            "verb": "observe_inert_force_response",
+            "toolOrMagicRequired": false,
+            "optionalWordId": "word.wawa",
+            "npcId": null,
+            "facilityId": null,
+            "taskId": null
+          },
+          {
+            "id": "return.repair_overflow_gate",
+            "targetId": "return_flow.overflow_gate",
+            "verb": "reseat_seal_and_clear_conduit",
+            "toolOrMagicRequired": false,
+            "optionalWordId": null,
+            "npcId": null,
+            "facilityId": null,
+            "taskId": null
+          },
+          {
+            "id": "return.clear_mud_blockage",
+            "targetId": "return_flow.mud_blockage",
+            "verb": "remove_mud_and_restore_grade",
+            "toolOrMagicRequired": false,
+            "optionalWordId": null,
+            "npcId": null,
+            "facilityId": null,
+            "taskId": null
+          },
+          {
+            "id": "return.reuse_old_channel",
+            "targetId": "return_flow.old_channel",
+            "verb": "connect_clear_and_brace",
+            "toolOrMagicRequired": false,
+            "optionalWordId": null,
+            "npcId": null,
+            "facilityId": null,
+            "taskId": null
+          },
+          {
+            "id": "return.read_split_flow_gauge",
+            "targetId": "return_flow.split_flow_gauge",
+            "verb": "verify_flow_bands",
+            "toolOrMagicRequired": false,
+            "optionalWordId": null,
+            "npcId": null,
+            "facilityId": null,
+            "taskId": null
+          },
+          {
+            "id": "return.use_return_spout",
+            "targetId": "return_flow.return_spout",
+            "verb": "drink_or_fill",
+            "toolOrMagicRequired": false,
+            "optionalWordId": null,
+            "npcId": null,
+            "facilityId": null,
+            "taskId": null
+          }
+        ],
+        "npcs": [],
+        "facilities": [],
+        "tasks": [],
+        "taskRefs": [
+          {
+            "id": "ch01_return_flow",
+            "authoritativeTaskSourcePath": "data/tasks/ch01-return-flow.v0.1.yaml",
+            "objectiveIds": [
+              "return_flow.settlement_delivery",
+              "return_flow.wet_meadow"
+            ]
+          }
+        ],
+        "tradeEntries": [],
+        "inboundRoutes": [
+          {
+            "id": "return.inbound_from_cistern",
+            "sourceSceneId": "scene.valley.high_cistern",
+            "sourceExitId": "cistern.to_return_channel",
+            "entranceId": "return.from_cistern"
+          }
+        ],
+        "softFailureRecoveries": [
+          {
+            "id": "return.lost_repair_parts",
+            "action": "restore_task_local_overflow_parts",
+            "preserves": [
+              "learning_evidence",
+              "region_commits"
+            ]
+          },
+          {
+            "id": "return.mud_slump",
+            "action": "reset_uncommitted_mud_band",
+            "preserves": [
+              "learning_evidence",
+              "region_commits"
+            ]
+          },
+          {
+            "id": "return.old_channel_collapse",
+            "action": "restore_old_channel_bracing",
+            "preserves": [
+              "learning_evidence",
+              "region_commits"
+            ]
+          }
+        ],
+        "materialPatchRecordRefs": [
+          "patch.valley.return_flow.v0.1"
         ]
       },
       "scene.valley.service_channel": {
@@ -1806,6 +2134,19 @@
             },
             "recoveryEntry": true,
             "checkpointPolicy": "return_route"
+          },
+          {
+            "id": "settlement.from_return",
+            "spawnTile": [
+              2,
+              1
+            ],
+            "spawnPx": {
+              "x": 32,
+              "y": 450
+            },
+            "recoveryEntry": true,
+            "checkpointPolicy": "return_flow_completion_route"
           }
         ],
         "exits": [
@@ -2517,6 +2858,12 @@
             "sourceSceneId": "scene.valley.stream_section",
             "sourceExitId": "stream.to_settlement",
             "entranceId": "settlement.from_stream"
+          },
+          {
+            "id": "settlement.inbound_from_return",
+            "sourceSceneId": "scene.valley.return_channel",
+            "sourceExitId": "return.to_settlement",
+            "entranceId": "settlement.from_return"
           }
         ],
         "softFailureRecoveries": [
@@ -3306,7 +3653,7 @@
     }
   },
   "infrastructureTasks": {
-    "sourceDigest": "sha256:7cea2833a13f383c7acbcc299b277799d16be534cd719eaa335d47b27b0f9d89",
+    "sourceDigest": "sha256:67799cf60549ecd26c09ea7d5b9381a84c333c00cd350a09dfd23522575bcd84",
     "byId": {
       "ch01_den_bypass": {
         "id": "ch01_den_bypass",
@@ -3457,7 +3804,8 @@
           "learning_evidence",
           "survival_state"
         ],
-        "cistern": null
+        "cistern": null,
+        "returnFlow": null
       },
       "ch01_length_cistern": {
         "id": "ch01_length_cistern",
@@ -3721,6 +4069,296 @@
             "upper_channel_available",
             "exit_ladder_lowered"
           ]
+        },
+        "returnFlow": null
+      },
+      "ch01_return_flow": {
+        "id": "ch01_return_flow",
+        "sourcePath": "data/tasks/ch01-return-flow.v0.1.yaml",
+        "familyId": "ecology_and_return_flow",
+        "chapterFlowId": "ch01_world_literacy_prologue",
+        "chapterSegmentId": "den_and_return_flow",
+        "regionId": "valley_prologue",
+        "regionNodeId": "valley.return_channel",
+        "sceneId": "scene.valley.return_channel",
+        "implementationBoundary": "authored_return_flow_contract_not_particle_simulation_or_raw_expression_matching",
+        "predicateMode": "all",
+        "worldGoalPredicates": [
+          {
+            "id": "return.supply_stable",
+            "expression": "settlement_supply_stable == true"
+          },
+          {
+            "id": "return.wet_meadow_restored",
+            "expression": "wet_meadow_restored == true"
+          }
+        ],
+        "modes": [
+          {
+            "id": "blocked",
+            "completionValid": false,
+            "persistenceScope": "none",
+            "persistsAcrossReload": false,
+            "patchRecordRef": null
+          },
+          {
+            "id": "restored",
+            "completionValid": true,
+            "persistenceScope": "region_persistent",
+            "persistsAcrossReload": true,
+            "patchRecordRef": "patch.valley.return_flow.v0.1"
+          }
+        ],
+        "validResultModes": [
+          "restored"
+        ],
+        "solutions": [
+          {
+            "id": "return_flow.repair_overflow",
+            "routeKind": "non_magic",
+            "chapterSolutionFamily": "repair_overflow",
+            "mainline": true,
+            "resultMode": "restored",
+            "requiredActions": [
+              "return_flow.repair_overflow.inspect_indicator",
+              "return_flow.repair_overflow.reseat_gate",
+              "return_flow.repair_overflow.repair_seal",
+              "return_flow.repair_overflow.clear_conduit"
+            ],
+            "requiredWorldPredicates": [
+              "settlementSupplyFlowInBand",
+              "wetMeadowFlowInBand",
+              "overflowContact",
+              "overflowGateSeated",
+              "overflowSealIntact",
+              "overflowConduitClear"
+            ]
+          },
+          {
+            "id": "return_flow.clear_mud",
+            "routeKind": "non_magic",
+            "chapterSolutionFamily": "clear_mud",
+            "mainline": true,
+            "resultMode": "restored",
+            "requiredActions": [
+              "return_flow.clear_mud.inspect_indicator",
+              "return_flow.clear_mud.loosen_blockage",
+              "return_flow.clear_mud.remove_mud",
+              "return_flow.clear_mud.restore_grade",
+              "return_flow.clear_mud.clear_intake"
+            ],
+            "requiredWorldPredicates": [
+              "settlementSupplyFlowInBand",
+              "wetMeadowFlowInBand",
+              "overflowContact",
+              "mudMassBelowLimit",
+              "channelGradeContinuous",
+              "returnIntakeClear"
+            ]
+          },
+          {
+            "id": "return_flow.reuse_old_channel",
+            "routeKind": "non_magic",
+            "chapterSolutionFamily": "reuse_old_channel",
+            "mainline": true,
+            "resultMode": "restored",
+            "requiredActions": [
+              "return_flow.reuse_old_channel.inspect_indicator",
+              "return_flow.reuse_old_channel.connect_channel",
+              "return_flow.reuse_old_channel.clear_channel",
+              "return_flow.reuse_old_channel.brace_bank",
+              "return_flow.reuse_old_channel.set_split_gauge"
+            ],
+            "requiredWorldPredicates": [
+              "settlementSupplyFlowInBand",
+              "wetMeadowFlowInBand",
+              "overflowContact",
+              "oldChannelConnected",
+              "oldChannelClear",
+              "oldChannelBankStable"
+            ]
+          }
+        ],
+        "nonMagicMainlineSolutionIds": [
+          "return_flow.repair_overflow",
+          "return_flow.clear_mud",
+          "return_flow.reuse_old_channel"
+        ],
+        "entryGuardAny": [
+          "exit_ladder_lowered == true"
+        ],
+        "exitGuardAny": [
+          "settlement_supply_stable == true"
+        ],
+        "materialPatchRefs": [
+          "patch.valley.return_flow.v0.1"
+        ],
+        "languageExposure": [
+          {
+            "wordId": "word.wawa",
+            "discoveryTrigger": "observe_inert_force_indicator_change_under_controlled_noncombat_load",
+            "learningPrompt": "predict_how_intensity_changes_an_already_valid_inert_effect",
+            "eligibleStateProposals": [
+              "seen",
+              "available",
+              "practiced"
+            ],
+            "automaticMasteryForbidden": true,
+            "toolSolutionStillAllowsObservation": true
+          }
+        ],
+        "grammarContacts": [],
+        "materialReactionKinds": [
+          "water",
+          "wet_soil",
+          "wood"
+        ],
+        "maximumSoftlockRecoverySeconds": 60,
+        "recoveryActions": [
+          "restore_task_local_overflow_parts",
+          "reset_uncommitted_mud_band",
+          "restore_old_channel_bracing",
+          "expose_public_return_bypass"
+        ],
+        "recoveryPreserves": [
+          "learning_evidence",
+          "committed_return_patch",
+          "region_commits"
+        ],
+        "cistern": null,
+        "returnFlow": {
+          "familyId": "ecology_and_return_flow",
+          "sceneId": "scene.valley.return_channel",
+          "regionId": "valley_prologue",
+          "maximumSoftlockRecoverySeconds": 60,
+          "entryPrerequisiteFlag": "exit_ladder_lowered",
+          "exitPrerequisiteFlag": "settlement_supply_stable",
+          "solutions": [
+            {
+              "id": "return_flow.repair_overflow",
+              "routeKind": "non_magic",
+              "mainline": true,
+              "requiredActions": [
+                "return_flow.repair_overflow.inspect_indicator",
+                "return_flow.repair_overflow.reseat_gate",
+                "return_flow.repair_overflow.repair_seal",
+                "return_flow.repair_overflow.clear_conduit"
+              ]
+            },
+            {
+              "id": "return_flow.clear_mud",
+              "routeKind": "non_magic",
+              "mainline": true,
+              "requiredActions": [
+                "return_flow.clear_mud.inspect_indicator",
+                "return_flow.clear_mud.loosen_blockage",
+                "return_flow.clear_mud.remove_mud",
+                "return_flow.clear_mud.restore_grade",
+                "return_flow.clear_mud.clear_intake"
+              ]
+            },
+            {
+              "id": "return_flow.reuse_old_channel",
+              "routeKind": "non_magic",
+              "mainline": true,
+              "requiredActions": [
+                "return_flow.reuse_old_channel.inspect_indicator",
+                "return_flow.reuse_old_channel.connect_channel",
+                "return_flow.reuse_old_channel.clear_channel",
+                "return_flow.reuse_old_channel.brace_bank",
+                "return_flow.reuse_old_channel.set_split_gauge"
+              ]
+            }
+          ],
+          "sceneSizeTiles": [
+            30,
+            26
+          ],
+          "targetIds": [
+            "return_flow.inert_force_indicator",
+            "return_flow.overflow_gate",
+            "return_flow.mud_blockage",
+            "return_flow.old_channel",
+            "return_flow.split_flow_gauge",
+            "return_flow.return_spout"
+          ],
+          "solutionIds": [
+            "return_flow.repair_overflow",
+            "return_flow.clear_mud",
+            "return_flow.reuse_old_channel"
+          ],
+          "sharedPredicateExpectations": {
+            "settlementSupplyFlowInBand": true,
+            "wetMeadowFlowInBand": true,
+            "overflowContact": false
+          },
+          "completionEvent": "return_flow_committed",
+          "completionFlags": [
+            "settlement_supply_stable",
+            "wet_meadow_restored"
+          ],
+          "patchRecordRef": "patch.valley.return_flow.v0.1",
+          "wawaEvidence": {
+            "wordId": "word.wawa",
+            "sourceTargetId": "return_flow.inert_force_indicator",
+            "sourceTargetClass": "inert_return_flow_mechanism",
+            "prerequisiteGraphId": "attack.water.forceful_motion.prerequisite_graph",
+            "prerequisiteNodeId": "use.intensity.inert",
+            "evidenceType": "noncombat_intensity",
+            "concept": "word.wawa",
+            "minimumEvidence": 1,
+            "eligibleEvidenceKinds": [
+              "discovery",
+              "attunement",
+              "grounding"
+            ],
+            "maximumPromptLevel": 1,
+            "answerTokenIdsVisible": false,
+            "fixedSlotCueVisible": false,
+            "colorOnlyCueAllowed": false,
+            "independentFromSolution": true,
+            "taskCompletionReadsEvidence": false,
+            "toolBypassCountsAsEvidence": false,
+            "wildlifeActionsCountAsEvidence": false,
+            "harmCountsAsEvidence": false,
+            "forbiddenTargetClasses": [
+              "wildlife",
+              "living",
+              "corpse",
+              "harvested_product",
+              "processing_station"
+            ],
+            "forbiddenOutputs": [
+              "expression_capacity_growth",
+              "artifact_surface_slot_growth",
+              "mp_growth",
+              "attack_qualification",
+              "attack_unlock",
+              "direct_damage"
+            ]
+          },
+          "ecologyReturn": {
+            "ecologyId": "valley_prologue",
+            "eventId": "wildlife_return_after_flow",
+            "triggerStates": [
+              "settlement_supply_stable",
+              "wet_meadow_restored"
+            ],
+            "persistentWrite": null,
+            "firstReturnChannelVisitVisible": true,
+            "rabbitHomeSceneId": "scene.valley.return_channel",
+            "frogReturnCondition": "life_state == alive && no_death_tombstone && wet_meadow_restored && settlement_supply_stable"
+          },
+          "zeroAttack": {
+            "zeroAttackMainline": true,
+            "mandatoryKills": 0,
+            "requiredQuestDrops": 0,
+            "languageEvidenceFromHarmForbidden": true,
+            "attackQualificationEvidenceFromReturn": false,
+            "attackUnlockFromReturn": false,
+            "mandatoryCombatEncounters": 0,
+            "formalAttackFirstValidationTarget": "safe_range_inert_targets"
+          }
         }
       },
       "ch01_service_channel": {
@@ -3933,7 +4571,8 @@
           "committed_bypass_patch",
           "region_commits"
         ],
-        "cistern": null
+        "cistern": null,
+        "returnFlow": null
       },
       "ch01_waterwheel": {
         "id": "ch01_waterwheel",
@@ -4127,7 +4766,8 @@
           "task_receipt",
           "region_commits"
         ],
-        "cistern": null
+        "cistern": null,
+        "returnFlow": null
       }
     }
   },
@@ -4166,7 +4806,7 @@
     ]
   },
   "ecology": {
-    "sourceDigest": "sha256:54acac8fbf52516306a3a1ffb70f2f8b573264cda5fc221bdbbe8d7e110c91f6",
+    "sourceDigest": "sha256:4209d917795f425589aaf91e44f08c9acf85ce4c9ca66431c6ddf4907f05f4f5",
     "ecologyId": "valley_prologue",
     "minimumWarningTelegraphSeconds": 0.7,
     "intrusionBeforeDefenseSeconds": 1.5,
@@ -4180,6 +4820,20 @@
     "mandatoryKills": 0,
     "requiredQuestDrops": 0,
     "languageEvidenceFromHarmForbidden": true,
+    "returnAfterFlow": {
+      "eventId": "wildlife_return_after_flow",
+      "triggerStateIds": [
+        "settlement_supply_stable",
+        "wet_meadow_restored"
+      ],
+      "persistentWrite": null,
+      "firstVisitVisible": true,
+      "learningEvidenceFromHarm": false,
+      "attackQualificationEvidence": false,
+      "attackUnlock": false,
+      "rabbitHomeSceneId": "scene.valley.return_channel",
+      "frogReturnCondition": "life_state == alive && no_death_tombstone && wet_meadow_restored && settlement_supply_stable"
+    },
     "species": {
       "rabbit": {
         "entityId": "wildlife.rabbit.valley",

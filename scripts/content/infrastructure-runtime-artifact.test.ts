@@ -18,7 +18,7 @@ function repositorySources(): ContentSource[] {
   }));
 }
 
-describe("N03/N04/N05 infrastructure runtime artifact", () => {
+describe("N03/N04/N05/N07 infrastructure runtime artifact", () => {
   it("emits task modes, solution families and guards without raw YAML interpretation", () => {
     const artifact = buildRuntimeContentArtifact(compileContent(repositorySources()));
     const index = readRuntimeInfrastructureTaskManifestIndex(artifact);
@@ -26,6 +26,7 @@ describe("N03/N04/N05 infrastructure runtime artifact", () => {
     expect(Object.keys(index.byId).sort()).toEqual([
       "ch01_den_bypass",
       "ch01_length_cistern",
+      "ch01_return_flow",
       "ch01_service_channel",
       "ch01_waterwheel",
     ]);

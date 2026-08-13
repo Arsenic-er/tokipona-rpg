@@ -1174,17 +1174,24 @@ export class PrologueSettlementSession {
   recoverSoftLock(transactionId: string): SettlementActionResult {
     const id = requiredId(transactionId, "transactionId");
     if (!this.inSettlement()) return this.result(false, false, "wrong_scene");
+    const state = this.authoritativeSession.snapshot();
+    const recoveryAnchor = state.checkpoint.sceneId === SETTLEMENT_MANIFEST.sceneId
+      ? state.checkpoint
+      : { id: "checkpoint.valley.settlement.entry", sceneId: SETTLEMENT_MANIFEST.sceneId,
+          position: SETTLEMENT_ENTRY.spawnPx, revision: state.checkpoint.revision };
     const fingerprint = settlementOperationFingerprint("settlement_softlock_recovery", {
       actions: SETTLEMENT_MANIFEST.recovery.actions.join(","),
       sceneId: SETTLEMENT_MANIFEST.sceneId,
+
+      recoveryPositionX: recoveryAnchor.position.x,
+      recoveryPositionY: recoveryAnchor.position.y,
     });
     const preflight = this.preflightOperation(id, fingerprint);
     if (preflight) return preflight;
-    const state = this.authoritativeSession.snapshot();
     const checkpoint = {
-      id: "checkpoint.valley.settlement.entry",
+      id: recoveryAnchor.id,
       sceneId: SETTLEMENT_MANIFEST.sceneId,
-      position: { ...SETTLEMENT_ENTRY.spawnPx },
+      position: { ...recoveryAnchor.position },
       revision: state.checkpoint.revision + 1,
     };
     return this.commit({

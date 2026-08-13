@@ -49,12 +49,20 @@ entrances:
     spawn_tile: [37, 1]
     recovery_entry: true
     checkpoint_policy: "return_route"
+  - entrance_id: "settlement.from_return"
+    spawn_tile: [2, 1]
+    recovery_entry: true
+    checkpoint_policy: "return_flow_completion_route"
 
 inbound_route_refs:
   - inbound_ref_id: "settlement.inbound_from_stream"
     source_scene_id: "scene.valley.stream_section"
     source_exit_id: "stream.to_settlement"
     entrance_id: "settlement.from_stream"
+  - inbound_ref_id: "settlement.inbound_from_return"
+    source_scene_id: "scene.valley.return_channel"
+    source_exit_id: "return.to_settlement"
+    entrance_id: "settlement.from_return"
 
 exits:
   - exit_id: "settlement.to_stream"

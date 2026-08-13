@@ -45,6 +45,8 @@ interface EvidenceBase {
   readonly playerSaveId: string;
   readonly wordId: string;
   readonly idempotencyKey: string;
+  /** Optional authored provenance. Legacy evidence omits it. */
+  readonly sourceObjectClass?: string;
 }
 
 export interface GlyphDiscoveredEvent extends EvidenceBase {
@@ -110,6 +112,8 @@ export type LearningEvidenceEvent =
 export interface EvidenceLedgerEntry {
   readonly eventId: string;
   readonly eventType: LearningEvidenceType;
+  /** Normalized to null for legacy evidence without provenance. */
+  readonly sourceObjectClass: string | null;
   readonly taskFamilyId: string | null;
   readonly variantHash: string | null;
   readonly environmentFingerprint: string | null;
@@ -230,7 +234,8 @@ const validatesBase = (event: LearningEvidenceEvent): boolean =>
   isNonEmpty(event.eventId) &&
   isNonEmpty(event.playerSaveId) &&
   isCanonicalBareWordId(event.wordId) &&
-  isNonEmpty(event.idempotencyKey);
+  isNonEmpty(event.idempotencyKey) &&
+  (event.sourceObjectClass === undefined || isNonEmpty(event.sourceObjectClass));
 
 const isContextual = (
   event: LearningEvidenceEvent,
@@ -268,6 +273,7 @@ const toLedgerEntry = (event: LearningEvidenceEvent): EvidenceLedgerEntry => {
     return {
       eventId: event.eventId,
       eventType: event.eventType,
+      sourceObjectClass: event.sourceObjectClass ?? null,
       taskFamilyId: null,
       variantHash: null,
       environmentFingerprint: null,
@@ -278,6 +284,7 @@ const toLedgerEntry = (event: LearningEvidenceEvent): EvidenceLedgerEntry => {
   return {
     eventId: event.eventId,
     eventType: event.eventType,
+    sourceObjectClass: event.sourceObjectClass ?? null,
     taskFamilyId: event.taskFamilyId,
     variantHash: event.variantHash,
     environmentFingerprint: event.normalizedEnvironmentFingerprint,

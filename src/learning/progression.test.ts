@@ -159,6 +159,19 @@ describe("learning progression", () => {
     expect(conflict.snapshot).toBe(first.snapshot);
   });
 
+  it("persists an optional source object class in evidence without changing legacy eligibility", () => {
+    let snapshot = createLearningProgression();
+    snapshot = apply(snapshot, discover());
+    snapshot = apply(snapshot, attune());
+    const event = {
+      ...context("grounding_trial_resolved", "family.return-flow", "ground.wawa.inert"),
+      sourceObjectClass: "inert_return_flow_mechanism",
+    } as GroundingTrialResolvedEvent;
+    const result = reduceLearningEvidence(snapshot, event);
+    expect(result.applied).toBe(true);
+    expect(result.snapshot.words.telo?.evidence.at(-1)?.sourceObjectClass)
+      .toBe("inert_return_flow_mechanism");
+  });
   it("requires a valid authored grounding intervention", () => {
     let snapshot = apply(createLearningProgression(), discover());
     snapshot = apply(snapshot, attune());

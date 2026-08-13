@@ -23,7 +23,8 @@ export type CisternUiCommand =
   | Readonly<{ kind: "meditate"; answerAccepted: boolean }>
   | Readonly<{ kind: "checkpoint_recovery" }>
   | Readonly<{ kind: "reset_checkpoint" }>
-  | Readonly<{ kind: "softlock_recovery" }>;
+  | Readonly<{ kind: "softlock_recovery" }>
+  | Readonly<{ kind: "enter_return_flow" }>;
 
 export interface CisternUiModel {
   readonly gatewayVisible: boolean;
@@ -51,6 +52,7 @@ export interface CisternUiModel {
     evidenceCount: number;
   }>>>;
   readonly completed: boolean;
+  readonly returnChannelAvailable: boolean;
   readonly maximumRecoverySeconds: number;
 }
 
@@ -106,6 +108,7 @@ export function deriveCisternUiModel(snapshot: PrologueFlowSnapshot): CisternUiM
     completionFlags,
     words: Object.freeze({ lili: word("lili"), suli: word("suli") }),
     completed: cistern?.completed ?? false,
+    returnChannelAvailable: cistern?.returnChannelAvailable ?? false,
     maximumRecoverySeconds: cistern?.softLockRecovery.maximumSeconds ?? 60,
   });
 }
@@ -168,6 +171,7 @@ export function createRpgCisternUi(
         <button type="button" data-cistern-command="checkpoint_recovery">存档点轻恢复</button>
         <button type="button" data-cistern-command="reset_checkpoint">Reset to checkpoint</button>
         <button type="button" data-cistern-command="softlock_recovery">恢复局部路线</button>
+        <button type="button" data-cistern-command="enter_return_flow">进入 N07 回流水路</button>
       </div><small class="cistern-copy" data-cistern-recovery-copy>--</small></div>
       <div class="cistern-flags" aria-label="N05 三个原子完成旗标">
         ${COMPLETION_FLAG_IDS.map((flagId) => `<span data-completion-flag="${flagId}">${flagId}<b>未完成</b></span>`).join("")}
@@ -200,6 +204,7 @@ export function createRpgCisternUi(
       checkpoint_recovery: { kind: "checkpoint_recovery" },
       reset_checkpoint: { kind: "reset_checkpoint" },
       softlock_recovery: { kind: "softlock_recovery" },
+      enter_return_flow: { kind: "enter_return_flow" },
     };
     const resolved = commands[command];
     if (resolved) onCommand(resolved);
@@ -233,6 +238,8 @@ export function createRpgCisternUi(
       required<HTMLButtonElement>(root, "[data-cistern-command='preview']").disabled = model.pendingPreview || model.stage === "completed";
       required<HTMLButtonElement>(root, "[data-cistern-command='confirm']").disabled = !model.pendingPreview || !model.previewCanConfirm;
       required<HTMLButtonElement>(root, "[data-cistern-command='cancel']").disabled = !model.pendingPreview;
+      required<HTMLButtonElement>(root, "[data-cistern-command='enter_return_flow']").disabled =
+        !model.completed || !model.returnChannelAvailable || model.pendingPreview;
       for (const button of root.querySelectorAll<HTMLButtonElement>("[data-tool-family]")) {
         button.disabled = model.pendingPreview || model.families[button.dataset.toolFamily ?? ""] === true;
       }

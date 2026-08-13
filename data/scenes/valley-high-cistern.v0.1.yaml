@@ -91,7 +91,8 @@ exits:
       any: ["service_gate_open == true", "service_bypass_open == true"]
   - exit_id: "cistern.to_return_channel"
     trigger_rect_tiles: {x: 26, y: 40, width: 4, height: 8}
-    target_region_node_id: "valley.return_channel"
+    target_scene_id: "scene.valley.return_channel"
+    target_entrance_id: "return.from_cistern"
     traversal_guard: {any: ["exit_ladder_lowered == true"]}
   - exit_id: "cistern.to_den_bypass"
     trigger_rect_tiles: {x: 14, y: 0, width: 2, height: 7}
