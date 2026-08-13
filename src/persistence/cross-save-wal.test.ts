@@ -3,6 +3,7 @@ import {
   CROSS_SAVE_WAL_COORDINATOR_ID,
   CrossSaveWalRuntime,
   InMemoryDurableCrossSaveWalStore,
+  createCrossSaveOutputId,
   createCrossSaveTransactionId,
   createInMemoryCrossSaveParticipant,
   isCrossSaveWalSave,
@@ -130,6 +131,58 @@ it("merges an old checkpoint with a newer authoritative durable commit", () => {
     const duplicate = fixture(); expect(() => begin(duplicate.runtime, "duplicate-receipt", [operation("inventory",0,"a",["same"]),operation("ledger",0,"b",["same"])] )).toThrow("unique");
   });
 
+it("allows two inventory_lot outputs in one operation and strictly rejects forged duplicate IDs", () => {
+    const source = fixture(["inventory"]);
+    const record = begin(source.runtime, "two-inventory-lots", [{
+      ...operation("inventory"), outputKinds: ["inventory_lot", "inventory_lot"],
+    }]);
+    expect(record.operationEnvelopes[0]?.deterministicOutputIds).toEqual([
+      createCrossSaveOutputId(record.transactionId, "inventory_lot", 0),
+      createCrossSaveOutputId(record.transactionId, "inventory_lot", 1),
+    ]);
+    source.runtime.commit(record.transactionId, 2);
+    const save = source.runtime.snapshot();
+    expect(isCrossSaveWalSave(save)).toBe(true);
+    const loaded = fixture(["inventory"]);
+    expect(() => loaded.runtime.load(save)).not.toThrow();
+
+    const originalEnvelope = save.records[0]!.operationEnvelopes[0]!;
+    const forgedBody = {
+      ...originalEnvelope,
+      deterministicOutputIds: [
+        originalEnvelope.deterministicOutputIds[0]!,
+        originalEnvelope.deterministicOutputIds[0]!,
+      ],
+    };
+    const { operationHash: _oldHash, ...forgedHashBody } = forgedBody;
+    const forgedHash = sha256Canonical(forgedHashBody as never);
+    const forgedEnvelope = { ...forgedBody, operationHash: forgedHash };
+    const forgedParticipant = {
+      ...save.records[0]!.participants[0]!,
+      operationHash: forgedHash,
+      durableIntentId: `wal-intent:${sha256Canonical([
+        save.records[0]!.transactionId, forgedEnvelope.saveOwner, forgedHash,
+      ]).slice(7)}`,
+    };
+    const forgedRecord = {
+      ...save.records[0]!,
+      participants: [forgedParticipant],
+      operationEnvelopes: [forgedEnvelope],
+    };
+    const forgedBodySave = { ...save, records: [forgedRecord] };
+    const forgedSave = {
+      ...forgedBodySave,
+      checksum: sha256Canonical({
+        schema: forgedBodySave.schema,
+        contract: forgedBodySave.contract as never,
+        records: forgedBodySave.records as never,
+        receiptIndex: forgedBodySave.receiptIndex as never,
+        acceptingNewTransactions: forgedBodySave.acceptingNewTransactions,
+      }),
+    };
+    expect(isCrossSaveWalSave(forgedSave)).toBe(false);
+    expect(() => fixture(["inventory"]).runtime.load(forgedSave)).toThrow("corrupt");
+  });
   it("treats same idempotency key with a different payload as a conflict", () => {
     const { runtime } = fixture(); begin(runtime, "key");
     expect(() => begin(runtime, "key", [{ ...operation("inventory"), redoPayload: { changed: true } }, operation("ledger")])).toThrow("conflicts");
