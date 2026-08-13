@@ -111,6 +111,72 @@ describe("N06 optional den bypass content", () => {
     expectIssue(() => compileContent(topologySources), "task.den_preserve_direct_mainline");
   });
 
+  it("rejects zero or duplicate canonical fox spatial bindings", () => {
+    const missingSources = repositorySources();
+    const missingScene = mutableSource(missingSources, "scenes/valley-den-bypass.v0.1.yaml");
+    missingScene.wildlife_bindings = [];
+    expectIssue(() => compileContent(missingSources), "scene.fox_spatial_binding");
+
+    const duplicateSources = repositorySources();
+    const duplicateScene = mutableSource(duplicateSources, "scenes/valley-den-bypass.v0.1.yaml");
+    const bindings = objectArray(duplicateScene, "wildlife_bindings");
+    bindings.push(structuredClone(bindings[0]!));
+    expectIssue(() => compileContent(duplicateSources), "scene.fox_spatial_binding");
+  });
+
+  it("rejects unsupported spawn and invalid or overlapping escape AABBs", () => {
+    const spawnSources = repositorySources();
+    const spawnBinding = objectArray(mutableSource(spawnSources, "scenes/valley-den-bypass.v0.1.yaml"), "wildlife_bindings")[0]!;
+    spawnBinding.spawn_position_tiles = [10, 2];
+    expectIssue(() => compileContent(spawnSources), "scene.fox_spawn_bounds");
+
+    const fractionalSources = repositorySources();
+    const fractionalBinding = objectArray(mutableSource(fractionalSources, "scenes/valley-den-bypass.v0.1.yaml"), "wildlife_bindings")[0]!;
+    fractionalBinding.escape_bounds_tiles = { x: 24.5, y: 0, width: 2, height: 4 };
+    expectIssue(() => compileContent(fractionalSources), "scene.fox_spatial_bounds");
+
+    const overlapSources = repositorySources();
+    const overlapBinding = objectArray(mutableSource(overlapSources, "scenes/valley-den-bypass.v0.1.yaml"), "wildlife_bindings")[0]!;
+    overlapBinding.escape_bounds_tiles = { x: 10, y: 0, width: 2, height: 4 };
+    expectIssue(() => compileContent(overlapSources), "scene.fox_escape_geometry");
+  });
+
+  it("rejects unknown, wrong-kind, and ecology-mismatched fox target references", () => {
+    const unknownSources = repositorySources();
+    const unknownBinding = objectArray(mutableSource(unknownSources, "scenes/valley-den-bypass.v0.1.yaml"), "wildlife_bindings")[0]!;
+    unknownBinding.escape_target_id = "den.missing.exit";
+    expectIssue(() => compileContent(unknownSources), "scene.fox_spatial_target");
+
+    const wrongKindSources = repositorySources();
+    const wrongKindBinding = objectArray(mutableSource(wrongKindSources, "scenes/valley-den-bypass.v0.1.yaml"), "wildlife_bindings")[0]!;
+    wrongKindBinding.escape_target_id = "den.den_structure";
+    expectIssue(() => compileContent(wrongKindSources), "scene.fox_spatial_target");
+
+    const mismatchSources = repositorySources();
+    const mismatchScene = mutableSource(mismatchSources, "scenes/valley-den-bypass.v0.1.yaml");
+    const mismatchTargets = objectArray(mismatchScene, "targets");
+    mismatchTargets.push({ target_id: "den.alternate.exit", target_kind: "real_wildlife_escape_exit", material: "soil" });
+    objectArray(mismatchScene, "wildlife_bindings")[0]!.escape_target_id = "den.alternate.exit";
+    expectIssue(() => compileContent(mismatchSources), "scene.fox_ecology_binding");
+  });
+
+  it("rejects ecology upper timing, contact-distance, and species-guard drift", () => {
+    const timingSources = repositorySources();
+    const timing = (mutableSource(timingSources, "ecology/valley-prologue.v0.1.yaml").shared_behavior as MutableObject).timing_seconds as MutableObject;
+    timing.deescalate = 61;
+    expectIssue(() => compileContent(timingSources), "ecology.timing_bounds");
+
+    const contactSources = repositorySources();
+    const distance = (mutableSource(contactSources, "ecology/valley-prologue.v0.1.yaml").shared_behavior as MutableObject).distance_tiles as MutableObject;
+    distance.defensive_contact = 1.4;
+    expectIssue(() => compileContent(contactSources), "ecology.defensive_contact");
+
+    const guardSources = repositorySources();
+    const guardEcology = mutableSource(guardSources, "ecology/valley-prologue.v0.1.yaml");
+    objectArray(guardEcology, "entities").find((entity) => entity.entity_id === "wildlife.rabbit.valley")!.defense_only_when = ["cornered", "escape_blocked"];
+    expectIssue(() => compileContent(guardSources), "ecology.defense_guards");
+  });
+
   it("rejects a missing real fox escape or unreachable scene exit", () => {
     const escapeSources = repositorySources();
     const ecology = mutableSource(escapeSources, "ecology/valley-prologue.v0.1.yaml");

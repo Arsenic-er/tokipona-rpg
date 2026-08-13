@@ -33,7 +33,7 @@
     }
   },
   "scenes": {
-    "sourceDigest": "sha256:31f8ed1d9e5933ab1d08957c98ca390c9d3fd66ece9cef4af733281035722269",
+    "sourceDigest": "sha256:f0d5ef76deb9f0364f3f73fa5c7cac4959dbcdf3b49b4d8a5d8c78db21ce5b02",
     "byId": {
       "scene.valley.arrival_shelf": {
         "sceneId": "scene.valley.arrival_shelf",
@@ -509,17 +509,17 @@
             "material": "stone_and_wood"
           },
           {
-            "id": "den.fox_rest_anchor",
+            "id": "den.fox.rest_anchor",
             "kind": "wildlife_home_anchor",
             "material": "dry_soil"
           },
           {
-            "id": "den.fox_back_exit",
+            "id": "den.fox.back_exit",
             "kind": "real_wildlife_escape_exit",
             "material": "soil_and_roots"
           },
           {
-            "id": "den.fox_young_area",
+            "id": "den.fox.young_area",
             "kind": "wildlife_warning_zone",
             "material": "dry_grass_and_soil"
           },
@@ -567,7 +567,7 @@
           },
           {
             "id": "den.observe_fox",
-            "targetId": "den.fox_rest_anchor",
+            "targetId": "den.fox.rest_anchor",
             "verb": "observe_without_approach",
             "toolOrMagicRequired": false,
             "optionalWordId": null,
@@ -577,7 +577,7 @@
           },
           {
             "id": "den.verify_real_escape",
-            "targetId": "den.fox_back_exit",
+            "targetId": "den.fox.back_exit",
             "verb": "verify_escape_clear",
             "toolOrMagicRequired": false,
             "optionalWordId": null,
@@ -587,7 +587,7 @@
           },
           {
             "id": "den.read_warning_zone",
-            "targetId": "den.fox_young_area",
+            "targetId": "den.fox.young_area",
             "verb": "observe_warning_boundary",
             "toolOrMagicRequired": false,
             "optionalWordId": null,
@@ -3834,12 +3834,14 @@
     ]
   },
   "ecology": {
-    "sourceDigest": "sha256:68198830c695781f2aa81e9632c1892e8b661926b3945e42e22d871a923e5fc2",
+    "sourceDigest": "sha256:502cd4f6c21e698535e64a27ede2a8b2890acbba10ebf82992081c657a5ebd53",
     "ecologyId": "valley_prologue",
     "minimumWarningTelegraphSeconds": 0.7,
     "intrusionBeforeDefenseSeconds": 1.5,
     "loseSightSeconds": 4,
     "deescalateSeconds": 6,
+    "defensiveContactTiles": 1.5,
+    "lifeIdAlgorithm": "sha256(region_id,entity_id,spawn_generation,spawn_sequence)",
     "mandatoryKills": 0,
     "requiredQuestDrops": 0,
     "languageEvidenceFromHarmForbidden": true,
@@ -3880,6 +3882,32 @@
         ],
         "preferredResponse": "warn_then_flee",
         "returnCondition": "life_state == alive && no_death_tombstone && fox_den_intact && settlement_supply_stable && local_danger_cleared"
+      }
+    },
+    "foxSpatialBinding": {
+      "sceneId": "scene.valley.den_bypass",
+      "entityId": "wildlife.fox.den",
+      "spawnPositionTiles": [
+        10,
+        1
+      ],
+      "escapeBoundsTiles": {
+        "x": 24,
+        "y": 0,
+        "width": 2,
+        "height": 4
+      },
+      "warningBoundsTiles": {
+        "x": 8,
+        "y": 0,
+        "width": 8,
+        "height": 5
+      },
+      "denBoundsTiles": {
+        "x": 9,
+        "y": 0,
+        "width": 7,
+        "height": 4
       }
     }
   }

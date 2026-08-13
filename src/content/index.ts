@@ -16,7 +16,7 @@ export type {
 } from "./types";
 
 export { readRuntimeEcologyManifest } from "./runtime-ecology-manifest";
-export type { RuntimeEcologyManifest, RuntimeWildlifeSpeciesManifest } from "./runtime-ecology-manifest";
+export type { RuntimeEcologyManifest, RuntimeWildlifeSpeciesManifest, RuntimeWildlifeSpatialBinding } from "./runtime-ecology-manifest";
 
 export { readRuntimeSceneManifestIndex } from "./runtime-scene-manifest";
 export type {

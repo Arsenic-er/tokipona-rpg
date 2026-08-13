@@ -69,10 +69,10 @@ describe("N06 wildlife runtime artifact", () => {
     const artifact = buildRuntimeContentArtifact(compileContent(repositorySources()));
     const timing = structuredClone(artifact) as unknown as { ecology: { minimumWarningTelegraphSeconds: number } };
     timing.ecology.minimumWarningTelegraphSeconds = 0.6;
-    expect(() => readRuntimeEcologyManifest(timing)).toThrow(/at least 0.7/);
+    expect(() => readRuntimeEcologyManifest(timing)).toThrow(/digest mismatch/);
 
     const damage = structuredClone(artifact) as unknown as { ecology: { species: { fox: { defensiveDamage: number } } } };
     damage.ecology.species.fox.defensiveDamage = 60;
-    expect(() => readRuntimeEcologyManifest(damage)).toThrow(/fox projection/);
+    expect(() => readRuntimeEcologyManifest(damage)).toThrow(/digest mismatch/);
   });
 });

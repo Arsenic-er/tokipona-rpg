@@ -1,142 +1,33 @@
 export interface RuntimeWildlifeSpeciesManifest {
-  readonly entityId: string;
-  readonly species: "rabbit" | "fox";
-  readonly maxHp: number;
-  readonly homeSceneId: string;
-  readonly spawnAnchor: string;
-  readonly realEscapeExit: string;
-  readonly warningZoneAnchor: string | null;
-  readonly defensiveActionKind: string;
-  readonly defensiveDamage: number;
-  readonly guardingYoungDamage: number | null;
-  readonly defenseOnlyWhen: readonly string[];
-  readonly preferredResponse: string;
-  readonly returnCondition: string | null;
+  readonly entityId: string; readonly species: "rabbit" | "fox"; readonly maxHp: number; readonly homeSceneId: string;
+  readonly spawnAnchor: string; readonly realEscapeExit: string; readonly warningZoneAnchor: string | null;
+  readonly defensiveActionKind: string; readonly defensiveDamage: number; readonly guardingYoungDamage: number | null;
+  readonly defenseOnlyWhen: readonly string[]; readonly preferredResponse: string; readonly returnCondition: string | null;
 }
-
+export interface RuntimeWildlifeSpatialBinding {
+  readonly sceneId: "scene.valley.den_bypass"; readonly entityId: "wildlife.fox.den"; readonly spawnPositionTiles: readonly [number,number];
+  readonly escapeBoundsTiles: Readonly<{x:number;y:number;width:number;height:number}>;
+  readonly warningBoundsTiles: Readonly<{x:number;y:number;width:number;height:number}>;
+  readonly denBoundsTiles: Readonly<{x:number;y:number;width:number;height:number}>;
+}
 export interface RuntimeEcologyManifest {
-  readonly sourceDigest: `sha256:${string}`;
-  readonly ecologyId: string;
-  readonly minimumWarningTelegraphSeconds: number;
-  readonly intrusionBeforeDefenseSeconds: number;
-  readonly loseSightSeconds: number;
-  readonly deescalateSeconds: number;
-  readonly mandatoryKills: 0;
-  readonly requiredQuestDrops: 0;
-  readonly languageEvidenceFromHarmForbidden: true;
-  readonly species: Readonly<{
-    readonly rabbit: RuntimeWildlifeSpeciesManifest;
-    readonly fox: RuntimeWildlifeSpeciesManifest;
-  }>;
+  readonly sourceDigest:`sha256:${string}`; readonly ecologyId:string; readonly minimumWarningTelegraphSeconds:number;
+  readonly intrusionBeforeDefenseSeconds:number; readonly loseSightSeconds:number; readonly deescalateSeconds:number;
+  readonly defensiveContactTiles:number; readonly lifeIdAlgorithm:"sha256(region_id,entity_id,spawn_generation,spawn_sequence)";
+  readonly mandatoryKills:0; readonly requiredQuestDrops:0; readonly languageEvidenceFromHarmForbidden:true;
+  readonly species:Readonly<{rabbit:RuntimeWildlifeSpeciesManifest;fox:RuntimeWildlifeSpeciesManifest}>;
+  readonly foxSpatialBinding:RuntimeWildlifeSpatialBinding;
 }
-
-/** Fail-closed boundary for the deliberately narrow N06 ecology projection. */
-export function readRuntimeEcologyManifest(candidate: unknown): RuntimeEcologyManifest {
-  const root = record(candidate, "runtime content artifact");
-  const raw = record(root.ecology, "runtime content artifact.ecology");
-  const digest = stringValue(raw.sourceDigest, "ecology.sourceDigest");
-  if (!/^sha256:[0-9a-f]{64}$/.test(digest)) {
-    throw new Error("ecology.sourceDigest must be a sha256 digest");
-  }
-  if (raw.ecologyId !== "valley_prologue") {
-    throw new Error("ecology.ecologyId must be valley_prologue");
-  }
-  const warning = finiteNumber(raw.minimumWarningTelegraphSeconds, "ecology.minimumWarningTelegraphSeconds");
-  const defense = finiteNumber(raw.intrusionBeforeDefenseSeconds, "ecology.intrusionBeforeDefenseSeconds");
-  if (warning < 0.7) throw new Error("ecology warning telegraph must be at least 0.7 seconds");
-  if (defense < 1.5) throw new Error("ecology defense delay must be at least 1.5 seconds");
-  const loseSight = positiveNumber(raw.loseSightSeconds, "ecology.loseSightSeconds");
-  const deescalate = positiveNumber(raw.deescalateSeconds, "ecology.deescalateSeconds");
-  if (raw.mandatoryKills !== 0 || raw.requiredQuestDrops !== 0 || raw.languageEvidenceFromHarmForbidden !== true) {
-    throw new Error("ecology must preserve zero-kill, zero-drop and no-harm-language contracts");
-  }
-  const species = record(raw.species, "ecology.species");
-  const rabbit = readSpecies(species.rabbit, "rabbit");
-  const fox = readSpecies(species.fox, "fox");
-  if (rabbit.entityId !== "wildlife.rabbit.valley" || rabbit.defensiveDamage !== 2 || rabbit.realEscapeExit.length === 0) {
-    throw new Error("ecology rabbit projection is not canonical");
-  }
-  if (fox.entityId !== "wildlife.fox.den" || fox.homeSceneId !== "scene.valley.den_bypass" ||
-      fox.defensiveDamage !== 6 || fox.guardingYoungDamage !== 8 || fox.warningZoneAnchor === null ||
-      fox.returnCondition === null || !fox.returnCondition.includes("fox_den_intact")) {
-    throw new Error("ecology fox projection is not canonical");
-  }
-  return Object.freeze({
-    sourceDigest: digest as `sha256:${string}`,
-    ecologyId: "valley_prologue",
-    minimumWarningTelegraphSeconds: warning,
-    intrusionBeforeDefenseSeconds: defense,
-    loseSightSeconds: loseSight,
-    deescalateSeconds: deescalate,
-    mandatoryKills: 0,
-    requiredQuestDrops: 0,
-    languageEvidenceFromHarmForbidden: true,
-    species: Object.freeze({ rabbit, fox }),
-  });
-}
-
-function readSpecies(value: unknown, expected: "rabbit" | "fox"): RuntimeWildlifeSpeciesManifest {
-  const raw = record(value, `ecology.species.${expected}`);
-  if (raw.species !== expected) throw new Error(`ecology species ${expected} must identify itself`);
-  const guardingYoungDamage = raw.guardingYoungDamage === null
-    ? null
-    : nonNegativeNumber(raw.guardingYoungDamage, `ecology.species.${expected}.guardingYoungDamage`);
-  const warningZoneAnchor = nullableString(raw.warningZoneAnchor, `ecology.species.${expected}.warningZoneAnchor`);
-  const returnCondition = nullableString(raw.returnCondition, `ecology.species.${expected}.returnCondition`);
-  return Object.freeze({
-    entityId: stringValue(raw.entityId, `ecology.species.${expected}.entityId`),
-    species: expected,
-    maxHp: positiveNumber(raw.maxHp, `ecology.species.${expected}.maxHp`),
-    homeSceneId: stringValue(raw.homeSceneId, `ecology.species.${expected}.homeSceneId`),
-    spawnAnchor: stringValue(raw.spawnAnchor, `ecology.species.${expected}.spawnAnchor`),
-    realEscapeExit: stringValue(raw.realEscapeExit, `ecology.species.${expected}.realEscapeExit`),
-    warningZoneAnchor,
-    defensiveActionKind: stringValue(raw.defensiveActionKind, `ecology.species.${expected}.defensiveActionKind`),
-    defensiveDamage: nonNegativeNumber(raw.defensiveDamage, `ecology.species.${expected}.defensiveDamage`),
-    guardingYoungDamage,
-    defenseOnlyWhen: stringArray(raw.defenseOnlyWhen, `ecology.species.${expected}.defenseOnlyWhen`),
-    preferredResponse: stringValue(raw.preferredResponse, `ecology.species.${expected}.preferredResponse`),
-    returnCondition,
-  });
-}
-
-function record(value: unknown, label: string): Record<string, unknown> {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    throw new Error(`${label} must be an object`);
-  }
-  return value as Record<string, unknown>;
-}
-
-function stringValue(value: unknown, label: string): string {
-  if (typeof value !== "string" || value.length === 0) throw new Error(`${label} must be a non-empty string`);
-  return value;
-}
-
-function nullableString(value: unknown, label: string): string | null {
-  if (value === null) return null;
-  return stringValue(value, label);
-}
-
-function finiteNumber(value: unknown, label: string): number {
-  if (typeof value !== "number" || !Number.isFinite(value)) throw new Error(`${label} must be finite`);
-  return value;
-}
-
-function positiveNumber(value: unknown, label: string): number {
-  const result = finiteNumber(value, label);
-  if (result <= 0) throw new Error(`${label} must be positive`);
-  return result;
-}
-
-function nonNegativeNumber(value: unknown, label: string): number {
-  const result = finiteNumber(value, label);
-  if (result < 0) throw new Error(`${label} must be non-negative`);
-  return result;
-}
-
-function stringArray(value: unknown, label: string): readonly string[] {
-  if (!Array.isArray(value) || value.length === 0 || !value.every((item) => typeof item === "string" && item.length > 0)) {
-    throw new Error(`${label} must be a non-empty string array`);
-  }
-  return Object.freeze([...value]);
-}
+const record=(v:unknown,l:string):Record<string,unknown>=>{if(typeof v!=="object"||v===null||Array.isArray(v))throw new Error(`${l} must be an object`);return v as Record<string,unknown>};
+const str=(v:unknown,l:string)=>{if(typeof v!=="string"||!v)throw new Error(`${l} must be a non-empty string`);return v};
+const num=(v:unknown,l:string)=>{if(typeof v!=="number"||!Number.isFinite(v))throw new Error(`${l} must be finite`);return v};
+const positive=(v:unknown,l:string)=>{const x=num(v,l);if(x<=0)throw new Error(`${l} must be positive`);return x};
+const nonneg=(v:unknown,l:string)=>{const x=num(v,l);if(x<0)throw new Error(`${l} must be non-negative`);return x};
+const nullable=(v:unknown,l:string)=>v===null?null:str(v,l);
+const stringArray=(v:unknown,l:string)=>{if(!Array.isArray(v)||!v.length||!v.every(x=>typeof x==="string"&&x.length))throw new Error(`${l} must be a non-empty string array`);return Object.freeze([...v] as string[])};
+const stable=(v:unknown):string=>{if(Array.isArray(v))return`[${v.map(stable).join(",")}]`;if(typeof v!=="object"||v===null)return JSON.stringify(v);const r=v as Record<string,unknown>;return`{${Object.keys(r).sort().map(k=>`${JSON.stringify(k)}:${stable(r[k])}`).join(",")}}`};
+const sha256=(input:string):string=>{const bytes=new TextEncoder().encode(input),len=Math.ceil((bytes.length+9)/64)*64,data=new Uint8Array(len);data.set(bytes);data[bytes.length]=128;const view=new DataView(data.buffer),bits=bytes.length*8;view.setUint32(len-8,Math.floor(bits/0x100000000));view.setUint32(len-4,bits>>>0);const h=new Uint32Array([0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19]),k=new Uint32Array([0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2]),w=new Uint32Array(64),rot=(x:number,n:number)=>(x>>>n)|(x<<(32-n));for(let o=0;o<len;o+=64){for(let i=0;i<16;i++)w[i]=view.getUint32(o+i*4);for(let i=16;i<64;i++){const a=w[i-15]!,b=w[i-2]!;w[i]=((rot(a,7)^rot(a,18)^(a>>>3))+w[i-16]!+(rot(b,17)^rot(b,19)^(b>>>10))+w[i-7]!)>>>0}let[a,b,c,d,e,f,g,z]=h;for(let i=0;i<64;i++){const t1=(z!+(rot(e!,6)^rot(e!,11)^rot(e!,25))+((e!&f!)^(~e!&g!))+k[i]!+w[i]!)>>>0,t2=((rot(a!,2)^rot(a!,13)^rot(a!,22))+((a!&b!)^(a!&c!)^(b!&c!)))>>>0;z=g;g=f;f=e;e=(d!+t1)>>>0;d=c;c=b;b=a;a=(t1+t2)>>>0}const q=[a,b,c,d,e,f,g,z];for(let i=0;i<8;i++)h[i]=(h[i]!+q[i]!)>>>0}return[...h].map(x=>x.toString(16).padStart(8,"0")).join("")};
+export const computeRuntimeEcologyDigest = (payload: unknown): `sha256:${string}` => `sha256:${sha256(stable(payload))}`;
+const species=(v:unknown,expected:"rabbit"|"fox"):RuntimeWildlifeSpeciesManifest=>{const r=record(v,`ecology.species.${expected}`);if(r.species!==expected)throw new Error(`ecology species ${expected} must identify itself`);const result={entityId:str(r.entityId,"entityId"),species:expected,maxHp:positive(r.maxHp,"maxHp"),homeSceneId:str(r.homeSceneId,"homeSceneId"),spawnAnchor:str(r.spawnAnchor,"spawnAnchor"),realEscapeExit:str(r.realEscapeExit,"realEscapeExit"),warningZoneAnchor:nullable(r.warningZoneAnchor,"warningZoneAnchor"),defensiveActionKind:str(r.defensiveActionKind,"defensiveActionKind"),defensiveDamage:nonneg(r.defensiveDamage,"defensiveDamage"),guardingYoungDamage:r.guardingYoungDamage===null?null:nonneg(r.guardingYoungDamage,"guardingYoungDamage"),defenseOnlyWhen:stringArray(r.defenseOnlyWhen,"defenseOnlyWhen"),preferredResponse:str(r.preferredResponse,"preferredResponse"),returnCondition:nullable(r.returnCondition,"returnCondition")};const guards=expected==="rabbit"?["cornered","young_threatened"]:["cornered","young_threatened","escape_blocked"];if(result.defenseOnlyWhen.join("|")!==guards.join("|"))throw new Error(`${expected} defense guards are noncanonical`);return Object.freeze(result)};
+const spatial=(v:unknown):RuntimeWildlifeSpatialBinding=>{const r=record(v,"foxSpatialBinding");if(r.sceneId!=="scene.valley.den_bypass"||r.entityId!=="wildlife.fox.den")throw new Error("fox spatial binding identity invalid");const pair=r.spawnPositionTiles;if(!Array.isArray(pair)||pair.length!==2||!pair.every(x=>typeof x==="number"&&Number.isInteger(x)&&x>=0&&x<28))throw new Error("fox spawn position must be integer and inside N06");const rect=(v:unknown,l:string)=>{const q=record(v,l),x=nonneg(q.x,`${l}.x`),y=nonneg(q.y,`${l}.y`),width=positive(q.width,`${l}.width`),height=positive(q.height,`${l}.height`);if(![x,y,width,height].every(Number.isInteger)||x+width>28||y+height>28)throw new Error(`${l} must be integer and inside N06`);return Object.freeze({x,y,width,height})};return Object.freeze({sceneId:"scene.valley.den_bypass",entityId:"wildlife.fox.den",spawnPositionTiles:Object.freeze([pair[0] as number,pair[1] as number]) as readonly [number,number],escapeBoundsTiles:rect(r.escapeBoundsTiles,"escapeBoundsTiles"),warningBoundsTiles:rect(r.warningBoundsTiles,"warningBoundsTiles"),denBoundsTiles:rect(r.denBoundsTiles,"denBoundsTiles")})};
+export function readRuntimeEcologyManifest(candidate:unknown):RuntimeEcologyManifest{const root=record(candidate,"runtime content artifact"),raw=record(root.ecology,"artifact.ecology"),digest=str(raw.sourceDigest,"ecology.sourceDigest");if(!/^sha256:[0-9a-f]{64}$/.test(digest))throw new Error("ecology.sourceDigest must be sha256");const payload=Object.fromEntries(Object.entries(raw).filter(([k])=>k!=="sourceDigest"));if(computeRuntimeEcologyDigest(payload)!==digest)throw new Error("ecology projection digest mismatch");if(raw.ecologyId!=="valley_prologue")throw new Error("ecologyId invalid");const warning=positive(raw.minimumWarningTelegraphSeconds,"warning"),defense=positive(raw.intrusionBeforeDefenseSeconds,"defense"),lose=positive(raw.loseSightSeconds,"loseSight"),deescalate=positive(raw.deescalateSeconds,"deescalate");if(warning<.7||warning>60||defense<1.5||defense>60||lose>60||deescalate>60)throw new Error("ecology timing is outside canonical safety bounds");const contact=positive(raw.defensiveContactTiles,"defensiveContactTiles");if(contact!==1.5)throw new Error("defensive contact must be 1.5 tiles");if(raw.lifeIdAlgorithm!=="sha256(region_id,entity_id,spawn_generation,spawn_sequence)")throw new Error("life ID algorithm invalid");if(raw.mandatoryKills!==0||raw.requiredQuestDrops!==0||raw.languageEvidenceFromHarmForbidden!==true)throw new Error("zero-kill ecology contract invalid");const s=record(raw.species,"species"),rabbit=species(s.rabbit,"rabbit"),fox=species(s.fox,"fox");if(rabbit.defensiveDamage!==2||fox.defensiveDamage!==6||fox.guardingYoungDamage!==8||fox.returnCondition===null||!fox.returnCondition.includes("fox_den_intact"))throw new Error("canonical rabbit/fox projection invalid");return Object.freeze({sourceDigest:digest as `sha256:${string}`,ecologyId:"valley_prologue",minimumWarningTelegraphSeconds:warning,intrusionBeforeDefenseSeconds:defense,loseSightSeconds:lose,deescalateSeconds:deescalate,defensiveContactTiles:contact,lifeIdAlgorithm:"sha256(region_id,entity_id,spawn_generation,spawn_sequence)",mandatoryKills:0,requiredQuestDrops:0,languageEvidenceFromHarmForbidden:true,species:Object.freeze({rabbit,fox}),foxSpatialBinding:spatial(raw.foxSpatialBinding)})}

@@ -116,9 +116,9 @@ routes:
 
 targets:
   - {target_id: "den.service_return_mouth", target_kind: "always_open_return", material: "stone_and_wood"}
-  - {target_id: "den.fox_rest_anchor", target_kind: "wildlife_home_anchor", material: "dry_soil"}
-  - {target_id: "den.fox_back_exit", target_kind: "real_wildlife_escape_exit", material: "soil_and_roots"}
-  - {target_id: "den.fox_young_area", target_kind: "wildlife_warning_zone", material: "dry_grass_and_soil"}
+  - {target_id: "den.fox.rest_anchor", target_kind: "wildlife_home_anchor", material: "dry_soil"}
+  - {target_id: "den.fox.back_exit", target_kind: "real_wildlife_escape_exit", material: "soil_and_roots"}
+  - {target_id: "den.fox.young_area", target_kind: "wildlife_warning_zone", material: "dry_grass_and_soil"}
   - {target_id: "den.safety_recess", target_kind: "player_retreat_shelter", material: "stone"}
   - {target_id: "den.upper_dig_line", target_kind: "marked_non_destructive_bypass", material: "wet_soil"}
   - {target_id: "den.old_service_latch", target_kind: "route_latch", material: "wood_and_iron"}
@@ -128,9 +128,9 @@ targets:
 
 interactions:
   - {interaction_id: "den.return_to_service", target_id: "den.service_return_mouth", verb: "leave_without_guard", tool_or_magic_required: false}
-  - {interaction_id: "den.observe_fox", target_id: "den.fox_rest_anchor", verb: "observe_without_approach", tool_or_magic_required: false}
-  - {interaction_id: "den.verify_real_escape", target_id: "den.fox_back_exit", verb: "verify_escape_clear", tool_or_magic_required: false}
-  - {interaction_id: "den.read_warning_zone", target_id: "den.fox_young_area", verb: "observe_warning_boundary", tool_or_magic_required: false}
+  - {interaction_id: "den.observe_fox", target_id: "den.fox.rest_anchor", verb: "observe_without_approach", tool_or_magic_required: false}
+  - {interaction_id: "den.verify_real_escape", target_id: "den.fox.back_exit", verb: "verify_escape_clear", tool_or_magic_required: false}
+  - {interaction_id: "den.read_warning_zone", target_id: "den.fox.young_area", verb: "observe_warning_boundary", tool_or_magic_required: false}
   - {interaction_id: "den.retreat_to_recess", target_id: "den.safety_recess", verb: "retreat_and_wait", tool_or_magic_required: false}
   - {interaction_id: "den.dig_upper_line", target_id: "den.upper_dig_line", verb: "dig_and_brace_above_den", tool_or_magic_required: false}
   - {interaction_id: "den.open_old_latch", target_id: "den.old_service_latch", verb: "open_after_safe_clearance", tool_or_magic_required: false}
@@ -151,10 +151,14 @@ material_patches:
 
 wildlife_bindings:
   - entity_id: "wildlife.fox.den"
-    spawn_target_id: "den.fox_rest_anchor"
-    escape_target_id: "den.fox_back_exit"
-    warning_target_id: "den.fox_young_area"
+    spawn_target_id: "den.fox.rest_anchor"
+    spawn_position_tiles: [10, 1]
+    escape_target_id: "den.fox.back_exit"
+    escape_bounds_tiles: {x: 24, y: 0, width: 2, height: 4}
+    warning_target_id: "den.fox.young_area"
+    warning_bounds_tiles: {x: 8, y: 0, width: 8, height: 5}
     protected_structure_target_id: "den.den_structure"
+    den_bounds_tiles: {x: 9, y: 0, width: 7, height: 4}
 
 safety_contract:
   service_return_always_open: true

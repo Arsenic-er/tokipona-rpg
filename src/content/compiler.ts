@@ -726,7 +726,9 @@ function validateSceneSource(source: CompiledSource, issues: ContentIssue[]): vo
   collisionRows.forEach((row, index) => {
     if (width !== null && row.length !== width) addIssue(issues, "scene.collision_width", source.path, `collision_rows_top_down[${index}]`, `expected row width ${width}, received ${row.length}`);
     if (/[^.#]/u.test(row)) addIssue(issues, "scene.collision_symbol", source.path, `collision_rows_top_down[${index}]`, "collision row may contain only . and #");
-  });  validateSceneStaticReachability(source, collisionRows, width, height, issues);
+  });
+  validateDenWildlifeSpatial(source, collisionRows, width, height, issues);
+  validateSceneStaticReachability(source, collisionRows, width, height, issues);
 
   const entrances = readObjectArray(source.content, "entrances");
   const exits = readObjectArray(source.content, "exits");
@@ -813,6 +815,65 @@ function validateSceneSource(source: CompiledSource, issues: ContentIssue[]): vo
   if (recoverySeconds === null || recoverySeconds <= 0 || recoverySeconds > 60) addIssue(issues, "scene.recovery_duration", source.path, "recovery.maximum_softlock_recovery_seconds", "scene softlock recovery must be available within 60 seconds");
 }
 
+function validateDenWildlifeSpatial(
+  source: CompiledSource,
+  collisionRows: readonly string[],
+  width: number | null,
+  height: number | null,
+  issues: ContentIssue[],
+): void {
+  if (readString(source.content, "scene_id") !== "scene.valley.den_bypass") return;
+  const bindings = readObjectArray(source.content, "wildlife_bindings").filter((item) => readString(item, "entity_id") === "wildlife.fox.den");
+  if (bindings.length !== 1) {
+    addIssue(issues, "scene.fox_spatial_binding", source.path, "wildlife_bindings", `N06 requires exactly one canonical fox spatial binding; received ${bindings.length}`);
+    return;
+  }
+  const binding = bindings[0]!;
+  const targets = new Map(readObjectArray(source.content, "targets").map((target) => [readString(target, "target_id"), readString(target, "target_kind")]));
+  const expectedTargets = [
+    ["spawn_target_id", "wildlife_home_anchor"],
+    ["escape_target_id", "real_wildlife_escape_exit"],
+    ["warning_target_id", "wildlife_warning_zone"],
+    ["protected_structure_target_id", "protected_wildlife_structure"],
+  ] as const;
+  for (const [field, kind] of expectedTargets) {
+    const id = readString(binding, field);
+    if (!id || targets.get(id) !== kind) addIssue(issues, "scene.fox_spatial_target", source.path, `wildlife_bindings.${field}`, `${field} must reference one ${kind} target`);
+  }
+  if (width === null || height === null || !Number.isInteger(width) || !Number.isInteger(height) || collisionRows.length !== height || collisionRows.some((row) => row.length !== width)) return;
+  const spawn = binding.spawn_position_tiles;
+  let spawnPoint: { x: number; y: number; row: number } | null = null;
+  if (!Array.isArray(spawn) || spawn.length !== 2 || !spawn.every((value) => typeof value === "number" && Number.isInteger(value))) {
+    addIssue(issues, "scene.fox_spawn_bounds", source.path, "wildlife_bindings.spawn_position_tiles", "fox spawn must be an integer pair inside N06");
+  } else {
+    const x = spawn[0] as number; const y = spawn[1] as number; const row = height - y - 1; const supportRow = row + 1;
+    if (x < 0 || x >= width || y < 0 || y >= height || row < 0 || supportRow >= height || collisionRows[row]?.[x] !== "." || collisionRows[supportRow]?.[x] !== "#") {
+      addIssue(issues, "scene.fox_spawn_bounds", source.path, "wildlife_bindings.spawn_position_tiles", "fox spawn must occupy an empty tile with collision support directly below");
+    } else spawnPoint = { x, y, row };
+  }
+  type Rect = { x: number; y: number; width: number; height: number };
+  const rects = new Map<string, Rect>();
+  for (const field of ["escape_bounds_tiles", "warning_bounds_tiles", "den_bounds_tiles"] as const) {
+    const raw = readObject(binding, field); const x = readNumber(raw, "x"), y = readNumber(raw, "y"), rectWidth = readNumber(raw, "width"), rectHeight = readNumber(raw, "height");
+    if ([x, y, rectWidth, rectHeight].some((value) => value === null || !Number.isInteger(value)) || x === null || y === null || rectWidth === null || rectHeight === null || x < 0 || y < 0 || rectWidth <= 0 || rectHeight <= 0 || x + rectWidth > width || y + rectHeight > height) {
+      addIssue(issues, "scene.fox_spatial_bounds", source.path, `wildlife_bindings.${field}`, `${field} must be a positive integer rectangle inside N06`);
+    } else rects.set(field, { x, y, width: rectWidth, height: rectHeight });
+  }
+  const overlaps = (left: Rect, right: Rect): boolean => left.x < right.x + right.width && left.x + left.width > right.x && left.y < right.y + right.height && left.y + left.height > right.y;
+  const contains = (rect: Rect, point: { x: number; y: number }): boolean => point.x >= rect.x && point.x < rect.x + rect.width && point.y >= rect.y && point.y < rect.y + rect.height;
+  const escape = rects.get("escape_bounds_tiles"); const den = rects.get("den_bounds_tiles");
+  if (escape && den && overlaps(escape, den)) addIssue(issues, "scene.fox_escape_geometry", source.path, "wildlife_bindings.escape_bounds_tiles", "fox escape bounds must not overlap the protected den bounds");
+  if (escape && spawnPoint && contains(escape, spawnPoint)) addIssue(issues, "scene.fox_escape_geometry", source.path, "wildlife_bindings.escape_bounds_tiles", "fox escape bounds must not contain the home spawn");
+  if (escape && spawnPoint) {
+    const reachable = floodEmptyTiles(collisionRows, width, height, spawnPoint.x, spawnPoint.row);
+    let touchesReachable = false;
+    for (let authoredY = escape.y; authoredY < escape.y + escape.height && !touchesReachable; authoredY += 1) for (let x = escape.x; x < escape.x + escape.width; x += 1) {
+      if (reachable.has(`${x},${height - authoredY - 1}`)) { touchesReachable = true; break; }
+    }
+    if (!touchesReachable) addIssue(issues, "scene.fox_escape_unreachable", source.path, "wildlife_bindings.escape_bounds_tiles", "fox escape AABB must have an empty-tile route from the home spawn");
+  }
+}
+
 function validateSceneStaticReachability(
   source: CompiledSource,
   collisionRows: readonly string[],
@@ -875,6 +936,14 @@ function floodEmptyTiles(rows: readonly string[], width: number, height: number,
   return visited;
 }
 function validateSceneReferences(source: CompiledSource, sources: readonly CompiledSource[], indexes: MutableIndexes, issues: ContentIssue[]): void {
+  if (readString(source.content, "scene_id") === "scene.valley.den_bypass") {
+    const ecology = resolveReferencedSource(source, readString(source.content, "ecology_ref"), sources);
+    const fox = ecology?.kind === "ecology" ? readObjectArray(ecology.content, "entities").find((entity) => readString(entity, "entity_id") === "wildlife.fox.den") : undefined;
+    const binding = readObjectArray(source.content, "wildlife_bindings").filter((item) => readString(item, "entity_id") === "wildlife.fox.den")[0];
+    if (!fox || !binding || readString(binding, "spawn_target_id") !== readString(fox, "spawn_anchor") || readString(binding, "escape_target_id") !== readString(fox, "real_escape_exit") || readString(binding, "warning_target_id") !== readString(fox, "warning_zone_anchor")) {
+      addIssue(issues, "scene.fox_ecology_binding", source.path, "wildlife_bindings", "fox spatial target IDs must equal the authoritative ecology anchors");
+    }
+  }
   const regionId = readString(source.content, "region_id");
   const chapterId = readString(source.content, "chapter_flow_id");
   const segmentId = readString(source.content, "chapter_segment_id");
@@ -1182,8 +1251,12 @@ function validateEcologySource(source: CompiledSource, issues: ContentIssue[]): 
   const timing = readNestedObject(source.content, ["shared_behavior", "timing_seconds"]);
   const warning = readNumber(timing, "minimum_warning_telegraph");
   const defense = readNumber(timing, "intrusion_before_defense");
-  if (warning === null || warning < 0.7) addIssue(issues, "ecology.warning_window", source.path, "shared_behavior.timing_seconds.minimum_warning_telegraph", "warning telegraph must be at least 0.7 seconds");
-  if (defense === null || defense < 1.5) addIssue(issues, "ecology.defense_window", source.path, "shared_behavior.timing_seconds.intrusion_before_defense", "defense delay must be at least 1.5 seconds");
+  const loseSight = readNumber(timing, "lose_sight");
+  const deescalate = readNumber(timing, "deescalate");
+  if (warning === null || warning < 0.7 || warning > 60) addIssue(issues, "ecology.warning_window", source.path, "shared_behavior.timing_seconds.minimum_warning_telegraph", "warning telegraph must be within 0.7..60 seconds");
+  if (defense === null || defense < 1.5 || defense > 60) addIssue(issues, "ecology.defense_window", source.path, "shared_behavior.timing_seconds.intrusion_before_defense", "defense delay must be within 1.5..60 seconds");
+  if (loseSight === null || loseSight <= 0 || loseSight > 60 || deescalate === null || deescalate <= 0 || deescalate > 60) addIssue(issues, "ecology.timing_bounds", source.path, "shared_behavior.timing_seconds", "lose-sight and deescalation timing must be within (0,60] seconds");
+  if (readNestedNumber(source.content, ["shared_behavior", "distance_tiles", "defensive_contact"]) !== 1.5) addIssue(issues, "ecology.defensive_contact", source.path, "shared_behavior.distance_tiles.defensive_contact", "defensive contact must remain exactly 1.5 tiles");
   const contracts = readObject(source.content, "contracts");
   if (readNumber(contracts, "mandatory_kills") !== 0 || readNumber(contracts, "required_quest_drops") !== 0 || contracts.language_evidence_from_harm_forbidden !== true) {
     addIssue(issues, "ecology.zero_kill_contract", source.path, "contracts", "ecology must preserve zero required kills/drops and forbid language evidence from harm");
@@ -1191,6 +1264,11 @@ function validateEcologySource(source: CompiledSource, issues: ContentIssue[]): 
   const entities = readObjectArray(source.content, "entities");
   const rabbit = entities.find((entity) => readString(entity, "entity_id") === "wildlife.rabbit.valley");
   const fox = entities.find((entity) => readString(entity, "entity_id") === "wildlife.fox.den");
+  const canonicalGuards = (entity: ContentObject | undefined, expected: readonly string[], label: string): void => {
+    if (!entity || !sameStringArray(readStringArray(entity, "defense_only_when"), expected)) addIssue(issues, "ecology.defense_guards", source.path, `entities.${label}.defense_only_when`, `${label} defense guards must be canonical`);
+  };
+  canonicalGuards(rabbit, ["cornered", "young_threatened"], "rabbit");
+  canonicalGuards(fox, ["cornered", "young_threatened", "escape_blocked"], "fox");
   if (!rabbit || readNestedNumber(rabbit, ["defensive_action", "damage_provisional"]) !== 2 || !readString(rabbit, "real_escape_exit")) {
     addIssue(issues, "ecology.rabbit_runtime_fields", source.path, "entities", "rabbit requires canonical defensive damage and a real escape exit");
   }

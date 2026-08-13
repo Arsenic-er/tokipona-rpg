@@ -164,18 +164,44 @@ export function buildRuntimeContentArtifact(manifest: ContentManifest): RuntimeC
       returnCondition: optionalString(entity, ["cross_scene_return_condition"]),
     };
   };
+  const denSceneSource = manifest.byKind.scene.find((candidate) => candidate.content.scene_id === "scene.valley.den_bypass");
+  if (!denSceneSource) throw new Error("N06 scene is required for the fox spatial projection.");
+  const foxBindings = requireObjectArray(denSceneSource.content, ["wildlife_bindings"])
+    .filter((candidate) => candidate.entity_id === "wildlife.fox.den");
+  if (foxBindings.length !== 1) throw new Error(`N06 requires exactly one canonical fox wildlife binding; received ${foxBindings.length}.`);
+  const foxBinding = foxBindings[0]!;
+  const spatialRect = (field: string) => {
+    const value = requireObject(foxBinding, [field]);
+    return {
+      x: requireNonNegativeNumber(value, ["x"]),
+      y: requireNonNegativeNumber(value, ["y"]),
+      width: requirePositiveNumber(value, ["width"]),
+      height: requirePositiveNumber(value, ["height"]),
+    };
+  };
   const ecologyBody = {
     ecologyId: requireExactString(ecologyContent, ["ecology_id"], "valley_prologue"),
     minimumWarningTelegraphSeconds: requirePositiveNumber(ecologyTiming, ["minimum_warning_telegraph"]),
     intrusionBeforeDefenseSeconds: requirePositiveNumber(ecologyTiming, ["intrusion_before_defense"]),
     loseSightSeconds: requirePositiveNumber(ecologyTiming, ["lose_sight"]),
     deescalateSeconds: requirePositiveNumber(ecologyTiming, ["deescalate"]),
+    defensiveContactTiles: requirePositiveNumber(requireObject(ecologyContent, ["shared_behavior", "distance_tiles"]), ["defensive_contact"]),
+    lifeIdAlgorithm: requireExactString(requireObject(ecologyContent, ["life_cycle_contract"]), ["life_instance_id_formula"], "sha256(region_id, entity_id, spawn_generation, spawn_sequence)")
+      .replaceAll(", ", ",") as "sha256(region_id,entity_id,spawn_generation,spawn_sequence)",
     mandatoryKills: 0 as const,
     requiredQuestDrops: 0 as const,
     languageEvidenceFromHarmForbidden: true as const,
     species: {
       rabbit: projectWildlife("wildlife.rabbit.valley", "rabbit"),
       fox: projectWildlife("wildlife.fox.den", "fox"),
+    },
+    foxSpatialBinding: {
+      sceneId: "scene.valley.den_bypass" as const,
+      entityId: "wildlife.fox.den" as const,
+      spawnPositionTiles: requireNumberPair(foxBinding, ["spawn_position_tiles"]),
+      escapeBoundsTiles: spatialRect("escape_bounds_tiles"),
+      warningBoundsTiles: spatialRect("warning_bounds_tiles"),
+      denBoundsTiles: spatialRect("den_bounds_tiles"),
     },
   };
   const ecology: RuntimeEcologyManifest = {
