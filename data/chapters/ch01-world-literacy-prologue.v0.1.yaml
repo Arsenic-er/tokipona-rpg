@@ -136,6 +136,7 @@ segments:
     content_budget_minutes: [140, 165]
     map_nodes: [valley.den_bypass, valley.return_channel]
     task_ids: [ch01_return_flow]
+    optional_task_ids: [ch01_den_bypass]
     task_family_id: "ecology_and_return_flow"
     implementation_status: "planned"
     primary_world_facts: [world.wildlife_has_intent, world.destruction_persists]
@@ -145,7 +146,7 @@ segments:
     required_world_predicates: [settlement_supply_stable]
     first_wawa_evidence_source: "inert_return_flow_mechanism_only"
     wildlife_actions_count_for_wawa_evidence: false
-    solution_families: [wait_and_observe, route_around, low_force_deterrence, repair_overflow, clear_mud, reuse_old_channel]
+    solution_families: [wait_and_observe, dig_upper_bypass, route_around, low_force_deterrence, repair_overflow, clear_mud, reuse_old_channel]
     optional_harvest_allowed: true
     harvest_required_for_segment: false
     wildlife_products_count_for_language_or_attack_evidence: false

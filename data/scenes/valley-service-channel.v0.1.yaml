@@ -59,12 +59,20 @@ entrances:
     spawn_tile: [25, 1]
     recovery_entry: true
     checkpoint_policy: "return_route"
+  - entrance_id: "service.from_den"
+    spawn_tile: [14, 1]
+    recovery_entry: true
+    checkpoint_policy: "optional_route_return"
 
 inbound_route_refs:
   - inbound_ref_id: "service.inbound_from_waterwheel"
     source_scene_id: "scene.valley.waterwheel"
     source_exit_id: "waterwheel.to_service"
     entrance_id: "service.from_waterwheel"
+  - inbound_ref_id: "service.inbound_from_den"
+    source_scene_id: "scene.valley.den_bypass"
+    source_exit_id: "den.to_service"
+    entrance_id: "service.from_den"
 
 exits:
   - exit_id: "service.to_waterwheel"
@@ -79,6 +87,11 @@ exits:
     target_entrance_id: "cistern.from_service"
     traversal_guard:
       any: ["service_gate_open == true", "service_bypass_open == true"]
+  - exit_id: "service.to_den_bypass"
+    trigger_rect_tiles: {x: 13, y: 0, width: 2, height: 7}
+    target_scene_id: "scene.valley.den_bypass"
+    target_entrance_id: "den.from_service"
+    traversal_guard: {any: []}
 
 route_objectives:
   - objective_id: "service.inspect_material_band"
@@ -132,6 +145,12 @@ routes:
     solution_family: "signed_waterwheel_return"
     from_entrance_id: "service.from_cistern"
     to_exit_id: "service.to_waterwheel"
+    objective_ids: []
+  - route_id: "service.optional_den_bypass_route"
+    route_kind: "non_magic"
+    solution_family: "den_route"
+    from_entrance_id: "service.from_waterwheel"
+    to_exit_id: "service.to_den_bypass"
     objective_ids: []
 
 targets:

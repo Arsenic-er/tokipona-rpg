@@ -48,6 +48,7 @@ describe("N03/N04 infrastructure content contracts", () => {
   it("compiles two independently indexed infrastructure tasks with canonical topology", () => {
     const manifest = compileContent(repositorySources());
     expect(Object.keys(manifest.indexes.tasks).sort()).toEqual([
+      "ch01_den_bypass",
       "ch01_length_cistern",
       "ch01_service_channel",
       "ch01_waterwheel",

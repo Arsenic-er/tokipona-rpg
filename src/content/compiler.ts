@@ -228,6 +228,7 @@ function validateSource(
       validateArrayIds(source, "entities", "entity_id", issues);
       validateArrayIds(source, "events", "event_id", issues);
       validateArrayIds(source, "golden_tests", "id", issues);
+      validateEcologySource(source, issues);
       break;
     case "wildlife_economy":
       validateArrayIds(source, "item_definitions", "item_id", issues);
@@ -580,6 +581,61 @@ function validateInfrastructureTaskReferences(
   }
   if (taskId === "ch01_length_cistern") {
     validateCisternTaskReferences(source, sources, sceneSource, chapter, region, issues);
+  }
+  if (taskId === "ch01_den_bypass") {
+    validateDenBypassTaskReferences(source, sources, sceneSource, segment, region, issues);
+  }
+}
+
+function validateDenBypassTaskReferences(
+  source: CompiledSource,
+  sources: readonly CompiledSource[],
+  sceneSource: CompiledSource | undefined,
+  segment: ContentObject | undefined,
+  region: ContentObject | undefined,
+  issues: ContentIssue[],
+): void {
+  if (!segment || !readStringArray(segment, "optional_task_ids").includes("ch01_den_bypass")) {
+    addIssue(issues, "task.den_optional_only", source.path, "chapter_segment_id", "N06 den bypass must remain an optional chapter task");
+  }
+  if (sceneSource) {
+    const size = readObject(sceneSource.content, "size_tiles");
+    if (readString(sceneSource.content, "scene_id") !== "scene.valley.den_bypass" || readNumber(size, "width") !== 28 || readNumber(size, "height") !== 28) {
+      addIssue(issues, "task.den_scene_contract", source.path, "scene_ref", "N06 must remain canonical scene.valley.den_bypass at 28x28 tiles");
+    }
+    const exitIds = new Set(readObjectArray(sceneSource.content, "exits").map((entry) => readString(entry, "exit_id")));
+    const inboundIds = new Set(readObjectArray(sceneSource.content, "inbound_route_refs").map((entry) => readString(entry, "inbound_ref_id")));
+    if (!exitIds.has("den.to_service") || !exitIds.has("den.to_cistern") ||
+        !inboundIds.has("den.inbound_from_service") || !inboundIds.has("den.inbound_from_cistern")) {
+      addIssue(issues, "task.den_bidirectional_topology", source.path, "scene_ref", "N06 requires explicit service and cistern inbound/outbound references");
+    }
+  }
+  const serviceScene = sources.find((item) => item.kind === "scene" && readString(item.content, "scene_id") === "scene.valley.service_channel");
+  const cisternScene = sources.find((item) => item.kind === "scene" && readString(item.content, "scene_id") === "scene.valley.high_cistern");
+  const serviceDirectExit = serviceScene ? readObjectArray(serviceScene.content, "exits").find((entry) => readString(entry, "exit_id") === "service.to_high_cistern") : undefined;
+  const serviceDenExit = serviceScene ? readObjectArray(serviceScene.content, "exits").find((entry) => readString(entry, "exit_id") === "service.to_den_bypass") : undefined;
+  const cisternDenExit = cisternScene ? readObjectArray(cisternScene.content, "exits").find((entry) => readString(entry, "exit_id") === "cistern.to_den_bypass") : undefined;
+  if (!serviceDirectExit || readString(serviceDirectExit, "target_scene_id") !== "scene.valley.high_cistern" || readString(serviceDirectExit, "target_entrance_id") !== "cistern.from_service") {
+    addIssue(issues, "task.den_preserve_direct_mainline", source.path, "scene_ref", "N04 service.to_high_cistern must remain the direct N05 mainline edge");
+  }
+  if (!serviceDenExit || readString(serviceDenExit, "target_scene_id") !== "scene.valley.den_bypass" ||
+      !cisternDenExit || readString(cisternDenExit, "target_scene_id") !== "scene.valley.den_bypass") {
+    addIssue(issues, "task.den_bidirectional_topology", source.path, "scene_ref", "optional N06 requires direct scene references from N04 and N05");
+  }
+  if (region) {
+    const optionalNodes = new Set(readStringArray(readObject(region, "route_completion_contract"), "optional_nodes"));
+    if (!optionalNodes.has("valley.den_bypass")) {
+      addIssue(issues, "task.den_optional_only", source.path, "region_node_id", "valley.den_bypass must remain optional in the required loop");
+    }
+    const writer = readNestedObject(region, ["event_commit_points", "non_destructive_den_route_committed"]);
+    if (readString(writer, "owner") !== "ch01_den_bypass" || readNestedObject(writer, ["atomic_writes"]).den_route_open !== true ||
+        !readStringArray(writer, "forbidden_writes").includes("fox_den_intact")) {
+      addIssue(issues, "task.den_independent_commit", source.path, "completion", "den_route_open must commit independently without writing fox_den_intact");
+    }
+  }
+  const ecologySource = resolveReferencedSource(source, readString(source.content, "ecology_ref"), sources);
+  if (!ecologySource || ecologySource.kind !== "ecology" || readString(ecologySource.content, "ecology_id") !== "valley_prologue") {
+    addIssue(issues, "task.den_ecology_ref", source.path, "ecology_ref", "N06 must reference the authoritative valley ecology source");
   }
 }
 
@@ -1080,6 +1136,68 @@ function validateInfrastructureTaskSource(source: CompiledSource, issues: Conten
   }
   if (readString(source.content, "task_id") === "ch01_length_cistern") {
     validateCisternTaskSource(source, issues);
+  }
+  if (readString(source.content, "task_id") === "ch01_den_bypass") {
+    validateDenBypassTaskSource(source, issues);
+  }
+}
+
+function validateDenBypassTaskSource(source: CompiledSource, issues: ContentIssue[]): void {
+  const modes = readObjectArray(source.content, "result_modes");
+  const modeIds = modes.map((mode) => readString(mode, "mode_id"));
+  if (!sameStringArray(modeIds, ["closed", "non_destructive_route_open"])) {
+    addIssue(issues, "task.den_modes", source.path, "result_modes", "N06 modes must remain closed and non_destructive_route_open");
+  }
+  const valid = modes.find((mode) => readString(mode, "mode_id") === "non_destructive_route_open");
+  if (!valid || valid.persists_across_reload !== true || readString(valid, "patch_record_ref") !== "patch.valley.den_route.v0.1") {
+    addIssue(issues, "task.den_persistence", source.path, "result_modes", "N06 open route must use the canonical region-persistent patch");
+  }
+  const solutionIds = new Set(readObjectArray(source.content, "solution_families").map((solution) => readString(solution, "solution_id")));
+  for (const id of ["den.wait_and_observe", "den.dig_upper_bypass", "den.low_force_noise", "den.low_force_staff"]) {
+    if (!solutionIds.has(id)) addIssue(issues, "task.den_solution_missing", source.path, "solution_families", `N06 is missing ${id}`);
+  }
+  const completion = readObject(source.content, "completion");
+  if (readNestedObject(completion, ["set_flags"]).den_route_open !== true ||
+      !readStringArray(completion, "forbidden_writes").includes("fox_den_intact")) {
+    addIssue(issues, "task.den_independent_commit", source.path, "completion", "route completion must set only den_route_open and forbid fox_den_intact writes");
+  }
+  const rewards = readObject(source.content, "wildlife_reward_contract");
+  for (const field of ["mandatory_kills", "required_drops", "language_xp", "learning_evidence", "expression_capacity_growth", "artifact_surface_slot_growth", "mp_growth", "direct_currency"]) {
+    if (readNumber(rewards, field) !== 0) addIssue(issues, "task.den_zero_reward", source.path, `wildlife_reward_contract.${field}`, `${field} must remain zero`);
+  }
+  if (rewards.combat_required !== false || rewards.den_destruction_opens_route !== false || rewards.harm_never_satisfies_world_goal !== true) {
+    addIssue(issues, "task.den_zero_combat", source.path, "wildlife_reward_contract", "N06 must remain zero-combat and den destruction must never open the route");
+  }
+  const projection = readObject(source.content, "ecology_runtime_projection");
+  const requiredFields = new Set(readStringArray(projection, "required_fields"));
+  for (const field of ["minimum_warning_telegraph_seconds", "intrusion_before_defense_seconds", "rabbit_defensive_damage", "fox_defensive_damage", "real_escape_exit", "return_condition"]) {
+    if (!requiredFields.has(field)) addIssue(issues, "task.den_ecology_projection", source.path, "ecology_runtime_projection.required_fields", `typed ecology projection is missing ${field}`);
+  }
+  if (readString(projection, "projection_mode") !== "typed_fields_only" || projection.raw_document_runtime_interpretation_forbidden !== true) {
+    addIssue(issues, "task.den_ecology_projection", source.path, "ecology_runtime_projection", "runtime may consume only the narrow typed ecology projection");
+  }
+}
+
+function validateEcologySource(source: CompiledSource, issues: ContentIssue[]): void {
+  const timing = readNestedObject(source.content, ["shared_behavior", "timing_seconds"]);
+  const warning = readNumber(timing, "minimum_warning_telegraph");
+  const defense = readNumber(timing, "intrusion_before_defense");
+  if (warning === null || warning < 0.7) addIssue(issues, "ecology.warning_window", source.path, "shared_behavior.timing_seconds.minimum_warning_telegraph", "warning telegraph must be at least 0.7 seconds");
+  if (defense === null || defense < 1.5) addIssue(issues, "ecology.defense_window", source.path, "shared_behavior.timing_seconds.intrusion_before_defense", "defense delay must be at least 1.5 seconds");
+  const contracts = readObject(source.content, "contracts");
+  if (readNumber(contracts, "mandatory_kills") !== 0 || readNumber(contracts, "required_quest_drops") !== 0 || contracts.language_evidence_from_harm_forbidden !== true) {
+    addIssue(issues, "ecology.zero_kill_contract", source.path, "contracts", "ecology must preserve zero required kills/drops and forbid language evidence from harm");
+  }
+  const entities = readObjectArray(source.content, "entities");
+  const rabbit = entities.find((entity) => readString(entity, "entity_id") === "wildlife.rabbit.valley");
+  const fox = entities.find((entity) => readString(entity, "entity_id") === "wildlife.fox.den");
+  if (!rabbit || readNestedNumber(rabbit, ["defensive_action", "damage_provisional"]) !== 2 || !readString(rabbit, "real_escape_exit")) {
+    addIssue(issues, "ecology.rabbit_runtime_fields", source.path, "entities", "rabbit requires canonical defensive damage and a real escape exit");
+  }
+  if (!fox || readNestedNumber(fox, ["defensive_action", "damage_provisional"]) !== 6 ||
+      readNestedNumber(fox, ["defensive_action", "guarding_young_damage_provisional"]) !== 8 || !readString(fox, "real_escape_exit") ||
+      !readString(fox, "cross_scene_return_condition").includes("fox_den_intact")) {
+    addIssue(issues, "ecology.fox_runtime_fields", source.path, "entities", "fox requires canonical defense, real escape, and den-aware return fields");
   }
 }
 

@@ -1,0 +1,179 @@
+schema_version: "g01.scene.v0.1"
+content_version: "chapter-01.valley-den-bypass.1"
+scene_id: "scene.valley.den_bypass"
+region_id: "valley_prologue"
+region_node_id: "valley.den_bypass"
+chapter_flow_id: "ch01_world_literacy_prologue"
+chapter_segment_id: "den_and_return_flow"
+status: "graybox_machine_ready"
+tile_size_px: 16
+size_tiles: {width: 28, height: 28}
+ecology_ref: "../ecology/valley-prologue.v0.1.yaml"
+
+collision_rows_top_down:
+  - "............................"
+  - "............................"
+  - "............................"
+  - "............................"
+  - "............................"
+  - "............................"
+  - "............................"
+  - "............................"
+  - "............................"
+  - "............................"
+  - "............................"
+  - "............................"
+  - "............................"
+  - "............................"
+  - "............................"
+  - "............................"
+  - "............................"
+  - "............................"
+  - "............................"
+  - "............................"
+  - "............................"
+  - "............................"
+  - "............................"
+  - "............................"
+  - "............................"
+  - "............................"
+  - "............................"
+  - "############################"
+
+entrances:
+  - entrance_id: "den.from_service"
+    spawn_tile: [2, 1]
+    recovery_entry: true
+    checkpoint_policy: "scene_entry_and_retreat_recovery"
+  - entrance_id: "den.from_cistern"
+    spawn_tile: [25, 1]
+    recovery_entry: true
+    checkpoint_policy: "optional_route_return"
+
+inbound_route_refs:
+  - inbound_ref_id: "den.inbound_from_service"
+    source_scene_id: "scene.valley.service_channel"
+    source_exit_id: "service.to_den_bypass"
+    entrance_id: "den.from_service"
+  - inbound_ref_id: "den.inbound_from_cistern"
+    source_scene_id: "scene.valley.high_cistern"
+    source_exit_id: "cistern.to_den_bypass"
+    entrance_id: "den.from_cistern"
+
+exits:
+  - exit_id: "den.to_service"
+    trigger_rect_tiles: {x: 0, y: 0, width: 2, height: 7}
+    target_scene_id: "scene.valley.service_channel"
+    target_entrance_id: "service.from_den"
+    traversal_guard: {any: []}
+  - exit_id: "den.to_cistern"
+    trigger_rect_tiles: {x: 26, y: 0, width: 2, height: 7}
+    target_scene_id: "scene.valley.high_cistern"
+    target_entrance_id: "cistern.from_den"
+    traversal_guard: {predicate: "den_route_open == true"}
+
+route_objectives:
+  - objective_id: "den.observe_warning"
+    predicate: "fox.warning_telegraph_observed == true && player_harm_events == 0"
+  - objective_id: "den.keep_escape_open"
+    predicate: "fox.real_escape_exit_reachable == true"
+  - objective_id: "den.keep_den_intact"
+    predicate: "fox_den_intact == true"
+  - objective_id: "den.open_route"
+    predicate: "den_route_open == true"
+
+routes:
+  - route_id: "den.wait_and_observe"
+    route_kind: "non_magic"
+    solution_family: "wait_and_observe"
+    from_entrance_id: "den.from_service"
+    to_exit_id: "den.to_cistern"
+    objective_ids: [den.observe_warning, den.keep_escape_open, den.keep_den_intact, den.open_route]
+  - route_id: "den.dig_upper_bypass"
+    route_kind: "non_magic"
+    solution_family: "dig_upper_bypass"
+    from_entrance_id: "den.from_service"
+    to_exit_id: "den.to_cistern"
+    objective_ids: [den.keep_escape_open, den.keep_den_intact, den.open_route]
+  - route_id: "den.low_force_noise"
+    route_kind: "non_magic"
+    solution_family: "low_force_noise"
+    from_entrance_id: "den.from_service"
+    to_exit_id: "den.to_cistern"
+    objective_ids: [den.observe_warning, den.keep_escape_open, den.keep_den_intact, den.open_route]
+  - route_id: "den.low_force_staff"
+    route_kind: "non_magic"
+    solution_family: "low_force_staff"
+    from_entrance_id: "den.from_service"
+    to_exit_id: "den.to_cistern"
+    objective_ids: [den.observe_warning, den.keep_escape_open, den.keep_den_intact, den.open_route]
+  - route_id: "den.service_return"
+    route_kind: "non_magic"
+    solution_family: "always_open_service_return"
+    from_entrance_id: "den.from_cistern"
+    to_exit_id: "den.to_service"
+    objective_ids: []
+
+targets:
+  - {target_id: "den.service_return_mouth", target_kind: "always_open_return", material: "stone_and_wood"}
+  - {target_id: "den.fox_rest_anchor", target_kind: "wildlife_home_anchor", material: "dry_soil"}
+  - {target_id: "den.fox_back_exit", target_kind: "real_wildlife_escape_exit", material: "soil_and_roots"}
+  - {target_id: "den.fox_young_area", target_kind: "wildlife_warning_zone", material: "dry_grass_and_soil"}
+  - {target_id: "den.safety_recess", target_kind: "player_retreat_shelter", material: "stone"}
+  - {target_id: "den.upper_dig_line", target_kind: "marked_non_destructive_bypass", material: "wet_soil"}
+  - {target_id: "den.old_service_latch", target_kind: "route_latch", material: "wood_and_iron"}
+  - {target_id: "den.noise_surface", target_kind: "nonlethal_deterrence_surface", material: "hollow_wood"}
+  - {target_id: "den.staff_marker", target_kind: "low_force_distance_marker", material: "pigment_on_stone"}
+  - {target_id: "den.den_structure", target_kind: "protected_wildlife_structure", material: "soil_roots_and_stone"}
+
+interactions:
+  - {interaction_id: "den.return_to_service", target_id: "den.service_return_mouth", verb: "leave_without_guard", tool_or_magic_required: false}
+  - {interaction_id: "den.observe_fox", target_id: "den.fox_rest_anchor", verb: "observe_without_approach", tool_or_magic_required: false}
+  - {interaction_id: "den.verify_real_escape", target_id: "den.fox_back_exit", verb: "verify_escape_clear", tool_or_magic_required: false}
+  - {interaction_id: "den.read_warning_zone", target_id: "den.fox_young_area", verb: "observe_warning_boundary", tool_or_magic_required: false}
+  - {interaction_id: "den.retreat_to_recess", target_id: "den.safety_recess", verb: "retreat_and_wait", tool_or_magic_required: false}
+  - {interaction_id: "den.dig_upper_line", target_id: "den.upper_dig_line", verb: "dig_and_brace_above_den", tool_or_magic_required: false}
+  - {interaction_id: "den.open_old_latch", target_id: "den.old_service_latch", verb: "open_after_safe_clearance", tool_or_magic_required: false}
+  - {interaction_id: "den.make_low_force_noise", target_id: "den.noise_surface", verb: "make_warning_noise_without_contact", tool_or_magic_required: false}
+  - {interaction_id: "den.use_staff_distance", target_id: "den.staff_marker", verb: "hold_distance_without_strike", tool_or_magic_required: false}
+  - {interaction_id: "den.inspect_structure", target_id: "den.den_structure", verb: "inspect_without_demolition", tool_or_magic_required: false}
+
+task_refs:
+  - task_id: "ch01_den_bypass"
+    task_ref: "../tasks/ch01-den-bypass.v0.1.yaml"
+    objective_ids: [den.open_route, den.keep_den_intact]
+
+material_patches:
+  - patch_id: "den.non_destructive_route"
+    patch_record_ref: "patch.valley.den_route.v0.1"
+    applies_only_after_event: "non_destructive_den_route_committed"
+    replay_behavior: "rebuild_route_without_touching_den_integrity"
+
+wildlife_bindings:
+  - entity_id: "wildlife.fox.den"
+    spawn_target_id: "den.fox_rest_anchor"
+    escape_target_id: "den.fox_back_exit"
+    warning_target_id: "den.fox_young_area"
+    protected_structure_target_id: "den.den_structure"
+
+safety_contract:
+  service_return_always_open: true
+  safe_recess_available_before_warning_zone: true
+  real_animal_escape_exit_required: true
+  upper_dig_line_never_intersects_den_structure: true
+  explosive_route_forbidden: true
+  den_destruction_opens_route: false
+
+soft_failure_recoveries:
+  - failure_id: "fox_blocks_forward_route"
+    action: "retreat_to_safety_recess_and_reopen_service_return"
+    preserves: [fox_life_state, fox_den_intact, committed_route_patch, learning_evidence]
+  - failure_id: "upper_bypass_slumps"
+    action: "restore_task_local_braces_and_reset_uncommitted_soil"
+    preserves: [fox_life_state, fox_den_intact, committed_route_patch, learning_evidence]
+
+recovery:
+  entry_entrance_id: "den.from_service"
+  maximum_softlock_recovery_seconds: 60
+  actions: [reopen_service_return, move_fox_to_real_escape_exit_if_alive, restore_task_local_braces, reset_uncommitted_upper_soil, expose_safe_recess]
+  preserves: [fox_life_state, fox_den_intact, den_route_open, committed_patch, learning_evidence, survival_state]

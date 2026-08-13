@@ -24,6 +24,7 @@ describe("N03/N04/N05 infrastructure runtime artifact", () => {
     const index = readRuntimeInfrastructureTaskManifestIndex(artifact);
 
     expect(Object.keys(index.byId).sort()).toEqual([
+      "ch01_den_bypass",
       "ch01_length_cistern",
       "ch01_service_channel",
       "ch01_waterwheel",

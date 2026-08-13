@@ -67,12 +67,20 @@ entrances:
     spawn_tile: [27, 1]
     recovery_entry: true
     checkpoint_policy: "return_route"
+  - entrance_id: "cistern.from_den"
+    spawn_tile: [15, 1]
+    recovery_entry: true
+    checkpoint_policy: "optional_route_entry"
 
 inbound_route_refs:
   - inbound_ref_id: "cistern.inbound_from_service"
     source_scene_id: "scene.valley.service_channel"
     source_exit_id: "service.to_high_cistern"
     entrance_id: "cistern.from_service"
+  - inbound_ref_id: "cistern.inbound_from_den"
+    source_scene_id: "scene.valley.den_bypass"
+    source_exit_id: "den.to_cistern"
+    entrance_id: "cistern.from_den"
 
 exits:
   - exit_id: "cistern.to_service"
@@ -85,6 +93,11 @@ exits:
     trigger_rect_tiles: {x: 26, y: 40, width: 4, height: 8}
     target_region_node_id: "valley.return_channel"
     traversal_guard: {any: ["exit_ladder_lowered == true"]}
+  - exit_id: "cistern.to_den_bypass"
+    trigger_rect_tiles: {x: 14, y: 0, width: 2, height: 7}
+    target_scene_id: "scene.valley.den_bypass"
+    target_entrance_id: "den.from_cistern"
+    traversal_guard: {predicate: "den_route_open == true"}
 
 route_objectives:
   - objective_id: "cistern.observe_default"
@@ -122,6 +135,12 @@ routes:
     solution_family: "signed_service_return"
     from_entrance_id: "cistern.from_return"
     to_exit_id: "cistern.to_service"
+    objective_ids: []
+  - route_id: "cistern.optional_den_return"
+    route_kind: "non_magic"
+    solution_family: "signed_den_return"
+    from_entrance_id: "cistern.from_return"
+    to_exit_id: "cistern.to_den_bypass"
     objective_ids: []
 
 targets:

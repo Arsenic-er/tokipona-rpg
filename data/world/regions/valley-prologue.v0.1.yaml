@@ -183,7 +183,7 @@ state_registry:
   - {state_id: "service_channel_reached", type: boolean, initial: false, owner: "region", persistence_scope: "region_persistent", save_owner: "valley_prologue_region_save", unique_writer_event: "service_channel_entry_crossed"}
   - {state_id: "service_gate_open", type: boolean, initial: false, owner: "ch01_service_channel", persistence_scope: "region_persistent", save_owner: "valley_prologue_region_save", unique_writer_event: "service_gate_solution_committed"}
   - {state_id: "service_bypass_open", type: boolean, initial: false, owner: "ch01_service_channel", persistence_scope: "region_persistent", save_owner: "valley_prologue_region_save", unique_writer_event: "service_bypass_solution_committed"}
-  - {state_id: "den_route_open", type: boolean, initial: false, owner: "ch01_service_channel", persistence_scope: "region_persistent", save_owner: "valley_prologue_region_save", unique_writer_event: "non_destructive_den_route_committed"}
+  - {state_id: "den_route_open", type: boolean, initial: false, owner: "ch01_den_bypass", persistence_scope: "region_persistent", save_owner: "valley_prologue_region_save", unique_writer_event: "non_destructive_den_route_committed"}
   - {state_id: "fox_den_intact", type: boolean, initial: true, owner: "ecology.valley_prologue", persistence_scope: "region_persistent", save_owner: "valley_prologue_region_save", unique_writer_event: "den_integrity_commit"}
   - {state_id: "high_cistern_reconnected", type: boolean, initial: false, owner: "ch01_length_cistern", persistence_scope: "region_persistent", save_owner: "valley_prologue_region_save", unique_writer_event: "cistern_world_transition_committed"}
   - {state_id: "upper_channel_available", type: boolean, initial: false, owner: "ch01_length_cistern", persistence_scope: "region_persistent", save_owner: "valley_prologue_region_save", unique_writer_event: "cistern_world_transition_committed"}
@@ -230,7 +230,7 @@ event_commit_points:
     atomic_writes: {service_bypass_open: true}
     atomic_patch_records: [patch.valley.service_bypass.v0.1]
   non_destructive_den_route_committed:
-    owner: "ch01_service_channel"
+    owner: "ch01_den_bypass"
     atomic_writes: {den_route_open: true}
     atomic_patch_records: [patch.valley.den_route.v0.1]
     forbidden_writes: [fox_den_intact]

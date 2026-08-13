@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { posix } from "node:path";
 import type { ContentManifest, ContentObject, ContentValue } from "../../src/content/types.ts";
 import type { CapabilityMilestoneMachineProjection } from "../../src/session/capability-contract.ts";
+import type { RuntimeEcologyManifest, RuntimeWildlifeSpeciesManifest } from "../../src/content/runtime-ecology-manifest.ts";
 import type {
   RuntimeSceneEntranceManifest,
   RuntimeSceneExitManifest,
@@ -58,6 +59,7 @@ export interface RuntimeContentArtifact {
   readonly scenes: RuntimeSceneManifestIndex;
   readonly infrastructureTasks: RuntimeInfrastructureTaskManifestIndex;
   readonly capabilityProgression: CapabilityMilestoneMachineProjection;
+  readonly ecology: RuntimeEcologyManifest;
 }
 
 export function buildRuntimeContentArtifact(manifest: ContentManifest): RuntimeContentArtifact {
@@ -126,6 +128,59 @@ export function buildRuntimeContentArtifact(manifest: ContentManifest): RuntimeC
     sourceDigest: `sha256:${createHash("sha256").update(stableStringify(requireObject(chapterSource.content, ["capacity_progression"]))).digest("hex")}`,
     contractRevision: chapterSource.contentVersion,
     capacityMilestones,
+  };
+
+  const ecologySources = manifest.byKind.ecology;
+  if (ecologySources.length !== 1) throw new Error(`Expected exactly one validated ecology source, received ${ecologySources.length}.`);
+  const ecologySource = ecologySources[0];
+  if (!ecologySource) throw new Error("Validated ecology source is unavailable.");
+  const ecologyContent = ecologySource.content;
+  const ecologyTiming = requireObject(ecologyContent, ["shared_behavior", "timing_seconds"]);
+  const ecologyContracts = requireObject(ecologyContent, ["contracts"]);
+  requireExactNumber(ecologyContracts, ["mandatory_kills"], 0);
+  requireExactNumber(ecologyContracts, ["required_quest_drops"], 0);
+  requireExactBoolean(ecologyContracts, ["language_evidence_from_harm_forbidden"], true);
+  const ecologyEntities = requireObjectArray(ecologyContent, ["entities"]);
+  const projectWildlife = (entityId: string, species: "rabbit" | "fox"): RuntimeWildlifeSpeciesManifest => {
+    const entity = ecologyEntities.find((candidate) => requireString(candidate, ["entity_id"]) === entityId);
+    if (!entity) throw new Error(`Ecology entity ${entityId} is unavailable.`);
+    const action = requireObject(entity, ["defensive_action"]);
+    const guardingYoungDamage = species === "fox"
+      ? requireNonNegativeNumber(action, ["guarding_young_damage_provisional"])
+      : null;
+    return {
+      entityId,
+      species,
+      maxHp: requirePositiveNumber(entity, ["max_hp_provisional"]),
+      homeSceneId: requireString(entity, ["home_scene"]),
+      spawnAnchor: requireString(entity, ["spawn_anchor"]),
+      realEscapeExit: requireString(entity, ["real_escape_exit"]),
+      warningZoneAnchor: optionalString(entity, ["warning_zone_anchor"]),
+      defensiveActionKind: requireString(action, ["kind"]),
+      defensiveDamage: requireNonNegativeNumber(action, ["damage_provisional"]),
+      guardingYoungDamage,
+      defenseOnlyWhen: requireStringArray(entity, ["defense_only_when"]),
+      preferredResponse: requireString(entity, ["preferred_response"]),
+      returnCondition: optionalString(entity, ["cross_scene_return_condition"]),
+    };
+  };
+  const ecologyBody = {
+    ecologyId: requireExactString(ecologyContent, ["ecology_id"], "valley_prologue"),
+    minimumWarningTelegraphSeconds: requirePositiveNumber(ecologyTiming, ["minimum_warning_telegraph"]),
+    intrusionBeforeDefenseSeconds: requirePositiveNumber(ecologyTiming, ["intrusion_before_defense"]),
+    loseSightSeconds: requirePositiveNumber(ecologyTiming, ["lose_sight"]),
+    deescalateSeconds: requirePositiveNumber(ecologyTiming, ["deescalate"]),
+    mandatoryKills: 0 as const,
+    requiredQuestDrops: 0 as const,
+    languageEvidenceFromHarmForbidden: true as const,
+    species: {
+      rabbit: projectWildlife("wildlife.rabbit.valley", "rabbit"),
+      fox: projectWildlife("wildlife.fox.den", "fox"),
+    },
+  };
+  const ecology: RuntimeEcologyManifest = {
+    sourceDigest: `sha256:${createHash("sha256").update(stableStringify(ecologyBody)).digest("hex")}`,
+    ...ecologyBody,
   };
 
   const sceneSources = [...manifest.byKind.scene].sort((left, right) => left.path.localeCompare(right.path));
@@ -384,6 +439,7 @@ export function buildRuntimeContentArtifact(manifest: ContentManifest): RuntimeC
       byId: infrastructureTasks,
     },
     capabilityProgression,
+    ecology,
   };
 }
 

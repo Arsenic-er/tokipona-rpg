@@ -33,7 +33,7 @@
     }
   },
   "scenes": {
-    "sourceDigest": "sha256:be269d8569c6fd4189a71cd68a7947eae8f905aa69122877c93db1b6c5af7fb7",
+    "sourceDigest": "sha256:31f8ed1d9e5933ab1d08957c98ca390c9d3fd66ece9cef4af733281035722269",
     "byId": {
       "scene.valley.arrival_shelf": {
         "sceneId": "scene.valley.arrival_shelf",
@@ -279,6 +279,437 @@
           "patch.valley.arrival_route.v0.1"
         ]
       },
+      "scene.valley.den_bypass": {
+        "sceneId": "scene.valley.den_bypass",
+        "sourcePath": "data/scenes/valley-den-bypass.v0.1.yaml",
+        "regionId": "valley_prologue",
+        "regionNodeId": "valley.den_bypass",
+        "chapterFlowId": "ch01_world_literacy_prologue",
+        "chapterSegmentId": "den_and_return_flow",
+        "tileSizePx": 16,
+        "sizeTiles": {
+          "width": 28,
+          "height": 28
+        },
+        "collisionRows": [
+          "............................",
+          "............................",
+          "............................",
+          "............................",
+          "............................",
+          "............................",
+          "............................",
+          "............................",
+          "............................",
+          "............................",
+          "............................",
+          "............................",
+          "............................",
+          "............................",
+          "............................",
+          "............................",
+          "............................",
+          "............................",
+          "............................",
+          "............................",
+          "............................",
+          "............................",
+          "............................",
+          "............................",
+          "............................",
+          "............................",
+          "............................",
+          "############################"
+        ],
+        "entrances": [
+          {
+            "id": "den.from_service",
+            "spawnTile": [
+              2,
+              1
+            ],
+            "spawnPx": {
+              "x": 32,
+              "y": 418
+            },
+            "recoveryEntry": true,
+            "checkpointPolicy": "scene_entry_and_retreat_recovery"
+          },
+          {
+            "id": "den.from_cistern",
+            "spawnTile": [
+              25,
+              1
+            ],
+            "spawnPx": {
+              "x": 400,
+              "y": 418
+            },
+            "recoveryEntry": true,
+            "checkpointPolicy": "optional_route_return"
+          }
+        ],
+        "exits": [
+          {
+            "id": "den.to_service",
+            "boundsTiles": {
+              "x": 0,
+              "y": 0,
+              "width": 2,
+              "height": 7
+            },
+            "boundsPx": {
+              "x": 0,
+              "y": 336,
+              "width": 32,
+              "height": 112
+            },
+            "target": {
+              "kind": "scene",
+              "sceneId": "scene.valley.service_channel",
+              "entranceId": "service.from_den"
+            },
+            "firstTraverseCommit": null,
+            "traversalGuardAny": []
+          },
+          {
+            "id": "den.to_cistern",
+            "boundsTiles": {
+              "x": 26,
+              "y": 0,
+              "width": 2,
+              "height": 7
+            },
+            "boundsPx": {
+              "x": 416,
+              "y": 336,
+              "width": 32,
+              "height": 112
+            },
+            "target": {
+              "kind": "scene",
+              "sceneId": "scene.valley.high_cistern",
+              "entranceId": "cistern.from_den"
+            },
+            "firstTraverseCommit": null,
+            "traversalGuardAny": [
+              "den_route_open == true"
+            ]
+          }
+        ],
+        "recovery": {
+          "entryEntranceId": "den.from_service",
+          "maximumSoftlockRecoverySeconds": 60,
+          "actions": [
+            "reopen_service_return",
+            "move_fox_to_real_escape_exit_if_alive",
+            "restore_task_local_braces",
+            "reset_uncommitted_upper_soil",
+            "expose_safe_recess"
+          ],
+          "preserves": [
+            "fox_life_state",
+            "fox_den_intact",
+            "den_route_open",
+            "committed_patch",
+            "learning_evidence",
+            "survival_state"
+          ]
+        },
+        "routeObjectives": [
+          {
+            "id": "den.observe_warning",
+            "predicate": "fox.warning_telegraph_observed == true && player_harm_events == 0"
+          },
+          {
+            "id": "den.keep_escape_open",
+            "predicate": "fox.real_escape_exit_reachable == true"
+          },
+          {
+            "id": "den.keep_den_intact",
+            "predicate": "fox_den_intact == true"
+          },
+          {
+            "id": "den.open_route",
+            "predicate": "den_route_open == true"
+          }
+        ],
+        "routes": [
+          {
+            "id": "den.wait_and_observe",
+            "kind": "non_magic",
+            "solutionFamily": "wait_and_observe",
+            "fromEntranceId": "den.from_service",
+            "toExitId": "den.to_cistern",
+            "objectiveIds": [
+              "den.observe_warning",
+              "den.keep_escape_open",
+              "den.keep_den_intact",
+              "den.open_route"
+            ]
+          },
+          {
+            "id": "den.dig_upper_bypass",
+            "kind": "non_magic",
+            "solutionFamily": "dig_upper_bypass",
+            "fromEntranceId": "den.from_service",
+            "toExitId": "den.to_cistern",
+            "objectiveIds": [
+              "den.keep_escape_open",
+              "den.keep_den_intact",
+              "den.open_route"
+            ]
+          },
+          {
+            "id": "den.low_force_noise",
+            "kind": "non_magic",
+            "solutionFamily": "low_force_noise",
+            "fromEntranceId": "den.from_service",
+            "toExitId": "den.to_cistern",
+            "objectiveIds": [
+              "den.observe_warning",
+              "den.keep_escape_open",
+              "den.keep_den_intact",
+              "den.open_route"
+            ]
+          },
+          {
+            "id": "den.low_force_staff",
+            "kind": "non_magic",
+            "solutionFamily": "low_force_staff",
+            "fromEntranceId": "den.from_service",
+            "toExitId": "den.to_cistern",
+            "objectiveIds": [
+              "den.observe_warning",
+              "den.keep_escape_open",
+              "den.keep_den_intact",
+              "den.open_route"
+            ]
+          },
+          {
+            "id": "den.service_return",
+            "kind": "non_magic",
+            "solutionFamily": "always_open_service_return",
+            "fromEntranceId": "den.from_cistern",
+            "toExitId": "den.to_service",
+            "objectiveIds": []
+          }
+        ],
+        "nonMagicAlternativeRouteIds": [
+          "den.wait_and_observe",
+          "den.dig_upper_bypass",
+          "den.low_force_noise",
+          "den.low_force_staff",
+          "den.service_return"
+        ],
+        "targets": [
+          {
+            "id": "den.service_return_mouth",
+            "kind": "always_open_return",
+            "material": "stone_and_wood"
+          },
+          {
+            "id": "den.fox_rest_anchor",
+            "kind": "wildlife_home_anchor",
+            "material": "dry_soil"
+          },
+          {
+            "id": "den.fox_back_exit",
+            "kind": "real_wildlife_escape_exit",
+            "material": "soil_and_roots"
+          },
+          {
+            "id": "den.fox_young_area",
+            "kind": "wildlife_warning_zone",
+            "material": "dry_grass_and_soil"
+          },
+          {
+            "id": "den.safety_recess",
+            "kind": "player_retreat_shelter",
+            "material": "stone"
+          },
+          {
+            "id": "den.upper_dig_line",
+            "kind": "marked_non_destructive_bypass",
+            "material": "wet_soil"
+          },
+          {
+            "id": "den.old_service_latch",
+            "kind": "route_latch",
+            "material": "wood_and_iron"
+          },
+          {
+            "id": "den.noise_surface",
+            "kind": "nonlethal_deterrence_surface",
+            "material": "hollow_wood"
+          },
+          {
+            "id": "den.staff_marker",
+            "kind": "low_force_distance_marker",
+            "material": "pigment_on_stone"
+          },
+          {
+            "id": "den.den_structure",
+            "kind": "protected_wildlife_structure",
+            "material": "soil_roots_and_stone"
+          }
+        ],
+        "interactions": [
+          {
+            "id": "den.return_to_service",
+            "targetId": "den.service_return_mouth",
+            "verb": "leave_without_guard",
+            "toolOrMagicRequired": false,
+            "optionalWordId": null,
+            "npcId": null,
+            "facilityId": null,
+            "taskId": null
+          },
+          {
+            "id": "den.observe_fox",
+            "targetId": "den.fox_rest_anchor",
+            "verb": "observe_without_approach",
+            "toolOrMagicRequired": false,
+            "optionalWordId": null,
+            "npcId": null,
+            "facilityId": null,
+            "taskId": null
+          },
+          {
+            "id": "den.verify_real_escape",
+            "targetId": "den.fox_back_exit",
+            "verb": "verify_escape_clear",
+            "toolOrMagicRequired": false,
+            "optionalWordId": null,
+            "npcId": null,
+            "facilityId": null,
+            "taskId": null
+          },
+          {
+            "id": "den.read_warning_zone",
+            "targetId": "den.fox_young_area",
+            "verb": "observe_warning_boundary",
+            "toolOrMagicRequired": false,
+            "optionalWordId": null,
+            "npcId": null,
+            "facilityId": null,
+            "taskId": null
+          },
+          {
+            "id": "den.retreat_to_recess",
+            "targetId": "den.safety_recess",
+            "verb": "retreat_and_wait",
+            "toolOrMagicRequired": false,
+            "optionalWordId": null,
+            "npcId": null,
+            "facilityId": null,
+            "taskId": null
+          },
+          {
+            "id": "den.dig_upper_line",
+            "targetId": "den.upper_dig_line",
+            "verb": "dig_and_brace_above_den",
+            "toolOrMagicRequired": false,
+            "optionalWordId": null,
+            "npcId": null,
+            "facilityId": null,
+            "taskId": null
+          },
+          {
+            "id": "den.open_old_latch",
+            "targetId": "den.old_service_latch",
+            "verb": "open_after_safe_clearance",
+            "toolOrMagicRequired": false,
+            "optionalWordId": null,
+            "npcId": null,
+            "facilityId": null,
+            "taskId": null
+          },
+          {
+            "id": "den.make_low_force_noise",
+            "targetId": "den.noise_surface",
+            "verb": "make_warning_noise_without_contact",
+            "toolOrMagicRequired": false,
+            "optionalWordId": null,
+            "npcId": null,
+            "facilityId": null,
+            "taskId": null
+          },
+          {
+            "id": "den.use_staff_distance",
+            "targetId": "den.staff_marker",
+            "verb": "hold_distance_without_strike",
+            "toolOrMagicRequired": false,
+            "optionalWordId": null,
+            "npcId": null,
+            "facilityId": null,
+            "taskId": null
+          },
+          {
+            "id": "den.inspect_structure",
+            "targetId": "den.den_structure",
+            "verb": "inspect_without_demolition",
+            "toolOrMagicRequired": false,
+            "optionalWordId": null,
+            "npcId": null,
+            "facilityId": null,
+            "taskId": null
+          }
+        ],
+        "npcs": [],
+        "facilities": [],
+        "tasks": [],
+        "taskRefs": [
+          {
+            "id": "ch01_den_bypass",
+            "authoritativeTaskSourcePath": "data/tasks/ch01-den-bypass.v0.1.yaml",
+            "objectiveIds": [
+              "den.open_route",
+              "den.keep_den_intact"
+            ]
+          }
+        ],
+        "tradeEntries": [],
+        "inboundRoutes": [
+          {
+            "id": "den.inbound_from_service",
+            "sourceSceneId": "scene.valley.service_channel",
+            "sourceExitId": "service.to_den_bypass",
+            "entranceId": "den.from_service"
+          },
+          {
+            "id": "den.inbound_from_cistern",
+            "sourceSceneId": "scene.valley.high_cistern",
+            "sourceExitId": "cistern.to_den_bypass",
+            "entranceId": "den.from_cistern"
+          }
+        ],
+        "softFailureRecoveries": [
+          {
+            "id": "fox_blocks_forward_route",
+            "action": "retreat_to_safety_recess_and_reopen_service_return",
+            "preserves": [
+              "fox_life_state",
+              "fox_den_intact",
+              "committed_route_patch",
+              "learning_evidence"
+            ]
+          },
+          {
+            "id": "upper_bypass_slumps",
+            "action": "restore_task_local_braces_and_reset_uncommitted_soil",
+            "preserves": [
+              "fox_life_state",
+              "fox_den_intact",
+              "committed_route_patch",
+              "learning_evidence"
+            ]
+          }
+        ],
+        "materialPatchRecordRefs": [
+          "patch.valley.den_route.v0.1"
+        ]
+      },
       "scene.valley.high_cistern": {
         "sceneId": "scene.valley.high_cistern",
         "sourcePath": "data/scenes/valley-high-cistern.v0.1.yaml",
@@ -367,6 +798,19 @@
             },
             "recoveryEntry": true,
             "checkpointPolicy": "return_route"
+          },
+          {
+            "id": "cistern.from_den",
+            "spawnTile": [
+              15,
+              1
+            ],
+            "spawnPx": {
+              "x": 240,
+              "y": 738
+            },
+            "recoveryEntry": true,
+            "checkpointPolicy": "optional_route_entry"
           }
         ],
         "exits": [
@@ -416,6 +860,30 @@
             "firstTraverseCommit": null,
             "traversalGuardAny": [
               "exit_ladder_lowered == true"
+            ]
+          },
+          {
+            "id": "cistern.to_den_bypass",
+            "boundsTiles": {
+              "x": 14,
+              "y": 0,
+              "width": 2,
+              "height": 7
+            },
+            "boundsPx": {
+              "x": 224,
+              "y": 656,
+              "width": 32,
+              "height": 112
+            },
+            "target": {
+              "kind": "scene",
+              "sceneId": "scene.valley.den_bypass",
+              "entranceId": "den.from_cistern"
+            },
+            "firstTraverseCommit": null,
+            "traversalGuardAny": [
+              "den_route_open == true"
             ]
           }
         ],
@@ -504,12 +972,21 @@
             "fromEntranceId": "cistern.from_return",
             "toExitId": "cistern.to_service",
             "objectiveIds": []
+          },
+          {
+            "id": "cistern.optional_den_return",
+            "kind": "non_magic",
+            "solutionFamily": "signed_den_return",
+            "fromEntranceId": "cistern.from_return",
+            "toExitId": "cistern.to_den_bypass",
+            "objectiveIds": []
           }
         ],
         "nonMagicAlternativeRouteIds": [
           "cistern.calibration_tool_route",
           "cistern.transfer_tool_route",
-          "cistern.signed_service_return"
+          "cistern.signed_service_return",
+          "cistern.optional_den_return"
         ],
         "targets": [
           {
@@ -642,6 +1119,12 @@
             "sourceSceneId": "scene.valley.service_channel",
             "sourceExitId": "service.to_high_cistern",
             "entranceId": "cistern.from_service"
+          },
+          {
+            "id": "cistern.inbound_from_den",
+            "sourceSceneId": "scene.valley.den_bypass",
+            "sourceExitId": "den.to_cistern",
+            "entranceId": "cistern.from_den"
           }
         ],
         "softFailureRecoveries": [
@@ -766,6 +1249,19 @@
             },
             "recoveryEntry": true,
             "checkpointPolicy": "return_route"
+          },
+          {
+            "id": "service.from_den",
+            "spawnTile": [
+              14,
+              1
+            ],
+            "spawnPx": {
+              "x": 224,
+              "y": 610
+            },
+            "recoveryEntry": true,
+            "checkpointPolicy": "optional_route_return"
           }
         ],
         "exits": [
@@ -818,6 +1314,28 @@
               "service_gate_open == true",
               "service_bypass_open == true"
             ]
+          },
+          {
+            "id": "service.to_den_bypass",
+            "boundsTiles": {
+              "x": 13,
+              "y": 0,
+              "width": 2,
+              "height": 7
+            },
+            "boundsPx": {
+              "x": 208,
+              "y": 528,
+              "width": 32,
+              "height": 112
+            },
+            "target": {
+              "kind": "scene",
+              "sceneId": "scene.valley.den_bypass",
+              "entranceId": "den.from_service"
+            },
+            "firstTraverseCommit": null,
+            "traversalGuardAny": []
           }
         ],
         "recovery": {
@@ -936,6 +1454,14 @@
             "fromEntranceId": "service.from_cistern",
             "toExitId": "service.to_waterwheel",
             "objectiveIds": []
+          },
+          {
+            "id": "service.optional_den_bypass_route",
+            "kind": "non_magic",
+            "solutionFamily": "den_route",
+            "fromEntranceId": "service.from_waterwheel",
+            "toExitId": "service.to_den_bypass",
+            "objectiveIds": []
           }
         ],
         "nonMagicAlternativeRouteIds": [
@@ -944,7 +1470,8 @@
           "service.wet_soil_route",
           "service.stone_baffle_route",
           "service.external_heat_route",
-          "service.signed_return_route"
+          "service.signed_return_route",
+          "service.optional_den_bypass_route"
         ],
         "targets": [
           {
@@ -1116,6 +1643,12 @@
             "sourceSceneId": "scene.valley.waterwheel",
             "sourceExitId": "waterwheel.to_service",
             "entranceId": "service.from_waterwheel"
+          },
+          {
+            "id": "service.inbound_from_den",
+            "sourceSceneId": "scene.valley.den_bypass",
+            "sourceExitId": "den.to_service",
+            "entranceId": "service.from_den"
           }
         ],
         "softFailureRecoveries": [
@@ -2441,8 +2974,159 @@
     }
   },
   "infrastructureTasks": {
-    "sourceDigest": "sha256:59bcba0ae85518e9f42388007ec6ef5dd7344b01909edc121c00d729fb6a8d7f",
+    "sourceDigest": "sha256:7cea2833a13f383c7acbcc299b277799d16be534cd719eaa335d47b27b0f9d89",
     "byId": {
+      "ch01_den_bypass": {
+        "id": "ch01_den_bypass",
+        "sourcePath": "data/tasks/ch01-den-bypass.v0.1.yaml",
+        "familyId": "ecology_and_return_flow",
+        "chapterFlowId": "ch01_world_literacy_prologue",
+        "chapterSegmentId": "den_and_return_flow",
+        "regionId": "valley_prologue",
+        "regionNodeId": "valley.den_bypass",
+        "sceneId": "scene.valley.den_bypass",
+        "implementationBoundary": "typed_ecology_projection_and_world_predicates_not_raw_ecology_interpretation",
+        "predicateMode": "all",
+        "worldGoalPredicates": [
+          {
+            "id": "den.route_open",
+            "expression": "den_route_open == true"
+          },
+          {
+            "id": "den.route_independent_from_integrity",
+            "expression": "route_open_writer == non_destructive_den_route_committed"
+          }
+        ],
+        "modes": [
+          {
+            "id": "closed",
+            "completionValid": false,
+            "persistenceScope": "none",
+            "persistsAcrossReload": false,
+            "patchRecordRef": null
+          },
+          {
+            "id": "non_destructive_route_open",
+            "completionValid": true,
+            "persistenceScope": "region_persistent",
+            "persistsAcrossReload": true,
+            "patchRecordRef": "patch.valley.den_route.v0.1"
+          }
+        ],
+        "validResultModes": [
+          "non_destructive_route_open"
+        ],
+        "solutions": [
+          {
+            "id": "den.wait_and_observe",
+            "routeKind": "non_magic",
+            "chapterSolutionFamily": "wait_and_observe",
+            "mainline": true,
+            "resultMode": "non_destructive_route_open",
+            "requiredActions": [
+              "observe_warning_telegraph",
+              "retreat_to_safe_recess",
+              "wait_for_real_escape_exit",
+              "open_old_service_latch"
+            ],
+            "requiredWorldPredicates": [
+              "warning_observed_without_harm",
+              "fox_back_exit_reachable",
+              "player_outside_warning_zone",
+              "den_structure_unchanged"
+            ]
+          },
+          {
+            "id": "den.dig_upper_bypass",
+            "routeKind": "non_magic",
+            "chapterSolutionFamily": "dig_upper_bypass",
+            "mainline": true,
+            "resultMode": "non_destructive_route_open",
+            "requiredActions": [
+              "mark_upper_dig_line",
+              "verify_fox_clearance",
+              "dig_above_den",
+              "install_task_local_braces"
+            ],
+            "requiredWorldPredicates": [
+              "upper_bypass_clear",
+              "fox_back_exit_reachable",
+              "den_structure_unchanged",
+              "bypass_slump_below_limit"
+            ]
+          },
+          {
+            "id": "den.low_force_noise",
+            "routeKind": "non_magic",
+            "chapterSolutionFamily": "low_force_deterrence",
+            "mainline": true,
+            "resultMode": "non_destructive_route_open",
+            "requiredActions": [
+              "stand_outside_warning_zone",
+              "strike_hollow_wood_not_animal",
+              "wait_for_fox_to_exit",
+              "open_old_service_latch"
+            ],
+            "requiredWorldPredicates": [
+              "deterrence_damage_zero",
+              "fox_reaches_real_escape_exit",
+              "den_structure_unchanged"
+            ]
+          },
+          {
+            "id": "den.low_force_staff",
+            "routeKind": "non_magic",
+            "chapterSolutionFamily": "low_force_deterrence",
+            "mainline": true,
+            "resultMode": "non_destructive_route_open",
+            "requiredActions": [
+              "hold_staff_at_distance_marker",
+              "keep_escape_lane_open",
+              "retreat_after_warning",
+              "open_old_service_latch"
+            ],
+            "requiredWorldPredicates": [
+              "staff_contact_damage_zero",
+              "fox_reaches_real_escape_exit",
+              "den_structure_unchanged"
+            ]
+          }
+        ],
+        "nonMagicMainlineSolutionIds": [
+          "den.wait_and_observe",
+          "den.dig_upper_bypass",
+          "den.low_force_noise",
+          "den.low_force_staff"
+        ],
+        "entryGuardAny": [
+          "service_channel_reached == true"
+        ],
+        "exitGuardAny": [
+          "den_route_open == true"
+        ],
+        "materialPatchRefs": [
+          "patch.valley.den_route.v0.1"
+        ],
+        "languageExposure": [],
+        "grammarContacts": [],
+        "materialReactionKinds": [],
+        "maximumSoftlockRecoverySeconds": 60,
+        "recoveryActions": [
+          "reopen_service_return",
+          "expose_safe_recess",
+          "move_living_fox_to_real_escape_exit",
+          "restore_task_local_braces",
+          "reset_uncommitted_upper_soil"
+        ],
+        "recoveryPreserves": [
+          "fox_life_state",
+          "fox_den_intact",
+          "committed_den_route",
+          "learning_evidence",
+          "survival_state"
+        ],
+        "cistern": null
+      },
       "ch01_length_cistern": {
         "id": "ch01_length_cistern",
         "sourcePath": "data/tasks/ch01-length-cistern.v0.1.yaml",
@@ -3148,5 +3832,55 @@
         }
       }
     ]
+  },
+  "ecology": {
+    "sourceDigest": "sha256:68198830c695781f2aa81e9632c1892e8b661926b3945e42e22d871a923e5fc2",
+    "ecologyId": "valley_prologue",
+    "minimumWarningTelegraphSeconds": 0.7,
+    "intrusionBeforeDefenseSeconds": 1.5,
+    "loseSightSeconds": 4,
+    "deescalateSeconds": 6,
+    "mandatoryKills": 0,
+    "requiredQuestDrops": 0,
+    "languageEvidenceFromHarmForbidden": true,
+    "species": {
+      "rabbit": {
+        "entityId": "wildlife.rabbit.valley",
+        "species": "rabbit",
+        "maxHp": 8,
+        "homeSceneId": "scene.valley.return_channel",
+        "spawnAnchor": "wet_meadow.rabbit_burrow",
+        "realEscapeExit": "wet_meadow.rabbit_burrow_exit",
+        "warningZoneAnchor": null,
+        "defensiveActionKind": "kick",
+        "defensiveDamage": 2,
+        "guardingYoungDamage": null,
+        "defenseOnlyWhen": [
+          "cornered",
+          "young_threatened"
+        ],
+        "preferredResponse": "flee",
+        "returnCondition": null
+      },
+      "fox": {
+        "entityId": "wildlife.fox.den",
+        "species": "fox",
+        "maxHp": 20,
+        "homeSceneId": "scene.valley.den_bypass",
+        "spawnAnchor": "den.fox.rest_anchor",
+        "realEscapeExit": "den.fox.back_exit",
+        "warningZoneAnchor": "den.fox.young_area",
+        "defensiveActionKind": "bite_or_shove",
+        "defensiveDamage": 6,
+        "guardingYoungDamage": 8,
+        "defenseOnlyWhen": [
+          "cornered",
+          "young_threatened",
+          "escape_blocked"
+        ],
+        "preferredResponse": "warn_then_flee",
+        "returnCondition": "life_state == alive && no_death_tombstone && fox_den_intact && settlement_supply_stable && local_danger_cleared"
+      }
+    }
   }
 }
