@@ -24,6 +24,10 @@ import {
   createRpgInfrastructureUi,
   type InfrastructureUiCommand,
 } from "./rpg-infrastructure-ui";
+import {
+  createRpgCisternUi,
+  type CisternUiCommand,
+} from "./rpg-cistern-ui";
 
 type GlyphPhase = "undiscovered" | "discovered" | "activated";
 type Tone = "neutral" | "success" | "warning" | "danger";
@@ -220,6 +224,55 @@ class FlowBrowserPort {
     }
   }
 
+  cistern(command: CisternUiCommand): UiResult {
+    switch (command.kind) {
+      case "enter_cistern":
+        return flowResult(this.flow.enterCistern(nextId("enter-cistern")), "Entered N05 high cistern.");
+      case "expression":
+        return flowResult(this.flow.setCisternExpression(command.expression), `Expression: ${command.expression}.`, "neutral");
+      case "direction":
+        return flowResult(this.flow.setCisternDirection(command.direction), `Direction: ${command.direction}.`, "neutral");
+      case "target_current":
+        return flowResult(this.flow.targetCisternCurrentReceiver(), "Targeted the current receiver.", "neutral");
+      case "nudge_target": {
+        const anchor = this.snapshot().cistern?.cistern.targetAnchorPx;
+        if (!anchor) return ui(false, "N05 target anchor is unavailable.", "warning");
+        return flowResult(this.flow.setCisternTargetAnchorPx({
+          x: anchor.x + command.dx,
+          y: anchor.y + command.dy,
+        }), "Adjusted the target anchor.", "neutral");
+      }
+      case "preview":
+        return flowResult(this.flow.previewCisternCast(), "Preview frozen. Review MP, length and safety before confirm.", "neutral");
+      case "confirm": {
+        const result = this.flow.confirmCisternCast(nextId("cistern-cast"));
+        const reason = delegateReason(result.result);
+        if (result.accepted && (reason === "incorrect_length" || reason === "receiver_predicate_false")) {
+          return ui(true, `Cast executed, but the stage did not pass: ${reason}.`, "warning");
+        }
+        return flowResult(result, "Cast resolved against receiver world predicates.");
+      }
+      case "cancel":
+        return flowResult(this.flow.cancelCisternCast(), "Preview cancelled.", "neutral");
+      case "tool_family":
+        return flowResult(this.flow.completeCisternFamilyWithTools(nextId("cistern-tool-family"), command.familyId), "Tool route completed with zero language evidence.", "warning");
+      case "discover_word":
+        return flowResult(this.flow.discoverCisternLengthWord(nextId(`discover-${command.wordId}`), command.wordId), `Discovered ${command.wordId}.`);
+      case "attune_word":
+        return flowResult(this.flow.attuneCisternLengthWord(nextId(`attune-${command.wordId}`), command.wordId), `Attuned ${command.wordId}.`);
+      case "natural_recovery":
+        return flowResult(this.flow.applyCisternNaturalRecovery(nextId("cistern-natural-recovery"), command.ticks), "Natural MP recovery applied.");
+      case "meditate":
+        return flowResult(this.flow.meditateCistern(nextId("cistern-meditation"), command.answerAccepted, false), "Meditation restored MP without fabricating task evidence.", command.answerAccepted ? "success" : "warning");
+      case "checkpoint_recovery":
+        return flowResult(this.flow.recoverCisternAtCheckpoint(nextId("cistern-checkpoint-recovery")), "Checkpoint MP recovery applied.");
+      case "reset_checkpoint":
+        return flowResult(this.flow.resetToCheckpoint(nextId("cistern-checkpoint-reset")), "Returned to the authoritative N05 checkpoint.", "neutral");
+      case "softlock_recovery":
+        return flowResult(this.flow.recoverCisternSoftLock(nextId("cistern-softlock-recovery")), "N05 local route recovered within its contract.");
+    }
+  }
+
   setCheckpoint(): UiResult {
     return flowResult(
       this.flow.setCheckpoint(nextId("checkpoint"), "checkpoint.prologue.browser"),
@@ -350,6 +403,7 @@ const statusLabel = required<HTMLElement>('[data-ui="status"]');
 
 let port = FlowBrowserPort.fresh();
 const infrastructureUi = createRpgInfrastructureUi((command) => run(() => port.infrastructure(command)));
+const cisternUi = createRpgCisternUi((command) => run(() => port.cistern(command)));
 let priorTime = performance.now();
 let activationStarted: number | null = null;
 let jumpQueued = false;
@@ -381,6 +435,7 @@ function frame(now: number): void {
 
 function render(snapshot: PrologueFlowSnapshot, now: number): void {
   infrastructureUi.render(snapshot);
+  cisternUi.render(snapshot);
   const scene = requiredScene(snapshot.runtime.sceneId);
   drawWorld(snapshot, scene);
   sceneLabel.textContent = sceneTitle(snapshot.runtime.sceneId);
@@ -389,10 +444,19 @@ function render(snapshot: PrologueFlowSnapshot, now: number): void {
   mpFill.style.width = `${Math.max(0, Math.min(100, (snapshot.session.mp.currentMp / snapshot.session.mp.maxMp) * 100))}%`;
   coinLabel.textContent = String(snapshot.session.economy.coin);
   objectiveLabel.textContent = objective(snapshot);
+  required<HTMLButtonElement>('[data-action="checkpoint"]').disabled = snapshot.mode === "cistern";
 
   const inSettlement = snapshot.mode === "settlement";
   settlementPanel.hidden = !inSettlement;
-  for (const element of document.querySelectorAll<HTMLElement>(".arrival-only")) element.hidden = inSettlement;
+  for (const element of document.querySelectorAll<HTMLElement>(".arrival-only")) {
+    element.hidden = snapshot.mode !== "arrival_stream";
+  }
+
+  if (snapshot.mode === "cistern") {
+    hintLabel.textContent = "Use the N05 panel to preview, confirm, recover or reset.";
+    hintLabel.dataset.active = "true";
+    return;
+  }
 
   if (inSettlement) {
     hintLabel.textContent = "从下方面板选择居民、公共服务或巡查工作";
@@ -698,6 +762,17 @@ function topicsForNpc(npc: RuntimeSceneNpcManifest): readonly SettlementDialogue
 }
 
 function objective(snapshot: PrologueFlowSnapshot): string {
+  if (snapshot.mode === "cistern") {
+    const stage = snapshot.cistern?.cistern.stage ?? "unavailable";
+    return snapshot.cistern?.completed
+      ? "N05 reconnected: all three region flags committed atomically."
+      : `N05 stage ${stage}: preview, inspect MP/length, then confirm or use an evidence-free tool route.`;
+  }
+  if (snapshot.mode === "infrastructure") {
+    return snapshot.infrastructure?.serviceChannel.cisternReady
+      ? "N04 route ready: enter N05 from the high-cistern panel."
+      : "Stabilize the waterwheel and open an N04 material route.";
+  }
   if (snapshot.mode === "settlement") {
     const stage = snapshot.settlement?.orientationTask.stage ?? "available";
     return stage === "completed"

@@ -106,3 +106,41 @@ button:disabled { color: #625f59; cursor: not-allowed; }
 .readiness-stopped { color: #d0a06c !important; }
 @media (max-width: 440px) { .solution-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .infra-state { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 370px) { .language-grid, .return-grid { grid-template-columns: 1fr; } .material-grid { grid-template-columns: repeat(5, 1fr); } }
+
+.cistern-panel { margin-top: 6px; padding: 8px; border: 1px solid #3c453e; background: #0d1110; }
+.cistern-panel h2, .cistern-panel p { margin: 0; }
+.cistern-panel h2 { margin-top: 2px; color: #9ec5b0; font-size: 13px; }
+.cistern-gateway { border-color: #4d675c; background: #0d1512; }
+.cistern-gateway button { width: 100%; min-height: 32px; margin-top: 6px; }
+.cistern-copy { display: block; color: #8c938c; font-size: 7px; line-height: 1.55; }
+.cistern-state, .cistern-preview { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; margin-top: 7px; }
+.cistern-state span, .cistern-preview span { min-width: 0; padding: 5px; color: #7f8983; border: 1px solid #2e3833; background: #090d0b; font-size: 7px; }
+.cistern-state strong, .cistern-preview strong { display: block; overflow-wrap: anywhere; margin-top: 2px; color: #bad1c5; font-size: 8px; }
+.cistern-section { margin-top: 7px; padding-top: 7px; border-top: 1px solid #29332e; }
+.cistern-section > strong { display: block; margin-bottom: 5px; color: #9eaca4; font-size: 8px; }
+.cistern-expression-grid, .cistern-direction-grid, .cistern-action-grid, .cistern-family-grid, .cistern-recovery-grid { display: grid; gap: 4px; }
+.cistern-expression-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.cistern-expression-grid button { min-height: 38px; padding: 5px; }
+.cistern-expression-grid strong, .cistern-expression-grid small { display: block; }
+.cistern-expression-grid strong { font-size: 8px; }
+.cistern-expression-grid small { margin-top: 2px; color: #78837d; font-size: 6px; }
+.cistern-direction-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.cistern-action-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: 5px; }
+.cistern-family-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.cistern-recovery-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.cistern-direction-grid button, .cistern-action-grid button, .cistern-family-grid button, .cistern-recovery-grid button { min-height: 31px; padding: 4px; font-size: 7px; }
+.cistern-expression-grid button[data-selected="true"], .cistern-direction-grid button[data-selected="true"] { color: #d7f4e5; border-color: #6e9a83; background: #173027; }
+.cistern-preview { grid-template-columns: 2fr 1fr 1fr; }
+.cistern-preview[data-preview-state="ready"] { border-left: 2px solid #79aa83; }
+.cistern-preview[data-preview-state="blocked"] { border-left: 2px solid #b77b60; }
+.cistern-word-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; }
+.cistern-word-grid span { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 3px; padding: 4px; border: 1px solid #2d3732; background: #0b0f0d; }
+.cistern-word-grid b { align-self: center; color: #a8c6b7; font-size: 8px; }
+.cistern-word-grid button { min-height: 27px; padding: 3px; font-size: 7px; }
+.cistern-flags { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; margin-top: 7px; }
+.cistern-flags span { overflow-wrap: anywhere; padding: 5px; color: #756f68; border: 1px dashed #423d38; background: #0b0c0c; font-size: 6px; }
+.cistern-flags b { display: block; margin-top: 3px; color: #a27466; font-size: 7px; }
+.cistern-flags span[data-complete="true"] { color: #a6bbb0; border-color: #59715f; border-style: solid; }
+.cistern-flags span[data-complete="true"] b { color: #91c49d; }
+@media (max-width: 440px) { .cistern-state { grid-template-columns: repeat(2, minmax(0, 1fr)); } .cistern-recovery-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 370px) { .cistern-expression-grid, .cistern-flags { grid-template-columns: 1fr; } }
