@@ -830,6 +830,11 @@ function validateDenWildlifeSpatial(
   }
   const binding = bindings[0]!;
   const targets = new Map(readObjectArray(source.content, "targets").map((target) => [readString(target, "target_id"), readString(target, "target_kind")]));
+  for (const targetId of ["den.noise_surface", "den.staff_marker", "den.old_service_latch", "den.upper_dig_line"]) {
+    const target = readObjectArray(source.content, "targets").find((candidate) => readString(candidate, "target_id") === targetId);
+    const point = target?.interaction_point_tiles;
+    if (!Array.isArray(point) || point.length !== 2 || !point.every((value) => typeof value === "number" && Number.isInteger(value) && value >= 0 && value < 28)) addIssue(issues, "scene.wildlife_interaction_point", source.path, `targets.${targetId}.interaction_point_tiles`, `${targetId} requires one in-bounds integer interaction point`);
+  }
   const expectedTargets = [
     ["spawn_target_id", "wildlife_home_anchor"],
     ["escape_target_id", "real_wildlife_escape_exit"],
@@ -1257,6 +1262,10 @@ function validateEcologySource(source: CompiledSource, issues: ContentIssue[]): 
   if (defense === null || defense < 1.5 || defense > 60) addIssue(issues, "ecology.defense_window", source.path, "shared_behavior.timing_seconds.intrusion_before_defense", "defense delay must be within 1.5..60 seconds");
   if (loseSight === null || loseSight <= 0 || loseSight > 60 || deescalate === null || deescalate <= 0 || deescalate > 60) addIssue(issues, "ecology.timing_bounds", source.path, "shared_behavior.timing_seconds", "lose-sight and deescalation timing must be within (0,60] seconds");
   if (readNestedNumber(source.content, ["shared_behavior", "distance_tiles", "defensive_contact"]) !== 1.5) addIssue(issues, "ecology.defensive_contact", source.path, "shared_behavior.distance_tiles.defensive_contact", "defensive contact must remain exactly 1.5 tiles");
+  if (readNestedNumber(source.content, ["shared_behavior", "distance_tiles", "perception"]) !== 8) addIssue(issues, "ecology.perception", source.path, "shared_behavior.distance_tiles.perception", "perception must remain exactly 8 tiles");
+  const deterrence = readObjectArray(readNestedObject(source.content, ["shared_behavior", "deterrence"]), "sources");
+  const fearOf = (action: string): number | null => readNumber(deterrence.find((source) => readString(source, "action") === action) ?? {}, "fear");
+  if (fearOf("weapon_swing_without_hit") !== 15 || fearOf("ground_impact_or_loud_sound") !== 20) addIssue(issues, "ecology.deterrence_fear", source.path, "shared_behavior.deterrence.sources", "staff/noise fear must remain canonical 15/20");
   const contracts = readObject(source.content, "contracts");
   if (readNumber(contracts, "mandatory_kills") !== 0 || readNumber(contracts, "required_quest_drops") !== 0 || contracts.language_evidence_from_harm_forbidden !== true) {
     addIssue(issues, "ecology.zero_kill_contract", source.path, "contracts", "ecology must preserve zero required kills/drops and forbid language evidence from harm");

@@ -33,7 +33,7 @@
     }
   },
   "scenes": {
-    "sourceDigest": "sha256:f0d5ef76deb9f0364f3f73fa5c7cac4959dbcdf3b49b4d8a5d8c78db21ce5b02",
+    "sourceDigest": "sha256:7bc2c1c258007cc738ef1cae1a5b0d0eeac54209fd79b07fe1e6c84e29002a23",
     "byId": {
       "scene.valley.arrival_shelf": {
         "sceneId": "scene.valley.arrival_shelf",
@@ -208,22 +208,26 @@
           {
             "id": "arrival.loose_stone",
             "kind": "movable_material",
-            "material": "loose_stone"
+            "material": "loose_stone",
+            "interactionPointTiles": null
           },
           {
             "id": "arrival.rotten_wood",
             "kind": "movable_material",
-            "material": "rotten_wood"
+            "material": "rotten_wood",
+            "interactionPointTiles": null
           },
           {
             "id": "arrival.wet_soil",
             "kind": "destructible_material",
-            "material": "wet_soil"
+            "material": "wet_soil",
+            "interactionPointTiles": null
           },
           {
             "id": "arrival.old_flume",
             "kind": "container",
-            "material": "wood"
+            "material": "wood",
+            "interactionPointTiles": null
           }
         ],
         "interactions": [
@@ -506,52 +510,74 @@
           {
             "id": "den.service_return_mouth",
             "kind": "always_open_return",
-            "material": "stone_and_wood"
+            "material": "stone_and_wood",
+            "interactionPointTiles": null
           },
           {
             "id": "den.fox.rest_anchor",
             "kind": "wildlife_home_anchor",
-            "material": "dry_soil"
+            "material": "dry_soil",
+            "interactionPointTiles": null
           },
           {
             "id": "den.fox.back_exit",
             "kind": "real_wildlife_escape_exit",
-            "material": "soil_and_roots"
+            "material": "soil_and_roots",
+            "interactionPointTiles": null
           },
           {
             "id": "den.fox.young_area",
             "kind": "wildlife_warning_zone",
-            "material": "dry_grass_and_soil"
+            "material": "dry_grass_and_soil",
+            "interactionPointTiles": null
           },
           {
             "id": "den.safety_recess",
             "kind": "player_retreat_shelter",
-            "material": "stone"
+            "material": "stone",
+            "interactionPointTiles": null
           },
           {
             "id": "den.upper_dig_line",
             "kind": "marked_non_destructive_bypass",
-            "material": "wet_soil"
+            "material": "wet_soil",
+            "interactionPointTiles": [
+              12,
+              6
+            ]
           },
           {
             "id": "den.old_service_latch",
             "kind": "route_latch",
-            "material": "wood_and_iron"
+            "material": "wood_and_iron",
+            "interactionPointTiles": [
+              25,
+              1
+            ]
           },
           {
             "id": "den.noise_surface",
             "kind": "nonlethal_deterrence_surface",
-            "material": "hollow_wood"
+            "material": "hollow_wood",
+            "interactionPointTiles": [
+              4,
+              1
+            ]
           },
           {
             "id": "den.staff_marker",
             "kind": "low_force_distance_marker",
-            "material": "pigment_on_stone"
+            "material": "pigment_on_stone",
+            "interactionPointTiles": [
+              7,
+              1
+            ]
           },
           {
             "id": "den.den_structure",
             "kind": "protected_wildlife_structure",
-            "material": "soil_roots_and_stone"
+            "material": "soil_roots_and_stone",
+            "interactionPointTiles": null
           }
         ],
         "interactions": [
@@ -992,37 +1018,44 @@
           {
             "id": "cistern.entry_echo",
             "kind": "scripted_length_demonstration",
-            "material": "water_and_stone"
+            "material": "water_and_stone",
+            "interactionPointTiles": null
           },
           {
             "id": "cistern.short_receiver",
             "kind": "calibration_receiver",
-            "material": "copper_and_stone"
+            "material": "copper_and_stone",
+            "interactionPointTiles": null
           },
           {
             "id": "cistern.default_receiver",
             "kind": "calibration_receiver",
-            "material": "copper_and_stone"
+            "material": "copper_and_stone",
+            "interactionPointTiles": null
           },
           {
             "id": "cistern.long_receiver",
             "kind": "transfer_receiver",
-            "material": "copper_and_stone"
+            "material": "copper_and_stone",
+            "interactionPointTiles": null
           },
           {
             "id": "cistern.calibration_tools",
             "kind": "task_local_tool_cache",
-            "material": "wood_copper_and_cloth"
+            "material": "wood_copper_and_cloth",
+            "interactionPointTiles": null
           },
           {
             "id": "cistern.transfer_tools",
             "kind": "task_local_tool_cache",
-            "material": "wood_copper_and_cloth"
+            "material": "wood_copper_and_cloth",
+            "interactionPointTiles": null
           },
           {
             "id": "cistern.return_ladder",
             "kind": "completion_route",
-            "material": "wood_and_iron"
+            "material": "wood_and_iron",
+            "interactionPointTiles": null
           }
         ],
         "interactions": [
@@ -1477,47 +1510,56 @@
           {
             "id": "service.instruction_sign",
             "kind": "grammar_contact",
-            "material": "wood_and_pigment"
+            "material": "wood_and_pigment",
+            "interactionPointTiles": null
           },
           {
             "id": "service.water_band",
             "kind": "material_band",
-            "material": "water"
+            "material": "water",
+            "interactionPointTiles": null
           },
           {
             "id": "service.wet_soil_bank",
             "kind": "destructible_material",
-            "material": "wet_soil"
+            "material": "wet_soil",
+            "interactionPointTiles": null
           },
           {
             "id": "service.stone_baffle",
             "kind": "movable_material",
-            "material": "stone"
+            "material": "stone",
+            "interactionPointTiles": null
           },
           {
             "id": "service.wood_stock",
             "kind": "task_material",
-            "material": "wood"
+            "material": "wood",
+            "interactionPointTiles": null
           },
           {
             "id": "service.thin_ice_gate",
             "kind": "phase_change_material",
-            "material": "thin_ice"
+            "material": "thin_ice",
+            "interactionPointTiles": null
           },
           {
             "id": "service.bypass_valve",
             "kind": "maintenance_bypass",
-            "material": "metal_and_stone"
+            "material": "metal_and_stone",
+            "interactionPointTiles": null
           },
           {
             "id": "service.gate_track",
             "kind": "route_gate",
-            "material": "stone_and_metal"
+            "material": "stone_and_metal",
+            "interactionPointTiles": null
           },
           {
             "id": "service.emergency_canteen",
             "kind": "public_relief",
-            "material": "metal_and_water"
+            "material": "metal_and_water",
+            "interactionPointTiles": null
           }
         ],
         "interactions": [
@@ -1890,47 +1932,56 @@
           {
             "id": "settlement.npc.facility_manager",
             "kind": "npc",
-            "material": "living_noncombatant"
+            "material": "living_noncombatant",
+            "interactionPointTiles": null
           },
           {
             "id": "settlement.npc.repair_contractor",
             "kind": "npc",
-            "material": "living_noncombatant"
+            "material": "living_noncombatant",
+            "interactionPointTiles": null
           },
           {
             "id": "settlement.npc.supply_trader",
             "kind": "npc",
-            "material": "living_noncombatant"
+            "material": "living_noncombatant",
+            "interactionPointTiles": null
           },
           {
             "id": "settlement.public_well",
             "kind": "public_relief",
-            "material": "stone_and_water"
+            "material": "stone_and_water",
+            "interactionPointTiles": null
           },
           {
             "id": "settlement.communal_kitchen",
             "kind": "public_relief",
-            "material": "wood_and_food"
+            "material": "wood_and_food",
+            "interactionPointTiles": null
           },
           {
             "id": "settlement.meditation_court",
             "kind": "learning_facility",
-            "material": "stone"
+            "material": "stone",
+            "interactionPointTiles": null
           },
           {
             "id": "settlement.repair_board",
             "kind": "job_board",
-            "material": "wood"
+            "material": "wood",
+            "interactionPointTiles": null
           },
           {
             "id": "settlement.survey_markers",
             "kind": "survey_route",
-            "material": "wood_and_charcoal"
+            "material": "wood_and_charcoal",
+            "interactionPointTiles": null
           },
           {
             "id": "settlement.supply_stall",
             "kind": "trade_counter",
-            "material": "wood"
+            "material": "wood",
+            "interactionPointTiles": null
           }
         ],
         "interactions": [
@@ -2435,27 +2486,32 @@
           {
             "id": "stream.natural_cascade",
             "kind": "natural_water_source",
-            "material": "water"
+            "material": "water",
+            "interactionPointTiles": null
           },
           {
             "id": "stream.shallow_basin",
             "kind": "container",
-            "material": "stone"
+            "material": "stone",
+            "interactionPointTiles": null
           },
           {
             "id": "stream.soil_bank",
             "kind": "destructible_material",
-            "material": "wet_soil"
+            "material": "wet_soil",
+            "interactionPointTiles": null
           },
           {
             "id": "stream.loose_foothold",
             "kind": "movable_material",
-            "material": "loose_stone"
+            "material": "loose_stone",
+            "interactionPointTiles": null
           },
           {
             "id": "stream.old_channel",
             "kind": "channel",
-            "material": "wood"
+            "material": "wood",
+            "interactionPointTiles": null
           }
         ],
         "interactions": [
@@ -2764,47 +2820,56 @@
           {
             "id": "waterwheel.motion_marker",
             "kind": "language_marker",
-            "material": "stone_and_pigment"
+            "material": "stone_and_pigment",
+            "interactionPointTiles": null
           },
           {
             "id": "waterwheel.natural_intake",
             "kind": "existing_water_source",
-            "material": "water_and_stone"
+            "material": "water_and_stone",
+            "interactionPointTiles": null
           },
           {
             "id": "waterwheel.intake_blockage",
             "kind": "movable_debris",
-            "material": "wood_stone_and_mud"
+            "material": "wood_stone_and_mud",
+            "interactionPointTiles": null
           },
           {
             "id": "waterwheel.axle",
             "kind": "mechanism",
-            "material": "wood_and_metal"
+            "material": "wood_and_metal",
+            "interactionPointTiles": null
           },
           {
             "id": "waterwheel.flume",
             "kind": "movable_channel",
-            "material": "wood"
+            "material": "wood",
+            "interactionPointTiles": null
           },
           {
             "id": "waterwheel.soft_bank",
             "kind": "destructible_material",
-            "material": "wet_soil"
+            "material": "wet_soil",
+            "interactionPointTiles": null
           },
           {
             "id": "waterwheel.downstream",
             "kind": "safety_receiver",
-            "material": "water_and_soil"
+            "material": "water_and_soil",
+            "interactionPointTiles": null
           },
           {
             "id": "waterwheel.hand_tools",
             "kind": "task_tools",
-            "material": "wood_and_metal"
+            "material": "wood_and_metal",
+            "interactionPointTiles": null
           },
           {
             "id": "waterwheel.maintenance_spout",
             "kind": "public_relief",
-            "material": "stone_and_water"
+            "material": "stone_and_water",
+            "interactionPointTiles": null
           }
         ],
         "interactions": [
@@ -3834,13 +3899,16 @@
     ]
   },
   "ecology": {
-    "sourceDigest": "sha256:502cd4f6c21e698535e64a27ede2a8b2890acbba10ebf82992081c657a5ebd53",
+    "sourceDigest": "sha256:54acac8fbf52516306a3a1ffb70f2f8b573264cda5fc221bdbbe8d7e110c91f6",
     "ecologyId": "valley_prologue",
     "minimumWarningTelegraphSeconds": 0.7,
     "intrusionBeforeDefenseSeconds": 1.5,
     "loseSightSeconds": 4,
     "deescalateSeconds": 6,
+    "perceptionTiles": 8,
     "defensiveContactTiles": 1.5,
+    "staffFear": 15,
+    "noiseFear": 20,
     "lifeIdAlgorithm": "sha256(region_id,entity_id,spawn_generation,spawn_sequence)",
     "mandatoryKills": 0,
     "requiredQuestDrops": 0,

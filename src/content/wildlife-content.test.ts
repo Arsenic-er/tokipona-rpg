@@ -177,6 +177,23 @@ describe("N06 optional den bypass content", () => {
     expectIssue(() => compileContent(guardSources), "ecology.defense_guards");
   });
 
+  it("rejects generated N06 perception, deterrence and interaction-point drift", () => {
+    const perceptionSources = repositorySources();
+    const perception = (mutableSource(perceptionSources, "ecology/valley-prologue.v0.1.yaml").shared_behavior as MutableObject).distance_tiles as MutableObject;
+    perception.perception = 9;
+    expectIssue(() => compileContent(perceptionSources), "ecology.perception");
+
+    const fearSources = repositorySources();
+    const deterrence = ((mutableSource(fearSources, "ecology/valley-prologue.v0.1.yaml").shared_behavior as MutableObject).deterrence as MutableObject).sources as MutableObject[];
+    deterrence.find((source) => source.action === "ground_impact_or_loud_sound")!.fear = 19;
+    expectIssue(() => compileContent(fearSources), "ecology.deterrence_fear");
+
+    const pointSources = repositorySources();
+    const scene = mutableSource(pointSources, "scenes/valley-den-bypass.v0.1.yaml");
+    objectArray(scene, "targets").find((target) => target.target_id === "den.staff_marker")!.interaction_point_tiles = [29, 1];
+    expectIssue(() => compileContent(pointSources), "scene.wildlife_interaction_point");
+  });
+
   it("rejects a missing real fox escape or unreachable scene exit", () => {
     const escapeSources = repositorySources();
     const ecology = mutableSource(escapeSources, "ecology/valley-prologue.v0.1.yaml");

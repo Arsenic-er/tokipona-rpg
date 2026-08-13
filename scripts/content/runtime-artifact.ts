@@ -185,7 +185,10 @@ export function buildRuntimeContentArtifact(manifest: ContentManifest): RuntimeC
     intrusionBeforeDefenseSeconds: requirePositiveNumber(ecologyTiming, ["intrusion_before_defense"]),
     loseSightSeconds: requirePositiveNumber(ecologyTiming, ["lose_sight"]),
     deescalateSeconds: requirePositiveNumber(ecologyTiming, ["deescalate"]),
+    perceptionTiles: requireExactNumber(requireObject(ecologyContent, ["shared_behavior", "distance_tiles"]), ["perception"], 8),
     defensiveContactTiles: requirePositiveNumber(requireObject(ecologyContent, ["shared_behavior", "distance_tiles"]), ["defensive_contact"]),
+    staffFear: requireExactNumber(requireObjectArray(requireObject(ecologyContent, ["shared_behavior", "deterrence"]), ["sources"]).find((source) => source.action === "weapon_swing_without_hit") ?? {}, ["fear"], 15),
+    noiseFear: requireExactNumber(requireObjectArray(requireObject(ecologyContent, ["shared_behavior", "deterrence"]), ["sources"]).find((source) => source.action === "ground_impact_or_loud_sound") ?? {}, ["fear"], 20),
     lifeIdAlgorithm: requireExactString(requireObject(ecologyContent, ["life_cycle_contract"]), ["life_instance_id_formula"], "sha256(region_id, entity_id, spawn_generation, spawn_sequence)")
       .replaceAll(", ", ",") as "sha256(region_id,entity_id,spawn_generation,spawn_sequence)",
     mandatoryKills: 0 as const,
@@ -262,6 +265,7 @@ export function buildRuntimeContentArtifact(manifest: ContentManifest): RuntimeC
     }));
     const targets: RuntimeSceneTargetManifest[] = requireObjectArray(scene, ["targets"]).map((target) => ({
       id: requireString(target, ["target_id"]), kind: requireString(target, ["target_kind"]), material: requireString(target, ["material"]),
+      interactionPointTiles: target.interaction_point_tiles === undefined ? null : requireNumberPair(target, ["interaction_point_tiles"]),
     }));
     const interactions: RuntimeSceneInteractionManifest[] = requireObjectArray(scene, ["interactions"]).map((interaction) => ({
       id: requireString(interaction, ["interaction_id"]), targetId: requireString(interaction, ["target_id"]), verb: requireString(interaction, ["verb"]),

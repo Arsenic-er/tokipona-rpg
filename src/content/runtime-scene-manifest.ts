@@ -49,6 +49,7 @@ export interface RuntimeSceneTargetManifest {
   readonly id: string;
   readonly kind: string;
   readonly material: string;
+  readonly interactionPointTiles: readonly [number, number] | null;
 }
 
 export interface RuntimeSceneInteractionManifest {

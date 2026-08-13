@@ -120,10 +120,10 @@ targets:
   - {target_id: "den.fox.back_exit", target_kind: "real_wildlife_escape_exit", material: "soil_and_roots"}
   - {target_id: "den.fox.young_area", target_kind: "wildlife_warning_zone", material: "dry_grass_and_soil"}
   - {target_id: "den.safety_recess", target_kind: "player_retreat_shelter", material: "stone"}
-  - {target_id: "den.upper_dig_line", target_kind: "marked_non_destructive_bypass", material: "wet_soil"}
-  - {target_id: "den.old_service_latch", target_kind: "route_latch", material: "wood_and_iron"}
-  - {target_id: "den.noise_surface", target_kind: "nonlethal_deterrence_surface", material: "hollow_wood"}
-  - {target_id: "den.staff_marker", target_kind: "low_force_distance_marker", material: "pigment_on_stone"}
+  - {target_id: "den.upper_dig_line", target_kind: "marked_non_destructive_bypass", material: "wet_soil", interaction_point_tiles: [12, 6]}
+  - {target_id: "den.old_service_latch", target_kind: "route_latch", material: "wood_and_iron", interaction_point_tiles: [25, 1]}
+  - {target_id: "den.noise_surface", target_kind: "nonlethal_deterrence_surface", material: "hollow_wood", interaction_point_tiles: [4, 1]}
+  - {target_id: "den.staff_marker", target_kind: "low_force_distance_marker", material: "pigment_on_stone", interaction_point_tiles: [7, 1]}
   - {target_id: "den.den_structure", target_kind: "protected_wildlife_structure", material: "soil_roots_and_stone"}
 
 interactions:
