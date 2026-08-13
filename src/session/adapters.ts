@@ -4,6 +4,16 @@ import type { SurvivalSave, SurvivalTransactionResult } from "../game/survival";
 import type { CommitResult, TradeSave } from "../game/trade";
 import type { EvidenceProposalResult } from "../learning/cistern-session";
 import type { LearningProgressionSnapshot } from "../learning/progression";
+import {
+  WILDLIFE_ECONOMY_ID,
+  ZERO_WILDLIFE_REWARD_DELTA,
+  createDeterministicCorpseId,
+  createDeterministicDeathEventId,
+  isSessionWildlifeLifeRecord,
+  tissueSlotsForLife,
+  type SessionWildlifeLifeRecord,
+  type WildlifeDamageRequest,
+} from "../game/life-corpse-ledger";
 import type { CastExecutionResult, MpRecoveryReceipt } from "../spells/cast-plan";
 import {
   assertVerifiedCapabilityMilestoneContract,
@@ -270,6 +280,72 @@ export const proposeCapabilityMilestone = (
         sourceDigest: contract.sourceDigest,
         contractRevision: contract.contractRevision,
         resultingState: { ...contract.resultingState },
+      },
+    }],
+  };
+};
+
+export const proposeWildlifeLifeRegistration = (
+  transactionId: string,
+  life: SessionWildlifeLifeRecord,
+): SessionProposalBatch => {
+  requiredId(transactionId, "wildlife life registration transactionId");
+  if (!isSessionWildlifeLifeRecord(life) || life.state !== "alive" || life.lifeRevision !== 0 ||
+      life.currentHp !== life.maxHp) throw new Error("wildlife life registration must be a validated initial life");
+  return {
+    transactionId,
+    drafts: [{
+      eventId: "session.wildlife.life." + transactionId,
+      type: "wildlife_life_registered",
+      payload: { life },
+    }],
+  };
+};
+
+/** Builds one CAS damage event. A lethal hit carries the complete corpse envelope in the same event. */
+export const proposeWildlifeDamage = (
+  session: GameSession,
+  request: WildlifeDamageRequest,
+): SessionProposalBatch => {
+  requiredId(request.transactionId, "wildlife damage transactionId");
+  requiredId(request.lifeInstanceId, "wildlife lifeInstanceId");
+  requiredId(request.causeClass, "wildlife damage causeClass");
+  finiteNonNegative(request.expectedLifeRevision, "wildlife expectedLifeRevision");
+  finiteNonNegative(request.worldTick, "wildlife worldTick");
+  if (!Number.isSafeInteger(request.expectedLifeRevision) || !Number.isSafeInteger(request.worldTick) ||
+      !Number.isFinite(request.damage) || request.damage <= 0 || !Number.isFinite(request.position.x) ||
+      !Number.isFinite(request.position.y)) throw new Error("wildlife damage request is invalid");
+  const life = session.snapshot().lifeCorpseLedger.lives[request.lifeInstanceId];
+  if (!life || life.state !== "alive") throw new Error("wildlife life must be registered and alive");
+  const common = { ...request, rewardDelta: ZERO_WILDLIFE_REWARD_DELTA };
+  if (request.damage < life.currentHp) {
+    return {
+      transactionId: request.transactionId,
+      drafts: [{
+        eventId: "session.wildlife.damage." + request.transactionId,
+        type: "wildlife_damage_committed",
+        payload: common,
+      }],
+    };
+  }
+  const deathEventId = createDeterministicDeathEventId(life.regionSaveId, life.lifeInstanceId);
+  const corpseId = createDeterministicCorpseId(WILDLIFE_ECONOMY_ID, life.lifeInstanceId);
+  return {
+    transactionId: request.transactionId,
+    drafts: [{
+      eventId: "session.wildlife.death." + request.transactionId,
+      type: "wildlife_death_committed",
+      payload: {
+        ...common,
+        economyId: WILDLIFE_ECONOMY_ID,
+        deathEventId,
+        corpseId,
+        tissueSlots: tissueSlotsForLife(life.species, life.ageClass),
+        populationDelta: {
+          species: life.species,
+          adultLivingDelta: life.ageClass === "adult" ? -1 : 0,
+          cause: "wildlife_death",
+        },
       },
     }],
   };

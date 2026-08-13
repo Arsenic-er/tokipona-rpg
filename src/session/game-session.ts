@@ -12,6 +12,21 @@ import {
 } from "../game/survival";
 import type { TradeSnapshot } from "../game/trade";
 import type { MpLedgerSnapshot } from "../spells/cast-plan";
+import {
+  createDeterministicCorpseId,
+  createDeterministicDeathEventId,
+  createEmptyLifeCorpseLedger,
+  isSessionLifeCorpseLedger,
+  isSessionWildlifeLifeRecord,
+  isWildlifeDamageCommitPayload,
+  isWildlifeDeathCommitPayload,
+  tissueSlotsForLife,
+  type SessionLifeCorpseLedger,
+  type SessionWildlifeCorpseRecord,
+  type WildlifeDamageCommitPayload,
+  type WildlifeDeathCommitPayload,
+  type WildlifeLifeRegistrationPayload,
+} from "../game/life-corpse-ledger";
 
 export const GAME_SESSION_SAVE_SCHEMA = "tokipona.game-session.v0.2" as const;
 export const LEGACY_GAME_SESSION_SAVE_SCHEMA = "tokipona.game-session.v0.1" as const;
@@ -142,6 +157,7 @@ export type SessionReceiptDomain =
   | "trade"
   | "quest"
   | "world"
+  | "wildlife"
   | "other";
 
 export interface SessionReceiptIndexEntry {
@@ -157,6 +173,7 @@ export interface GameSessionState {
   readonly lastEventSequence: number;
   readonly mp: SessionMpState;
   readonly capabilities: SessionCapabilityState;
+  readonly lifeCorpseLedger: SessionLifeCorpseLedger;
   readonly world: SessionWorldState;
   readonly checkpoint: SessionCheckpointState;
   readonly learning: LearningProgressionSnapshot;
@@ -177,6 +194,9 @@ interface SessionEventBase<TType extends string, TPayload> {
 export type GameSessionEvent =
   | SessionEventBase<"mp_replaced", { readonly mp: SessionMpState }>
   | SessionEventBase<"capability_milestone_committed", CapabilityMilestoneCommitPayload>
+  | SessionEventBase<"wildlife_life_registered", WildlifeLifeRegistrationPayload>
+  | SessionEventBase<"wildlife_damage_committed", WildlifeDamageCommitPayload>
+  | SessionEventBase<"wildlife_death_committed", WildlifeDeathCommitPayload>
   | SessionEventBase<"scene_entered", { readonly sceneId: string }>
   | SessionEventBase<"checkpoint_set", { readonly checkpoint: SessionCheckpointState }>
   | SessionEventBase<"world_flag_set", WorldFlagSetPayload>
@@ -208,7 +228,12 @@ export type SessionApplyReason =
   | "duplicate_receipt"
   | "receipt_payload_conflict"
   | "duplicate_milestone"
-  | "milestone_payload_conflict";
+  | "milestone_payload_conflict"
+  | "life_already_registered"
+  | "life_registration_conflict"
+  | "life_not_registered"
+  | "life_revision_conflict"
+  | "life_already_tombstoned";
 
 export interface SessionApplyResult {
   readonly applied: boolean;
@@ -292,6 +317,7 @@ const RECEIPT_DOMAINS: readonly SessionReceiptDomain[] = [
   "trade",
   "quest",
   "world",
+  "wildlife",
   "other",
 ];
 
@@ -493,14 +519,27 @@ const isSessionStateCore = (value: Record<string, unknown>): boolean =>
 
 const isSessionState = (value: unknown): value is GameSessionState => {
   if (!isRecord(value) || !isSessionStateCore(value) || !isCapabilityState(value.capabilities) ||
-      !isSessionMpState(value.mp)) return false;
+      !isSessionLifeCorpseLedger(value.lifeCorpseLedger) || !isSessionMpState(value.mp)) return false;
   const maxMp = value.mp.maxMp;
   return Object.values(value.capabilities.appliedMilestones).every((milestone) =>
     milestone.maxMp <= maxMp);
 };
 
-const isPreCapabilityV02SessionState = (value: unknown): value is Omit<GameSessionState, "capabilities"> =>
-  isRecord(value) && value.capabilities === undefined && isSessionStateCore(value);
+type PreLifeLedgerState = Omit<GameSessionState, "lifeCorpseLedger">;
+type PreCapabilityState = Omit<GameSessionState, "capabilities">;
+type PreCapabilityAndLifeLedgerState = Omit<GameSessionState, "capabilities" | "lifeCorpseLedger">;
+
+const isPreLifeLedgerV02SessionState = (value: unknown): value is PreLifeLedgerState =>
+  isRecord(value) && value.lifeCorpseLedger === undefined && isCapabilityState(value.capabilities) &&
+  isSessionStateCore(value);
+
+const isPreCapabilityOnlyV02SessionState = (value: unknown): value is PreCapabilityState =>
+  isRecord(value) && value.capabilities === undefined && isSessionLifeCorpseLedger(value.lifeCorpseLedger) &&
+  isSessionStateCore(value);
+
+const isPreCapabilityV02SessionState = (value: unknown): value is PreCapabilityAndLifeLedgerState =>
+  isRecord(value) && value.capabilities === undefined && value.lifeCorpseLedger === undefined &&
+  isSessionStateCore(value);
 
 const isEventEnvelope = (value: unknown): value is GameSessionEvent => {
   if (!isRecord(value) || !isNonEmptyString(value.eventId) || !isNonNegativeSafeInteger(value.sequence) ||
@@ -508,6 +547,9 @@ const isEventEnvelope = (value: unknown): value is GameSessionEvent => {
   return [
     "mp_replaced",
     "capability_milestone_committed",
+    "wildlife_life_registered",
+    "wildlife_damage_committed",
+    "wildlife_death_committed",
     "scene_entered",
     "checkpoint_set",
     "world_flag_set",
@@ -593,6 +635,7 @@ const createInitialState = (initial: GameSessionInitialState): GameSessionState 
     lastEventSequence: 0,
     mp: clone(initial.mp),
     capabilities: clone(INITIAL_SESSION_CAPABILITIES),
+    lifeCorpseLedger: createEmptyLifeCorpseLedger(),
     world: {
       currentSceneId: initial.currentSceneId,
       revision: 0,
@@ -688,6 +731,10 @@ export class GameSession {
 
   capabilitySnapshot(): SessionCapabilityState {
     return clone(this.state.capabilities);
+  }
+
+  lifeCorpseLedgerSnapshot(): SessionLifeCorpseLedger {
+    return clone(this.state.lifeCorpseLedger);
   }
 
   events(): readonly GameSessionEvent[] {
@@ -807,6 +854,147 @@ export class GameSession {
               appliedMilestones: {
                 ...this.state.capabilities.appliedMilestones,
                 [payload.milestoneId]: record,
+              },
+            },
+          }),
+        };
+      }
+      case "wildlife_life_registered": {
+        const life = event.payload.life;
+        if (!isSessionWildlifeLifeRecord(life) || life.state !== "alive" || life.lifeRevision !== 0 ||
+            life.currentHp !== life.maxHp) return { reason: "invalid_event", duplicate: false };
+        const prior = this.state.lifeCorpseLedger.lives[life.lifeInstanceId];
+        if (prior) {
+          return same(prior, life)
+            ? { reason: "life_already_registered", duplicate: true }
+            : { reason: "life_registration_conflict", duplicate: false };
+        }
+        return {
+          state: withAppliedEvent(this.state, event, {
+            lifeCorpseLedger: {
+              ...this.state.lifeCorpseLedger,
+              revision: this.state.lifeCorpseLedger.revision + 1,
+              lives: { ...this.state.lifeCorpseLedger.lives, [life.lifeInstanceId]: clone(life) },
+            },
+          }),
+        };
+      }
+      case "wildlife_damage_committed": {
+        const payload = event.payload;
+        if (!isWildlifeDamageCommitPayload(payload)) return { reason: "invalid_event", duplicate: false };
+        const life = this.state.lifeCorpseLedger.lives[payload.lifeInstanceId];
+        if (!life) return { reason: "life_not_registered", duplicate: false };
+        if (life.state === "dead") return { reason: "life_already_tombstoned", duplicate: true };
+        if (payload.expectedLifeRevision !== life.lifeRevision) {
+          return { reason: "life_revision_conflict", duplicate: false };
+        }
+        if (payload.damage >= life.currentHp) return { reason: "invalid_event", duplicate: false };
+        const receiptId = "wildlife:" + payload.transactionId;
+        const receiptHash = "wildlife-damage:" + life.lifeInstanceId + ":" + payload.expectedLifeRevision + ":" + payload.damage;
+        const priorReceipt = this.state.receiptIndex[receiptId];
+        if (priorReceipt) {
+          return priorReceipt.domain === "wildlife" && priorReceipt.payloadHash === receiptHash
+            ? { reason: "duplicate_receipt", duplicate: true }
+            : { reason: "receipt_payload_conflict", duplicate: false };
+        }
+        const nextLife = { ...life, currentHp: life.currentHp - payload.damage, lifeRevision: life.lifeRevision + 1 };
+        return {
+          state: withAppliedEvent(this.state, event, {
+            lifeCorpseLedger: {
+              ...this.state.lifeCorpseLedger,
+              revision: this.state.lifeCorpseLedger.revision + 1,
+              lives: { ...this.state.lifeCorpseLedger.lives, [life.lifeInstanceId]: nextLife },
+            },
+            receiptIndex: {
+              ...this.state.receiptIndex,
+              [receiptId]: {
+                receiptId,
+                domain: "wildlife",
+                payloadHash: receiptHash,
+                recordedByEventId: event.eventId,
+                recordedAtSequence: event.sequence,
+              },
+            },
+          }),
+        };
+      }
+      case "wildlife_death_committed": {
+        const payload = event.payload;
+        if (!isWildlifeDeathCommitPayload(payload)) return { reason: "invalid_event", duplicate: false };
+        const life = this.state.lifeCorpseLedger.lives[payload.lifeInstanceId];
+        if (!life) return { reason: "life_not_registered", duplicate: false };
+        if (life.state === "dead") return { reason: "life_already_tombstoned", duplicate: true };
+        if (payload.expectedLifeRevision !== life.lifeRevision) {
+          return { reason: "life_revision_conflict", duplicate: false };
+        }
+        if (payload.damage < life.currentHp || payload.worldTick < life.registeredAtWorldTick ||
+            payload.deathEventId !== createDeterministicDeathEventId(life.regionSaveId, life.lifeInstanceId) ||
+            payload.corpseId !== createDeterministicCorpseId(payload.economyId, life.lifeInstanceId) ||
+            payload.populationDelta.species !== life.species ||
+            payload.populationDelta.adultLivingDelta !== (life.ageClass === "adult" ? -1 : 0) ||
+            !same(payload.tissueSlots, tissueSlotsForLife(life.species, life.ageClass))) {
+          return { reason: "invalid_event", duplicate: false };
+        }
+        if (this.state.lifeCorpseLedger.corpseIdByLifeId[life.lifeInstanceId] !== undefined ||
+            this.state.lifeCorpseLedger.corpses[payload.corpseId] !== undefined) {
+          return { reason: "invalid_event", duplicate: false };
+        }
+        const receiptId = "wildlife:" + payload.transactionId;
+        const receiptHash = "wildlife-death:" + payload.deathEventId + ":" + payload.corpseId;
+        const priorReceipt = this.state.receiptIndex[receiptId];
+        if (priorReceipt) {
+          return priorReceipt.domain === "wildlife" && priorReceipt.payloadHash === receiptHash
+            ? { reason: "duplicate_receipt", duplicate: true }
+            : { reason: "receipt_payload_conflict", duplicate: false };
+        }
+        const deadLife = {
+          ...life,
+          state: "dead" as const,
+          currentHp: 0,
+          lifeRevision: life.lifeRevision + 1,
+          deathTransactionId: payload.transactionId,
+          deathEventId: payload.deathEventId,
+          corpseId: payload.corpseId,
+        };
+        const corpse: SessionWildlifeCorpseRecord = {
+          corpseId: payload.corpseId,
+          lifeInstanceId: life.lifeInstanceId,
+          regionId: life.regionId,
+          entityId: life.entityId,
+          species: life.species,
+          ageClass: life.ageClass,
+          harvestProfileId: life.harvestProfileId,
+          deathEventId: payload.deathEventId,
+          deathTick: payload.worldTick,
+          causeClass: payload.causeClass,
+          position: clone(payload.position),
+          decayState: "fresh",
+          contaminationMu: 0,
+          lastDecayEvalTick: payload.worldTick,
+          tissueSlots: clone(payload.tissueSlots),
+          populationDelta: clone(payload.populationDelta),
+          revision: 0,
+        };
+        return {
+          state: withAppliedEvent(this.state, event, {
+            lifeCorpseLedger: {
+              ...this.state.lifeCorpseLedger,
+              revision: this.state.lifeCorpseLedger.revision + 1,
+              lives: { ...this.state.lifeCorpseLedger.lives, [life.lifeInstanceId]: deadLife },
+              corpses: { ...this.state.lifeCorpseLedger.corpses, [corpse.corpseId]: corpse },
+              corpseIdByLifeId: {
+                ...this.state.lifeCorpseLedger.corpseIdByLifeId,
+                [life.lifeInstanceId]: corpse.corpseId,
+              },
+            },
+            receiptIndex: {
+              ...this.state.receiptIndex,
+              [receiptId]: {
+                receiptId,
+                domain: "wildlife",
+                payloadHash: receiptHash,
+                recordedByEventId: event.eventId,
+                recordedAtSequence: event.sequence,
               },
             },
           }),
@@ -1001,9 +1189,36 @@ const saveDigest = (save: GameSessionSave): string => fingerprint({
   eventLedger: save.eventLedger,
 });
 
+const isPreCapabilityOnlyV02SaveStructurallyValid = (value: unknown): value is Omit<GameSessionSave, "origin" | "state"> & {
+  readonly origin: PreCapabilityState;
+  readonly state: PreCapabilityState;
+} => {
+  if (!isRecord(value) || value.schema !== GAME_SESSION_SAVE_SCHEMA || !isNonEmptyString(value.sessionId) ||
+      !isPreCapabilityOnlyV02SessionState(value.origin) || value.origin.revision !== 0 || value.origin.lastEventSequence !== 0 ||
+      Object.keys(value.origin.processedEventPayloads).length !== 0 || !isPreCapabilityOnlyV02SessionState(value.state) ||
+      !Array.isArray(value.eventLedger) || !value.eventLedger.every(isEventEnvelope) ||
+      value.eventLedger.some((event) => event.type === "capability_milestone_committed") ||
+      !isRecord(value.integrity) || value.integrity.algorithm !== GAME_SESSION_INTEGRITY_ALGORITHM ||
+      typeof value.integrity.digest !== "string" || !/^[0-9a-f]{8}$/.test(value.integrity.digest)) return false;
+  return value.eventLedger.length === value.state.lastEventSequence;
+};
+
+const upgradePreCapabilityOnlyV02Save = (
+  save: Omit<GameSessionSave, "origin" | "state"> & { readonly origin: PreCapabilityState; readonly state: PreCapabilityState },
+): GameSessionSave => {
+  const withoutIntegrity: Omit<GameSessionSave, "integrity"> = {
+    schema: GAME_SESSION_SAVE_SCHEMA,
+    sessionId: save.sessionId,
+    origin: { ...clone(save.origin), capabilities: clone(INITIAL_SESSION_CAPABILITIES) },
+    state: { ...clone(save.state), capabilities: clone(INITIAL_SESSION_CAPABILITIES) },
+    eventLedger: clone(save.eventLedger),
+  };
+  return { ...withoutIntegrity, integrity: { algorithm: GAME_SESSION_INTEGRITY_ALGORITHM, digest: fingerprint(withoutIntegrity) } };
+};
+
 const isPreCapabilityV02SaveStructurallyValid = (value: unknown): value is Omit<GameSessionSave, "origin" | "state"> & {
-  readonly origin: Omit<GameSessionState, "capabilities">;
-  readonly state: Omit<GameSessionState, "capabilities">;
+  readonly origin: PreCapabilityAndLifeLedgerState;
+  readonly state: PreCapabilityAndLifeLedgerState;
 } => {
   if (!isRecord(value) || value.schema !== GAME_SESSION_SAVE_SCHEMA || !isNonEmptyString(value.sessionId) ||
       !isPreCapabilityV02SessionState(value.origin) || value.origin.revision !== 0 || value.origin.lastEventSequence !== 0 ||
@@ -1017,15 +1232,49 @@ const isPreCapabilityV02SaveStructurallyValid = (value: unknown): value is Omit<
 
 const upgradePreCapabilityV02Save = (
   save: Omit<GameSessionSave, "origin" | "state"> & {
-    readonly origin: Omit<GameSessionState, "capabilities">;
-    readonly state: Omit<GameSessionState, "capabilities">;
+    readonly origin: PreCapabilityAndLifeLedgerState;
+    readonly state: PreCapabilityAndLifeLedgerState;
   },
 ): GameSessionSave => {
   const withoutIntegrity: Omit<GameSessionSave, "integrity"> = {
     schema: GAME_SESSION_SAVE_SCHEMA,
     sessionId: save.sessionId,
-    origin: { ...clone(save.origin), capabilities: clone(INITIAL_SESSION_CAPABILITIES) },
-    state: { ...clone(save.state), capabilities: clone(INITIAL_SESSION_CAPABILITIES) },
+    origin: { ...clone(save.origin), capabilities: clone(INITIAL_SESSION_CAPABILITIES), lifeCorpseLedger: createEmptyLifeCorpseLedger() },
+    state: { ...clone(save.state), capabilities: clone(INITIAL_SESSION_CAPABILITIES), lifeCorpseLedger: createEmptyLifeCorpseLedger() },
+    eventLedger: clone(save.eventLedger),
+  };
+  return {
+    ...withoutIntegrity,
+    integrity: { algorithm: GAME_SESSION_INTEGRITY_ALGORITHM, digest: fingerprint(withoutIntegrity) },
+  };
+};
+
+const isPreLifeLedgerV02SaveStructurallyValid = (value: unknown): value is Omit<GameSessionSave, "origin" | "state"> & {
+  readonly origin: PreLifeLedgerState;
+  readonly state: PreLifeLedgerState;
+} => {
+  if (!isRecord(value) || value.schema !== GAME_SESSION_SAVE_SCHEMA || !isNonEmptyString(value.sessionId) ||
+      !isPreLifeLedgerV02SessionState(value.origin) || value.origin.revision !== 0 || value.origin.lastEventSequence !== 0 ||
+      Object.keys(value.origin.processedEventPayloads).length !== 0 || !isPreLifeLedgerV02SessionState(value.state) ||
+      !Array.isArray(value.eventLedger) || !value.eventLedger.every(isEventEnvelope) ||
+      value.eventLedger.some((event) => event.type === "wildlife_life_registered" ||
+        event.type === "wildlife_damage_committed" || event.type === "wildlife_death_committed") ||
+      !isRecord(value.integrity) || value.integrity.algorithm !== GAME_SESSION_INTEGRITY_ALGORITHM ||
+      typeof value.integrity.digest !== "string" || !/^[0-9a-f]{8}$/.test(value.integrity.digest)) return false;
+  return value.eventLedger.length === value.state.lastEventSequence;
+};
+
+const upgradePreLifeLedgerV02Save = (
+  save: Omit<GameSessionSave, "origin" | "state"> & {
+    readonly origin: PreLifeLedgerState;
+    readonly state: PreLifeLedgerState;
+  },
+): GameSessionSave => {
+  const withoutIntegrity: Omit<GameSessionSave, "integrity"> = {
+    schema: GAME_SESSION_SAVE_SCHEMA,
+    sessionId: save.sessionId,
+    origin: { ...clone(save.origin), lifeCorpseLedger: createEmptyLifeCorpseLedger() },
+    state: { ...clone(save.state), lifeCorpseLedger: createEmptyLifeCorpseLedger() },
     eventLedger: clone(save.eventLedger),
   };
   return {
@@ -1060,6 +1309,18 @@ export const migrateGameSessionSave = (candidate: unknown): GameSessionMigration
     if (isCurrentSaveStructurallyValid(candidate)) {
       return { ok: true, save: clone(candidate), migratedFrom: null };
     }
+    if (isPreCapabilityOnlyV02SaveStructurallyValid(candidate)) {
+      if (candidate.integrity.digest !== saveDigest(candidate as unknown as GameSessionSave)) {
+        return { ok: false, error: "invalid_save" };
+      }
+      return { ok: true, save: upgradePreCapabilityOnlyV02Save(candidate), migratedFrom: null };
+    }
+    if (isPreLifeLedgerV02SaveStructurallyValid(candidate)) {
+      if (candidate.integrity.digest !== saveDigest(candidate as unknown as GameSessionSave)) {
+        return { ok: false, error: "invalid_save" };
+      }
+      return { ok: true, save: upgradePreLifeLedgerV02Save(candidate), migratedFrom: null };
+    }
     if (!isPreCapabilityV02SaveStructurallyValid(candidate)) return { ok: false, error: "invalid_save" };
     if (candidate.integrity.digest !== saveDigest(candidate as unknown as GameSessionSave)) {
       return { ok: false, error: "invalid_save" };
@@ -1076,6 +1337,7 @@ export const migrateGameSessionSave = (candidate: unknown): GameSessionMigration
     lastEventSequence: 0,
     mp: clone(candidate.mp),
     capabilities: clone(INITIAL_SESSION_CAPABILITIES),
+    lifeCorpseLedger: createEmptyLifeCorpseLedger(),
     world: clone(candidate.world),
     checkpoint: {
       id: "checkpoint.legacy-entry",

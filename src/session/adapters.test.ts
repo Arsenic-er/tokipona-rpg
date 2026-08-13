@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { CisternDemoController } from "../game/cistern-demo";
+import { createWildlifeLifeRecord } from "../game/life-corpse-ledger";
 import { SurvivalSystem } from "../game/survival";
 import { TradeSystem, createDemoTradeLots } from "../game/trade";
 import { CisternLearningSession } from "../learning/cistern-session";
@@ -16,6 +17,8 @@ import {
   proposeQuestStage,
   proposeSurvivalTransaction,
   proposeTradeTransaction,
+  proposeWildlifeDamage,
+  proposeWildlifeLifeRegistration,
 } from "./adapters";
 
 const requireBatch = (
@@ -223,5 +226,60 @@ describe("GameSession transaction adapters", () => {
     expect(rejected.session).toBe(session);
     expect(session.snapshot()).toEqual(before);
     expect(session.snapshot().receiptIndex["checkpoint.old"]).toBeUndefined();
+  });
+  it("adapts wildlife registration and lethal damage to single aggregate events", () => {
+    let session = GameSession.create({
+      sessionId: "save.adapter.wildlife",
+      mp: { currentMp: 24, maxMp: 24, worldVersion: 0 },
+      currentSceneId: "scene.valley.den_bypass",
+    });
+    const life = createWildlifeLifeRecord({
+      lifeInstanceId: "life.adapter.rabbit",
+      regionSaveId: "region-save.valley",
+      regionId: "valley_prologue",
+      entityId: "wildlife.rabbit.valley",
+      species: "rabbit",
+      ageClass: "adult",
+      spawnGeneration: 0,
+      spawnSequence: 1,
+      harvestProfileId: "harvest.rabbit.v0.1",
+      maxHp: 8,
+      registeredAtWorldTick: 1,
+    });
+    let commit = commitSessionProposal(session, proposeWildlifeLifeRegistration("adapter.register", life));
+    expect(commit.committed).toBe(true);
+    session = commit.session;
+    const sameRegistration = commitSessionProposal(
+      session,
+      proposeWildlifeLifeRegistration("adapter.register.again", life),
+    );
+    expect(sameRegistration).toMatchObject({
+      committed: false,
+      reason: "life_already_registered",
+    });
+    const conflictingLife = { ...life, maxHp: 9, currentHp: 9 };
+    const conflictingRegistration = commitSessionProposal(
+      session,
+      proposeWildlifeLifeRegistration("adapter.register.conflict", conflictingLife),
+    );
+    expect(conflictingRegistration).toMatchObject({
+      committed: false,
+      reason: "life_registration_conflict",
+    });
+    const lethal = proposeWildlifeDamage(session, {
+      transactionId: "adapter.death",
+      lifeInstanceId: life.lifeInstanceId,
+      expectedLifeRevision: 0,
+      damage: 8,
+      causeClass: "clean_tool",
+      worldTick: 2,
+      position: { sceneId: "scene.valley.den_bypass", x: 1, y: 2 },
+    });
+    expect(lethal.drafts).toHaveLength(1);
+    expect(lethal.drafts[0]?.type).toBe("wildlife_death_committed");
+    commit = commitSessionProposal(session, lethal);
+    expect(commit.committed).toBe(true);
+    expect(commit.session.lifeCorpseLedgerSnapshot().lives[life.lifeInstanceId]?.state).toBe("dead");
+    expect(commit.session.snapshot().world.flags).toEqual({});
   });
 });

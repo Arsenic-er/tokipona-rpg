@@ -639,6 +639,46 @@ describe("GameSession", () => {
     });
     expect(loaded.session.snapshot().mp.maxMp).toBe(26);
   });
+  it("normalizes every integrity-valid v0.2 component-era save and rejects a corrupt one", () => {
+    const base = GameSession.create({
+      sessionId: "save.v02.component-matrix",
+      mp: { currentMp: 20, maxMp: 26, worldVersion: 4 },
+      currentSceneId: "scene.n04.service",
+    }).toSave();
+    const resign = (candidate: Record<string, any>): Record<string, any> => {
+      candidate.integrity.digest = testDigest({
+        schema: candidate.schema,
+        sessionId: candidate.sessionId,
+        origin: candidate.origin,
+        state: candidate.state,
+        eventLedger: candidate.eventLedger,
+      });
+      return candidate;
+    };
+    const onlyMissingLedger = structuredClone(base) as unknown as Record<string, any>;
+    delete onlyMissingLedger.origin.lifeCorpseLedger;
+    delete onlyMissingLedger.state.lifeCorpseLedger;
+    const ledgerLoad = GameSession.load(resign(onlyMissingLedger));
+    expect(ledgerLoad.ok).toBe(true);
+    if (ledgerLoad.ok) expect(ledgerLoad.session.lifeCorpseLedgerSnapshot().lives).toEqual({});
+
+    const missingBoth = structuredClone(base) as unknown as Record<string, any>;
+    delete missingBoth.origin.capabilities;
+    delete missingBoth.state.capabilities;
+    delete missingBoth.origin.lifeCorpseLedger;
+    delete missingBoth.state.lifeCorpseLedger;
+    const bothLoad = GameSession.load(resign(missingBoth));
+    expect(bothLoad.ok).toBe(true);
+    if (bothLoad.ok) {
+      expect(bothLoad.session.capabilitySnapshot().expressionCapacityWords).toBe(1);
+      expect(bothLoad.session.lifeCorpseLedgerSnapshot().lives).toEqual({});
+    }
+
+    expect(GameSession.load(structuredClone(base)).ok).toBe(true);
+    const corrupt = resign(structuredClone(missingBoth));
+    corrupt.state.world.currentSceneId = "scene.tampered.after-signing";
+    expect(GameSession.load(corrupt).ok).toBe(false);
+  });
 });
 
 // Compile-time assertion that the public save shape remains serializable and versioned.
