@@ -1,0 +1,35 @@
+{
+  "schemaVersion": "tokipona.runtime-content.v0.1",
+  "sourceDigest": "sha256:d697a4288f7ad4675aa6c4625a5f6163e84d9e79f18b7a56e28ab230e8055773",
+  "source": {
+    "path": "data/spells/length-profiles.v0.1.yaml",
+    "schemaVersion": "g02.length-profiles.v0.1",
+    "contentVersion": "chapter-01.4"
+  },
+  "telo": {
+    "pixelsPerTile": 16,
+    "profiles": {
+      "short": {
+        "profileVersion": "g02.length-profiles.v0.1",
+        "nominalLengthPx": 16,
+        "minimumRealizedLengthPx": 8,
+        "activationMp": 6,
+        "crossSectionWidthPx": 12
+      },
+      "default": {
+        "profileVersion": "g02.length-profiles.v0.1",
+        "nominalLengthPx": 32,
+        "minimumRealizedLengthPx": 24,
+        "activationMp": 5,
+        "crossSectionWidthPx": 12
+      },
+      "long": {
+        "profileVersion": "g02.length-profiles.v0.1",
+        "nominalLengthPx": 64,
+        "minimumRealizedLengthPx": 40,
+        "activationMp": 10,
+        "crossSectionWidthPx": 12
+      }
+    }
+  }
+}

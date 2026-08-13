@@ -1,11 +1,14 @@
 import { describe, expect, it, vi } from "vitest";
+import { TELO_LENGTH_PROFILES } from "./content-profiles";
 import {
   CastExecutionLedger,
+  compileTeloCastWithProfiles,
   compileTeloCast,
   createTeloCastPlan,
   executeCastPlan,
   type TeloCanonicalAst,
   type TeloCastPlanRequest,
+  type TeloLengthProfileSet,
 } from "./cast-plan";
 
 const ast = (lengthModifier: TeloCanonicalAst["lengthModifier"]): TeloCanonicalAst => ({
@@ -161,6 +164,53 @@ describe("createTeloCastPlan", () => {
     expect(plan.preview.geometry.realizedLengthPx).toBe(64);
   });
 
+  it("compiles geometry and MP from an injected frozen content profile", () => {
+    const changedProfiles: TeloLengthProfileSet = Object.freeze({
+      ...TELO_LENGTH_PROFILES,
+      short: Object.freeze({
+        ...TELO_LENGTH_PROFILES.short,
+        profileVersion: "g02.length-profiles.test-change",
+        nominalLengthPx: 18,
+        minimumRealizedLengthPx: 10,
+        activationMp: 7,
+        crossSectionWidthPx: 14,
+      }),
+      default: Object.freeze({
+        ...TELO_LENGTH_PROFILES.default,
+        profileVersion: "g02.length-profiles.test-change",
+      }),
+      long: Object.freeze({
+        ...TELO_LENGTH_PROFILES.long,
+        profileVersion: "g02.length-profiles.test-change",
+      }),
+    });
+
+    const plan = compileTeloCastWithProfiles(request({
+      canonicalAst: ast("word.lili"),
+      currentMp: 24,
+    }), changedProfiles);
+
+    expect(plan).toMatchObject({
+      profileVersion: "g02.length-profiles.test-change",
+      activationMpRequired: 7,
+      canConfirm: true,
+    });
+    expect(plan.execution.geometry).toMatchObject({
+      nominalLengthPx: 18,
+      realizedLengthPx: 18,
+      fixedCrossSectionWidthPx: 14,
+      simulationLengthCells: 9,
+      simulationWidthCells: 7,
+      manifestationCellCount: 63,
+    });
+  });
+
+  it("requires injected content profiles and their entries to be frozen", () => {
+    expect(() => compileTeloCastWithProfiles(request(), {
+      ...TELO_LENGTH_PROFILES,
+    })).toThrowError(/profile set must be frozen/);
+  });
+
   it("fails closed for non-finite length, malformed safety zones, and unaligned anchors", () => {
     const invalidLength = compileTeloCast(request({ maximumRealizableLengthPx: Number.NaN }));
     const malformedZone = compileTeloCast(request({
@@ -246,6 +296,49 @@ describe("executeCastPlan", () => {
       nextSnapshot: { mp: 24, worldVersion: 2 },
     });
     expect(executeCastPlan(forgedGeometry, context)).toMatchObject({
+      accepted: false,
+      mpCharge: 0,
+      rejectionCode: "untrusted_cast_plan",
+    });
+  });
+
+  it("rejects a plan compiled from a changed profile at the official execution boundary", () => {
+    const futureVersion = "g02.length-profiles.future-test";
+    const changedProfiles: TeloLengthProfileSet = Object.freeze({
+      short: Object.freeze({ ...TELO_LENGTH_PROFILES.short, profileVersion: futureVersion }),
+      default: Object.freeze({
+        ...TELO_LENGTH_PROFILES.default,
+        profileVersion: futureVersion,
+        nominalLengthPx: 34,
+        minimumRealizedLengthPx: 26,
+        activationMp: 7,
+        crossSectionWidthPx: 14,
+      }),
+      long: Object.freeze({ ...TELO_LENGTH_PROFILES.long, profileVersion: futureVersion }),
+    });
+    const changedPlan = compileTeloCastWithProfiles(request({ worldVersion: 2 }), changedProfiles);
+
+    expect(changedPlan.execution.geometry.nominalLengthPx).toBe(34);
+    expect(executeCastPlan(changedPlan, {
+      currentMp: 24,
+      currentWorldVersion: 2,
+      idempotencyKey: "cast.changed-profile",
+    })).toMatchObject({
+      accepted: false,
+      mpCharge: 0,
+      rejectionCode: "untrusted_cast_plan",
+    });
+  });
+
+  it("rejects a frozen plan forged with a former hard-coded MP quote", () => {
+    const plan = compileTeloCast(request({ worldVersion: 2 }));
+    const forgedLegacyQuote = Object.freeze({ ...plan, activationMpRequired: 6 });
+
+    expect(executeCastPlan(forgedLegacyQuote, {
+      currentMp: 24,
+      currentWorldVersion: 2,
+      idempotencyKey: "cast.legacy-hardcode",
+    })).toMatchObject({
       accepted: false,
       mpCharge: 0,
       rejectionCode: "untrusted_cast_plan",

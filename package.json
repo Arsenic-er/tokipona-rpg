@@ -8,14 +8,17 @@
   },
   "scripts": {
     "dev": "vite --host 0.0.0.0",
-    "build": "tsc -b && vite build",
+    "build": "pnpm run content:check && tsc -b && vite build",
     "typecheck": "tsc -b --pretty false",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "content:generate": "node --experimental-strip-types scripts/content/generate-runtime.ts",
+    "content:check": "node --experimental-strip-types scripts/content/generate-runtime.ts --check"
   },
   "devDependencies": {
     "typescript": "7.0.2",
     "vite": "8.2.0",
-    "vitest": "4.1.10"
+    "vitest": "4.1.10",
+    "yaml": "^2.9.0"
   }
 }

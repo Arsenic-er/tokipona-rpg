@@ -20,7 +20,7 @@
 | G-01 | [探索与任务](gameplay/01-exploration-and-quests-zh.md) | 玩家去哪里、做什么、如何形成探索—表达—反馈—成长循环 | 初稿 |
 | G-02 | [咒语构筑：单词层数据库](gameplay/02-spell-construction-zh.md) | 词、短语、句法、指代与法器如何组成可执行魔法 | 单词层初稿·逐词审阅中 |
 | G-03 | [实际运用：软生存与动物经济](gameplay/03-survival-and-wildlife-economy-zh.md) | 饱食、口渴、狩猎、加工、售卖怎样与战斗、生态和学习边界协同 | 系统规格 v0.1 |
-| G-04 | 反馈与成长 | 冥想、间隔复习、能力成长、失败修复与长期留存 | 待写 |
+| G-04 | [反馈与成长](gameplay/06-feedback-and-growth-zh.md) | 冥想、间隔复习、能力成长、失败修复与长期留存 | 实现候选 v0.2 |
 
 ### 背景侧
 

@@ -1,5 +1,12 @@
-export const CAST_PLAN_PROFILE_VERSION = "g02.length-profiles.v0.1";
-export const LOGICAL_PIXELS_PER_TILE = 16;
+import {
+  TELO_CONTENT_PROFILE_VERSION,
+  TELO_LENGTH_PROFILES,
+  TELO_LOGICAL_PIXELS_PER_TILE,
+  type ContentTeloLengthProfile,
+} from "./content-profiles";
+
+export const CAST_PLAN_PROFILE_VERSION = TELO_CONTENT_PROFILE_VERSION;
+export const LOGICAL_PIXELS_PER_TILE = TELO_LOGICAL_PIXELS_PER_TILE;
 export const SIMULATION_CELL_SIZE_PX = 2;
 
 export type TeloLengthClass = "short" | "default" | "long";
@@ -67,10 +74,10 @@ export interface CastGeometry {
   readonly direction: PointPx;
   readonly nominalLengthPx: number;
   readonly realizedLengthPx: number;
-  readonly fixedCrossSectionWidthPx: 12;
+  readonly fixedCrossSectionWidthPx: number;
   readonly simulationCellSizePx: 2;
   readonly simulationLengthCells: number;
-  readonly simulationWidthCells: 6;
+  readonly simulationWidthCells: number;
   readonly simulationCells: readonly SimulationCell[];
   readonly manifestationCellCount: number;
   readonly massCalculationBasis: "world_pixel_area";
@@ -82,14 +89,14 @@ export interface WorldPixelGeometry {
   readonly direction: PointPx;
   readonly nominalLengthPx: number;
   readonly realizedLengthPx: number;
-  readonly fixedCrossSectionWidthPx: 12;
+  readonly fixedCrossSectionWidthPx: number;
   readonly areaPx2: number;
 }
 
 export interface SimulationCellGeometry {
   readonly cellSizePx: 2;
   readonly lengthCells: number;
-  readonly widthCells: 6;
+  readonly widthCells: number;
   readonly cells: readonly SimulationCell[];
   readonly manifestationCells: readonly SimulationCell[];
   readonly manifestationCellCount: number;
@@ -121,37 +128,34 @@ export interface TeloCastPlan {
   readonly rejectionCode: CastPlanRejectionCode | null;
 }
 
-interface LengthProfile {
-  readonly lengthClass: TeloLengthClass;
-  readonly nominalLengthPx: number;
-  readonly minimumRealizedLengthPx: number;
-  readonly activationMp: number;
-}
-
-const LENGTH_PROFILES: Readonly<Record<TeloLengthClass, LengthProfile>> = Object.freeze({
-  short: Object.freeze({
-    lengthClass: "short",
-    nominalLengthPx: 16,
-    minimumRealizedLengthPx: 8,
-    activationMp: 6,
-  }),
-  default: Object.freeze({
-    lengthClass: "default",
-    nominalLengthPx: 32,
-    minimumRealizedLengthPx: 24,
-    activationMp: 5,
-  }),
-  long: Object.freeze({
-    lengthClass: "long",
-    nominalLengthPx: 64,
-    minimumRealizedLengthPx: 40,
-    activationMp: 10,
-  }),
-});
+export type TeloLengthProfileSet = Readonly<Record<TeloLengthClass, ContentTeloLengthProfile>>;
 
 const NORMAL_LIVING_SAFETY_MARGIN_PX = 8;
 
 const isFiniteNumber = (value: number): boolean => Number.isFinite(value);
+
+const assertLengthProfileSet = (profiles: TeloLengthProfileSet): void => {
+  if (!Object.isFrozen(profiles)) throw new Error("Telo length profile set must be frozen.");
+  let profileVersion: string | null = null;
+  for (const lengthClass of ["short", "default", "long"] as const) {
+    const profile = profiles[lengthClass];
+    if (!Object.isFrozen(profile)) throw new Error(`Telo ${lengthClass} profile must be frozen.`);
+    if (profileVersion === null) profileVersion = profile.profileVersion;
+    if (profile.profileVersion.length === 0 || profile.profileVersion !== profileVersion) {
+      throw new Error("Telo length profiles must share one non-empty profile version.");
+    }
+    if (!Number.isSafeInteger(profile.nominalLengthPx) || profile.nominalLengthPx <= 0 ||
+        profile.nominalLengthPx % SIMULATION_CELL_SIZE_PX !== 0 ||
+        !Number.isSafeInteger(profile.minimumRealizedLengthPx) || profile.minimumRealizedLengthPx <= 0 ||
+        profile.minimumRealizedLengthPx > profile.nominalLengthPx ||
+        profile.minimumRealizedLengthPx % SIMULATION_CELL_SIZE_PX !== 0 ||
+        !Number.isFinite(profile.activationMp) || profile.activationMp < 0 ||
+        !Number.isSafeInteger(profile.crossSectionWidthPx) || profile.crossSectionWidthPx <= 0 ||
+        profile.crossSectionWidthPx % SIMULATION_CELL_SIZE_PX !== 0) {
+      throw new Error(`Telo ${lengthClass} profile is not simulation-compatible.`);
+    }
+  }
+};
 
 const isValidAnchor = (anchor: PointPx): boolean =>
   Number.isSafeInteger(anchor.x) && Number.isSafeInteger(anchor.y) &&
@@ -255,9 +259,10 @@ const rasterizeSimulationCells = (
 const createGeometry = (
   anchor: PointPx,
   direction: PointPx,
-  nominalLengthPx: number,
+  profile: ContentTeloLengthProfile,
   realizedLengthPx: number,
 ): CastGeometry => {
+  const { nominalLengthPx, crossSectionWidthPx } = profile;
   const unit = normalizeDirection(direction);
   const frozenAnchor = Object.freeze({ ...anchor });
   const frozenDirection = Object.freeze({ ...direction });
@@ -265,20 +270,25 @@ const createGeometry = (
     x: Math.round(anchor.x + unit.x * realizedLengthPx),
     y: Math.round(anchor.y + unit.y * realizedLengthPx),
   });
-  const simulationCells = rasterizeSimulationCells(anchor, direction, realizedLengthPx, 12);
+  const simulationCells = rasterizeSimulationCells(
+    anchor,
+    direction,
+    realizedLengthPx,
+    crossSectionWidthPx,
+  );
   const worldPixelGeometry: WorldPixelGeometry = Object.freeze({
     anchorPx: frozenAnchor,
     endpointPx,
     direction: frozenDirection,
     nominalLengthPx,
     realizedLengthPx,
-    fixedCrossSectionWidthPx: 12,
-    areaPx2: realizedLengthPx * 12,
+    fixedCrossSectionWidthPx: crossSectionWidthPx,
+    areaPx2: realizedLengthPx * crossSectionWidthPx,
   });
   const simulationCellGeometry: SimulationCellGeometry = Object.freeze({
     cellSizePx: SIMULATION_CELL_SIZE_PX,
     lengthCells: realizedLengthPx / SIMULATION_CELL_SIZE_PX,
-    widthCells: 6,
+    widthCells: crossSectionWidthPx / SIMULATION_CELL_SIZE_PX,
     cells: simulationCells,
     manifestationCells: simulationCells,
     manifestationCellCount: simulationCells.length,
@@ -292,10 +302,10 @@ const createGeometry = (
     direction: frozenDirection,
     nominalLengthPx,
     realizedLengthPx,
-    fixedCrossSectionWidthPx: 12,
+    fixedCrossSectionWidthPx: crossSectionWidthPx,
     simulationCellSizePx: SIMULATION_CELL_SIZE_PX,
     simulationLengthCells: realizedLengthPx / SIMULATION_CELL_SIZE_PX,
-    simulationWidthCells: 6,
+    simulationWidthCells: crossSectionWidthPx / SIMULATION_CELL_SIZE_PX,
     simulationCells,
     manifestationCellCount: simulationCells.length,
     massCalculationBasis: "world_pixel_area",
@@ -351,12 +361,13 @@ const fnv1a = (value: string): string => {
 };
 
 const createPlanId = (
+  profileVersion: string,
   request: TeloCastPlanRequest,
   lengthClass: TeloLengthClass,
   geometry: CastGeometry,
 ): string => {
   const payload = [
-    CAST_PLAN_PROFILE_VERSION,
+    profileVersion,
     request.canonicalAst.head,
     request.canonicalAst.lengthModifier ?? "none",
     lengthClass,
@@ -372,20 +383,20 @@ const createPlanId = (
   return `cast.telo.${fnv1a(payload)}`;
 };
 
-const invalidGeometry = (): CastGeometry => Object.freeze({
+const invalidGeometry = (profile: ContentTeloLengthProfile): CastGeometry => Object.freeze({
   worldPixelGeometry: Object.freeze({
     anchorPx: Object.freeze({ x: 0, y: 0 }),
     endpointPx: Object.freeze({ x: 0, y: 0 }),
     direction: Object.freeze({ x: 0, y: 0 }),
     nominalLengthPx: 0,
     realizedLengthPx: 0,
-    fixedCrossSectionWidthPx: 12,
+    fixedCrossSectionWidthPx: profile.crossSectionWidthPx,
     areaPx2: 0,
   }),
   simulationCellGeometry: Object.freeze({
     cellSizePx: SIMULATION_CELL_SIZE_PX,
     lengthCells: 0,
-    widthCells: 6,
+    widthCells: profile.crossSectionWidthPx / SIMULATION_CELL_SIZE_PX,
     cells: Object.freeze([]),
     manifestationCells: Object.freeze([]),
     manifestationCellCount: 0,
@@ -396,10 +407,10 @@ const invalidGeometry = (): CastGeometry => Object.freeze({
   direction: Object.freeze({ x: 0, y: 0 }),
   nominalLengthPx: 0,
   realizedLengthPx: 0,
-  fixedCrossSectionWidthPx: 12,
+  fixedCrossSectionWidthPx: profile.crossSectionWidthPx,
   simulationCellSizePx: SIMULATION_CELL_SIZE_PX,
   simulationLengthCells: 0,
-  simulationWidthCells: 6,
+  simulationWidthCells: profile.crossSectionWidthPx / SIMULATION_CELL_SIZE_PX,
   simulationCells: Object.freeze([]),
   manifestationCellCount: 0,
   massCalculationBasis: "world_pixel_area",
@@ -408,15 +419,16 @@ const invalidGeometry = (): CastGeometry => Object.freeze({
 const rejectedPlan = (
   request: TeloCastPlanRequest,
   rejectionCode: CastPlanRejectionCode,
-  geometry = invalidGeometry(),
+  profile: ContentTeloLengthProfile,
   lengthClass: TeloLengthClass = "default",
+  geometry = invalidGeometry(profile),
   activationMpRequired = 0,
   blockedLivingEntityId: string | null = null,
 ): TeloCastPlan => {
   const sharedGeometry = Object.freeze({ geometry });
   return Object.freeze({
-    planId: createPlanId(request, lengthClass, geometry),
-    profileVersion: CAST_PLAN_PROFILE_VERSION,
+    planId: createPlanId(profile.profileVersion, request, lengthClass, geometry),
+    profileVersion: profile.profileVersion,
     canonicalAst: Object.freeze({ ...request.canonicalAst }),
     requestedLengthClass: lengthClass,
     resolvedLengthClass: lengthClass,
@@ -435,47 +447,48 @@ const rejectedPlan = (
   });
 };
 
-export const createTeloCastPlan = (request: TeloCastPlanRequest): TeloCastPlan => {
+export const compileTeloCastWithProfiles = (
+  request: TeloCastPlanRequest,
+  profiles: TeloLengthProfileSet,
+): TeloCastPlan => {
+  assertLengthProfileSet(profiles);
+  const fallbackProfile = profiles.default;
   if (request.canonicalAst.head !== "word.telo" ||
       ![null, "word.lili", "word.suli"].includes(request.canonicalAst.lengthModifier)) {
-    return rejectedPlan(request, "unsupported_expression");
+    return rejectedPlan(request, "unsupported_expression", fallbackProfile);
   }
-  if (!isValidAnchor(request.anchorPx)) return rejectedPlan(request, "invalid_anchor");
-  if (!isValidDirection(request.direction)) return rejectedPlan(request, "invalid_direction");
+  const lengthClass = classForModifier(request.canonicalAst.lengthModifier);
+  const profile = profiles[lengthClass];
+  if (!isValidAnchor(request.anchorPx)) return rejectedPlan(request, "invalid_anchor", profile, lengthClass);
+  if (!isValidDirection(request.direction)) return rejectedPlan(request, "invalid_direction", profile, lengthClass);
   if (!isFiniteNumber(request.currentMp) || request.currentMp < 0) {
-    return rejectedPlan(request, "invalid_mp");
+    return rejectedPlan(request, "invalid_mp", profile, lengthClass);
   }
   if (!Number.isSafeInteger(request.worldVersion) || request.worldVersion < 0) {
-    return rejectedPlan(request, "invalid_world_version");
+    return rejectedPlan(request, "invalid_world_version", profile, lengthClass);
   }
   if (request.maximumRealizableLengthPx !== undefined &&
       (!isFiniteNumber(request.maximumRealizableLengthPx) || request.maximumRealizableLengthPx < 0)) {
-    return rejectedPlan(request, "invalid_realizable_length");
+    return rejectedPlan(request, "invalid_realizable_length", profile, lengthClass);
   }
   const livingSafetyZones = request.livingSafetyZones ?? [];
   if (!validLivingSafetyZones(livingSafetyZones)) {
-    return rejectedPlan(request, "invalid_living_safety_zone");
+    return rejectedPlan(request, "invalid_living_safety_zone", profile, lengthClass);
   }
 
-  const lengthClass = classForModifier(request.canonicalAst.lengthModifier);
-  const profile = LENGTH_PROFILES[lengthClass];
   const maximumLength = request.maximumRealizableLengthPx ?? profile.nominalLengthPx;
   const realizedLengthPx = quantizeLengthToSimulationGrid(
     Math.min(profile.nominalLengthPx, Math.max(0, maximumLength)),
   );
-  const geometry = createGeometry(
-    request.anchorPx,
-    request.direction,
-    profile.nominalLengthPx,
-    realizedLengthPx,
-  );
+  const geometry = createGeometry(request.anchorPx, request.direction, profile, realizedLengthPx);
   const livingEntityId = blockedLivingEntity(geometry, livingSafetyZones);
   if (livingEntityId !== null) {
     return rejectedPlan(
       request,
       "living_safety_volume_blocked",
-      geometry,
+      profile,
       lengthClass,
+      geometry,
       profile.activationMp,
       livingEntityId,
     );
@@ -484,8 +497,9 @@ export const createTeloCastPlan = (request: TeloCastPlanRequest): TeloCastPlan =
     return rejectedPlan(
       request,
       "requested_class_cannot_be_realized_here",
-      geometry,
+      profile,
       lengthClass,
+      geometry,
       profile.activationMp,
     );
   }
@@ -493,16 +507,17 @@ export const createTeloCastPlan = (request: TeloCastPlanRequest): TeloCastPlan =
     return rejectedPlan(
       request,
       "requested_class_requires_more_mp",
-      geometry,
+      profile,
       lengthClass,
+      geometry,
       profile.activationMp,
     );
   }
 
   const sharedGeometry = Object.freeze({ geometry });
   return Object.freeze({
-    planId: createPlanId(request, lengthClass, geometry),
-    profileVersion: CAST_PLAN_PROFILE_VERSION,
+    planId: createPlanId(profile.profileVersion, request, lengthClass, geometry),
+    profileVersion: profile.profileVersion,
     canonicalAst: Object.freeze({ ...request.canonicalAst }),
     requestedLengthClass: lengthClass,
     resolvedLengthClass: lengthClass,
@@ -521,6 +536,9 @@ export const createTeloCastPlan = (request: TeloCastPlanRequest): TeloCastPlan =
   });
 };
 
+export const createTeloCastPlan = (request: TeloCastPlanRequest): TeloCastPlan =>
+  compileTeloCastWithProfiles(request, TELO_LENGTH_PROFILES);
+
 /** Stable integration name; createTeloCastPlan remains as a descriptive alias. */
 export const compileTeloCast = (input: TeloCastPlanRequest): TeloCastPlan =>
   createTeloCastPlan(input);
@@ -536,11 +554,11 @@ const isTrustedConfirmablePlan = (plan: TeloCastPlan): boolean => {
     const modifier = plan.canonicalAst.lengthModifier;
     if (![null, "word.lili", "word.suli"].includes(modifier)) return false;
     const lengthClass = classForModifier(modifier);
-    const profile = LENGTH_PROFILES[lengthClass];
+    const profile = TELO_LENGTH_PROFILES[lengthClass];
     const geometry = plan.execution.geometry;
     if (!Object.isFrozen(plan) || !Object.isFrozen(geometry) ||
         !Object.isFrozen(plan.preview) || !Object.isFrozen(plan.execution)) return false;
-    if (plan.profileVersion !== CAST_PLAN_PROFILE_VERSION ||
+    if (plan.profileVersion !== profile.profileVersion ||
         plan.canonicalAst.head !== "word.telo" ||
         plan.requestedLengthClass !== lengthClass || plan.resolvedLengthClass !== lengthClass ||
         plan.activationMpRequired !== profile.activationMp ||
@@ -557,31 +575,39 @@ const isTrustedConfirmablePlan = (plan: TeloCastPlan): boolean => {
         geometry.realizedLengthPx % SIMULATION_CELL_SIZE_PX !== 0 ||
         geometry.realizedLengthPx < profile.minimumRealizedLengthPx ||
         geometry.realizedLengthPx > profile.nominalLengthPx ||
-        geometry.fixedCrossSectionWidthPx !== 12 || geometry.simulationCellSizePx !== 2 ||
-        geometry.simulationLengthCells !== geometry.realizedLengthPx / 2 ||
-        geometry.simulationWidthCells !== 6 ||
+        geometry.fixedCrossSectionWidthPx !== profile.crossSectionWidthPx ||
+        geometry.simulationCellSizePx !== SIMULATION_CELL_SIZE_PX ||
+        geometry.simulationLengthCells !== geometry.realizedLengthPx / SIMULATION_CELL_SIZE_PX ||
+        geometry.simulationWidthCells !== profile.crossSectionWidthPx / SIMULATION_CELL_SIZE_PX ||
         geometry.massCalculationBasis !== "world_pixel_area") return false;
 
     const expected = createGeometry(
       geometry.anchorPx,
       geometry.direction,
-      profile.nominalLengthPx,
+      profile,
       geometry.realizedLengthPx,
     );
     if (!samePoint(geometry.endpointPx, expected.endpointPx) ||
         !sameCells(geometry.simulationCells, expected.simulationCells) ||
         geometry.manifestationCellCount !== expected.manifestationCellCount ||
-        geometry.simulationCells.length !== geometry.realizedLengthPx * 12 / 4 ||
-        geometry.worldPixelGeometry.areaPx2 !== geometry.realizedLengthPx * 12 ||
+        geometry.simulationCells.length !== geometry.realizedLengthPx * profile.crossSectionWidthPx /
+          (SIMULATION_CELL_SIZE_PX ** 2) ||
+        geometry.worldPixelGeometry.areaPx2 !== geometry.realizedLengthPx * profile.crossSectionWidthPx ||
+        geometry.worldPixelGeometry.nominalLengthPx !== profile.nominalLengthPx ||
+        geometry.worldPixelGeometry.realizedLengthPx !== geometry.realizedLengthPx ||
+        geometry.worldPixelGeometry.fixedCrossSectionWidthPx !== profile.crossSectionWidthPx ||
         geometry.worldPixelGeometry.anchorPx !== geometry.anchorPx ||
         geometry.worldPixelGeometry.endpointPx !== geometry.endpointPx ||
         geometry.worldPixelGeometry.direction !== geometry.direction ||
+        geometry.simulationCellGeometry.cellSizePx !== SIMULATION_CELL_SIZE_PX ||
+        geometry.simulationCellGeometry.lengthCells !== geometry.simulationLengthCells ||
+        geometry.simulationCellGeometry.widthCells !== geometry.simulationWidthCells ||
         geometry.simulationCellGeometry.cells !== geometry.simulationCells ||
         geometry.simulationCellGeometry.manifestationCells !== geometry.simulationCells ||
         geometry.simulationCellGeometry.manifestationCellCount !== geometry.simulationCells.length ||
         geometry.simulationCellGeometry.massCalculationBasis !== "world_pixel_area") return false;
 
-    const expectedId = createPlanId({
+    const expectedId = createPlanId(profile.profileVersion, {
       canonicalAst: plan.canonicalAst,
       anchorPx: geometry.anchorPx,
       direction: geometry.direction,

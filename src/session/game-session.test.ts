@@ -1,0 +1,426 @@
+import { describe, expect, it } from "vitest";
+import {
+  createLearningProgression,
+  reduceLearningEvidence,
+  type LearningProgressionSnapshot,
+} from "../learning/progression";
+import { SurvivalSystem } from "../game/survival";
+import {
+  GAME_SESSION_SAVE_SCHEMA,
+  LEGACY_GAME_SESSION_SAVE_SCHEMA,
+  GameSession,
+  adaptMpLedgerSnapshot,
+  adaptSurvivalSave,
+  adaptTradeSnapshot,
+  migrateGameSessionSave,
+  replayGameSession,
+  type GameSessionEvent,
+  type GameSessionSave,
+  type LegacyGameSessionSaveV1,
+  type SessionEconomySummary,
+} from "./game-session";
+
+const initialEconomy = (coin = 0): SessionEconomySummary => ({
+  coin,
+  walletRevision: coin === 0 ? 0 : 1,
+  inventoryRevision: 0,
+  lots: [],
+});
+
+const createSession = (): GameSession => GameSession.create({
+  sessionId: "save.test.001",
+  mp: { currentMp: 24, maxMp: 24, worldVersion: 0 },
+  currentSceneId: "scene.n00.arrival",
+});
+
+const discoverTelo = (): LearningProgressionSnapshot => {
+  const result = reduceLearningEvidence(createLearningProgression(), {
+    eventId: "learning.event.discover.telo",
+    eventType: "glyph_discovered",
+    playerSaveId: "save.test.001",
+    wordId: "telo",
+    idempotencyKey: "learning.discover.telo",
+    locationId: "n01.stream.glyph.telo",
+    recognitionMode: "world_observation",
+  });
+  expect(result.applied).toBe(true);
+  return result.snapshot;
+};
+
+describe("GameSession", () => {
+  it("round-trips a checksummed save and replays the same monotonic ledger", () => {
+    const session = createSession();
+    const events: GameSessionEvent[] = [
+      {
+        eventId: "event.scene.n01",
+        sequence: 1,
+        type: "scene_entered",
+        payload: { sceneId: "scene.n01.stream" },
+      },
+      {
+        eventId: "event.flag.stream-open",
+        sequence: 2,
+        type: "world_flag_set",
+        payload: { flagId: "stream_path_open", value: true, scope: "area", areaId: "n01" },
+      },
+      {
+        eventId: "event.quest.prologue.1",
+        sequence: 3,
+        type: "quest_stage_set",
+        payload: { questId: "quest.prologue", stageId: "reach_stream", stageOrdinal: 1 },
+      },
+      {
+        eventId: "event.receipt.first-water",
+        sequence: 4,
+        type: "receipt_recorded",
+        payload: { receiptId: "receipt.water.001", domain: "world", payloadHash: "world-water-v1" },
+      },
+    ];
+
+    events.forEach((event) => expect(session.apply(event).applied).toBe(true));
+    const save = session.toSave();
+    expect(save.schema).toBe(GAME_SESSION_SAVE_SCHEMA);
+
+    const loaded = GameSession.load(JSON.parse(JSON.stringify(save)));
+    expect(loaded.ok).toBe(true);
+    if (!loaded.ok) return;
+    expect(loaded.session.snapshot()).toEqual(session.snapshot());
+    expect(loaded.session.events()).toEqual(events);
+
+    const replayed = replayGameSession(save.sessionId, save.origin, save.eventLedger);
+    expect(replayed.ok).toBe(true);
+    if (replayed.ok) expect(replayed.session.snapshot()).toEqual(save.state);
+  });
+
+  it("deduplicates the same event before sequence checks and rejects a same-ID payload conflict", () => {
+    const session = createSession();
+    const event: GameSessionEvent = {
+      eventId: "event.scene.n01",
+      sequence: 1,
+      type: "scene_entered",
+      payload: { sceneId: "scene.n01.stream" },
+    };
+    expect(session.apply(event).reason).toBe("applied");
+    expect(session.apply(event)).toMatchObject({ applied: false, duplicate: true, reason: "duplicate_event" });
+
+    const conflict: GameSessionEvent = {
+      ...event,
+      payload: { sceneId: "scene.n02.settlement" },
+    };
+    expect(session.apply(conflict)).toMatchObject({
+      applied: false,
+      duplicate: false,
+      reason: "event_payload_conflict",
+    });
+    expect(session.nextSequence()).toBe(2);
+
+    expect(session.apply({
+      eventId: "event.sequence.gap",
+      sequence: 3,
+      type: "scene_entered",
+      payload: { sceneId: "scene.n03.waterwheel" },
+    })).toMatchObject({ applied: false, reason: "event_sequence_gap" });
+  });
+
+  it("fails closed for malformed, corrupted, and replay-divergent saves", () => {
+    const session = createSession();
+    session.apply({
+      eventId: "event.scene.n01",
+      sequence: 1,
+      type: "scene_entered",
+      payload: { sceneId: "scene.n01.stream" },
+    });
+    const save = session.toSave();
+
+    const damagedIntegrity = structuredClone(save);
+    (damagedIntegrity.integrity as { digest: string }).digest = "00000000";
+    expect(GameSession.load(damagedIntegrity)).toEqual({ ok: false, error: "integrity_mismatch" });
+
+    const malformed = structuredClone(save) as unknown as {
+      state: { survival: { hydration: number } };
+    };
+    malformed.state.survival.hydration = Number.NaN;
+    expect(GameSession.load(malformed)).toEqual({ ok: false, error: "invalid_save" });
+
+    const replayDivergent = structuredClone(save) as {
+      -readonly [Key in keyof GameSessionSave]: GameSessionSave[Key];
+    };
+    replayDivergent.state = {
+      ...replayDivergent.state,
+      world: { ...replayDivergent.state.world, currentSceneId: "scene.tampered" },
+    };
+    const resigned = GameSession.create({
+      sessionId: replayDivergent.sessionId,
+      mp: replayDivergent.origin.mp,
+      currentSceneId: replayDivergent.origin.world.currentSceneId,
+      learning: replayDivergent.origin.learning,
+      survival: replayDivergent.origin.survival,
+      economy: replayDivergent.origin.economy,
+    }).toSave();
+    replayDivergent.integrity = {
+      ...replayDivergent.integrity,
+      // A valid digest is copied from a structurally valid but semantically different save.
+      digest: resigned.integrity.digest,
+    };
+    expect(GameSession.load(replayDivergent).ok).toBe(false);
+
+    expect(GameSession.load({ schema: "tokipona.game-session.v99" })).toEqual({
+      ok: false,
+      error: "unsupported_schema",
+    });
+  });
+
+  it("migrates a valid v0.1 snapshot without silently defaulting its persistent state", () => {
+    const source = createSession();
+    source.apply({
+      eventId: "event.flag.global",
+      sequence: 1,
+      type: "world_flag_set",
+      payload: { flagId: "prologue_started", value: true, scope: "global" },
+    });
+    const state = source.snapshot();
+    const legacy: LegacyGameSessionSaveV1 = {
+      schema: LEGACY_GAME_SESSION_SAVE_SCHEMA,
+      sessionId: source.sessionId,
+      mp: state.mp,
+      world: state.world,
+      learning: state.learning,
+      survival: state.survival,
+      economy: state.economy,
+      quests: state.quests,
+    };
+
+    const migration = migrateGameSessionSave(legacy);
+    expect(migration.ok).toBe(true);
+    if (!migration.ok) return;
+    expect(migration.migratedFrom).toBe(LEGACY_GAME_SESSION_SAVE_SCHEMA);
+    expect(migration.save.schema).toBe(GAME_SESSION_SAVE_SCHEMA);
+
+    const loaded = GameSession.load(legacy);
+    expect(loaded.ok).toBe(true);
+    if (!loaded.ok) return;
+    expect(loaded.migratedFrom).toBe(LEGACY_GAME_SESSION_SAVE_SCHEMA);
+    expect(loaded.session.snapshot().world.flags["global:prologue_started"]?.value).toBe(true);
+  });
+
+  it("resets only an area's ephemeral world state without rolling learning or receipts back", () => {
+    const session = createSession();
+    const learning = discoverTelo();
+    const economy = initialEconomy(7);
+    const events: GameSessionEvent[] = [
+      {
+        eventId: "event.learning.telo",
+        sequence: 1,
+        type: "learning_replaced",
+        payload: { learning },
+      },
+      {
+        eventId: "event.economy.first-wage",
+        sequence: 2,
+        type: "economy_replaced",
+        payload: { economy },
+      },
+      {
+        eventId: "event.receipt.first-wage",
+        sequence: 3,
+        type: "receipt_recorded",
+        payload: { receiptId: "trade.wage.001", domain: "trade", payloadHash: "coin+7" },
+      },
+      {
+        eventId: "event.flag.area",
+        sequence: 4,
+        type: "world_flag_set",
+        payload: { flagId: "crate_broken", value: true, scope: "area", areaId: "n01" },
+      },
+      {
+        eventId: "event.flag.global",
+        sequence: 5,
+        type: "world_flag_set",
+        payload: { flagId: "telo_known", value: true, scope: "global" },
+      },
+      {
+        eventId: "event.reset.n01",
+        sequence: 6,
+        type: "area_reset",
+        payload: { areaId: "n01", respawnSceneId: "scene.n01.checkpoint" },
+      },
+    ];
+    events.forEach((event) => expect(session.apply(event).applied).toBe(true));
+
+    const snapshot = session.snapshot();
+    expect(snapshot.world.flags["area:n01:crate_broken"]).toBeUndefined();
+    expect(snapshot.world.flags["global:telo_known"]?.value).toBe(true);
+    expect(snapshot.world.areaEpochs.n01).toBe(1);
+    expect(snapshot.world.currentSceneId).toBe("scene.n01.checkpoint");
+    expect(snapshot.learning).toEqual(learning);
+    expect(snapshot.economy.coin).toBe(7);
+    expect(snapshot.receiptIndex["trade.wage.001"]?.payloadHash).toBe("coin+7");
+
+    const duplicateReceipt = session.apply({
+      eventId: "event.receipt.first-wage.replay",
+      sequence: 7,
+      type: "receipt_recorded",
+      payload: { receiptId: "trade.wage.001", domain: "trade", payloadHash: "coin+7" },
+    });
+    expect(duplicateReceipt).toMatchObject({ applied: false, duplicate: true, reason: "duplicate_receipt" });
+    expect(session.nextSequence()).toBe(7);
+
+    const receiptConflict = session.apply({
+      eventId: "event.receipt.first-wage.conflict",
+      sequence: 7,
+      type: "receipt_recorded",
+      payload: { receiptId: "trade.wage.001", domain: "trade", payloadHash: "coin+70" },
+    });
+    expect(receiptConflict).toMatchObject({ applied: false, duplicate: false, reason: "receipt_payload_conflict" });
+  });
+
+  it("adapts existing subsystem snapshots without sharing mutable child state", () => {
+    expect(adaptMpLedgerSnapshot({ mp: 9, currentMp: 9, maxMp: 24, worldVersion: 3 })).toEqual({
+      currentMp: 9,
+      maxMp: 24,
+      worldVersion: 3,
+    });
+
+    const survival = new SurvivalSystem();
+    const survivalSave = survival.toSave();
+    expect(adaptSurvivalSave(survivalSave)).toEqual(survivalSave);
+
+    const tradeLike = {
+      coin: 2,
+      walletRevision: 1,
+      inventoryRevision: 1,
+      quoteSequence: 0,
+      lots: [{
+        lotId: "lot.meat.001",
+        itemId: "food.raw_small_game_meat",
+        sourceLotIds: [],
+        legalOwnerId: "player",
+        stolenFromId: null,
+        processingTransactionId: null,
+        quantity: 1,
+        originKind: "natural" as const,
+        naturalFraction: 1,
+        freshness: "fresh" as const,
+        qualityMultiplier: 1,
+        contaminationMu: 0,
+        economyEligible: true,
+        reserved: false,
+        equipped: false,
+        ownershipRevision: 0,
+        freshnessRevision: 0,
+      }],
+      merchantStates: [],
+    };
+    const adapted = adaptTradeSnapshot(tradeLike);
+    tradeLike.lots[0]!.quantity = 0;
+    expect(adapted.lots[0]?.quantity).toBe(1);
+  });
+
+  it("persists checkpoints atomically, rejects non-incrementing revisions, and gives legacy saves an explicit origin fallback", () => {
+    const session = createSession();
+    expect(session.snapshot().checkpoint).toEqual({
+      id: "checkpoint.session-entry",
+      sceneId: "scene.n00.arrival",
+      position: { x: 0, y: 0 },
+      revision: 0,
+    });
+    expect(session.apply({
+      eventId: "event.checkpoint.n01",
+      sequence: 1,
+      type: "checkpoint_set",
+      payload: {
+        checkpoint: {
+          id: "checkpoint.n01.stream",
+          sceneId: "scene.n01.stream",
+          position: { x: 40, y: 60 },
+          revision: 1,
+        },
+      },
+    }).applied).toBe(true);
+    expect(session.apply({
+      eventId: "event.checkpoint.same-revision",
+      sequence: 2,
+      type: "checkpoint_set",
+      payload: {
+        checkpoint: {
+          id: "checkpoint.n01.other",
+          sceneId: "scene.n01.stream",
+          position: { x: 80, y: 60 },
+          revision: 1,
+        },
+      },
+    })).toMatchObject({ applied: false, reason: "state_regression" });
+    expect(session.nextSequence()).toBe(2);
+
+    const state = session.snapshot();
+    const legacy: LegacyGameSessionSaveV1 = {
+      schema: LEGACY_GAME_SESSION_SAVE_SCHEMA,
+      sessionId: session.sessionId,
+      mp: state.mp,
+      world: state.world,
+      learning: state.learning,
+      survival: state.survival,
+      economy: state.economy,
+      quests: state.quests,
+    };
+    const loaded = GameSession.load(legacy);
+    expect(loaded.ok).toBe(true);
+    if (loaded.ok) {
+      expect(loaded.session.snapshot().checkpoint).toEqual({
+        id: "checkpoint.legacy-entry",
+        sceneId: state.world.currentSceneId,
+        position: { x: 0, y: 0 },
+        revision: 0,
+      });
+    }
+  });
+
+  it("indexes irreversible receipts already present in an imported child save", () => {
+    const survival = new SurvivalSystem();
+    expect(survival.consume("food.travel_ration", "survival.consume.ration.001").committed).toBe(true);
+    const session = GameSession.create({
+      sessionId: "save.with-child-receipt",
+      mp: { currentMp: 24, maxMp: 24, worldVersion: 0 },
+      currentSceneId: "scene.n00.arrival",
+      survival: survival.toSave(),
+    });
+
+    expect(session.snapshot().receiptIndex["survival.consume.ration.001"]).toMatchObject({
+      domain: "survival",
+      recordedAtSequence: 0,
+    });
+    expect(session.apply({
+      eventId: "event.try-reuse-child-receipt",
+      sequence: 1,
+      type: "receipt_recorded",
+      payload: {
+        receiptId: "survival.consume.ration.001",
+        domain: "survival",
+        payloadHash: "different-payload",
+      },
+    })).toMatchObject({ applied: false, reason: "receipt_payload_conflict" });
+    expect(session.nextSequence()).toBe(1);
+  });
+
+  it("rejects component regressions and leaves the expected sequence reusable", () => {
+    const session = createSession();
+    expect(session.apply({
+      eventId: "event.mp.world-v2",
+      sequence: 1,
+      type: "mp_replaced",
+      payload: { mp: { currentMp: 18, maxMp: 24, worldVersion: 2 } },
+    }).applied).toBe(true);
+
+    expect(session.apply({
+      eventId: "event.mp.regression",
+      sequence: 2,
+      type: "mp_replaced",
+      payload: { mp: { currentMp: 24, maxMp: 24, worldVersion: 1 } },
+    })).toMatchObject({ applied: false, reason: "state_regression" });
+    expect(session.nextSequence()).toBe(2);
+  });
+});
+
+// Compile-time assertion that the public save shape remains serializable and versioned.
+const _saveShape: Pick<GameSessionSave, "schema" | "eventLedger" | "integrity"> | null = null;
+void _saveShape;
