@@ -256,8 +256,11 @@ function validateSource(
       validateArrayIds(source, "meditation_families", "id", issues);
       break;
     case "task":
-      validateArrayIds(source, "learning_state_event_contracts", "event_id", issues);
+      validateArrayIds(source, "learning_state_event_contracts", "event_id", issues, false);
       validateArrayIds(source, "golden_tests", "id", issues);
+      if (readString(source.content, "task_type") === "infrastructure_world_predicate") {
+        validateInfrastructureTaskSource(source, issues);
+      }
       break;
     case "glyph_catalog":
       validateArrayIds(source, "glyphs", "canonicalWordId", issues);
@@ -299,7 +302,6 @@ function validateRequiredKinds(sources: readonly CompiledSource[], issues: Conte
     "persistence",
     "learning_progression",
     "p0_curriculum",
-    "task",
   ] satisfies readonly ContentKind[]) {
     const count = counts.get(kind) ?? 0;
     if (count > 1) {
@@ -459,7 +461,12 @@ function validateCrossDomainReferences(
       for (const [index, wordId] of readStringArray(readObject(source.content, "enabled_content"), "word_ids").entries()) {
         if (!wordIds.has(wordId)) addIssue(issues, "ref.missing", source.path, `enabled_content.word_ids[${index}]`, `unknown word ${wordId}`);
       }
-      validateTaskExpectedProfiles(source, issues);
+      if (Object.keys(readNestedObject(source.content, ["enabled_content", "expected_profiles"])).length > 0) {
+        validateTaskExpectedProfiles(source, issues);
+      }
+      if (readString(source.content, "task_type") === "infrastructure_world_predicate") {
+        validateInfrastructureTaskReferences(source, sources, indexes, wordIds, issues);
+      }
     }
     if (source.kind === "p0_curriculum") {
       for (const wordId of p0Ids) {
@@ -503,6 +510,84 @@ function validateCrossDomainReferences(
   }
 }
 
+function validateInfrastructureTaskReferences(
+  source: CompiledSource,
+  sources: readonly CompiledSource[],
+  indexes: MutableIndexes,
+  wordIds: ReadonlySet<string>,
+  issues: ContentIssue[],
+): void {
+  const taskId = readString(source.content, "task_id");
+  const chapterId = readString(source.content, "chapter_flow_id");
+  const segmentId = readString(source.content, "chapter_segment_id");
+  const regionId = readString(source.content, "region_id");
+  const nodeId = readString(source.content, "region_node_id");
+  const chapter = indexes.chapters[chapterId];
+  const region = indexes.regions[regionId];
+  const segment = chapter ? readObjectArray(chapter, "segments").find((candidate) => readString(candidate, "segment_id") === segmentId) : undefined;
+  if (!chapter) addIssue(issues, "ref.missing", source.path, "chapter_flow_id", `unknown chapter ${chapterId}`);
+  if (!segment) addIssue(issues, "ref.missing", source.path, "chapter_segment_id", `unknown chapter segment ${segmentId}`);
+  if (segment) {
+    const declaredTaskIds = new Set([
+      ...readStringArray(segment, "task_ids"), ...readStringArray(segment, "required_task_ids"), ...readStringArray(segment, "optional_task_ids"),
+    ]);
+    if (!declaredTaskIds.has(taskId)) addIssue(issues, "ref.missing", source.path, "task_id", `task ${taskId} is not declared by chapter segment ${segmentId}`);
+    if (readString(segment, "task_family_id") !== readString(source.content, "task_family_id")) addIssue(issues, "ref.mismatch", source.path, "task_family_id", `chapter segment ${segmentId} declares another task family`);
+    const chapterSolutions = new Set(readStringArray(segment, "solution_families"));
+    for (const [index, solution] of readObjectArray(source.content, "solution_families").entries()) {
+      const family = readString(solution, "chapter_solution_family");
+      if (!chapterSolutions.has(family) && family !== "guided_material_change") addIssue(issues, "ref.missing", source.path, `solution_families[${index}].chapter_solution_family`, `solution family ${family} is not declared by chapter segment ${segmentId}`);
+    }
+  }
+
+  const node = region ? readObjectArray(region, "nodes").find((candidate) => readString(candidate, "node_id") === nodeId) : undefined;
+  if (!region) addIssue(issues, "ref.missing", source.path, "region_id", `unknown region ${regionId}`);
+  if (!node) addIssue(issues, "ref.missing", source.path, "region_node_id", `unknown region node ${nodeId}`);
+
+  const sceneRef = readString(source.content, "scene_ref");
+  const sceneSource = resolveReferencedSource(source, sceneRef, sources);
+  if (!sceneSource || sceneSource.kind !== "scene") addIssue(issues, "ref.mismatch", source.path, "scene_ref", "infrastructure task must reference a scene document");
+  else {
+    if (readString(sceneSource.content, "region_node_id") !== nodeId) addIssue(issues, "ref.mismatch", source.path, "scene_ref", `scene must belong to region node ${nodeId}`);
+    if (readString(sceneSource.content, "chapter_segment_id") !== segmentId) addIssue(issues, "ref.mismatch", source.path, "scene_ref", `scene must belong to chapter segment ${segmentId}`);
+  }
+
+  for (const [index, exposure] of readObjectArray(source.content, "language_exposure").entries()) {
+    const wordId = readString(exposure, "word_id");
+    if (!wordIds.has(wordId)) addIssue(issues, "ref.missing", source.path, `language_exposure[${index}].word_id`, `unknown word ${wordId}`);
+  }
+
+  const patchIds = new Set(sources.filter((item) => item.kind === "region").flatMap((item) => readObjectArray(readNestedObject(item.content, ["meaningful_material_patch_records"]), "records")).map((patch) => readString(patch, "patch_id")));
+  const referencedPatches = [
+    ...readStringArray(source.content, "material_patch_refs"),
+    ...readObjectArray(source.content, "result_modes").map((mode) => readString(mode, "patch_record_ref")).filter(Boolean),
+  ];
+  for (const [index, patchId] of referencedPatches.entries()) {
+    if (!patchIds.has(patchId)) addIssue(issues, "ref.missing", source.path, `material_patch_refs[${index}]`, `unknown material patch record ${patchId}`);
+  }
+
+  if (node) {
+    const authoredEntry = new Set(readStringArray(source.content, "entry_guard_any"));
+    const authoritativeEntry = new Set(guardStrings(readObject(node, "entry_condition")));
+    if (!sameStringSet(authoredEntry, authoritativeEntry)) addIssue(issues, "ref.mismatch", source.path, "entry_guard_any", "task entry guards must equal the region node entry condition");
+  }
+  if (region) {
+    const guardedOutbound = readObjectArray(region, "connections")
+      .filter((connection) => readString(connection, "from") === nodeId)
+      .flatMap((connection) => guardStrings(readObject(connection, "traversal")));
+    const authoredExit = new Set(readStringArray(source.content, "exit_guard_any"));
+    if (!sameStringSet(authoredExit, new Set(guardedOutbound))) addIssue(issues, "ref.mismatch", source.path, "exit_guard_any", "task exit guards must equal guarded outbound region traversal predicates");
+  }
+}
+function guardStrings(contract: ContentObject): string[] {
+  const predicate = readString(contract, "predicate");
+  if (predicate) return [predicate];
+  return readStringArray(contract, "any");
+}
+
+function sameStringSet(left: ReadonlySet<string>, right: ReadonlySet<string>): boolean {
+  return left.size === right.size && [...left].every((value) => right.has(value));
+}
 function validateSceneSource(source: CompiledSource, issues: ContentIssue[]): void {
   validateArrayIds(source, "entrances", "entrance_id", issues);
   validateArrayIds(source, "exits", "exit_id", issues);
@@ -514,6 +599,7 @@ function validateSceneSource(source: CompiledSource, issues: ContentIssue[]): vo
   validateArrayIds(source, "npcs", "npc_id", issues, false);
   validateArrayIds(source, "facilities", "facility_id", issues, false);
   validateArrayIds(source, "tasks", "task_id", issues, false);
+  validateArrayIds(source, "task_refs", "task_id", issues, false);
   validateArrayIds(source, "trade_entries", "trade_entry_id", issues, false);
   validateArrayIds(source, "inbound_route_refs", "inbound_ref_id", issues, false);
   validateArrayIds(source, "soft_failure_recoveries", "failure_id", issues, false);
@@ -617,6 +703,8 @@ function validateSceneSource(source: CompiledSource, issues: ContentIssue[]): vo
   }
   const recoveryEntrance = readNestedString(source.content, ["recovery", "entry_entrance_id"]);
   if (!entranceIds.has(recoveryEntrance)) addIssue(issues, "ref.missing", source.path, "recovery.entry_entrance_id", `unknown recovery entrance ${recoveryEntrance}`);
+  const recoverySeconds = readNestedNumber(source.content, ["recovery", "maximum_softlock_recovery_seconds"]);
+  if (recoverySeconds === null || recoverySeconds <= 0 || recoverySeconds > 60) addIssue(issues, "scene.recovery_duration", source.path, "recovery.maximum_softlock_recovery_seconds", "scene softlock recovery must be available within 60 seconds");
 }
 
 function validateSceneStaticReachability(
@@ -692,7 +780,14 @@ function validateSceneReferences(source: CompiledSource, sources: readonly Compi
   const regionNodes = new Map((region ? readObjectArray(region, "nodes") : []).map((node) => [readString(node, "node_id"), node]));
   const node = regionNodes.get(nodeId);
   if (!node) addIssue(issues, "ref.missing", source.path, "region_node_id", `unknown region node ${nodeId}`);
-  else if (readString(node, "scene_id") !== readString(source.content, "scene_id")) addIssue(issues, "ref.mismatch", source.path, "scene_id", `region node ${nodeId} declares scene ${readString(node, "scene_id")}`);
+  else {
+    if (readString(node, "scene_id") !== readString(source.content, "scene_id")) addIssue(issues, "ref.mismatch", source.path, "scene_id", `region node ${nodeId} declares scene ${readString(node, "scene_id")}`);
+    const authoredSize = readObject(source.content, "size_tiles");
+    const suggested = node.suggested_size_tiles;
+    if (!Array.isArray(suggested) || suggested.length !== 2 || readNumber(authoredSize, "width") !== suggested[0] || readNumber(authoredSize, "height") !== suggested[1]) {
+      addIssue(issues, "scene.region_size_mismatch", source.path, "size_tiles", `scene size must equal region node ${nodeId} suggested_size_tiles`);
+    }
+  }
   const segments = chapter ? readObjectArray(chapter, "segments") : [];
   const segment = segments.find((candidate) => readString(candidate, "segment_id") === segmentId);
   if (!segment) addIssue(issues, "ref.missing", source.path, "chapter_segment_id", `unknown chapter segment ${segmentId}`);
@@ -707,6 +802,7 @@ function validateSceneReferences(source: CompiledSource, sources: readonly Compi
     const familyId = readString(task, "task_family_id");
     if (segment && familyId !== readString(segment, "task_family_id")) addIssue(issues, "ref.mismatch", source.path, `tasks[${index}].task_family_id`, `chapter segment declares task family ${readString(segment, "task_family_id")}`);
   }
+  const regionConnections = region ? readObjectArray(region, "connections") : [];
   for (const [index, exit] of readObjectArray(source.content, "exits").entries()) {
     const targetSceneId = readString(exit, "target_scene_id");
     const targetNodeId = readString(exit, "target_region_node_id");
@@ -721,6 +817,17 @@ function validateSceneReferences(source: CompiledSource, sources: readonly Compi
     } else if (targetNodeId) {
       if (!regionNodes.has(targetNodeId)) addIssue(issues, "ref.missing", source.path, `exits[${index}].target_region_node_id`, `unknown target region node ${targetNodeId}`);
     } else addIssue(issues, "scene.exit_target_required", source.path, `exits[${index}]`, "exit must declare target_scene_id or target_region_node_id");
+    const targetNode = targetNodeId || (targetSceneId ? readString(indexes.scenes[targetSceneId] ?? {}, "region_node_id") : "");
+    const connection = regionConnections.find((candidate) =>
+      (readString(candidate, "from") === nodeId && readString(candidate, "to") === targetNode) ||
+      (readString(candidate, "from") === targetNode && readString(candidate, "to") === nodeId)
+    );
+    if (targetNode && !connection) addIssue(issues, "ref.missing", source.path, `exits[${index}]`, `no authoritative region connection joins ${nodeId} and ${targetNode}`);
+    if (connection) {
+      const authoritativeGuards = new Set(guardStrings(readObject(connection, "traversal")));
+      const authoredGuards = new Set(guardStrings(readObject(exit, "traversal_guard")));
+      if (!sameStringSet(authoredGuards, authoritativeGuards)) addIssue(issues, "scene.traversal_guard_mismatch", source.path, `exits[${index}].traversal_guard`, "exit traversal guard must equal the authoritative region connection guard");
+    }
   }
   const localEntranceIds = new Set(readObjectArray(source.content, "entrances").map((entry) => readString(entry, "entrance_id")));
   for (const [index, inbound] of readObjectArray(source.content, "inbound_route_refs").entries()) {
@@ -744,7 +851,21 @@ function validateSceneReferences(source: CompiledSource, sources: readonly Compi
     const entranceId = readString(inbound, "entrance_id");
     if (!localEntranceIds.has(entranceId)) addIssue(issues, "ref.missing", source.path, `inbound_route_refs[${index}].entrance_id`, `unknown local entrance ${entranceId}`);
   }
-  for (const [index, entry] of readObjectArray(source.content, "trade_entries").entries()) {
+  for (const [index, taskRef] of readObjectArray(source.content, "task_refs").entries()) {
+    const taskId = readString(taskRef, "task_id");
+    const task = indexes.tasks[taskId];
+    if (!task) addIssue(issues, "ref.missing", source.path, `task_refs[${index}].task_id`, `unknown task ${taskId}`);
+    const referencedSource = resolveReferencedSource(source, readString(taskRef, "task_ref"), sources);
+    if (!referencedSource || referencedSource.kind !== "task") addIssue(issues, "ref.mismatch", source.path, `task_refs[${index}].task_ref`, "task_ref must resolve to a task document");
+    else if (readString(referencedSource.content, "task_id") !== taskId) addIssue(issues, "ref.mismatch", source.path, `task_refs[${index}].task_ref`, `task_ref does not declare ${taskId}`);
+    if (task) {
+      if (readString(task, "region_node_id") !== nodeId || readString(task, "chapter_segment_id") !== segmentId) addIssue(issues, "ref.mismatch", source.path, `task_refs[${index}]`, "scene and task must share region node and chapter segment");
+    }
+    const objectiveIds = new Set(readObjectArray(source.content, "route_objectives").map((objective) => readString(objective, "objective_id")));
+    for (const [objectiveIndex, objectiveId] of readStringArray(taskRef, "objective_ids").entries()) {
+      if (!objectiveIds.has(objectiveId)) addIssue(issues, "ref.missing", source.path, `task_refs[${index}].objective_ids[${objectiveIndex}]`, `unknown scene objective ${objectiveId}`);
+    }
+  }  for (const [index, entry] of readObjectArray(source.content, "trade_entries").entries()) {
     const economyRef = readString(entry, "authoritative_economy_ref");
     const economySource = resolveReferencedSource(source, economyRef, sources);
     if (!economySource || economySource.kind !== "settlement_trade") {
@@ -820,6 +941,94 @@ function validateLearningProgression(source: CompiledSource, issues: ContentIssu
   }
 }
 
+function validateInfrastructureTaskSource(source: CompiledSource, issues: ContentIssue[]): void {
+  validateArrayIds(source, "result_modes", "mode_id", issues);
+  validateArrayIds(source, "solution_families", "solution_id", issues);
+  validateArrayIds(source, "language_exposure", "word_id", issues, false);
+  validateArrayIds(source, "grammar_contacts", "token", issues, false);
+  validateArrayIds(source, "material_reactions", "material", issues, false);
+
+  for (const field of ["task_id", "task_family_id", "chapter_flow_id", "chapter_segment_id", "region_id", "region_node_id", "scene_ref"] as const) {
+    if (!readString(source.content, field)) addIssue(issues, "schema.required", source.path, field, `${field} must be a non-empty string`);
+  }
+
+  const goal = readObject(source.content, "world_goal");
+  const predicateMode = readString(goal, "predicate_mode");
+  if (predicateMode !== "all" && predicateMode !== "any") {
+    addIssue(issues, "task.predicate_mode", source.path, "world_goal.predicate_mode", "predicate_mode must be all or any");
+  }
+  if (readString(goal, "evaluation") !== "world_state_predicates_only" || goal.raw_utterance_string_matching_forbidden !== true) {
+    addIssue(issues, "task.world_predicate_authority", source.path, "world_goal", "infrastructure success must read world predicates and forbid raw utterance matching");
+  }
+  const predicates = readObjectArray(goal, "predicates");
+  if (predicates.length === 0) addIssue(issues, "task.predicate_required", source.path, "world_goal.predicates", "at least one world predicate is required");
+  reportDuplicates(predicates, "predicate_id", source, "world_goal.predicates", issues);
+  for (const [index, predicate] of predicates.entries()) {
+    if (!readString(predicate, "expression")) addIssue(issues, "schema.required", source.path, `world_goal.predicates[${index}].expression`, "predicate expression must be non-empty");
+  }
+
+  const modes = readObjectArray(source.content, "result_modes");
+  const modeIds = new Set(modes.map((mode) => readString(mode, "mode_id")));
+  if (!modes.some((mode) => mode.completion_valid === true)) addIssue(issues, "task.completion_mode_missing", source.path, "result_modes", "at least one result mode must be completion-valid");
+  for (const [index, mode] of modes.entries()) {
+    if (typeof mode.completion_valid !== "boolean" || typeof mode.persists_across_reload !== "boolean") {
+      addIssue(issues, "task.mode_boolean", source.path, `result_modes[${index}]`, "completion_valid and persists_across_reload must be boolean");
+    }
+    const patch = mode.patch_record_ref;
+    if (mode.persists_across_reload === true && (typeof patch !== "string" || patch.length === 0)) {
+      addIssue(issues, "task.persistent_mode_patch", source.path, `result_modes[${index}].patch_record_ref`, "a persistent result mode requires a material patch record");
+    }
+    if (mode.persists_across_reload === false && patch !== null) {
+      addIssue(issues, "task.transient_mode_patch", source.path, `result_modes[${index}].patch_record_ref`, "a non-persistent result mode must not name a persistent patch record");
+    }
+  }
+
+  const solutions = readObjectArray(source.content, "solution_families");
+  const nonMagicMainline = solutions.filter((solution) => readString(solution, "route_kind") === "non_magic" && solution.mainline === true);
+  if (nonMagicMainline.length < 2) addIssue(issues, "task.non_magic_solution_minimum", source.path, "solution_families", "at least two non-magic mainline solutions are required");
+  for (const [index, solution] of solutions.entries()) {
+    const kind = readString(solution, "route_kind");
+    if (kind !== "non_magic" && kind !== "optional_magic") addIssue(issues, "task.solution_kind", source.path, `solution_families[${index}].route_kind`, "route kind must be non_magic or optional_magic");
+    const resultMode = readString(solution, "result_mode");
+    if (!modeIds.has(resultMode)) addIssue(issues, "ref.missing", source.path, `solution_families[${index}].result_mode`, `unknown result mode ${resultMode}`);
+    if (readStringArray(solution, "required_actions").length === 0 || readStringArray(solution, "required_world_predicates").length === 0) {
+      addIssue(issues, "task.solution_contract", source.path, `solution_families[${index}]`, "solution requires authored actions and world predicates");
+    }
+  }
+
+  const completion = readObject(source.content, "completion");
+  for (const [index, modeId] of readStringArray(completion, "valid_result_modes").entries()) {
+    const mode = modes.find((candidate) => readString(candidate, "mode_id") === modeId);
+    if (!mode) addIssue(issues, "ref.missing", source.path, `completion.valid_result_modes[${index}]`, `unknown result mode ${modeId}`);
+    else if (mode.completion_valid !== true) addIssue(issues, "ref.mismatch", source.path, `completion.valid_result_modes[${index}]`, `mode ${modeId} is not completion-valid`);
+  }
+  if (completion.raw_expression_never_read_for_success !== true) addIssue(issues, "task.raw_expression_forbidden", source.path, "completion.raw_expression_never_read_for_success", "completion must explicitly ignore raw expression strings");
+
+  const recovery = readObject(source.content, "recovery");
+  const recoverySeconds = readNumber(recovery, "maximum_softlock_recovery_seconds");
+  if (recoverySeconds === null || recoverySeconds <= 0 || recoverySeconds > 60) addIssue(issues, "task.recovery_duration", source.path, "recovery.maximum_softlock_recovery_seconds", "softlock recovery must be available within 60 seconds");
+  if (readStringArray(recovery, "actions").length === 0 || readStringArray(recovery, "preserves").length === 0) addIssue(issues, "task.recovery_contract", source.path, "recovery", "recovery must declare actions and preserved state");
+
+  const entryGuards = readStringArray(source.content, "entry_guard_any");
+  const exitGuards = readStringArray(source.content, "exit_guard_any");
+  if (entryGuards.length === 0 || exitGuards.length === 0) addIssue(issues, "task.guard_required", source.path, "entry_guard_any", "infrastructure tasks require authored entry and exit guards");
+
+  if (readString(source.content, "task_id") === "ch01_waterwheel") {
+    const expectedModes = ["stopped", "temporary_driven", "structurally_restored"];
+    if (expectedModes.some((mode) => !modeIds.has(mode)) || modeIds.size !== expectedModes.length) addIssue(issues, "task.waterwheel_modes", source.path, "result_modes", "waterwheel modes must be stopped, temporary_driven and structurally_restored");
+    const temporary = modes.find((mode) => readString(mode, "mode_id") === "temporary_driven");
+    const structural = modes.find((mode) => readString(mode, "mode_id") === "structurally_restored");
+    if (temporary?.persists_across_reload !== false || structural?.persists_across_reload !== true) addIssue(issues, "task.waterwheel_persistence", source.path, "result_modes", "only structurally_restored may persist across reload");
+  }
+  if (readString(source.content, "task_id") === "ch01_service_channel") {
+    const materials = new Set(readObjectArray(source.content, "material_reactions").map((reaction) => readString(reaction, "material")));
+    for (const material of ["water", "wet_soil", "stone", "wood", "thin_ice"]) {
+      if (!materials.has(material)) addIssue(issues, "task.material_missing", source.path, "material_reactions", `service channel must author ${material}`);
+    }
+    const oContact = readObjectArray(source.content, "grammar_contacts").find((contact) => readString(contact, "token") === "o");
+    if (!oContact || oContact.automatic_state_grant !== false || oContact.mastery_evidence_allowed !== false) addIssue(issues, "task.o_contact_only", source.path, "grammar_contacts", "o must remain receptive grammar contact with no automatic grant or mastery evidence");
+  }
+}
 function validateTaskExpectedProfiles(source: CompiledSource, issues: ContentIssue[]): void {
   const profiles = readNestedObject(source.content, ["enabled_content", "expected_profiles"]);
   const ledger = readNestedObject(source.content, ["completion", "expected_direct_mp_ledger"]);

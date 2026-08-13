@@ -1,0 +1,124 @@
+schema_version: "g01.task.infrastructure.v0.1"
+content_version: "chapter-01.waterwheel.1"
+task_type: "infrastructure_world_predicate"
+task_id: "ch01_waterwheel"
+task_family_id: "infrastructure_flow"
+chapter_flow_id: "ch01_world_literacy_prologue"
+chapter_segment_id: "waterwheel"
+region_id: "valley_prologue"
+region_node_id: "valley.waterwheel"
+scene_ref: "../scenes/valley-waterwheel.v0.1.yaml"
+status: "machine_contract_ready"
+implementation_boundary: "authored_contract_not_particle_or_fluid_simulation"
+
+enabled_content:
+  word_ids: [word.telo, word.tawa]
+
+world_goal:
+  evaluation: "world_state_predicates_only"
+  predicate_mode: "all"
+  raw_utterance_string_matching_forbidden: true
+  predicates:
+    - predicate_id: "waterwheel.stable_rotation"
+      expression: "wheel.angular_velocity_rpm >= 8 && wheel.angular_velocity_rpm <= 18 && wheel.stable_duration_seconds >= 10"
+    - predicate_id: "waterwheel.downstream_safe"
+      expression: "downstream.overflow_contact == false && downstream.flow_band <= safe"
+
+result_modes:
+  - mode_id: "stopped"
+    completion_valid: false
+    persistence_scope: "none"
+    persists_across_reload: false
+    patch_record_ref: null
+  - mode_id: "temporary_driven"
+    completion_valid: true
+    persistence_scope: "task_local"
+    persists_across_reload: false
+    patch_record_ref: null
+  - mode_id: "structurally_restored"
+    completion_valid: true
+    persistence_scope: "region_persistent"
+    persists_across_reload: true
+    patch_record_ref: "patch.valley.waterwheel_structure.v0.1"
+
+solution_families:
+  - solution_id: "waterwheel.clear_natural_inflow"
+    route_kind: "non_magic"
+    chapter_solution_family: "clear_blockage"
+    mainline: true
+    result_mode: "structurally_restored"
+    required_actions: [inspect_intake, remove_loose_debris, open_existing_sluice]
+    required_world_predicates: [natural_inflow_reaches_wheel, axle_alignment_safe, downstream.flow_band_safe]
+  - solution_id: "waterwheel.repair_axle"
+    route_kind: "non_magic"
+    chapter_solution_family: "repair_axle"
+    mainline: true
+    result_mode: "structurally_restored"
+    required_actions: [recover_hand_tools, fit_wooden_bushing, tighten_axle_wedge]
+    required_world_predicates: [axle_supported, wheel_rotates_freely, downstream.flow_band_safe]
+  - solution_id: "waterwheel.move_flume"
+    route_kind: "non_magic"
+    chapter_solution_family: "move_flume"
+    mainline: true
+    result_mode: "structurally_restored"
+    required_actions: [release_flume_pins, align_existing_flume, mechanically_lock_flume]
+    required_world_predicates: [flume_alignment_in_band, flume_lock_engaged, downstream.flow_band_safe]
+  - solution_id: "waterwheel.dig_bypass"
+    route_kind: "non_magic"
+    chapter_solution_family: "dig_bypass"
+    mainline: true
+    result_mode: "temporary_driven"
+    required_actions: [mark_safe_bank, dig_soft_soil_bypass, place_downstream_stones]
+    required_world_predicates: [bypass_flow_reaches_wheel, bank_erosion_below_limit, downstream.flow_band_safe]
+  - solution_id: "waterwheel.manifest_then_lock"
+    route_kind: "optional_magic"
+    chapter_solution_family: "temporary_manifest_then_mechanical_lock"
+    mainline: false
+    result_mode: "temporary_driven"
+    required_actions: [manifest_temporary_water, move_flume_under_flow, engage_mechanical_lock]
+    required_world_predicates: [temporary_flow_reaches_wheel, mechanical_lock_engaged, downstream.flow_band_safe]
+
+completion:
+  valid_result_modes: [temporary_driven, structurally_restored]
+  goal_commit_event: "waterwheel_goal_committed"
+  result_commit_event: "waterwheel_result_committed"
+  persistent_result_requires_mode: "structurally_restored"
+  set_flags_when_goal_true: [waterwheel_stable, downstream_safe, maintenance_access_open]
+  raw_expression_never_read_for_success: true
+
+language_exposure:
+  - word_id: "word.tawa"
+    discovery_trigger: "observe_existing_wheel_motion_or_motion_marker"
+    learning_prompt: "contrast_motion_with_remaining_still"
+    eligible_state_proposals: [seen, available, practiced]
+    automatic_mastery_forbidden: true
+    tool_solution_still_allows_observation: true
+  - word_id: "word.telo"
+    discovery_trigger: "observe_natural_water_driving_wheel"
+    learning_prompt: "predict_where_existing_water_will_move"
+    eligible_state_proposals: [seen, available, practiced]
+    automatic_mastery_forbidden: true
+    tool_solution_still_allows_observation: true
+
+entry_guard_any: ["settlement_reached == true"]
+exit_guard_any: ["waterwheel_restored == true", "maintenance_access_open == true"]
+material_patch_refs: [patch.valley.waterwheel_structure.v0.1]
+
+recovery:
+  maximum_softlock_recovery_seconds: 60
+  actions: [restore_hand_tools, reset_uncommitted_flume, reopen_settlement_return, clear_task_local_manifested_water]
+  preserves: [learning_evidence, structurally_restored_patch, task_receipt, region_commits]
+  duplicate_resources_forbidden: true
+
+golden_tests:
+  - id: "waterwheel.natural_water_nonmagic"
+    solution_id: "waterwheel.clear_natural_inflow"
+    expect: {completion_valid: true, result_mode: structurally_restored, magic_required: false}
+  - id: "waterwheel.tools_nonmagic"
+    solution_id: "waterwheel.repair_axle"
+    expect: {completion_valid: true, result_mode: structurally_restored, magic_required: false}
+  - id: "waterwheel.temporary_magic_does_not_persist"
+    solution_id: "waterwheel.manifest_then_lock"
+    expect: {completion_valid: true, result_mode: temporary_driven, persists_across_reload: false}
+  - id: "waterwheel.success_ignores_input_string"
+    expect: {world_predicates_required: true, raw_utterance_string_matching: false}

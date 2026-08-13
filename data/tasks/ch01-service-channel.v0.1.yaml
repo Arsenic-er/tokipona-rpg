@@ -1,0 +1,138 @@
+schema_version: "g01.task.infrastructure.v0.1"
+content_version: "chapter-01.service-channel.1"
+task_type: "infrastructure_world_predicate"
+task_id: "ch01_service_channel"
+task_family_id: "material_route_repair"
+chapter_flow_id: "ch01_world_literacy_prologue"
+chapter_segment_id: "service_channel"
+region_id: "valley_prologue"
+region_node_id: "valley.service_channel"
+scene_ref: "../scenes/valley-service-channel.v0.1.yaml"
+status: "machine_contract_ready"
+implementation_boundary: "authored_contract_not_particle_or_reaction_simulation"
+
+enabled_content:
+  word_ids: [word.tawa]
+
+world_goal:
+  evaluation: "world_state_predicates_only"
+  predicate_mode: "any"
+  raw_utterance_string_matching_forbidden: true
+  predicates:
+    - predicate_id: "service.gate_open"
+      expression: "service_gate_open == true"
+    - predicate_id: "service.bypass_open"
+      expression: "service_bypass_open == true"
+
+result_modes:
+  - mode_id: "blocked"
+    completion_valid: false
+    persistence_scope: "none"
+    persists_across_reload: false
+    patch_record_ref: null
+  - mode_id: "service_gate_open"
+    completion_valid: true
+    persistence_scope: "region_persistent"
+    persists_across_reload: true
+    patch_record_ref: "patch.valley.service_gate.v0.1"
+  - mode_id: "service_bypass_open"
+    completion_valid: true
+    persistence_scope: "region_persistent"
+    persists_across_reload: true
+    patch_record_ref: "patch.valley.service_bypass.v0.1"
+
+material_reactions:
+  - {material: water, observations: [flows_downhill, fills_open_volume, carries_loose_mud]}
+  - {material: wet_soil, observations: [digs_with_shovel, slumps_when_unsupported, absorbs_water]}
+  - {material: stone, observations: [moves_as_rigid_mass, blocks_flow, supports_platform]}
+  - {material: wood, observations: [floats_when_unloaded, forms_platform, chars_before_burning]}
+  - {material: thin_ice, observations: [supports_limited_load, cracks_under_impact, melts_with_external_heat]}
+
+solution_families:
+  - solution_id: "service.open_bypass_valve"
+    route_kind: "non_magic"
+    chapter_solution_family: "open_bypass_valve"
+    mainline: true
+    result_mode: "service_bypass_open"
+    required_actions: [find_maintenance_crank, clear_valve_silt, turn_bypass_valve]
+    required_world_predicates: [bypass_valve_open, bypass_route_clear]
+  - solution_id: "service.place_wood_platform"
+    route_kind: "non_magic"
+    chapter_solution_family: "place_wood_platform"
+    mainline: true
+    result_mode: "service_bypass_open"
+    required_actions: [recover_planks, place_support_stones, lash_wood_platform]
+    required_world_predicates: [platform_supported, platform_clearance_safe]
+  - solution_id: "service.dig_wet_soil"
+    route_kind: "non_magic"
+    chapter_solution_family: "dig_wet_soil"
+    mainline: true
+    result_mode: "service_gate_open"
+    required_actions: [mark_gate_edge, dig_wet_soil, brace_soft_bank]
+    required_world_predicates: [gate_track_clear, bank_slump_below_limit]
+  - solution_id: "service.move_stone_baffle"
+    route_kind: "non_magic"
+    chapter_solution_family: "move_stone_baffle"
+    mainline: true
+    result_mode: "service_gate_open"
+    required_actions: [attach_lever, roll_stone_baffle, chock_baffle]
+    required_world_predicates: [stone_baffle_off_track, baffle_chocked]
+  - solution_id: "service.external_heat_thin_ice"
+    route_kind: "non_magic"
+    chapter_solution_family: "melt_thin_ice"
+    mainline: true
+    result_mode: "service_gate_open"
+    required_actions: [carry_settlement_brazier, shield_wood, warm_gate_track]
+    required_world_predicates: [external_heat_source_present, thin_ice_melted, wood_temperature_below_ignition]
+  - solution_id: "service.optional_material_magic"
+    route_kind: "optional_magic"
+    chapter_solution_family: "guided_material_change"
+    mainline: false
+    result_mode: "service_gate_open"
+    required_actions: [preview_nonliving_target, apply_legal_material_effect, verify_route_clear]
+    required_world_predicates: [living_overlap_false, gate_track_clear]
+
+completion:
+  valid_result_modes: [service_gate_open, service_bypass_open]
+  result_events:
+    service_gate_open: "service_gate_solution_committed"
+    service_bypass_open: "service_bypass_solution_committed"
+  raw_expression_never_read_for_success: true
+
+language_exposure:
+  - word_id: "word.tawa"
+    discovery_trigger: "observe_water_mud_or_stone_change_position"
+    learning_prompt: "predict_what_moves_and_toward_which_reference"
+    eligible_state_proposals: [seen, available, practiced]
+    automatic_mastery_forbidden: true
+    tool_solution_still_allows_observation: true
+
+grammar_contacts:
+  - token: "o"
+    contact_kind: "receptive_command_particle"
+    presentation: "npc_signage_and_spoken_instruction"
+    automatic_state_grant: false
+    production_required: false
+    mastery_evidence_allowed: false
+
+entry_guard_any: ["waterwheel_restored == true", "maintenance_access_open == true"]
+exit_guard_any: ["service_gate_open == true", "service_bypass_open == true"]
+material_patch_refs: [patch.valley.service_gate.v0.1, patch.valley.service_bypass.v0.1]
+
+recovery:
+  maximum_softlock_recovery_seconds: 60
+  actions: [restore_maintenance_crank, restore_nontradeable_planks, reset_uncommitted_mud_band, reopen_waterwheel_return, expose_public_maintenance_bypass]
+  preserves: [learning_evidence, committed_gate_patch, committed_bypass_patch, region_commits]
+  duplicate_resources_forbidden: true
+
+golden_tests:
+  - id: "service.valve_nonmagic"
+    solution_id: "service.open_bypass_valve"
+    expect: {completion_valid: true, result_mode: service_bypass_open, magic_required: false}
+  - id: "service.platform_nonmagic"
+    solution_id: "service.place_wood_platform"
+    expect: {completion_valid: true, result_mode: service_bypass_open, magic_required: false}
+  - id: "service.materials_are_distinct"
+    expect: {material_count_minimum: 5, particle_simulation_claimed: false}
+  - id: "service.o_contact_no_grant"
+    expect: {token: o, automatic_state_grant: false, mastery_evidence_allowed: false}

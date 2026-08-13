@@ -28,6 +28,7 @@ export interface RuntimeSceneExitManifest {
   readonly boundsPx: RuntimeTileRect;
   readonly target: RuntimeSceneExitTarget;
   readonly firstTraverseCommit: string | null;
+  readonly traversalGuardAny: readonly string[];
 }
 
 export interface RuntimeSceneRouteObjectiveManifest {
@@ -98,6 +99,11 @@ export interface RuntimeSceneTaskManifest {
   readonly recoveryActions: readonly string[];
 }
 
+export interface RuntimeSceneTaskRefManifest {
+  readonly id: string;
+  readonly authoritativeTaskSourcePath: string;
+  readonly objectiveIds: readonly string[];
+}
 export interface RuntimeSceneTradeEntryManifest {
   readonly id: string;
   readonly npcId: string;
@@ -149,6 +155,7 @@ export interface RuntimeSceneManifest {
   readonly npcs: readonly RuntimeSceneNpcManifest[];
   readonly facilities: readonly RuntimeSceneFacilityManifest[];
   readonly tasks: readonly RuntimeSceneTaskManifest[];
+  readonly taskRefs: readonly RuntimeSceneTaskRefManifest[];
   readonly tradeEntries: readonly RuntimeSceneTradeEntryManifest[];
   readonly inboundRoutes: readonly RuntimeSceneInboundRouteManifest[];
   readonly softFailureRecoveries: readonly RuntimeSceneSoftFailureRecoveryManifest[];
@@ -178,7 +185,7 @@ export function readRuntimeSceneManifestIndex(candidate: unknown): RuntimeSceneM
     }
     const collectionNames = [
       "entrances", "exits", "routes", "routeObjectives", "nonMagicAlternativeRouteIds", "targets", "interactions",
-      "npcs", "facilities", "tasks", "tradeEntries", "inboundRoutes", "softFailureRecoveries", "materialPatchRecordRefs",
+      "npcs", "facilities", "tasks", "taskRefs", "tradeEntries", "inboundRoutes", "softFailureRecoveries", "materialPatchRecordRefs",
     ] as const;
     for (const name of collectionNames) {
       if (!Array.isArray(raw[name])) throw new Error(`scene ${sceneId}.${name} must be an array`);

@@ -33,7 +33,7 @@
     }
   },
   "scenes": {
-    "sourceDigest": "sha256:600302f3ba40d70650a86ee19483c4cbaf61ee70bb9a8dc88cae36ef92b5d206",
+    "sourceDigest": "sha256:2311ae7b30dc41daae66c96fa73d3dfd584b36cba490b2ba8cd004272ccfd458",
     "byId": {
       "scene.valley.arrival_shelf": {
         "sceneId": "scene.valley.arrival_shelf",
@@ -117,7 +117,8 @@
               "sceneId": "scene.valley.stream_section",
               "entranceId": "stream.from_arrival"
             },
-            "firstTraverseCommit": null
+            "firstTraverseCommit": null,
+            "traversalGuardAny": []
           }
         ],
         "recovery": {
@@ -270,11 +271,486 @@
         "npcs": [],
         "facilities": [],
         "tasks": [],
+        "taskRefs": [],
         "tradeEntries": [],
         "inboundRoutes": [],
         "softFailureRecoveries": [],
         "materialPatchRecordRefs": [
           "patch.valley.arrival_route.v0.1"
+        ]
+      },
+      "scene.valley.service_channel": {
+        "sceneId": "scene.valley.service_channel",
+        "sourcePath": "data/scenes/valley-service-channel.v0.1.yaml",
+        "regionId": "valley_prologue",
+        "regionNodeId": "valley.service_channel",
+        "chapterFlowId": "ch01_world_literacy_prologue",
+        "chapterSegmentId": "service_channel",
+        "tileSizePx": 16,
+        "sizeTiles": {
+          "width": 28,
+          "height": 40
+        },
+        "collisionRows": [
+          "............................",
+          "............................",
+          "............................",
+          "............................",
+          "............................",
+          "............................",
+          "............................",
+          "............................",
+          "............................",
+          "............................",
+          "............................",
+          "............................",
+          "............................",
+          "............................",
+          "............................",
+          "............................",
+          "............................",
+          "............................",
+          "............................",
+          "............................",
+          "............................",
+          "............................",
+          "............................",
+          "............................",
+          "............................",
+          "............................",
+          "............................",
+          "............................",
+          "............................",
+          "............................",
+          "............................",
+          "............................",
+          "............................",
+          "............................",
+          "............................",
+          "............................",
+          "............................",
+          "............................",
+          "............................",
+          "############################"
+        ],
+        "entrances": [
+          {
+            "id": "service.from_waterwheel",
+            "spawnTile": [
+              2,
+              1
+            ],
+            "spawnPx": {
+              "x": 32,
+              "y": 610
+            },
+            "recoveryEntry": true,
+            "checkpointPolicy": "scene_entry_and_softlock_recovery"
+          },
+          {
+            "id": "service.from_cistern",
+            "spawnTile": [
+              25,
+              1
+            ],
+            "spawnPx": {
+              "x": 400,
+              "y": 610
+            },
+            "recoveryEntry": true,
+            "checkpointPolicy": "return_route"
+          }
+        ],
+        "exits": [
+          {
+            "id": "service.to_waterwheel",
+            "boundsTiles": {
+              "x": 0,
+              "y": 0,
+              "width": 2,
+              "height": 7
+            },
+            "boundsPx": {
+              "x": 0,
+              "y": 528,
+              "width": 32,
+              "height": 112
+            },
+            "target": {
+              "kind": "scene",
+              "sceneId": "scene.valley.waterwheel",
+              "entranceId": "waterwheel.from_service"
+            },
+            "firstTraverseCommit": null,
+            "traversalGuardAny": [
+              "waterwheel_restored == true",
+              "maintenance_access_open == true"
+            ]
+          },
+          {
+            "id": "service.to_high_cistern",
+            "boundsTiles": {
+              "x": 26,
+              "y": 0,
+              "width": 2,
+              "height": 7
+            },
+            "boundsPx": {
+              "x": 416,
+              "y": 528,
+              "width": 32,
+              "height": 112
+            },
+            "target": {
+              "kind": "region_node",
+              "regionNodeId": "valley.high_cistern"
+            },
+            "firstTraverseCommit": null,
+            "traversalGuardAny": [
+              "service_gate_open == true",
+              "service_bypass_open == true"
+            ]
+          }
+        ],
+        "recovery": {
+          "entryEntranceId": "service.from_waterwheel",
+          "maximumSoftlockRecoverySeconds": 60,
+          "actions": [
+            "restore_maintenance_crank",
+            "restore_nontradeable_planks",
+            "reset_uncommitted_mud_band",
+            "expose_public_maintenance_bypass",
+            "reopen_waterwheel_return"
+          ],
+          "preserves": [
+            "learning_evidence",
+            "committed_gate_patch",
+            "committed_bypass_patch",
+            "region_commits",
+            "survival_state"
+          ]
+        },
+        "routeObjectives": [
+          {
+            "id": "service.inspect_material_band",
+            "predicate": "materials_observed(water, wet_soil, stone, wood, thin_ice) >= 3"
+          },
+          {
+            "id": "service.open_gate",
+            "predicate": "service_gate_open == true"
+          },
+          {
+            "id": "service.open_bypass",
+            "predicate": "service_bypass_open == true"
+          },
+          {
+            "id": "service.reach_cistern",
+            "predicate": "service_gate_open == true || service_bypass_open == true"
+          }
+        ],
+        "routes": [
+          {
+            "id": "service.maintenance_valve_route",
+            "kind": "non_magic",
+            "solutionFamily": "open_bypass_valve",
+            "fromEntranceId": "service.from_waterwheel",
+            "toExitId": "service.to_high_cistern",
+            "objectiveIds": [
+              "service.inspect_material_band",
+              "service.open_bypass",
+              "service.reach_cistern"
+            ]
+          },
+          {
+            "id": "service.wood_platform_route",
+            "kind": "non_magic",
+            "solutionFamily": "place_wood_platform",
+            "fromEntranceId": "service.from_waterwheel",
+            "toExitId": "service.to_high_cistern",
+            "objectiveIds": [
+              "service.inspect_material_band",
+              "service.open_bypass",
+              "service.reach_cistern"
+            ]
+          },
+          {
+            "id": "service.wet_soil_route",
+            "kind": "non_magic",
+            "solutionFamily": "dig_wet_soil",
+            "fromEntranceId": "service.from_waterwheel",
+            "toExitId": "service.to_high_cistern",
+            "objectiveIds": [
+              "service.inspect_material_band",
+              "service.open_gate",
+              "service.reach_cistern"
+            ]
+          },
+          {
+            "id": "service.stone_baffle_route",
+            "kind": "non_magic",
+            "solutionFamily": "move_stone_baffle",
+            "fromEntranceId": "service.from_waterwheel",
+            "toExitId": "service.to_high_cistern",
+            "objectiveIds": [
+              "service.inspect_material_band",
+              "service.open_gate",
+              "service.reach_cistern"
+            ]
+          },
+          {
+            "id": "service.external_heat_route",
+            "kind": "non_magic",
+            "solutionFamily": "melt_thin_ice",
+            "fromEntranceId": "service.from_waterwheel",
+            "toExitId": "service.to_high_cistern",
+            "objectiveIds": [
+              "service.inspect_material_band",
+              "service.open_gate",
+              "service.reach_cistern"
+            ]
+          },
+          {
+            "id": "service.optional_magic_route",
+            "kind": "optional_magic",
+            "solutionFamily": "guided_material_change",
+            "fromEntranceId": "service.from_waterwheel",
+            "toExitId": "service.to_high_cistern",
+            "objectiveIds": [
+              "service.inspect_material_band",
+              "service.open_gate",
+              "service.reach_cistern"
+            ]
+          },
+          {
+            "id": "service.signed_return_route",
+            "kind": "non_magic",
+            "solutionFamily": "signed_waterwheel_return",
+            "fromEntranceId": "service.from_cistern",
+            "toExitId": "service.to_waterwheel",
+            "objectiveIds": []
+          }
+        ],
+        "nonMagicAlternativeRouteIds": [
+          "service.maintenance_valve_route",
+          "service.wood_platform_route",
+          "service.wet_soil_route",
+          "service.stone_baffle_route",
+          "service.external_heat_route",
+          "service.signed_return_route"
+        ],
+        "targets": [
+          {
+            "id": "service.instruction_sign",
+            "kind": "grammar_contact",
+            "material": "wood_and_pigment"
+          },
+          {
+            "id": "service.water_band",
+            "kind": "material_band",
+            "material": "water"
+          },
+          {
+            "id": "service.wet_soil_bank",
+            "kind": "destructible_material",
+            "material": "wet_soil"
+          },
+          {
+            "id": "service.stone_baffle",
+            "kind": "movable_material",
+            "material": "stone"
+          },
+          {
+            "id": "service.wood_stock",
+            "kind": "task_material",
+            "material": "wood"
+          },
+          {
+            "id": "service.thin_ice_gate",
+            "kind": "phase_change_material",
+            "material": "thin_ice"
+          },
+          {
+            "id": "service.bypass_valve",
+            "kind": "maintenance_bypass",
+            "material": "metal_and_stone"
+          },
+          {
+            "id": "service.gate_track",
+            "kind": "route_gate",
+            "material": "stone_and_metal"
+          },
+          {
+            "id": "service.emergency_canteen",
+            "kind": "public_relief",
+            "material": "metal_and_water"
+          }
+        ],
+        "interactions": [
+          {
+            "id": "service.read_instruction_sign",
+            "targetId": "service.instruction_sign",
+            "verb": "read_receptively",
+            "toolOrMagicRequired": false,
+            "optionalWordId": null,
+            "npcId": null,
+            "facilityId": null,
+            "taskId": null
+          },
+          {
+            "id": "service.observe_water_motion",
+            "targetId": "service.water_band",
+            "verb": "observe_motion",
+            "toolOrMagicRequired": false,
+            "optionalWordId": "word.tawa",
+            "npcId": null,
+            "facilityId": null,
+            "taskId": null
+          },
+          {
+            "id": "service.dig_wet_soil",
+            "targetId": "service.wet_soil_bank",
+            "verb": "dig_and_brace",
+            "toolOrMagicRequired": false,
+            "optionalWordId": null,
+            "npcId": null,
+            "facilityId": null,
+            "taskId": null
+          },
+          {
+            "id": "service.move_stone_baffle",
+            "targetId": "service.stone_baffle",
+            "verb": "lever_and_chock",
+            "toolOrMagicRequired": null,
+            "optionalWordId": "word.tawa",
+            "npcId": null,
+            "facilityId": null,
+            "taskId": null
+          },
+          {
+            "id": "service.place_wood_platform",
+            "targetId": "service.wood_stock",
+            "verb": "place_and_lash",
+            "toolOrMagicRequired": false,
+            "optionalWordId": null,
+            "npcId": null,
+            "facilityId": null,
+            "taskId": null
+          },
+          {
+            "id": "service.warm_thin_ice",
+            "targetId": "service.thin_ice_gate",
+            "verb": "apply_external_heat",
+            "toolOrMagicRequired": false,
+            "optionalWordId": null,
+            "npcId": null,
+            "facilityId": null,
+            "taskId": null
+          },
+          {
+            "id": "service.open_bypass_valve",
+            "targetId": "service.bypass_valve",
+            "verb": "clear_and_turn",
+            "toolOrMagicRequired": false,
+            "optionalWordId": null,
+            "npcId": null,
+            "facilityId": null,
+            "taskId": null
+          },
+          {
+            "id": "service.inspect_gate_track",
+            "targetId": "service.gate_track",
+            "verb": "inspect_route",
+            "toolOrMagicRequired": false,
+            "optionalWordId": null,
+            "npcId": null,
+            "facilityId": null,
+            "taskId": null
+          },
+          {
+            "id": "service.refill_emergency_canteen",
+            "targetId": "service.emergency_canteen",
+            "verb": "drink_or_fill",
+            "toolOrMagicRequired": false,
+            "optionalWordId": null,
+            "npcId": null,
+            "facilityId": "service.facility.emergency_canteen",
+            "taskId": null
+          }
+        ],
+        "npcs": [],
+        "facilities": [
+          {
+            "id": "service.facility.emergency_canteen",
+            "kind": "emergency_maintenance_canteen",
+            "targetId": "service.emergency_canteen",
+            "interactionIds": [
+              "service.refill_emergency_canteen"
+            ],
+            "publicRelief": true,
+            "economyEligible": false
+          }
+        ],
+        "tasks": [],
+        "taskRefs": [
+          {
+            "id": "ch01_service_channel",
+            "authoritativeTaskSourcePath": "data/tasks/ch01-service-channel.v0.1.yaml",
+            "objectiveIds": [
+              "service.open_gate",
+              "service.open_bypass"
+            ]
+          }
+        ],
+        "tradeEntries": [],
+        "inboundRoutes": [
+          {
+            "id": "service.inbound_from_waterwheel",
+            "sourceSceneId": "scene.valley.waterwheel",
+            "sourceExitId": "waterwheel.to_service",
+            "entranceId": "service.from_waterwheel"
+          }
+        ],
+        "softFailureRecoveries": [
+          {
+            "id": "service.lost_crank",
+            "action": "restore_maintenance_crank",
+            "preserves": [
+              "learning_evidence",
+              "committed_patches",
+              "region_commits"
+            ]
+          },
+          {
+            "id": "service.lost_planks",
+            "action": "restore_nontradeable_planks",
+            "preserves": [
+              "learning_evidence",
+              "committed_patches",
+              "region_commits"
+            ]
+          },
+          {
+            "id": "service.mud_collapse",
+            "action": "reset_uncommitted_mud_band",
+            "preserves": [
+              "learning_evidence",
+              "committed_patches",
+              "waterwheel_return"
+            ]
+          },
+          {
+            "id": "service.route_blocked",
+            "action": "expose_public_maintenance_bypass",
+            "preserves": [
+              "learning_evidence",
+              "committed_patches",
+              "waterwheel_return"
+            ]
+          }
+        ],
+        "materialPatchRecordRefs": [
+          "patch.valley.service_gate.v0.1",
+          "patch.valley.service_bypass.v0.1"
         ]
       },
       "scene.valley.settlement": {
@@ -369,7 +845,8 @@
               "sceneId": "scene.valley.stream_section",
               "entranceId": "stream.from_settlement"
             },
-            "firstTraverseCommit": null
+            "firstTraverseCommit": null,
+            "traversalGuardAny": []
           },
           {
             "id": "settlement.to_waterwheel",
@@ -389,7 +866,8 @@
               "kind": "region_node",
               "regionNodeId": "valley.waterwheel"
             },
-            "firstTraverseCommit": null
+            "firstTraverseCommit": null,
+            "traversalGuardAny": []
           }
         ],
         "recovery": {
@@ -762,6 +1240,7 @@
             ]
           }
         ],
+        "taskRefs": [],
         "tradeEntries": [
           {
             "id": "settlement.trade.supply_stall",
@@ -907,7 +1386,8 @@
               "sceneId": "scene.valley.arrival_shelf",
               "entranceId": "arrival.from_stream"
             },
-            "firstTraverseCommit": null
+            "firstTraverseCommit": null,
+            "traversalGuardAny": []
           },
           {
             "id": "stream.to_settlement",
@@ -928,7 +1408,8 @@
               "sceneId": "scene.valley.settlement",
               "entranceId": "settlement.from_stream"
             },
-            "firstTraverseCommit": "settlement_entry_crossed"
+            "firstTraverseCommit": "settlement_entry_crossed",
+            "traversalGuardAny": []
           }
         ],
         "recovery": {
@@ -1091,11 +1572,871 @@
         "npcs": [],
         "facilities": [],
         "tasks": [],
+        "taskRefs": [],
         "tradeEntries": [],
         "inboundRoutes": [],
         "softFailureRecoveries": [],
         "materialPatchRecordRefs": [
           "patch.valley.arrival_route.v0.1"
+        ]
+      },
+      "scene.valley.waterwheel": {
+        "sceneId": "scene.valley.waterwheel",
+        "sourcePath": "data/scenes/valley-waterwheel.v0.1.yaml",
+        "regionId": "valley_prologue",
+        "regionNodeId": "valley.waterwheel",
+        "chapterFlowId": "ch01_world_literacy_prologue",
+        "chapterSegmentId": "waterwheel",
+        "tileSizePx": 16,
+        "sizeTiles": {
+          "width": 30,
+          "height": 32
+        },
+        "collisionRows": [
+          "..............................",
+          "..............................",
+          "..............................",
+          "..............................",
+          "..............................",
+          "..............................",
+          "..............................",
+          "..............................",
+          "..............................",
+          "..............................",
+          "..............................",
+          "..............................",
+          "..............................",
+          "..............................",
+          "..............................",
+          "..............................",
+          "..............................",
+          "..............................",
+          "..............................",
+          "..............................",
+          "..............................",
+          "..............................",
+          "..............................",
+          "..............................",
+          "..............................",
+          "..............................",
+          "..............................",
+          "..............................",
+          "..............................",
+          "..............................",
+          "..............................",
+          "##############################"
+        ],
+        "entrances": [
+          {
+            "id": "waterwheel.from_settlement",
+            "spawnTile": [
+              2,
+              1
+            ],
+            "spawnPx": {
+              "x": 32,
+              "y": 482
+            },
+            "recoveryEntry": true,
+            "checkpointPolicy": "scene_entry_and_softlock_recovery"
+          },
+          {
+            "id": "waterwheel.from_service",
+            "spawnTile": [
+              27,
+              1
+            ],
+            "spawnPx": {
+              "x": 432,
+              "y": 482
+            },
+            "recoveryEntry": true,
+            "checkpointPolicy": "return_route"
+          }
+        ],
+        "exits": [
+          {
+            "id": "waterwheel.to_settlement",
+            "boundsTiles": {
+              "x": 0,
+              "y": 0,
+              "width": 2,
+              "height": 7
+            },
+            "boundsPx": {
+              "x": 0,
+              "y": 400,
+              "width": 32,
+              "height": 112
+            },
+            "target": {
+              "kind": "scene",
+              "sceneId": "scene.valley.settlement",
+              "entranceId": "settlement.from_waterwheel"
+            },
+            "firstTraverseCommit": null,
+            "traversalGuardAny": []
+          },
+          {
+            "id": "waterwheel.to_service",
+            "boundsTiles": {
+              "x": 28,
+              "y": 0,
+              "width": 2,
+              "height": 7
+            },
+            "boundsPx": {
+              "x": 448,
+              "y": 400,
+              "width": 32,
+              "height": 112
+            },
+            "target": {
+              "kind": "scene",
+              "sceneId": "scene.valley.service_channel",
+              "entranceId": "service.from_waterwheel"
+            },
+            "firstTraverseCommit": "service_channel_entry_crossed",
+            "traversalGuardAny": [
+              "waterwheel_restored == true",
+              "maintenance_access_open == true"
+            ]
+          }
+        ],
+        "recovery": {
+          "entryEntranceId": "waterwheel.from_settlement",
+          "maximumSoftlockRecoverySeconds": 60,
+          "actions": [
+            "restore_hand_tools",
+            "reset_uncommitted_flume",
+            "clear_task_local_manifested_water",
+            "reopen_settlement_return"
+          ],
+          "preserves": [
+            "learning_evidence",
+            "structurally_restored_patch",
+            "region_commits",
+            "survival_state"
+          ]
+        },
+        "routeObjectives": [
+          {
+            "id": "waterwheel.inspect_system",
+            "predicate": "intake_inspected == true && axle_inspected == true && downstream_inspected == true"
+          },
+          {
+            "id": "waterwheel.stable_rotation",
+            "predicate": "wheel.angular_velocity_rpm >= 8 && wheel.angular_velocity_rpm <= 18 && wheel.stable_duration_seconds >= 10"
+          },
+          {
+            "id": "waterwheel.downstream_safe",
+            "predicate": "downstream.overflow_contact == false && downstream.flow_band <= safe"
+          },
+          {
+            "id": "waterwheel.access_service",
+            "predicate": "waterwheel_restored == true || maintenance_access_open == true"
+          }
+        ],
+        "routes": [
+          {
+            "id": "waterwheel.natural_inflow_route",
+            "kind": "non_magic",
+            "solutionFamily": "clear_blockage",
+            "fromEntranceId": "waterwheel.from_settlement",
+            "toExitId": "waterwheel.to_service",
+            "objectiveIds": [
+              "waterwheel.inspect_system",
+              "waterwheel.stable_rotation",
+              "waterwheel.downstream_safe",
+              "waterwheel.access_service"
+            ]
+          },
+          {
+            "id": "waterwheel.axle_tool_route",
+            "kind": "non_magic",
+            "solutionFamily": "repair_axle",
+            "fromEntranceId": "waterwheel.from_settlement",
+            "toExitId": "waterwheel.to_service",
+            "objectiveIds": [
+              "waterwheel.inspect_system",
+              "waterwheel.stable_rotation",
+              "waterwheel.downstream_safe",
+              "waterwheel.access_service"
+            ]
+          },
+          {
+            "id": "waterwheel.flume_alignment_route",
+            "kind": "non_magic",
+            "solutionFamily": "move_flume",
+            "fromEntranceId": "waterwheel.from_settlement",
+            "toExitId": "waterwheel.to_service",
+            "objectiveIds": [
+              "waterwheel.inspect_system",
+              "waterwheel.stable_rotation",
+              "waterwheel.downstream_safe",
+              "waterwheel.access_service"
+            ]
+          },
+          {
+            "id": "waterwheel.soil_bypass_route",
+            "kind": "non_magic",
+            "solutionFamily": "dig_bypass",
+            "fromEntranceId": "waterwheel.from_settlement",
+            "toExitId": "waterwheel.to_service",
+            "objectiveIds": [
+              "waterwheel.inspect_system",
+              "waterwheel.stable_rotation",
+              "waterwheel.downstream_safe",
+              "waterwheel.access_service"
+            ]
+          },
+          {
+            "id": "waterwheel.temporary_magic_lock_route",
+            "kind": "optional_magic",
+            "solutionFamily": "temporary_manifest_then_mechanical_lock",
+            "fromEntranceId": "waterwheel.from_settlement",
+            "toExitId": "waterwheel.to_service",
+            "objectiveIds": [
+              "waterwheel.inspect_system",
+              "waterwheel.stable_rotation",
+              "waterwheel.downstream_safe",
+              "waterwheel.access_service"
+            ]
+          },
+          {
+            "id": "waterwheel.signed_return_route",
+            "kind": "non_magic",
+            "solutionFamily": "signed_settlement_return",
+            "fromEntranceId": "waterwheel.from_service",
+            "toExitId": "waterwheel.to_settlement",
+            "objectiveIds": []
+          }
+        ],
+        "nonMagicAlternativeRouteIds": [
+          "waterwheel.natural_inflow_route",
+          "waterwheel.axle_tool_route",
+          "waterwheel.flume_alignment_route",
+          "waterwheel.soil_bypass_route",
+          "waterwheel.signed_return_route"
+        ],
+        "targets": [
+          {
+            "id": "waterwheel.motion_marker",
+            "kind": "language_marker",
+            "material": "stone_and_pigment"
+          },
+          {
+            "id": "waterwheel.natural_intake",
+            "kind": "existing_water_source",
+            "material": "water_and_stone"
+          },
+          {
+            "id": "waterwheel.intake_blockage",
+            "kind": "movable_debris",
+            "material": "wood_stone_and_mud"
+          },
+          {
+            "id": "waterwheel.axle",
+            "kind": "mechanism",
+            "material": "wood_and_metal"
+          },
+          {
+            "id": "waterwheel.flume",
+            "kind": "movable_channel",
+            "material": "wood"
+          },
+          {
+            "id": "waterwheel.soft_bank",
+            "kind": "destructible_material",
+            "material": "wet_soil"
+          },
+          {
+            "id": "waterwheel.downstream",
+            "kind": "safety_receiver",
+            "material": "water_and_soil"
+          },
+          {
+            "id": "waterwheel.hand_tools",
+            "kind": "task_tools",
+            "material": "wood_and_metal"
+          },
+          {
+            "id": "waterwheel.maintenance_spout",
+            "kind": "public_relief",
+            "material": "stone_and_water"
+          }
+        ],
+        "interactions": [
+          {
+            "id": "waterwheel.inspect_motion_marker",
+            "targetId": "waterwheel.motion_marker",
+            "verb": "observe_motion",
+            "toolOrMagicRequired": false,
+            "optionalWordId": "word.tawa",
+            "npcId": null,
+            "facilityId": null,
+            "taskId": null
+          },
+          {
+            "id": "waterwheel.inspect_intake",
+            "targetId": "waterwheel.natural_intake",
+            "verb": "inspect_flow",
+            "toolOrMagicRequired": false,
+            "optionalWordId": null,
+            "npcId": null,
+            "facilityId": null,
+            "taskId": null
+          },
+          {
+            "id": "waterwheel.clear_blockage",
+            "targetId": "waterwheel.intake_blockage",
+            "verb": "move_debris",
+            "toolOrMagicRequired": false,
+            "optionalWordId": null,
+            "npcId": null,
+            "facilityId": null,
+            "taskId": null
+          },
+          {
+            "id": "waterwheel.repair_axle",
+            "targetId": "waterwheel.axle",
+            "verb": "repair",
+            "toolOrMagicRequired": false,
+            "optionalWordId": null,
+            "npcId": null,
+            "facilityId": null,
+            "taskId": null
+          },
+          {
+            "id": "waterwheel.align_flume",
+            "targetId": "waterwheel.flume",
+            "verb": "move_and_lock",
+            "toolOrMagicRequired": null,
+            "optionalWordId": "word.tawa",
+            "npcId": null,
+            "facilityId": null,
+            "taskId": null
+          },
+          {
+            "id": "waterwheel.dig_bypass",
+            "targetId": "waterwheel.soft_bank",
+            "verb": "dig",
+            "toolOrMagicRequired": false,
+            "optionalWordId": null,
+            "npcId": null,
+            "facilityId": null,
+            "taskId": null
+          },
+          {
+            "id": "waterwheel.inspect_downstream",
+            "targetId": "waterwheel.downstream",
+            "verb": "inspect_safety",
+            "toolOrMagicRequired": false,
+            "optionalWordId": null,
+            "npcId": null,
+            "facilityId": null,
+            "taskId": null
+          },
+          {
+            "id": "waterwheel.recover_tools",
+            "targetId": "waterwheel.hand_tools",
+            "verb": "take_task_tools",
+            "toolOrMagicRequired": false,
+            "optionalWordId": null,
+            "npcId": null,
+            "facilityId": null,
+            "taskId": null
+          },
+          {
+            "id": "waterwheel.drink_maintenance_spout",
+            "targetId": "waterwheel.maintenance_spout",
+            "verb": "drink_or_fill",
+            "toolOrMagicRequired": false,
+            "optionalWordId": null,
+            "npcId": null,
+            "facilityId": "waterwheel.facility.maintenance_spout",
+            "taskId": null
+          }
+        ],
+        "npcs": [],
+        "facilities": [
+          {
+            "id": "waterwheel.facility.maintenance_spout",
+            "kind": "potable_maintenance_spout",
+            "targetId": "waterwheel.maintenance_spout",
+            "interactionIds": [
+              "waterwheel.drink_maintenance_spout"
+            ],
+            "publicRelief": true,
+            "economyEligible": false
+          }
+        ],
+        "tasks": [],
+        "taskRefs": [
+          {
+            "id": "ch01_waterwheel",
+            "authoritativeTaskSourcePath": "data/tasks/ch01-waterwheel.v0.1.yaml",
+            "objectiveIds": [
+              "waterwheel.stable_rotation",
+              "waterwheel.downstream_safe"
+            ]
+          }
+        ],
+        "tradeEntries": [],
+        "inboundRoutes": [
+          {
+            "id": "waterwheel.inbound_from_settlement",
+            "sourceSceneId": "scene.valley.settlement",
+            "sourceExitId": "settlement.to_waterwheel",
+            "entranceId": "waterwheel.from_settlement"
+          },
+          {
+            "id": "waterwheel.inbound_from_service",
+            "sourceSceneId": "scene.valley.service_channel",
+            "sourceExitId": "service.to_waterwheel",
+            "entranceId": "waterwheel.from_service"
+          }
+        ],
+        "softFailureRecoveries": [
+          {
+            "id": "waterwheel.lost_tools",
+            "action": "restore_hand_tools",
+            "preserves": [
+              "learning_evidence",
+              "committed_patches",
+              "region_commits"
+            ]
+          },
+          {
+            "id": "waterwheel.jammed_flume",
+            "action": "reset_uncommitted_flume",
+            "preserves": [
+              "learning_evidence",
+              "committed_patches",
+              "region_commits"
+            ]
+          },
+          {
+            "id": "waterwheel.unsafe_flow",
+            "action": "close_intake_and_reopen_safe_attempt",
+            "preserves": [
+              "learning_evidence",
+              "committed_patches",
+              "settlement_return"
+            ]
+          }
+        ],
+        "materialPatchRecordRefs": [
+          "patch.valley.waterwheel_structure.v0.1"
+        ]
+      }
+    }
+  },
+  "infrastructureTasks": {
+    "sourceDigest": "sha256:3a87467e3e871662d7ba89e4cf4dc49d74abf95833164cd93eb011ac93b8b020",
+    "byId": {
+      "ch01_service_channel": {
+        "id": "ch01_service_channel",
+        "sourcePath": "data/tasks/ch01-service-channel.v0.1.yaml",
+        "familyId": "material_route_repair",
+        "chapterFlowId": "ch01_world_literacy_prologue",
+        "chapterSegmentId": "service_channel",
+        "regionId": "valley_prologue",
+        "regionNodeId": "valley.service_channel",
+        "sceneId": "scene.valley.service_channel",
+        "implementationBoundary": "authored_contract_not_particle_or_reaction_simulation",
+        "predicateMode": "any",
+        "worldGoalPredicates": [
+          {
+            "id": "service.gate_open",
+            "expression": "service_gate_open == true"
+          },
+          {
+            "id": "service.bypass_open",
+            "expression": "service_bypass_open == true"
+          }
+        ],
+        "modes": [
+          {
+            "id": "blocked",
+            "completionValid": false,
+            "persistenceScope": "none",
+            "persistsAcrossReload": false,
+            "patchRecordRef": null
+          },
+          {
+            "id": "service_gate_open",
+            "completionValid": true,
+            "persistenceScope": "region_persistent",
+            "persistsAcrossReload": true,
+            "patchRecordRef": "patch.valley.service_gate.v0.1"
+          },
+          {
+            "id": "service_bypass_open",
+            "completionValid": true,
+            "persistenceScope": "region_persistent",
+            "persistsAcrossReload": true,
+            "patchRecordRef": "patch.valley.service_bypass.v0.1"
+          }
+        ],
+        "validResultModes": [
+          "service_gate_open",
+          "service_bypass_open"
+        ],
+        "solutions": [
+          {
+            "id": "service.open_bypass_valve",
+            "routeKind": "non_magic",
+            "chapterSolutionFamily": "open_bypass_valve",
+            "mainline": true,
+            "resultMode": "service_bypass_open",
+            "requiredActions": [
+              "find_maintenance_crank",
+              "clear_valve_silt",
+              "turn_bypass_valve"
+            ],
+            "requiredWorldPredicates": [
+              "bypass_valve_open",
+              "bypass_route_clear"
+            ]
+          },
+          {
+            "id": "service.place_wood_platform",
+            "routeKind": "non_magic",
+            "chapterSolutionFamily": "place_wood_platform",
+            "mainline": true,
+            "resultMode": "service_bypass_open",
+            "requiredActions": [
+              "recover_planks",
+              "place_support_stones",
+              "lash_wood_platform"
+            ],
+            "requiredWorldPredicates": [
+              "platform_supported",
+              "platform_clearance_safe"
+            ]
+          },
+          {
+            "id": "service.dig_wet_soil",
+            "routeKind": "non_magic",
+            "chapterSolutionFamily": "dig_wet_soil",
+            "mainline": true,
+            "resultMode": "service_gate_open",
+            "requiredActions": [
+              "mark_gate_edge",
+              "dig_wet_soil",
+              "brace_soft_bank"
+            ],
+            "requiredWorldPredicates": [
+              "gate_track_clear",
+              "bank_slump_below_limit"
+            ]
+          },
+          {
+            "id": "service.move_stone_baffle",
+            "routeKind": "non_magic",
+            "chapterSolutionFamily": "move_stone_baffle",
+            "mainline": true,
+            "resultMode": "service_gate_open",
+            "requiredActions": [
+              "attach_lever",
+              "roll_stone_baffle",
+              "chock_baffle"
+            ],
+            "requiredWorldPredicates": [
+              "stone_baffle_off_track",
+              "baffle_chocked"
+            ]
+          },
+          {
+            "id": "service.external_heat_thin_ice",
+            "routeKind": "non_magic",
+            "chapterSolutionFamily": "melt_thin_ice",
+            "mainline": true,
+            "resultMode": "service_gate_open",
+            "requiredActions": [
+              "carry_settlement_brazier",
+              "shield_wood",
+              "warm_gate_track"
+            ],
+            "requiredWorldPredicates": [
+              "external_heat_source_present",
+              "thin_ice_melted",
+              "wood_temperature_below_ignition"
+            ]
+          },
+          {
+            "id": "service.optional_material_magic",
+            "routeKind": "optional_magic",
+            "chapterSolutionFamily": "guided_material_change",
+            "mainline": false,
+            "resultMode": "service_gate_open",
+            "requiredActions": [
+              "preview_nonliving_target",
+              "apply_legal_material_effect",
+              "verify_route_clear"
+            ],
+            "requiredWorldPredicates": [
+              "living_overlap_false",
+              "gate_track_clear"
+            ]
+          }
+        ],
+        "nonMagicMainlineSolutionIds": [
+          "service.open_bypass_valve",
+          "service.place_wood_platform",
+          "service.dig_wet_soil",
+          "service.move_stone_baffle",
+          "service.external_heat_thin_ice"
+        ],
+        "entryGuardAny": [
+          "waterwheel_restored == true",
+          "maintenance_access_open == true"
+        ],
+        "exitGuardAny": [
+          "service_gate_open == true",
+          "service_bypass_open == true"
+        ],
+        "materialPatchRefs": [
+          "patch.valley.service_gate.v0.1",
+          "patch.valley.service_bypass.v0.1"
+        ],
+        "languageExposure": [
+          {
+            "wordId": "word.tawa",
+            "discoveryTrigger": "observe_water_mud_or_stone_change_position",
+            "learningPrompt": "predict_what_moves_and_toward_which_reference",
+            "eligibleStateProposals": [
+              "seen",
+              "available",
+              "practiced"
+            ],
+            "automaticMasteryForbidden": true,
+            "toolSolutionStillAllowsObservation": true
+          }
+        ],
+        "grammarContacts": [
+          {
+            "token": "o",
+            "contactKind": "receptive_command_particle",
+            "automaticStateGrant": false,
+            "productionRequired": false,
+            "masteryEvidenceAllowed": false
+          }
+        ],
+        "materialReactionKinds": [
+          "water",
+          "wet_soil",
+          "stone",
+          "wood",
+          "thin_ice"
+        ],
+        "maximumSoftlockRecoverySeconds": 60,
+        "recoveryActions": [
+          "restore_maintenance_crank",
+          "restore_nontradeable_planks",
+          "reset_uncommitted_mud_band",
+          "reopen_waterwheel_return",
+          "expose_public_maintenance_bypass"
+        ],
+        "recoveryPreserves": [
+          "learning_evidence",
+          "committed_gate_patch",
+          "committed_bypass_patch",
+          "region_commits"
+        ]
+      },
+      "ch01_waterwheel": {
+        "id": "ch01_waterwheel",
+        "sourcePath": "data/tasks/ch01-waterwheel.v0.1.yaml",
+        "familyId": "infrastructure_flow",
+        "chapterFlowId": "ch01_world_literacy_prologue",
+        "chapterSegmentId": "waterwheel",
+        "regionId": "valley_prologue",
+        "regionNodeId": "valley.waterwheel",
+        "sceneId": "scene.valley.waterwheel",
+        "implementationBoundary": "authored_contract_not_particle_or_fluid_simulation",
+        "predicateMode": "all",
+        "worldGoalPredicates": [
+          {
+            "id": "waterwheel.stable_rotation",
+            "expression": "wheel.angular_velocity_rpm >= 8 && wheel.angular_velocity_rpm <= 18 && wheel.stable_duration_seconds >= 10"
+          },
+          {
+            "id": "waterwheel.downstream_safe",
+            "expression": "downstream.overflow_contact == false && downstream.flow_band <= safe"
+          }
+        ],
+        "modes": [
+          {
+            "id": "stopped",
+            "completionValid": false,
+            "persistenceScope": "none",
+            "persistsAcrossReload": false,
+            "patchRecordRef": null
+          },
+          {
+            "id": "temporary_driven",
+            "completionValid": true,
+            "persistenceScope": "task_local",
+            "persistsAcrossReload": false,
+            "patchRecordRef": null
+          },
+          {
+            "id": "structurally_restored",
+            "completionValid": true,
+            "persistenceScope": "region_persistent",
+            "persistsAcrossReload": true,
+            "patchRecordRef": "patch.valley.waterwheel_structure.v0.1"
+          }
+        ],
+        "validResultModes": [
+          "temporary_driven",
+          "structurally_restored"
+        ],
+        "solutions": [
+          {
+            "id": "waterwheel.clear_natural_inflow",
+            "routeKind": "non_magic",
+            "chapterSolutionFamily": "clear_blockage",
+            "mainline": true,
+            "resultMode": "structurally_restored",
+            "requiredActions": [
+              "inspect_intake",
+              "remove_loose_debris",
+              "open_existing_sluice"
+            ],
+            "requiredWorldPredicates": [
+              "natural_inflow_reaches_wheel",
+              "axle_alignment_safe",
+              "downstream.flow_band_safe"
+            ]
+          },
+          {
+            "id": "waterwheel.repair_axle",
+            "routeKind": "non_magic",
+            "chapterSolutionFamily": "repair_axle",
+            "mainline": true,
+            "resultMode": "structurally_restored",
+            "requiredActions": [
+              "recover_hand_tools",
+              "fit_wooden_bushing",
+              "tighten_axle_wedge"
+            ],
+            "requiredWorldPredicates": [
+              "axle_supported",
+              "wheel_rotates_freely",
+              "downstream.flow_band_safe"
+            ]
+          },
+          {
+            "id": "waterwheel.move_flume",
+            "routeKind": "non_magic",
+            "chapterSolutionFamily": "move_flume",
+            "mainline": true,
+            "resultMode": "structurally_restored",
+            "requiredActions": [
+              "release_flume_pins",
+              "align_existing_flume",
+              "mechanically_lock_flume"
+            ],
+            "requiredWorldPredicates": [
+              "flume_alignment_in_band",
+              "flume_lock_engaged",
+              "downstream.flow_band_safe"
+            ]
+          },
+          {
+            "id": "waterwheel.dig_bypass",
+            "routeKind": "non_magic",
+            "chapterSolutionFamily": "dig_bypass",
+            "mainline": true,
+            "resultMode": "temporary_driven",
+            "requiredActions": [
+              "mark_safe_bank",
+              "dig_soft_soil_bypass",
+              "place_downstream_stones"
+            ],
+            "requiredWorldPredicates": [
+              "bypass_flow_reaches_wheel",
+              "bank_erosion_below_limit",
+              "downstream.flow_band_safe"
+            ]
+          },
+          {
+            "id": "waterwheel.manifest_then_lock",
+            "routeKind": "optional_magic",
+            "chapterSolutionFamily": "temporary_manifest_then_mechanical_lock",
+            "mainline": false,
+            "resultMode": "temporary_driven",
+            "requiredActions": [
+              "manifest_temporary_water",
+              "move_flume_under_flow",
+              "engage_mechanical_lock"
+            ],
+            "requiredWorldPredicates": [
+              "temporary_flow_reaches_wheel",
+              "mechanical_lock_engaged",
+              "downstream.flow_band_safe"
+            ]
+          }
+        ],
+        "nonMagicMainlineSolutionIds": [
+          "waterwheel.clear_natural_inflow",
+          "waterwheel.repair_axle",
+          "waterwheel.move_flume",
+          "waterwheel.dig_bypass"
+        ],
+        "entryGuardAny": [
+          "settlement_reached == true"
+        ],
+        "exitGuardAny": [
+          "waterwheel_restored == true",
+          "maintenance_access_open == true"
+        ],
+        "materialPatchRefs": [
+          "patch.valley.waterwheel_structure.v0.1"
+        ],
+        "languageExposure": [
+          {
+            "wordId": "word.tawa",
+            "discoveryTrigger": "observe_existing_wheel_motion_or_motion_marker",
+            "learningPrompt": "contrast_motion_with_remaining_still",
+            "eligibleStateProposals": [
+              "seen",
+              "available",
+              "practiced"
+            ],
+            "automaticMasteryForbidden": true,
+            "toolSolutionStillAllowsObservation": true
+          },
+          {
+            "wordId": "word.telo",
+            "discoveryTrigger": "observe_natural_water_driving_wheel",
+            "learningPrompt": "predict_where_existing_water_will_move",
+            "eligibleStateProposals": [
+              "seen",
+              "available",
+              "practiced"
+            ],
+            "automaticMasteryForbidden": true,
+            "toolSolutionStillAllowsObservation": true
+          }
+        ],
+        "grammarContacts": [],
+        "materialReactionKinds": [],
+        "maximumSoftlockRecoverySeconds": 60,
+        "recoveryActions": [
+          "restore_hand_tools",
+          "reset_uncommitted_flume",
+          "reopen_settlement_return",
+          "clear_task_local_manifested_water"
+        ],
+        "recoveryPreserves": [
+          "learning_evidence",
+          "structurally_restored_patch",
+          "task_receipt",
+          "region_commits"
         ]
       }
     }

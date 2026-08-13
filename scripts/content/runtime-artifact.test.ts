@@ -31,12 +31,14 @@ describe("runtime content artifact generator", () => {
     expect(() => assertRuntimeArtifactCurrent(generatedRuntimeText, expected)).not.toThrow();
   });
 
-  it("emits the validated N00/N01/N02 runtime scene manifest", () => {
+  it("emits the validated N00 through N04 runtime scene manifest", () => {
     const artifact = buildRuntimeContentArtifact(compileContent(repositorySources()));
     expect(Object.keys(artifact.scenes.byId).sort()).toEqual([
       "scene.valley.arrival_shelf",
+      "scene.valley.service_channel",
       "scene.valley.settlement",
       "scene.valley.stream_section",
+      "scene.valley.waterwheel",
     ]);
     expect(artifact.scenes.byId["scene.valley.arrival_shelf"]).toMatchObject({
       regionId: "valley_prologue",

@@ -16,9 +16,18 @@ import type {
   RuntimeSceneSoftFailureRecoveryManifest,
   RuntimeSceneTargetManifest,
   RuntimeSceneTaskManifest,
+  RuntimeSceneTaskRefManifest,
   RuntimeSceneTradeEntryManifest,
   RuntimeTileRect,
 } from "../../src/content/runtime-scene-manifest.ts";
+import type {
+  RuntimeInfrastructureGrammarContactManifest,
+  RuntimeInfrastructureLanguageExposureManifest,
+  RuntimeInfrastructureTaskManifest,
+  RuntimeInfrastructureTaskManifestIndex,
+  RuntimeInfrastructureTaskModeManifest,
+  RuntimeInfrastructureTaskSolutionManifest,
+} from "../../src/content/runtime-task-manifest.ts";
 
 export const RUNTIME_CONTENT_SCHEMA_VERSION = "tokipona.runtime-content.v0.1" as const;
 export const RUNTIME_CONTENT_OUTPUT_PATH = "src/generated/content-runtime.v0.1.json" as const;
@@ -43,6 +52,7 @@ export interface RuntimeContentArtifact {
     readonly profiles: Readonly<Record<RuntimeTeloLengthClass, RuntimeTeloLengthProfile>>;
   };
   readonly scenes: RuntimeSceneManifestIndex;
+  readonly infrastructureTasks: RuntimeInfrastructureTaskManifestIndex;
 }
 
 export function buildRuntimeContentArtifact(manifest: ContentManifest): RuntimeContentArtifact {
@@ -113,6 +123,7 @@ export function buildRuntimeContentArtifact(manifest: ContentManifest): RuntimeC
       return {
         id: requireString(exit, ["exit_id"]), boundsTiles, boundsPx, target,
         firstTraverseCommit: optionalString(exit, ["on_first_traverse_commit"]),
+        traversalGuardAny: readGuardAny(exit, ["traversal_guard"]),
       };
     });
     const routeObjectives: RuntimeSceneRouteObjectiveManifest[] = requireObjectArray(scene, ["route_objectives"]).map((objective) => ({
@@ -157,7 +168,11 @@ export function buildRuntimeContentArtifact(manifest: ContentManifest): RuntimeC
       rewardIdempotencyKeyFields: requireStringArray(task, ["reward_idempotency_key_fields"]),
       recoveryActions: requireStringArray(task, ["recovery_actions"]),
     }));
-    const tradeEntries: RuntimeSceneTradeEntryManifest[] = optionalObjectArray(scene, ["trade_entries"]).map((entry) => ({
+    const taskRefs: RuntimeSceneTaskRefManifest[] = optionalObjectArray(scene, ["task_refs"]).map((entry) => ({
+      id: requireString(entry, ["task_id"]),
+      authoritativeTaskSourcePath: resolveRepositoryContentPath(sceneSource.path, requireString(entry, ["task_ref"])),
+      objectiveIds: requireStringArray(entry, ["objective_ids"]),
+    }));    const tradeEntries: RuntimeSceneTradeEntryManifest[] = optionalObjectArray(scene, ["trade_entries"]).map((entry) => ({
       id: requireString(entry, ["trade_entry_id"]), npcId: requireString(entry, ["npc_id"]),
       interactionId: requireString(entry, ["interaction_id"]),
       authoritativeEconomySourcePath: resolveRepositoryContentPath(sceneSource.path, requireString(entry, ["authoritative_economy_ref"])),
@@ -182,12 +197,81 @@ export function buildRuntimeContentArtifact(manifest: ContentManifest): RuntimeC
       chapterFlowId: requireString(scene, ["chapter_flow_id"]), chapterSegmentId: requireString(scene, ["chapter_segment_id"]),
       tileSizePx, sizeTiles, collisionRows: requireStringArray(scene, ["collision_rows_top_down"]), entrances, exits, recovery,
       routeObjectives, routes, nonMagicAlternativeRouteIds: routes.filter((route) => route.kind === "non_magic").map((route) => route.id),
-      targets, interactions, npcs, facilities, tasks, tradeEntries, inboundRoutes, softFailureRecoveries,
+      targets, interactions, npcs, facilities, tasks, taskRefs, tradeEntries, inboundRoutes, softFailureRecoveries,
       materialPatchRecordRefs: requireObjectArray(scene, ["material_patches"]).map((patch) => optionalString(patch, ["patch_record_ref"])).filter((value): value is string => value !== null),
     };
     return [sceneId, result];
   }));
-  return {
+  const infrastructureTaskSources = [...manifest.byKind.task]
+    .filter((taskSource) => taskSource.content.task_type === "infrastructure_world_predicate")
+    .sort((left, right) => left.path.localeCompare(right.path));
+  const infrastructureTasks = Object.fromEntries(infrastructureTaskSources.map((taskSource) => {
+    const task = taskSource.content;
+    const id = requireString(task, ["task_id"]);
+    const sceneSourcePath = resolveRepositoryContentPath(taskSource.path, requireString(task, ["scene_ref"]));
+    const sceneSource = manifest.sources[sceneSourcePath];
+    if (!sceneSource || sceneSource.kind !== "scene") throw new Error(`${id}.scene_ref must resolve to a validated scene`);
+    const modes: RuntimeInfrastructureTaskModeManifest[] = requireObjectArray(task, ["result_modes"]).map((mode) => ({
+      id: requireString(mode, ["mode_id"]),
+      completionValid: requireBoolean(mode, ["completion_valid"]),
+      persistenceScope: requireString(mode, ["persistence_scope"]),
+      persistsAcrossReload: requireBoolean(mode, ["persists_across_reload"]),
+      patchRecordRef: nullableString(mode, ["patch_record_ref"]),
+    }));
+    const solutions: RuntimeInfrastructureTaskSolutionManifest[] = requireObjectArray(task, ["solution_families"]).map((solution) => ({
+      id: requireString(solution, ["solution_id"]),
+      routeKind: requireRouteKind(solution, ["route_kind"]),
+      chapterSolutionFamily: requireString(solution, ["chapter_solution_family"]),
+      mainline: requireBoolean(solution, ["mainline"]),
+      resultMode: requireString(solution, ["result_mode"]),
+      requiredActions: requireStringArray(solution, ["required_actions"]),
+      requiredWorldPredicates: requireStringArray(solution, ["required_world_predicates"]),
+    }));
+    const languageExposure: RuntimeInfrastructureLanguageExposureManifest[] = optionalObjectArray(task, ["language_exposure"]).map((exposure) => ({
+      wordId: requireString(exposure, ["word_id"]),
+      discoveryTrigger: requireString(exposure, ["discovery_trigger"]),
+      learningPrompt: requireString(exposure, ["learning_prompt"]),
+      eligibleStateProposals: requireStringArray(exposure, ["eligible_state_proposals"]),
+      automaticMasteryForbidden: requireBoolean(exposure, ["automatic_mastery_forbidden"]),
+      toolSolutionStillAllowsObservation: requireBoolean(exposure, ["tool_solution_still_allows_observation"]),
+    }));
+    const grammarContacts: RuntimeInfrastructureGrammarContactManifest[] = optionalObjectArray(task, ["grammar_contacts"]).map((contact) => ({
+      token: requireString(contact, ["token"]),
+      contactKind: requireString(contact, ["contact_kind"]),
+      automaticStateGrant: requireBoolean(contact, ["automatic_state_grant"]),
+      productionRequired: requireBoolean(contact, ["production_required"]),
+      masteryEvidenceAllowed: requireBoolean(contact, ["mastery_evidence_allowed"]),
+    }));
+    const result: RuntimeInfrastructureTaskManifest = {
+      id,
+      sourcePath: taskSource.path,
+      familyId: requireString(task, ["task_family_id"]),
+      chapterFlowId: requireString(task, ["chapter_flow_id"]),
+      chapterSegmentId: requireString(task, ["chapter_segment_id"]),
+      regionId: requireString(task, ["region_id"]),
+      regionNodeId: requireString(task, ["region_node_id"]),
+      sceneId: requireString(sceneSource.content, ["scene_id"]),
+      implementationBoundary: requireString(task, ["implementation_boundary"]),
+      predicateMode: requirePredicateMode(task, ["world_goal", "predicate_mode"]),
+      worldGoalPredicates: requireObjectArray(task, ["world_goal", "predicates"]).map((predicate) => ({
+        id: requireString(predicate, ["predicate_id"]), expression: requireString(predicate, ["expression"]),
+      })),
+      modes,
+      validResultModes: requireStringArray(task, ["completion", "valid_result_modes"]),
+      solutions,
+      nonMagicMainlineSolutionIds: solutions.filter((solution) => solution.routeKind === "non_magic" && solution.mainline).map((solution) => solution.id),
+      entryGuardAny: requireStringArray(task, ["entry_guard_any"]),
+      exitGuardAny: requireStringArray(task, ["exit_guard_any"]),
+      materialPatchRefs: requireStringArray(task, ["material_patch_refs"]),
+      languageExposure,
+      grammarContacts,
+      materialReactionKinds: optionalObjectArray(task, ["material_reactions"]).map((reaction) => requireString(reaction, ["material"])),
+      maximumSoftlockRecoverySeconds: requirePositiveNumber(task, ["recovery", "maximum_softlock_recovery_seconds"]),
+      recoveryActions: requireStringArray(task, ["recovery", "actions"]),
+      recoveryPreserves: requireStringArray(task, ["recovery", "preserves"]),
+    };
+    return [id, result];
+  }));  return {
     schemaVersion: RUNTIME_CONTENT_SCHEMA_VERSION,
     sourceDigest: `sha256:${createHash("sha256").update(stableStringify(content)).digest("hex")}`,
     source: { path: source.path, schemaVersion: source.schemaVersion, contentVersion: source.contentVersion },
@@ -195,6 +279,10 @@ export function buildRuntimeContentArtifact(manifest: ContentManifest): RuntimeC
     scenes: {
       sourceDigest: `sha256:${createHash("sha256").update(stableStringify(sceneSources.map((item) => item.content))).digest("hex")}`,
       byId: scenes,
+    },
+    infrastructureTasks: {
+      sourceDigest: `sha256:${createHash("sha256").update(stableStringify(infrastructureTaskSources.map((item) => item.content))).digest("hex")}`,
+      byId: infrastructureTasks,
     },
   };
 }
@@ -231,7 +319,25 @@ function requireBoolean(root: ContentObject, path: readonly string[]): boolean {
 function optionalBoolean(root: ContentObject, path: readonly string[]): boolean | null {
   const value = readPath(root, path); if (value === undefined) return null; if (typeof value !== "boolean") throw new Error(`${path.join(".")} must be boolean.`); return value;
 }
-function requireRouteKind(root: ContentObject, path: readonly string[]): "non_magic" | "optional_magic" {
+function nullableString(root: ContentObject, path: readonly string[]): string | null {
+  const value = readPath(root, path);
+  if (value === null) return null;
+  if (typeof value !== "string" || value.length === 0) throw new Error(`${path.join(".")} must be a non-empty string or null.`);
+  return value;
+}
+function readGuardAny(root: ContentObject, path: readonly string[]): string[] {
+  const value = readPath(root, path);
+  if (value === undefined) return [];
+  if (!isContentObject(value)) throw new Error(`${path.join(".")} must be an object when provided.`);
+  const predicate = optionalString(value, ["predicate"]);
+  if (predicate !== null) return [predicate];
+  return requireStringArray(value, ["any"]);
+}
+function requirePredicateMode(root: ContentObject, path: readonly string[]): "all" | "any" {
+  const value = requireString(root, path);
+  if (value !== "all" && value !== "any") throw new Error(`${path.join(".")} must be all or any.`);
+  return value;
+}function requireRouteKind(root: ContentObject, path: readonly string[]): "non_magic" | "optional_magic" {
   const value = requireString(root, path); if (value !== "non_magic" && value !== "optional_magic") throw new Error(`${path.join(".")} has unknown route kind ${value}.`); return value;
 }
 function requireExactNumber(root: ContentObject, path: readonly string[], expected: number): number { const value = readPath(root, path); if (value !== expected) throw new Error(`${path.join(".")} must equal ${expected}.`); return value; }

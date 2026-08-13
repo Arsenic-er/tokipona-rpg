@@ -36,3 +36,15 @@ export type {
   RuntimeTilePoint,
   RuntimeTileRect,
 } from "./runtime-scene-manifest";
+
+export { readRuntimeInfrastructureTaskManifestIndex } from "./runtime-task-manifest";
+export type {
+  RuntimeInfrastructureGrammarContactManifest,
+  RuntimeInfrastructureLanguageExposureManifest,
+  RuntimeInfrastructureRouteKind,
+  RuntimeInfrastructureTaskManifest,
+  RuntimeInfrastructureTaskManifestIndex,
+  RuntimeInfrastructureTaskModeManifest,
+  RuntimeInfrastructureTaskPredicateMode,
+  RuntimeInfrastructureTaskSolutionManifest,
+} from "./runtime-task-manifest";

@@ -1,0 +1,176 @@
+schema_version: "g01.scene.v0.1"
+content_version: "chapter-01.valley-waterwheel.1"
+scene_id: "scene.valley.waterwheel"
+region_id: "valley_prologue"
+region_node_id: "valley.waterwheel"
+chapter_flow_id: "ch01_world_literacy_prologue"
+chapter_segment_id: "waterwheel"
+status: "graybox_machine_ready"
+tile_size_px: 16
+size_tiles: {width: 30, height: 32}
+collision_rows_top_down:
+  - ".............................."
+  - ".............................."
+  - ".............................."
+  - ".............................."
+  - ".............................."
+  - ".............................."
+  - ".............................."
+  - ".............................."
+  - ".............................."
+  - ".............................."
+  - ".............................."
+  - ".............................."
+  - ".............................."
+  - ".............................."
+  - ".............................."
+  - ".............................."
+  - ".............................."
+  - ".............................."
+  - ".............................."
+  - ".............................."
+  - ".............................."
+  - ".............................."
+  - ".............................."
+  - ".............................."
+  - ".............................."
+  - ".............................."
+  - ".............................."
+  - ".............................."
+  - ".............................."
+  - ".............................."
+  - ".............................."
+  - "##############################"
+
+entrances:
+  - entrance_id: "waterwheel.from_settlement"
+    spawn_tile: [2, 1]
+    recovery_entry: true
+    checkpoint_policy: "scene_entry_and_softlock_recovery"
+  - entrance_id: "waterwheel.from_service"
+    spawn_tile: [27, 1]
+    recovery_entry: true
+    checkpoint_policy: "return_route"
+
+inbound_route_refs:
+  - inbound_ref_id: "waterwheel.inbound_from_settlement"
+    source_scene_id: "scene.valley.settlement"
+    source_exit_id: "settlement.to_waterwheel"
+    entrance_id: "waterwheel.from_settlement"
+  - inbound_ref_id: "waterwheel.inbound_from_service"
+    source_scene_id: "scene.valley.service_channel"
+    source_exit_id: "service.to_waterwheel"
+    entrance_id: "waterwheel.from_service"
+
+exits:
+  - exit_id: "waterwheel.to_settlement"
+    trigger_rect_tiles: {x: 0, y: 0, width: 2, height: 7}
+    target_scene_id: "scene.valley.settlement"
+    target_entrance_id: "settlement.from_waterwheel"
+  - exit_id: "waterwheel.to_service"
+    trigger_rect_tiles: {x: 28, y: 0, width: 2, height: 7}
+    target_scene_id: "scene.valley.service_channel"
+    target_entrance_id: "service.from_waterwheel"
+    on_first_traverse_commit: "service_channel_entry_crossed"
+    traversal_guard:
+      any: ["waterwheel_restored == true", "maintenance_access_open == true"]
+
+route_objectives:
+  - objective_id: "waterwheel.inspect_system"
+    predicate: "intake_inspected == true && axle_inspected == true && downstream_inspected == true"
+  - objective_id: "waterwheel.stable_rotation"
+    predicate: "wheel.angular_velocity_rpm >= 8 && wheel.angular_velocity_rpm <= 18 && wheel.stable_duration_seconds >= 10"
+  - objective_id: "waterwheel.downstream_safe"
+    predicate: "downstream.overflow_contact == false && downstream.flow_band <= safe"
+  - objective_id: "waterwheel.access_service"
+    predicate: "waterwheel_restored == true || maintenance_access_open == true"
+
+routes:
+  - route_id: "waterwheel.natural_inflow_route"
+    route_kind: "non_magic"
+    solution_family: "clear_blockage"
+    from_entrance_id: "waterwheel.from_settlement"
+    to_exit_id: "waterwheel.to_service"
+    objective_ids: [waterwheel.inspect_system, waterwheel.stable_rotation, waterwheel.downstream_safe, waterwheel.access_service]
+  - route_id: "waterwheel.axle_tool_route"
+    route_kind: "non_magic"
+    solution_family: "repair_axle"
+    from_entrance_id: "waterwheel.from_settlement"
+    to_exit_id: "waterwheel.to_service"
+    objective_ids: [waterwheel.inspect_system, waterwheel.stable_rotation, waterwheel.downstream_safe, waterwheel.access_service]
+  - route_id: "waterwheel.flume_alignment_route"
+    route_kind: "non_magic"
+    solution_family: "move_flume"
+    from_entrance_id: "waterwheel.from_settlement"
+    to_exit_id: "waterwheel.to_service"
+    objective_ids: [waterwheel.inspect_system, waterwheel.stable_rotation, waterwheel.downstream_safe, waterwheel.access_service]
+  - route_id: "waterwheel.soil_bypass_route"
+    route_kind: "non_magic"
+    solution_family: "dig_bypass"
+    from_entrance_id: "waterwheel.from_settlement"
+    to_exit_id: "waterwheel.to_service"
+    objective_ids: [waterwheel.inspect_system, waterwheel.stable_rotation, waterwheel.downstream_safe, waterwheel.access_service]
+  - route_id: "waterwheel.temporary_magic_lock_route"
+    route_kind: "optional_magic"
+    solution_family: "temporary_manifest_then_mechanical_lock"
+    from_entrance_id: "waterwheel.from_settlement"
+    to_exit_id: "waterwheel.to_service"
+    objective_ids: [waterwheel.inspect_system, waterwheel.stable_rotation, waterwheel.downstream_safe, waterwheel.access_service]
+  - route_id: "waterwheel.signed_return_route"
+    route_kind: "non_magic"
+    solution_family: "signed_settlement_return"
+    from_entrance_id: "waterwheel.from_service"
+    to_exit_id: "waterwheel.to_settlement"
+    objective_ids: []
+
+targets:
+  - {target_id: "waterwheel.motion_marker", target_kind: "language_marker", material: "stone_and_pigment"}
+  - {target_id: "waterwheel.natural_intake", target_kind: "existing_water_source", material: "water_and_stone"}
+  - {target_id: "waterwheel.intake_blockage", target_kind: "movable_debris", material: "wood_stone_and_mud"}
+  - {target_id: "waterwheel.axle", target_kind: "mechanism", material: "wood_and_metal"}
+  - {target_id: "waterwheel.flume", target_kind: "movable_channel", material: "wood"}
+  - {target_id: "waterwheel.soft_bank", target_kind: "destructible_material", material: "wet_soil"}
+  - {target_id: "waterwheel.downstream", target_kind: "safety_receiver", material: "water_and_soil"}
+  - {target_id: "waterwheel.hand_tools", target_kind: "task_tools", material: "wood_and_metal"}
+  - {target_id: "waterwheel.maintenance_spout", target_kind: "public_relief", material: "stone_and_water"}
+
+facilities:
+  - facility_id: "waterwheel.facility.maintenance_spout"
+    facility_kind: "potable_maintenance_spout"
+    target_id: "waterwheel.maintenance_spout"
+    interaction_ids: [waterwheel.drink_maintenance_spout]
+    public_relief: true
+    economy_eligible: false
+
+interactions:
+  - {interaction_id: "waterwheel.inspect_motion_marker", target_id: "waterwheel.motion_marker", verb: "observe_motion", optional_word_id: "word.tawa", tool_or_magic_required: false}
+  - {interaction_id: "waterwheel.inspect_intake", target_id: "waterwheel.natural_intake", verb: "inspect_flow", tool_or_magic_required: false}
+  - {interaction_id: "waterwheel.clear_blockage", target_id: "waterwheel.intake_blockage", verb: "move_debris", tool_or_magic_required: false}
+  - {interaction_id: "waterwheel.repair_axle", target_id: "waterwheel.axle", verb: "repair", tool_or_magic_required: false}
+  - {interaction_id: "waterwheel.align_flume", target_id: "waterwheel.flume", verb: "move_and_lock", optional_word_id: "word.tawa"}
+  - {interaction_id: "waterwheel.dig_bypass", target_id: "waterwheel.soft_bank", verb: "dig", tool_or_magic_required: false}
+  - {interaction_id: "waterwheel.inspect_downstream", target_id: "waterwheel.downstream", verb: "inspect_safety", tool_or_magic_required: false}
+  - {interaction_id: "waterwheel.recover_tools", target_id: "waterwheel.hand_tools", verb: "take_task_tools", tool_or_magic_required: false}
+  - {interaction_id: "waterwheel.drink_maintenance_spout", target_id: "waterwheel.maintenance_spout", verb: "drink_or_fill", facility_id: "waterwheel.facility.maintenance_spout", tool_or_magic_required: false}
+
+task_refs:
+  - task_id: "ch01_waterwheel"
+    task_ref: "../tasks/ch01-waterwheel.v0.1.yaml"
+    objective_ids: [waterwheel.stable_rotation, waterwheel.downstream_safe]
+
+material_patches:
+  - patch_id: "scene.patch.waterwheel.structure"
+    patch_record_ref: "patch.valley.waterwheel_structure.v0.1"
+    activation_predicate: "waterwheel_mode == structurally_restored"
+    ordered_ops: [restore_axle_and_flume_delta, rebuild_collision, bind_continuous_wheel_variant]
+
+soft_failure_recoveries:
+  - {failure_id: "waterwheel.lost_tools", action: "restore_hand_tools", preserves: [learning_evidence, committed_patches, region_commits]}
+  - {failure_id: "waterwheel.jammed_flume", action: "reset_uncommitted_flume", preserves: [learning_evidence, committed_patches, region_commits]}
+  - {failure_id: "waterwheel.unsafe_flow", action: "close_intake_and_reopen_safe_attempt", preserves: [learning_evidence, committed_patches, settlement_return]}
+
+recovery:
+  entry_entrance_id: "waterwheel.from_settlement"
+  maximum_softlock_recovery_seconds: 60
+  actions: [restore_hand_tools, reset_uncommitted_flume, clear_task_local_manifested_water, reopen_settlement_return]
+  preserves: [learning_evidence, structurally_restored_patch, region_commits, survival_state]
