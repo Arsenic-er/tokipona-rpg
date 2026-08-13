@@ -5,6 +5,8 @@ import type { GameSession } from "../session/game-session";
 import {
   PROLOGUE_ARRIVAL_SCENE,
   PROLOGUE_ARRIVAL_SCENE_ID,
+  PROLOGUE_AREA_ID,
+  PROLOGUE_ROUTE_FLAGS,
   PROLOGUE_SOFT_LOCK_RECOVERY_TICKS,
   PROLOGUE_STREAM_SCENE,
   PROLOGUE_STREAM_SCENE_ID,
@@ -92,9 +94,16 @@ describe("canonical prologue arrival/stream coordinator", () => {
     const firstTraverseCommit = streamManifest.exits.find((exit) =>
       exit.target.kind === "scene" && exit.target.sceneId === "scene.valley.settlement"
     )!.firstTraverseCommit!;
-    expect(Object.values(target.snapshot().session.world.flags).some((flag) =>
-      flag.flagId.includes(firstTraverseCommit) && flag.value === true
-    )).toBe(true);
+    const flagId = firstTraverseCommit;
+    expect(flagId).toBe(PROLOGUE_ROUTE_FLAGS.settlementReached);
+    expect(target.snapshot().session.world.flags[`region:${PROLOGUE_AREA_ID}:${flagId}`]).toMatchObject({
+      flagId,
+      scope: "region",
+      regionId: PROLOGUE_AREA_ID,
+      value: true,
+    });
+    const loaded = PrologueArrivalStreamSession.fromSave(JSON.parse(JSON.stringify(target.toSave())));
+    expect(loaded.snapshot().settlementEntranceReached).toBe(true);
     const events = target.session.events().length;
     target.advanceTicks(20, { moveX: 1 });
     expect(target.session.events()).toHaveLength(events);

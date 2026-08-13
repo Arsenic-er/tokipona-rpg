@@ -1,38 +1,30 @@
+import generatedRuntimeArtifact from "./generated/content-runtime.v0.1.json";
 import {
-  PROLOGUE_ARRIVAL_SCENE,
+  readRuntimeSceneManifestIndex,
+  type RuntimeSceneManifest,
+  type RuntimeSceneNpcManifest,
+} from "./content/runtime-scene-manifest";
+import {
+  PrologueFlowSession,
+  type PrologueFlowAction,
+  type PrologueFlowSnapshot,
+} from "./game/prologue-flow";
+import {
+  PROLOGUE_SETTLEMENT_SCENE_ID,
+  PROLOGUE_SETTLEMENT_SURVEY_MARKER_IDS,
+  type SettlementDialogueNode,
+  type SettlementDialogueTopic,
+} from "./game/prologue-settlement";
+import {
   PROLOGUE_ARRIVAL_SCENE_ID,
-  PROLOGUE_ARRIVAL_STREAM_SCENES,
   PROLOGUE_STREAM_SCENE_ID,
-  PrologueArrivalStreamSession,
-  createPrologueArrivalStreamInitialSession,
-  type ManifestedWaterSnapshot,
-  type PrologueActionResult,
 } from "./game/prologue-arrival-stream";
-import { WORLD_TILE_SIZE_PX, type RuntimeInput, type RuntimeSnapshot, type SceneDefinition } from "./runtime";
-import type { GameSessionState } from "./session/game-session";
+import { WORLD_TILE_SIZE_PX, type RuntimeInput, type RuntimeSnapshot } from "./runtime";
 
 type GlyphPhase = "undiscovered" | "discovered" | "activated";
 type Tone = "neutral" | "success" | "warning" | "danger";
 type ToolAction = "stone" | "log" | "soil";
-
-interface BrowserSnapshot {
-  readonly runtime: RuntimeSnapshot;
-  readonly session: GameSessionState;
-  readonly scene: SceneDefinition;
-  readonly title: string;
-  readonly glyphPhase: GlyphPhase;
-  readonly route: "unresolved" | "tools" | "telo";
-  readonly routeReady: boolean;
-  readonly settlementEntranceReached: boolean;
-  readonly shallowWater: Readonly<{
-    leftPx: number;
-    rightPx: number;
-    surfaceYPx: number;
-    playerWading: boolean;
-  }>;
-  readonly manifestedWater: readonly ManifestedWaterSnapshot[];
-  readonly nearGlyph: boolean;
-}
+type SurveyAction = "accept" | "submit";
 
 interface UiResult {
   readonly accepted: boolean;
@@ -40,39 +32,28 @@ interface UiResult {
   readonly tone: Tone;
 }
 
-interface PrologueBrowserPort {
-  advanceFrame(seconds: number, input: RuntimeInput): void;
-  snapshot(): BrowserSnapshot;
-  interact(): UiResult;
-  attuneOrManifest(): UiResult;
-  tool(action: ToolAction): UiResult;
-  setCheckpoint(): UiResult;
-  resetToCheckpoint(): UiResult;
-  resetArea(): UiResult;
-  toSave(): unknown;
-}
-
 const WIDTH = 180;
 const HEIGHT = 320;
 const WORLD_Y_OFFSET = 96;
-const STORAGE_KEY = "tokipona.rpg.prologue.v0.1";
+const STORAGE_KEY = "tokipona.rpg.prologue.v0.2";
 const GLYPH_POSITION = Object.freeze({ x: 144, y: 100 });
 const GLYPH_RADIUS = 40;
+const SCENES = readRuntimeSceneManifestIndex(generatedRuntimeArtifact).byId;
+const SETTLEMENT_SCENE = requiredScene(PROLOGUE_SETTLEMENT_SCENE_ID);
 
-class ArrivalStreamBrowserPort implements PrologueBrowserPort {
+class FlowBrowserPort {
   private remainderTicks = 0;
 
-  constructor(private readonly coordinator: PrologueArrivalStreamSession) {}
+  private constructor(private readonly flow: PrologueFlowSession) {}
 
-  static fresh(): ArrivalStreamBrowserPort {
-    const session = createPrologueArrivalStreamInitialSession({
+  static fresh(): FlowBrowserPort {
+    return new FlowBrowserPort(PrologueFlowSession.fresh({
       sessionId: `browser-prologue-${globalThis.crypto.randomUUID()}`,
-    });
-    return new ArrivalStreamBrowserPort(new PrologueArrivalStreamSession(session));
+    }));
   }
 
-  static fromSave(candidate: unknown): ArrivalStreamBrowserPort {
-    return new ArrivalStreamBrowserPort(PrologueArrivalStreamSession.fromSave(candidate));
+  static fromSave(candidate: unknown): FlowBrowserPort {
+    return new FlowBrowserPort(PrologueFlowSession.fromSave(candidate));
   }
 
   advanceFrame(seconds: number, input: RuntimeInput): void {
@@ -80,109 +61,143 @@ class ArrivalStreamBrowserPort implements PrologueBrowserPort {
     const ticks = Math.floor(this.remainderTicks);
     if (ticks === 0) return;
     this.remainderTicks -= ticks;
-    this.coordinator.advanceTicks(ticks, input);
+    this.flow.advanceTicks(ticks, input);
   }
 
-  snapshot(): BrowserSnapshot {
-    const snapshot = this.coordinator.snapshot();
-    const scene = PROLOGUE_ARRIVAL_STREAM_SCENES.find((entry) => entry.id === snapshot.runtime.sceneId) ??
-      PROLOGUE_ARRIVAL_SCENE;
-    return {
-      runtime: snapshot.runtime,
-      session: snapshot.session,
-      scene,
-      title: snapshot.runtime.sceneId === PROLOGUE_ARRIVAL_SCENE_ID
-        ? "N00 · 山谷抵达台"
-        : "N01 · 林缘浅溪",
-      glyphPhase: glyphPhase(snapshot.session),
-      route: snapshot.route,
-      routeReady: snapshot.routeReady,
-      settlementEntranceReached: snapshot.settlementEntranceReached,
-      shallowWater: snapshot.shallowWater,
-      manifestedWater: snapshot.manifestedWater,
-      nearGlyph: isNearGlyph(snapshot.runtime),
-    };
+  snapshot(): PrologueFlowSnapshot {
+    return this.flow.snapshot();
   }
 
   interact(): UiResult {
     const snapshot = this.snapshot();
-    if (!snapshot.nearGlyph) return ui(false, "附近没有可互动对象。", "warning");
-    if (snapshot.glyphPhase === "undiscovered") {
-      return translate(
-        this.coordinator.discoverTelo("browser.n01.glyph.telo"),
-        "你发现了 telo（水）；现在还不能施法。",
+    if (snapshot.mode === "settlement") {
+      return ui(true, "聚落中的交谈与设施操作在下方的 N02 面板中进行。", "neutral");
+    }
+    if (!isNearGlyph(snapshot.runtime)) return ui(false, "附近没有可互动的词语遗迹。", "warning");
+    const phase = glyphPhase(snapshot);
+    if (phase === "undiscovered") {
+      return flowResult(
+        this.flow.discoverTelo("browser.n01.glyph.telo"),
+        "你辨认出了 telo（水）；它仍需调谐才能用于魔法。",
       );
     }
-    return ui(true, snapshot.glyphPhase === "discovered" ? "telo 正等待调谐。" : "telo 已完成调谐。", "neutral");
+    return ui(true, phase === "discovered" ? "telo 正等待调谐。" : "telo 已完成调谐。", "neutral");
   }
 
   attuneOrManifest(): UiResult {
     const snapshot = this.snapshot();
-    if (snapshot.runtime.sceneId !== PROLOGUE_STREAM_SCENE_ID || snapshot.glyphPhase === "undiscovered") {
-      return ui(false, "先在浅溪遗迹中发现 telo。", "warning");
+    if (snapshot.mode !== "arrival_stream" || snapshot.runtime.sceneId !== PROLOGUE_STREAM_SCENE_ID) {
+      return ui(false, "这项 telo 操作只在 N01 林缘浅溪可用。", "warning");
     }
-    if (snapshot.glyphPhase === "discovered") {
-      return translate(
-        this.coordinator.attuneTelo(nextId("attune-telo"), "browser.n01.glyph.telo"),
-        "调谐完成；正式字形仍待审批。",
+    const phase = glyphPhase(snapshot);
+    if (phase === "undiscovered") return ui(false, "先靠近浅溪中的词语遗迹并辨认 telo。", "warning");
+    if (phase === "discovered") {
+      return flowResult(
+        this.flow.attuneTelo(nextId("attune-telo"), "browser.n01.glyph.telo"),
+        "调谐完成；正式 sitelen pona 字形仍在素材审批门禁之后。",
       );
     }
-    return translate(
-      this.coordinator.manifestTelo(nextId("manifest-telo")),
-      "显化完成：水从静止开始下落，消耗 5 MP。",
+    return flowResult(
+      this.flow.manifestTelo(nextId("manifest-telo")),
+      "显化 telo：水从静止开始下落，并在重力作用下流入浅溪（消耗 5 MP）。",
     );
   }
 
   tool(action: ToolAction): UiResult {
-    const before = this.coordinator.snapshot();
-    if (before.routeReady) {
-      return ui(true, "Route already ready; no duplicate event was written.", "neutral");
+    const snapshot = this.snapshot();
+    if (snapshot.mode !== "arrival_stream" || snapshot.runtime.sceneId !== PROLOGUE_STREAM_SCENE_ID) {
+      return ui(false, "这组三条独立工具路线只在 N01 可用。", "warning");
     }
-
     const result = action === "stone"
-      ? this.coordinator.pushLooseStone(nextId("push-stone"))
+      ? this.flow.pushLooseStone(nextId("push-stone"))
       : action === "log"
-        ? this.coordinator.placeRottenLog(nextId("place-log"))
-        : this.coordinator.digSoftSoil(nextId("dig-soil"));
-    if (!result.accepted) return translate(result, "");
+        ? this.flow.placeRottenLog(nextId("place-log"))
+        : this.flow.digSoftSoil(nextId("dig-soil"));
+    const message = action === "stone"
+      ? "已移动松石，形成一条无需魔法的独立踏脚路线。"
+      : action === "log"
+        ? "已放置朽木，形成一条无需魔法的独立上坡路线。"
+        : "已挖开软土，形成一条无需魔法的独立浅水路线。";
+    return flowResult(result, message);
+  }
 
-    const after = result.snapshot;
-    if (!before.routeReady && after.routeReady) {
-      const message = action === "stone"
-        ? "Loose stone moved: this route is independently passable."
-        : action === "log"
-          ? "Rotten log placed: this route is independently passable."
-          : "Soft soil opened: this route is independently passable.";
-      return ui(true, message, "success");
+  talk(npcId: string, topic: SettlementDialogueTopic, clarify: boolean): UiResult {
+    const result = clarify ? this.flow.clarify(npcId, topic) : this.flow.talk(npcId, topic);
+    if (!result.accepted || result.result?.node === null || result.result === null) {
+      return flowResult(result, "");
     }
-    return ui(true, "Route state did not change; no duplicate event was written.", "neutral");
+    renderDialogue(result.result.node);
+    return ui(
+      true,
+      clarify ? "澄清内容已显示；这次问询不会写入存档。" : "对方回答了你的结构化问题。",
+      "success",
+    );
+  }
+
+  usePublicRelief(): UiResult {
+    return flowResult(
+      this.flow.usePublicRelief(nextId("public-relief")),
+      "已使用公共井水与一份植物餐。公共救济免费，不进入商人库存，也不需要 coin。",
+    );
+  }
+
+  meditate(answerAccepted: boolean): UiResult {
+    return flowResult(
+      this.flow.meditate(nextId("meditation"), answerAccepted),
+      answerAccepted
+        ? "冥想完成：获得基础 MP 恢复；本次引导不生成语言学习证据。"
+        : "答案不正确，但仍获得基础 MP 恢复；错误答案不会生成语言学习证据。",
+      answerAccepted ? "success" : "warning",
+    );
+  }
+
+  survey(action: SurveyAction): UiResult {
+    const result = action === "accept"
+      ? this.flow.acceptSurveyJob(nextId("survey-accept"))
+      : this.flow.submitSurveyJob(nextId("survey-submit"));
+    const message = action === "accept"
+      ? "已接受不需要战斗或魔法的三标记巡查工作。"
+      : "巡查结果已提交；一次性 coin 奖励已通过回执记入钱包。";
+    return flowResult(result, message);
+  }
+
+  inspectSurveyMarker(markerId: string): UiResult {
+    const result = this.flow.inspectSurveyMarker(nextId(`survey-marker-${markerId}`), markerId);
+    return flowResult(result, `已记录勘测标记：${markerLabel(markerId)}。`);
+  }
+
+  openTrade(): UiResult {
+    const result = this.flow.openTrade(nextId("trade-open"));
+    if (!result.accepted || result.result === null) return flowResult(result, "");
+    renderTradeAuthorization(result.result.tradeEntryId, result.result.merchantIds);
+    return ui(true, "交易入口已由场景清单授权；当前灰盒只显示商人 allowlist，不执行成交。", "neutral");
   }
 
   setCheckpoint(): UiResult {
-    try {
-      this.coordinator.setCheckpoint(nextId("checkpoint"), "checkpoint.prologue.browser");
-      return ui(true, "检查点已记录。", "success");
-    } catch (error: unknown) {
-      return ui(false, errorMessage(error, "当前位置不能成为检查点。"), "danger");
-    }
+    return flowResult(
+      this.flow.setCheckpoint(nextId("checkpoint"), "checkpoint.prologue.browser"),
+      "检查点已记录。",
+    );
   }
 
   resetToCheckpoint(): UiResult {
-    try {
-      this.coordinator.resetToCheckpoint(nextId("checkpoint-reset"));
-      return ui(true, "已回到检查点；持久学习和路线状态保留。", "neutral");
-    } catch (error: unknown) {
-      return ui(false, errorMessage(error, "检查点恢复失败。"), "danger");
-    }
+    return flowResult(
+      this.flow.resetToCheckpoint(nextId("checkpoint-reset")),
+      "已回到检查点；学习、钱包和任务状态保持不变。",
+      "neutral",
+    );
   }
 
   resetArea(): UiResult {
-    this.coordinator.resetArea(nextId("area-reset"));
-    return ui(true, "区域瞬时状态已重置。", "neutral");
+    return flowResult(
+      this.flow.resetArea(nextId("area-reset")),
+      "区域的瞬时物理状态已重置，持久进度保持不变。",
+      "neutral",
+    );
   }
 
   toSave(): unknown {
-    return this.coordinator.toSave();
+    return this.flow.toSave();
   }
 }
 
@@ -196,13 +211,14 @@ app.innerHTML = `
       <a href="/">返回项目入口</a>
     </header>
     <section class="notice" role="note">
-      telo 图案与调谐光效是程序化占位，不是获批的 sitelen pona 正式字形；字形动画层与环境背景层彼此独立。
+      当前字形和发光效果是程序化占位，不是获批的 sitelen pona 正式素材；字形动画层与环境背景层保持独立。
     </section>
     <section class="hud" aria-label="游戏状态">
       <div class="hud-row"><strong data-ui="scene">--</strong><span data-ui="tick">tick --</span></div>
       <div class="meter-row">
         <span>生命 <i class="meter meter-health"><b></b></i> <em>100 / 100</em></span>
-        <span>MP <i class="meter meter-mp"><b></b></i> <em data-ui="mp">--</em></span>
+        <span>MP <i class="meter meter-mp"><b data-ui="mp-fill"></b></i> <em data-ui="mp">--</em></span>
+        <span>coin <em data-ui="coin">0</em></span>
       </div>
       <p data-ui="objective">--</p>
     </section>
@@ -211,25 +227,61 @@ app.innerHTML = `
       <div class="scene-shade" aria-hidden="true"></div>
       <div class="interaction-hint" data-ui="hint">继续探索</div>
     </section>
-    <section class="telo-panel" data-phase="undiscovered" aria-label="telo 学习状态">
+    <section class="telo-panel arrival-only" data-phase="undiscovered" aria-label="telo 学习状态">
       <div class="glyph-placeholder" aria-hidden="true"><span>TELO</span></div>
       <div><p class="eyebrow">WORD RELIC / WATER TYPE</p><strong data-ui="glyph-state">尚未发现</strong>
-        <small>发现 → 调谐激活 → 奠义 → 主动产出 → 稳固</small></div>
+        <small>发现 → 调谐 → 主动显化 → 环境验证；正式字形尚未导出</small></div>
       <button type="button" data-action="telo" disabled>调谐 telo</button>
     </section>
+    <section class="settlement-panel settlement-only" hidden aria-label="N02 聚落服务与工作">
+      <div class="panel-heading">
+        <div><p class="eyebrow">N02 / SETTLEMENT ORIENTATION</p><h2>聚落问询</h2></div>
+        <strong data-ui="task-stage">工作：可接受</strong>
+      </div>
+      <div class="npc-grid" data-ui="npcs">${SETTLEMENT_SCENE.npcs.map(npcCard).join("")}</div>
+      <article class="dialogue-box" aria-live="polite">
+        <p class="eyebrow">STRUCTURED DIALOGUE / READ ONLY</p>
+        <strong data-ui="dialogue-title">选择一名居民与一个主题</strong>
+        <ul data-ui="dialogue-facts"><li>问询与澄清不会写入存档。</li></ul>
+        <div class="clarify-row" data-ui="clarify"></div>
+      </article>
+      <div class="service-grid" aria-label="公共服务与冥想">
+        <button type="button" data-settlement="relief">公共救济：井水＋植物餐</button>
+        <button type="button" data-settlement="meditate-correct">冥想：正确回答</button>
+        <button type="button" data-settlement="meditate-wrong">冥想：错误回答也仅基础回血</button>
+      </div>
+      <div class="survey-markers" aria-label="三标记巡查">
+        ${PROLOGUE_SETTLEMENT_SURVEY_MARKER_IDS.map((markerId) =>
+          `<button type="button" data-marker="${escapeHtml(markerId)}" data-inspected="false">${escapeHtml(markerLabel(markerId))}</button>`
+        ).join("")}
+      </div>
+      <div class="job-row" aria-label="非暴力三标记巡查工作">
+        <button type="button" data-job="accept">接受巡查</button>
+        <button type="button" data-job="submit">提交并领取 coin</button>
+        <button type="button" data-trade-open>打开交易入口（只读）</button>
+      </div>
+      <p class="trade-authorization" data-ui="trade-authorization">交易尚未打开；灰盒不会执行购买或售卖。</p>
+      <small class="learning-separation">基础 MP 恢复与学习证据严格分离：回答正确或错误都不会在本次引导中生成证据。</small>
+    </section>
     <p class="status" data-ui="status" data-tone="neutral" aria-live="polite">方向键或 A/D 移动，空格/W 跳跃，E 互动。</p>
-    <section class="command-row command-row-tools" aria-label="Three independent non-magic routes">
-      <button type="button" data-tool="stone">MOVE STONE / INDEPENDENT</button><button type="button" data-tool="log">PLACE LOG / INDEPENDENT</button>
-      <button type="button" data-tool="soil">DIG SOIL / INDEPENDENT</button>
+    <section class="command-row command-row-tools arrival-only" aria-label="三条独立非魔法路线">
+      <button type="button" data-tool="stone">移动松石</button>
+      <button type="button" data-tool="log">放置朽木</button>
+      <button type="button" data-tool="soil">挖开软土</button>
     </section>
     <section class="command-row" aria-label="游戏操作">
-      <button type="button" data-action="interact">互动 [E]</button><button type="button" data-action="checkpoint">设检查点</button>
-      <button type="button" data-action="reset">回检查点 [R]</button><button type="button" data-action="save">保存</button>
-      <button type="button" data-action="load">读取</button><button type="button" data-action="area-reset">重置区域</button>
+      <button type="button" data-action="interact">互动 [E]</button>
+      <button type="button" data-action="checkpoint">设检查点</button>
+      <button type="button" data-action="reset">回检查点 [R]</button>
+      <button type="button" data-action="save">保存</button>
+      <button type="button" data-action="load">读取</button>
+      <button type="button" data-action="area-reset">重置区域</button>
     </section>
     <section class="touch-controls" aria-label="触屏操作">
-      <button type="button" data-hold="left" aria-label="向左移动">◀</button><button type="button" data-hold="right" aria-label="向右移动">▶</button>
-      <button type="button" data-hold="jump">跳跃</button><button type="button" data-touch-interact>互动</button>
+      <button type="button" data-hold="left" aria-label="向左移动">◀</button>
+      <button type="button" data-hold="right" aria-label="向右移动">▶</button>
+      <button type="button" data-hold="jump">跳跃</button>
+      <button type="button" data-touch-interact>互动</button>
     </section>
   </div>`;
 
@@ -238,14 +290,18 @@ const context = canvasContext(canvas);
 const sceneLabel = required<HTMLElement>('[data-ui="scene"]');
 const tickLabel = required<HTMLElement>('[data-ui="tick"]');
 const mpLabel = required<HTMLElement>('[data-ui="mp"]');
+const mpFill = required<HTMLElement>('[data-ui="mp-fill"]');
+const coinLabel = required<HTMLElement>('[data-ui="coin"]');
 const objectiveLabel = required<HTMLElement>('[data-ui="objective"]');
 const hintLabel = required<HTMLElement>('[data-ui="hint"]');
 const glyphPanel = required<HTMLElement>(".telo-panel");
 const glyphState = required<HTMLElement>('[data-ui="glyph-state"]');
 const teloButton = required<HTMLButtonElement>('[data-action="telo"]');
+const settlementPanel = required<HTMLElement>(".settlement-panel");
+const taskStageLabel = required<HTMLElement>('[data-ui="task-stage"]');
 const statusLabel = required<HTMLElement>('[data-ui="status"]');
 
-let port: PrologueBrowserPort = ArrivalStreamBrowserPort.fresh();
+let port = FlowBrowserPort.fresh();
 let priorTime = performance.now();
 let activationStarted: number | null = null;
 let jumpQueued = false;
@@ -275,79 +331,153 @@ function frame(now: number): void {
   requestAnimationFrame(frame);
 }
 
-function render(snapshot: BrowserSnapshot, now: number): void {
-  drawWorld(snapshot);
-  sceneLabel.textContent = snapshot.title;
-  tickLabel.textContent = `tick ${snapshot.runtime.tick}`;
+function render(snapshot: PrologueFlowSnapshot, now: number): void {
+  const scene = requiredScene(snapshot.runtime.sceneId);
+  drawWorld(snapshot, scene);
+  sceneLabel.textContent = sceneTitle(snapshot.runtime.sceneId);
+  tickLabel.textContent = `tick ${snapshot.runtime.tick} · 击杀 ${snapshot.killCount}`;
   mpLabel.textContent = `${snapshot.session.mp.currentMp} / ${snapshot.session.mp.maxMp}`;
+  mpFill.style.width = `${Math.max(0, Math.min(100, (snapshot.session.mp.currentMp / snapshot.session.mp.maxMp) * 100))}%`;
+  coinLabel.textContent = String(snapshot.session.economy.coin);
   objectiveLabel.textContent = objective(snapshot);
-  hintLabel.textContent = snapshot.nearGlyph ? "E / 互动：观察潮湿的词语遗迹" : "继续探索";
-  hintLabel.dataset.active = String(snapshot.nearGlyph);
-  glyphPanel.dataset.phase = snapshot.glyphPhase;
-  glyphState.textContent = phaseLabel(snapshot.glyphPhase);
-  teloButton.disabled = snapshot.glyphPhase === "undiscovered" || snapshot.runtime.sceneId !== PROLOGUE_STREAM_SCENE_ID;
-  teloButton.textContent = snapshot.glyphPhase === "activated" ? "显化 telo · 5 MP" : "调谐 telo";
+
+  const inSettlement = snapshot.mode === "settlement";
+  settlementPanel.hidden = !inSettlement;
+  for (const element of document.querySelectorAll<HTMLElement>(".arrival-only")) element.hidden = inSettlement;
+
+  if (inSettlement) {
+    hintLabel.textContent = "从下方面板选择居民、公共服务或巡查工作";
+    hintLabel.dataset.active = "true";
+    const stage = snapshot.settlement?.orientationTask.stage ?? "available";
+    taskStageLabel.textContent = `工作：${stageLabel(stage)} · 奖励 ${snapshot.settlement?.orientationTask.rewardCoin ?? 0} coin`;
+    updateSurveyButtons(stage, snapshot.settlement?.orientationTask.surveyedMarkerIds ?? []);
+    return;
+  }
+
+  const phase = glyphPhase(snapshot);
+  const nearGlyph = isNearGlyph(snapshot.runtime);
+  hintLabel.textContent = nearGlyph ? "E / 互动：观察潮湿的词语遗迹" : "继续探索";
+  hintLabel.dataset.active = String(nearGlyph);
+  glyphPanel.dataset.phase = phase;
+  glyphState.textContent = phaseLabel(phase);
+  teloButton.disabled = phase === "undiscovered" || snapshot.runtime.sceneId !== PROLOGUE_STREAM_SCENE_ID;
+  teloButton.textContent = phase === "activated" ? "显化 telo · 5 MP" : "调谐 telo";
   for (const button of document.querySelectorAll<HTMLButtonElement>("[data-tool]")) {
-    button.disabled = snapshot.runtime.sceneId !== PROLOGUE_STREAM_SCENE_ID || snapshot.routeReady;
+    button.disabled = snapshot.runtime.sceneId !== PROLOGUE_STREAM_SCENE_ID || Boolean(snapshot.arrival?.routeReady);
   }
   if (reducedMotion.matches) {
     activationStarted = null;
-    glyphPanel.style.setProperty("--activation", snapshot.glyphPhase === "activated" ? "1" : "0");
+    glyphPanel.style.setProperty("--activation", phase === "activated" ? "1" : "0");
   } else if (activationStarted !== null) {
     const activation = Math.min(1, (now - activationStarted) / 1_200);
     glyphPanel.style.setProperty("--activation", String(activation));
     if (activation >= 1) activationStarted = null;
   } else {
-    glyphPanel.style.setProperty("--activation", snapshot.glyphPhase === "activated" ? "1" : "0");
+    glyphPanel.style.setProperty("--activation", phase === "activated" ? "1" : "0");
   }
 }
 
-function drawWorld(snapshot: BrowserSnapshot): void {
-  const cameraX = browserCameraX(snapshot);
+function drawWorld(snapshot: PrologueFlowSnapshot, scene: RuntimeSceneManifest): void {
+  const cameraX = browserCameraX(snapshot.runtime, scene);
   context.imageSmoothingEnabled = false;
-  context.fillStyle = snapshot.runtime.sceneId === PROLOGUE_ARRIVAL_SCENE_ID ? "#08090c" : "#07100e";
+  context.fillStyle = snapshot.mode === "settlement" ? "#0d0b08" : snapshot.runtime.sceneId === PROLOGUE_ARRIVAL_SCENE_ID ? "#08090c" : "#07100e";
   context.fillRect(0, 0, WIDTH, HEIGHT);
-  drawCavernBackdrop(snapshot.runtime.tick);
+  drawBackdrop(snapshot.runtime.tick, snapshot.mode);
   const firstX = Math.max(0, Math.floor(cameraX / WORLD_TILE_SIZE_PX));
-  const lastX = Math.min(snapshot.scene.collisionRows[0]!.length - 1, Math.ceil((cameraX + WIDTH) / WORLD_TILE_SIZE_PX));
-  for (let y = 0; y < snapshot.scene.collisionRows.length; y += 1) {
+  const lastX = Math.min(scene.collisionRows[0]!.length - 1, Math.ceil((cameraX + WIDTH) / WORLD_TILE_SIZE_PX));
+  for (let y = 0; y < scene.collisionRows.length; y += 1) {
     for (let x = firstX; x <= lastX; x += 1) {
-      if (snapshot.scene.collisionRows[y]![x] !== "#") continue;
-      rockTile(x * 16 - cameraX, y * 16 + WORLD_Y_OFFSET, x, y);
+      if (scene.collisionRows[y]![x] !== "#") continue;
+      rockTile(x * WORLD_TILE_SIZE_PX - cameraX, y * WORLD_TILE_SIZE_PX + WORLD_Y_OFFSET, x, y, snapshot.mode);
     }
   }
-  if (snapshot.runtime.sceneId === PROLOGUE_STREAM_SCENE_ID) {
+  if (snapshot.runtime.sceneId === PROLOGUE_STREAM_SCENE_ID && snapshot.arrival) {
     context.fillStyle = "#154866";
     context.fillRect(
-      Math.round(snapshot.shallowWater.leftPx - cameraX),
-      Math.round(snapshot.shallowWater.surfaceYPx + WORLD_Y_OFFSET),
-      snapshot.shallowWater.rightPx - snapshot.shallowWater.leftPx,
+      Math.round(snapshot.arrival.shallowWater.leftPx - cameraX),
+      Math.round(snapshot.arrival.shallowWater.surfaceYPx + WORLD_Y_OFFSET),
+      snapshot.arrival.shallowWater.rightPx - snapshot.arrival.shallowWater.leftPx,
       16,
     );
-    drawGlyph(GLYPH_POSITION.x - cameraX, GLYPH_POSITION.y + WORLD_Y_OFFSET, snapshot.glyphPhase);
-    for (const water of snapshot.manifestedWater) {
+    drawGlyph(GLYPH_POSITION.x - cameraX, GLYPH_POSITION.y + WORLD_Y_OFFSET, glyphPhase(snapshot));
+    for (const water of snapshot.arrival.manifestedWater) {
       context.fillStyle = water.settled ? "#65c7ed" : "#a4e8f9";
       context.fillRect(Math.round(water.position.x - cameraX), Math.round(water.position.y + WORLD_Y_OFFSET), 3, 3);
     }
   }
+  if (snapshot.mode === "settlement") {
+    drawSettlementFacilities(scene, cameraX);
+    drawSettlementNpcs(scene, cameraX);
+    drawSurveyMarkers(scene, cameraX);
+  }
   drawPlayer(snapshot.runtime, cameraX);
 }
 
-function drawCavernBackdrop(tick: number): void {
-  context.fillStyle = "#111316";
-  for (let i = 0; i < 30; i += 1) {
-    const x = (i * 37 + tick * 0) % WIDTH;
-    const y = 25 + ((i * 71) % (HEIGHT - 50));
-    context.fillRect(x, y, i % 4 === 0 ? 2 : 1, 1);
+function drawBackdrop(tick: number, mode: PrologueFlowSnapshot["mode"]): void {
+  context.fillStyle = mode === "settlement" ? "#18150e" : "#111316";
+  const shimmer = Math.floor(tick / 30) % 2;
+  for (let index = 0; index < 30; index += 1) {
+    const x = (index * 37) % WIDTH;
+    const y = 25 + ((index * 71) % (HEIGHT - 50));
+    context.fillRect(x, y, (index + shimmer) % 4 === 0 ? 2 : 1, 1);
   }
 }
 
-function rockTile(x: number, y: number, tileX: number, tileY: number): void {
-  const colors = ["#26241f", "#2e2b24", "#363128", "#1e2020"] as const;
+function rockTile(
+  x: number,
+  y: number,
+  tileX: number,
+  tileY: number,
+  mode: PrologueFlowSnapshot["mode"],
+): void {
+  const colors = mode === "settlement"
+    ? ["#342d20", "#433725", "#2b2a21", "#4b3b27"] as const
+    : ["#26241f", "#2e2b24", "#363128", "#1e2020"] as const;
   context.fillStyle = colors[Math.abs(tileX * 7 + tileY * 13) % colors.length]!;
   context.fillRect(Math.floor(x), Math.floor(y), 16, 16);
-  context.fillStyle = (tileX + tileY) % 3 === 0 ? "#57402a" : "#151719";
+  context.fillStyle = (tileX + tileY) % 3 === 0 ? "#6a4b2c" : "#151719";
   context.fillRect(Math.floor(x + ((tileX * 5) % 11)), Math.floor(y + ((tileY * 3) % 11)), 2, 2);
+}
+
+function drawSettlementFacilities(scene: RuntimeSceneManifest, cameraX: number): void {
+  const worldWidth = scene.sizeTiles.width * WORLD_TILE_SIZE_PX;
+  const facilityX = [0.22, 0.5, 0.78];
+  scene.facilities.slice(0, 3).forEach((facility, index) => {
+    const x = Math.round(worldWidth * facilityX[index]! - cameraX);
+    const y = 208;
+    context.fillStyle = facility.publicRelief ? "#315c66" : "#59472d";
+    context.fillRect(x, y, 13, 13);
+    context.fillStyle = "#bda96c";
+    context.fillRect(x + 2, y - 3, 9, 3);
+  });
+}
+
+function drawSettlementNpcs(scene: RuntimeSceneManifest, cameraX: number): void {
+  const worldWidth = scene.sizeTiles.width * WORLD_TILE_SIZE_PX;
+  scene.npcs.forEach((npc, index) => {
+    const x = Math.round(worldWidth * (0.32 + index * 0.18) - cameraX);
+    const y = 220;
+    context.fillStyle = ["#bd9457", "#738c62", "#9671a4"][index] ?? "#a88c63";
+    context.fillRect(x + 2, y, 7, 11);
+    context.fillStyle = "#e3cfa8";
+    context.fillRect(x + 3, y + 2, 5, 4);
+    context.fillStyle = "#d1b866";
+    context.fillRect(x, y - 3, 11, 2);
+    context.fillStyle = "#8c7b58";
+    context.fillRect(x + 5, y - 8, 1, 4);
+    void npc;
+  });
+}
+
+function drawSurveyMarkers(scene: RuntimeSceneManifest, cameraX: number): void {
+  const worldWidth = scene.sizeTiles.width * WORLD_TILE_SIZE_PX;
+  for (const ratio of [0.18, 0.55, 0.86]) {
+    const x = Math.round(worldWidth * ratio - cameraX);
+    context.fillStyle = "#b88a3a";
+    context.fillRect(x, 213, 2, 17);
+    context.fillStyle = "#d9c27e";
+    context.fillRect(x - 2, 213, 6, 3);
+  }
 }
 
 function drawPlayer(runtime: RuntimeSnapshot, cameraX: number): void {
@@ -368,11 +498,10 @@ function drawGlyph(x: number, y: number, phase: GlyphPhase): void {
   context.fillRect(Math.round(x - 11), Math.round(y - 26), 22, 27);
   context.fillStyle = phase === "activated" ? "#9beaff" : phase === "discovered" ? "#52737b" : "#30383a";
   context.fillRect(Math.round(x - 8), Math.round(y - 22), 16, 18);
-  if (phase !== "undiscovered") {
-    context.fillStyle = phase === "activated" ? "#d9f9ff" : "#83979a";
-    context.fillRect(Math.round(x - 2), Math.round(y - 18), 4, 10);
-    context.fillRect(Math.round(x - 5), Math.round(y - 10), 10, 3);
-  }
+  if (phase === "undiscovered") return;
+  context.fillStyle = phase === "activated" ? "#d9f9ff" : "#83979a";
+  context.fillRect(Math.round(x - 2), Math.round(y - 18), 4, 10);
+  context.fillRect(Math.round(x - 5), Math.round(y - 10), 10, 3);
 }
 
 function bindInputs(): void {
@@ -394,10 +523,7 @@ function bindInputs(): void {
     if (key === "d" || key === "arrowright") held.delete("right");
     if (key === "w" || key === "arrowup" || key === " ") held.delete("jump");
   });
-  window.addEventListener("blur", () => {
-    held.clear();
-    pointerHolds.clear();
-  });
+  window.addEventListener("blur", clearHeld);
 
   for (const button of document.querySelectorAll<HTMLButtonElement>("[data-hold]")) {
     const action = button.dataset.hold;
@@ -424,23 +550,41 @@ function bindInputs(): void {
     button.addEventListener("pointercancel", release);
     button.addEventListener("lostpointercapture", release);
   }
+
   required<HTMLButtonElement>("[data-touch-interact]").addEventListener("click", () => run(() => port.interact()));
   required<HTMLButtonElement>('[data-action="interact"]').addEventListener("click", () => run(() => port.interact()));
   required<HTMLButtonElement>('[data-action="checkpoint"]').addEventListener("click", () => run(() => port.setCheckpoint()));
   required<HTMLButtonElement>('[data-action="reset"]').addEventListener("click", () => run(() => port.resetToCheckpoint()));
   required<HTMLButtonElement>('[data-action="area-reset"]').addEventListener("click", () => run(() => port.resetArea()));
   teloButton.addEventListener("click", () => {
-    const before = port.snapshot().glyphPhase;
+    const before = glyphPhase(port.snapshot());
     const result = port.attuneOrManifest();
-    const after = port.snapshot().glyphPhase;
+    const after = glyphPhase(port.snapshot());
     if (before === "discovered" && after === "activated" && !reducedMotion.matches) {
       activationStarted = performance.now();
     }
     show(result);
   });
   for (const button of document.querySelectorAll<HTMLButtonElement>("[data-tool]")) {
-    button.addEventListener("click", () => run(() => port.tool(button.dataset.tool as ToolAction)));
+    button.addEventListener("click", () => run(() => port.tool(requiredDataset(button, "tool") as ToolAction)));
   }
+  for (const button of document.querySelectorAll<HTMLButtonElement>("[data-npc][data-topic]")) {
+    button.addEventListener("click", () => run(() => port.talk(
+      requiredDataset(button, "npc"),
+      requiredDataset(button, "topic") as SettlementDialogueTopic,
+      button.dataset.clarify === "true",
+    )));
+  }
+  required<HTMLButtonElement>('[data-settlement="relief"]').addEventListener("click", () => run(() => port.usePublicRelief()));
+  required<HTMLButtonElement>('[data-settlement="meditate-correct"]').addEventListener("click", () => run(() => port.meditate(true)));
+  required<HTMLButtonElement>('[data-settlement="meditate-wrong"]').addEventListener("click", () => run(() => port.meditate(false)));
+  for (const button of document.querySelectorAll<HTMLButtonElement>("[data-job]")) {
+    button.addEventListener("click", () => run(() => port.survey(requiredDataset(button, "job") as SurveyAction)));
+  }
+  for (const button of document.querySelectorAll<HTMLButtonElement>("[data-marker]")) {
+    button.addEventListener("click", () => run(() => port.inspectSurveyMarker(requiredDataset(button, "marker"))));
+  }
+  required<HTMLButtonElement>("[data-trade-open]").addEventListener("click", () => run(() => port.openTrade()));
   required<HTMLButtonElement>('[data-action="save"]').addEventListener("click", save);
   required<HTMLButtonElement>('[data-action="load"]').addEventListener("click", load);
 }
@@ -458,21 +602,73 @@ function load(): void {
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved === null) {
-      setStatus("No local save exists yet.", "warning");
+      setStatus("尚无本地存档。", "warning");
       return;
     }
-    port = ArrivalStreamBrowserPort.fromSave(JSON.parse(saved) as unknown);
-    held.clear();
-    pointerHolds.clear();
+    port = FlowBrowserPort.fromSave(JSON.parse(saved) as unknown);
+    clearHeld();
     activationStarted = null;
-    setStatus("Save loaded.", "success");
+    setStatus("存档已读取。", "success");
   } catch (error: unknown) {
-    setStatus(errorMessage(error, "Save data is invalid or local storage is unavailable."), "danger");
+    setStatus(errorMessage(error, "存档无效或本地存储不可用。"), "danger");
   }
 }
 
-function glyphPhase(state: GameSessionState): GlyphPhase {
-  const telo = state.learning.words.telo;
+function renderDialogue(node: SettlementDialogueNode): void {
+  required<HTMLElement>('[data-ui="dialogue-title"]').textContent = `${node.professionLabelZh} · ${topicLabel(node.topic)}`;
+  const facts = required<HTMLElement>('[data-ui="dialogue-facts"]');
+  facts.replaceChildren(...node.facts.map((fact) => {
+    const item = document.createElement("li");
+    item.textContent = factLabel(fact);
+    return item;
+  }));
+  const clarification = required<HTMLElement>('[data-ui="clarify"]');
+  clarification.replaceChildren(...node.clarificationTopics.filter((topic) => topic !== node.topic).map((topic) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = `澄清：${topicLabel(topic)}`;
+    button.addEventListener("click", () => run(() => port.talk(node.npcId, topic, true)));
+    return button;
+  }));
+}
+
+function npcCard(npc: RuntimeSceneNpcManifest): string {
+  const topics = topicsForNpc(npc);
+  return `<article class="npc-card">
+    <strong>${escapeHtml(npc.professionLabelZh)}</strong>
+    <small>${escapeHtml(npc.professionId)}</small>
+    <div class="topic-row">${topics.map((topic, index) =>
+      `<button type="button" data-npc="${escapeHtml(npc.id)}" data-topic="${topic}"${index === 0 ? "" : ' data-clarify="true"'}>${index === 0 ? "询问" : "澄清"}：${topicLabel(topic)}</button>`
+    ).join("")}</div>
+  </article>`;
+}
+
+function topicsForNpc(npc: RuntimeSceneNpcManifest): readonly SettlementDialogueTopic[] {
+  if (npc.professionId === "settlement.supply_trader") return ["role", "trade", "public_services", "directions"];
+  return ["role", "work", "public_services", "directions"];
+}
+
+function objective(snapshot: PrologueFlowSnapshot): string {
+  if (snapshot.mode === "settlement") {
+    const stage = snapshot.settlement?.orientationTask.stage ?? "available";
+    return stage === "completed"
+      ? "聚落定向完成；公共服务仍可使用，也可继续向居民澄清问题。"
+      : `认识三种职业、使用公共服务，并完成非暴力三标记巡查（${stageLabel(stage)}）。`;
+  }
+  if (snapshot.runtime.sceneId === PROLOGUE_ARRIVAL_SCENE_ID) {
+    return "向右穿过山谷抵达台，进入林缘浅溪。";
+  }
+  if (snapshot.arrival?.routeReady) {
+    return `${snapshot.arrival.route === "telo" ? "telo" : "工具"}路线已稳定；向右抵达聚落入口。`;
+  }
+  const phase = glyphPhase(snapshot);
+  if (phase === "undiscovered") return "寻找 telo 遗迹，或从松石、朽木、软土中选择一条独立工具路线。";
+  if (phase === "discovered") return "调谐 telo，或选择任一独立工具路线。";
+  return "显化 telo 让水落入浅溪，或选择任一独立工具路线。";
+}
+
+function glyphPhase(snapshot: PrologueFlowSnapshot): GlyphPhase {
+  const telo = snapshot.session.learning.words.telo;
   if (telo?.attunementState === "attuned") return "activated";
   return telo?.discoveryState === "discovered" ? "discovered" : "undiscovered";
 }
@@ -484,36 +680,117 @@ function isNearGlyph(runtime: RuntimeSnapshot): boolean {
   return Math.hypot(centerX - GLYPH_POSITION.x, centerY - GLYPH_POSITION.y) <= GLYPH_RADIUS;
 }
 
-function browserCameraX(snapshot: BrowserSnapshot): number {
-  const worldWidth = snapshot.scene.collisionRows[0]!.length * WORLD_TILE_SIZE_PX;
-  const center = snapshot.runtime.player.position.x + snapshot.runtime.player.body.width / 2;
+function browserCameraX(runtime: RuntimeSnapshot, scene: RuntimeSceneManifest): number {
+  const worldWidth = scene.sizeTiles.width * WORLD_TILE_SIZE_PX;
+  const center = runtime.player.position.x + runtime.player.body.width / 2;
   return Math.min(Math.max(0, center - WIDTH / 2), Math.max(0, worldWidth - WIDTH));
 }
 
-function objective(snapshot: BrowserSnapshot): string {
-  if (snapshot.settlementEntranceReached) return "Settlement entrance reached; N00 -> N01 complete.";
-  if (snapshot.runtime.sceneId === PROLOGUE_ARRIVAL_SCENE_ID) return "Travel right across the arrival shelf into the forest stream.";
-  if (snapshot.routeReady) {
-    const route = snapshot.route === "telo" ? "telo route" : "independent tool route";
-    return `${route} is stable; travel to the settlement entrance at far right.`;
+function flowResult<T>(
+  action: PrologueFlowAction<T>,
+  success: string,
+  successTone: Tone = "success",
+): UiResult {
+  if (action.accepted) return ui(true, success || "操作完成。", successTone);
+  const delegated = delegateReason(action.result);
+  const tone = action.reason === "wrong_mode" || delegated === "wrong_scene" || delegated === "prerequisite_missing"
+    ? "warning"
+    : "danger";
+  return ui(false, `操作未生效：${delegated ?? action.reason}`, tone);
+}
+
+function delegateReason(result: unknown): string | null {
+  if (typeof result !== "object" || result === null || !("reason" in result)) return null;
+  return typeof result.reason === "string" ? result.reason : null;
+}
+
+function updateSurveyButtons(
+  stage: "available" | "accepted" | "surveyed" | "completed",
+  surveyedMarkerIds: readonly string[],
+): void {
+  required<HTMLButtonElement>('[data-job="accept"]').disabled = stage !== "available";
+  required<HTMLButtonElement>('[data-job="submit"]').disabled = stage !== "surveyed";
+  for (const button of document.querySelectorAll<HTMLButtonElement>("[data-marker]")) {
+    const markerId = requiredDataset(button, "marker");
+    const inspected = surveyedMarkerIds.includes(markerId);
+    button.disabled = stage === "available" || stage === "completed" || inspected;
+    button.dataset.inspected = String(inspected);
+    button.textContent = `${inspected ? "✓ " : ""}${markerLabel(markerId)}`;
   }
-  if (snapshot.glyphPhase === "undiscovered") {
-    return "Find the telo glyph, or choose stone, log, or soil; each tool opens its own route.";
-  }
-  if (snapshot.glyphPhase === "discovered") return "Attune telo, or choose any one independent tool route.";
-  return "Manifest telo into the stream, or choose any one independent tool route.";
+}
+
+function markerLabel(markerId: string): string {
+  const labels: Readonly<Record<string, string>> = {
+    "settlement.survey_marker.public_well": "标记一 · 公共井位置",
+    "settlement.survey_marker.meditation_court": "标记二 · 冥想庭磨损",
+    "settlement.survey_marker.east_gate": "标记三 · 东门水路",
+  };
+  return labels[markerId] ?? markerId;
+}
+
+function renderTradeAuthorization(tradeEntryId: string | null, merchantIds: readonly string[]): void {
+  required<HTMLElement>('[data-ui="trade-authorization"]').textContent = tradeEntryId === null
+    ? "交易入口未获授权。"
+    : `授权入口：${tradeEntryId}；merchant allowlist：${merchantIds.join("、") || "（空）"}。当前不执行成交。`;
 }
 
 function phaseLabel(phase: GlyphPhase): string {
-  if (phase === "activated") return "已激活 · 尚待奠义";
+  if (phase === "activated") return "已激活 · 尚待正式字形";
   if (phase === "discovered") return "已发现 · 等待调谐";
   return "尚未发现";
 }
 
-function translate(result: PrologueActionResult, success: string): UiResult {
-  return result.accepted
-    ? ui(true, success, "success")
-    : ui(false, `动作未生效：${result.reason}`, result.reason === "wrong_scene" ? "warning" : "danger");
+function stageLabel(stage: "available" | "accepted" | "surveyed" | "completed"): string {
+  return { available: "可接受", accepted: "已接受", surveyed: "已巡查", completed: "已完成" }[stage];
+}
+
+function topicLabel(topic: SettlementDialogueTopic): string {
+  return {
+    role: "职责",
+    public_services: "公共服务",
+    work: "工作",
+    trade: "交易",
+    directions: "方向",
+  }[topic];
+}
+
+function factLabel(fact: string): string {
+  const separator = fact.indexOf(":");
+  if (separator < 0) return fact;
+  const key = fact.slice(0, separator);
+  const value = fact.slice(separator + 1);
+  const labels: Readonly<Record<string, string>> = {
+    profession: "职业",
+    function: "职责",
+    public_well: "公共井",
+    communal_plant_meal: "公共植物餐",
+    checkpoint: "检查点",
+    repair_board: "维修告示",
+    survey_job: "巡查工作",
+    reward_coin: "coin 奖励",
+    magic_required: "需要魔法",
+    trade_entry: "交易入口",
+    public_relief: "公共救济",
+    canteen_refill: "补充水壶",
+    meditation_court: "冥想庭",
+    waterwheel_exit: "水车方向",
+  };
+  return `${labels[key] ?? key}：${value}`;
+}
+
+function sceneTitle(sceneId: string): string {
+  const names: Readonly<Record<string, string>> = {
+    [PROLOGUE_ARRIVAL_SCENE_ID]: "N00 · 山谷抵达台",
+    [PROLOGUE_STREAM_SCENE_ID]: "N01 · 林缘浅溪",
+    [PROLOGUE_SETTLEMENT_SCENE_ID]: "N02 · 河谷聚落",
+  };
+  return names[sceneId] ?? sceneId;
+}
+
+function requiredScene(sceneId: string): RuntimeSceneManifest {
+  const scene = SCENES[sceneId];
+  if (!scene) throw new Error(`Generated scene is missing: ${sceneId}`);
+  return scene;
 }
 
 function ui(accepted: boolean, message: string, tone: Tone): UiResult {
@@ -554,9 +831,28 @@ function releasePointerHold(action: string, pointerId: number): void {
   if (pointers.size === 0) pointerHolds.delete(action);
 }
 
+function clearHeld(): void {
+  held.clear();
+  pointerHolds.clear();
+}
+
 function preservesNativeSpace(target: EventTarget | null): boolean {
-  if (!(target instanceof Element)) return false;
-  return target.closest("button, a, input, textarea, select, [contenteditable]:not([contenteditable='false'])") !== null;
+  return target instanceof Element &&
+    target.closest("button, a, input, textarea, select, [contenteditable]:not([contenteditable='false'])") !== null;
+}
+
+function requiredDataset(element: HTMLElement, name: string): string {
+  const value = element.dataset[name];
+  if (!value) throw new Error(`Missing data-${name}`);
+  return value;
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
 }
 
 function errorMessage(error: unknown, fallback: string): string {

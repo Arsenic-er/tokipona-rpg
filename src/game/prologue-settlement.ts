@@ -15,7 +15,6 @@ import type { SceneDefinition } from "../runtime/scene";
 import {
   commitSessionProposal,
   proposeMpRecovery,
-  proposeQuestStage,
   proposeSurvivalTransaction,
   type SessionEventDraft,
   type SessionProposalBatch,
@@ -29,6 +28,14 @@ import {
 } from "../session/game-session";
 import { CastExecutionLedger } from "../spells/cast-plan";
 import { SurvivalSystem } from "./survival";
+import {
+  authorizedTradeEntry,
+  classifySettlementOperation,
+  exactManifestInteraction,
+  settlementOperationFingerprint,
+  settlementOperationReceiptDraft,
+  type SettlementInteractionToken,
+} from "./prologue-settlement-contract";
 
 const SCENE_INDEX = readRuntimeSceneManifestIndex(generatedRuntimeArtifact);
 
@@ -77,6 +84,7 @@ requiredFacility("public_well");
 requiredFacility("communal_plant_meal");
 requiredFacility("public_meditation_court");
 requiredFacility("job_board");
+requiredFacility("trade_entry");
 
 const REQUIRED_PROFESSIONS = Object.freeze([
   "settlement.facility_manager",
@@ -124,11 +132,45 @@ const SETTLEMENT_RUNTIME_SCENES = Object.freeze(
 
 export const PROLOGUE_SETTLEMENT_SCENE_ID = SETTLEMENT_MANIFEST.sceneId;
 export const PROLOGUE_SETTLEMENT_AREA_ID = SETTLEMENT_MANIFEST.regionId;
+export const PROLOGUE_SETTLEMENT_REGION_FLAG_IDS = Object.freeze({
+  settlementReached: "settlement_reached",
+  publicWellUsed: "public_well_used",
+  communalPlantMealOffered: "communal_plant_meal_offered",
+  meditationCourtActivated: "meditation_court_activated",
+});
 export const PROLOGUE_SETTLEMENT_TASK_ID = ORIENTATION_TASK.id;
 export const PROLOGUE_SETTLEMENT_REWARD_COIN = ORIENTATION_TASK.reward.amount;
 export const PROLOGUE_SETTLEMENT_NPC_IDS = Object.freeze(
   SETTLEMENT_MANIFEST.npcs.map((npc) => npc.id),
 );
+export const PROLOGUE_SETTLEMENT_SURVEY_MARKER_IDS = Object.freeze([
+  "settlement.survey_marker.public_well",
+  "settlement.survey_marker.meditation_court",
+  "settlement.survey_marker.east_gate",
+] as const);
+export const PROLOGUE_SETTLEMENT_INTERACTIONS = Object.freeze({
+  publicWell: "settlement.draw_public_water",
+  publicMeal: "settlement.take_plant_meal",
+  meditation: "settlement.meditate",
+  acceptSurvey: "settlement.accept_survey",
+  inspectSurveyMarker: "settlement.inspect_survey_markers",
+  submitSurvey: "settlement.submit_survey",
+  openSupplyTrade: "settlement.open_supply_trade",
+} as const);
+export const PROLOGUE_SETTLEMENT_REPAIR_CONTRACTOR_ID = "settlement.npc.repair_contractor";
+export const PROLOGUE_SETTLEMENT_SUPPLY_TRADER_ID = "settlement.npc.supply_trader";
+export const PROLOGUE_SETTLEMENT_JOB_BOARD_ID = "settlement.facility.repair_board";
+export const PROLOGUE_SETTLEMENT_SUPPLY_STALL_ID = "settlement.facility.supply_stall";
+
+const REQUIRED_SOFTLOCK_ACTIONS = Object.freeze([
+  "reissue_nontradeable_survey_slate",
+  "restore_checkpoint_local_markers",
+] as const);
+for (const action of REQUIRED_SOFTLOCK_ACTIONS) {
+  if (!SETTLEMENT_MANIFEST.recovery.actions.includes(action) || !ORIENTATION_TASK.recoveryActions.includes(action)) {
+    throw new Error(`settlement manifest is missing task-safe recovery action ${action}`);
+  }
+}
 
 export type SettlementDialogueTopic = "role" | "public_services" | "work" | "trade" | "directions";
 export type SettlementActionReason =
@@ -141,6 +183,9 @@ export type SettlementActionReason =
   | "prerequisite_missing"
   | "already_completed"
   | "transaction_conflict"
+  | "unauthorized_interaction"
+  | "unknown_marker"
+  | "reward_inconsistent"
   | "session_rejected";
 
 export interface SettlementDialogueNode {
@@ -171,7 +216,18 @@ export interface SettlementEntryResult {
   readonly accepted: boolean;
   readonly duplicate: boolean;
   readonly reason: SettlementActionReason;
+  readonly entryMode: "direct_transition" | "adopted_runtime_transition" | null;
   readonly settlement: PrologueSettlementSession | null;
+}
+
+export interface SettlementReliefInteractionToken {
+  readonly wellInteractionId: string;
+  readonly mealInteractionId: string;
+}
+
+export interface SettlementTradeOpenResult extends SettlementActionResult {
+  readonly tradeEntryId: string | null;
+  readonly merchantIds: readonly string[];
 }
 
 export interface PrologueSettlementSnapshot {
@@ -186,6 +242,8 @@ export interface PrologueSettlementSnapshot {
     rewardCoin: number;
     nonviolent: true;
     magicRequired: false;
+    surveyedMarkerIds: readonly string[];
+    requiredSurveyMarkerCount: number;
   }>;
   readonly softLockRecovery: Readonly<{
     available: true;
@@ -201,10 +259,30 @@ const requiredId = (value: string, label: string): string => {
   return normalized;
 };
 
-const globalFlag = (state: GameSessionState, flagId: string): boolean =>
+
+const regionFlag = (state: GameSessionState, flagId: string): boolean =>
   Object.values(state.world.flags).some((flag) =>
-    flag.scope === "global" && flag.flagId === flagId && flag.value === true
+    flag.scope === "region" && flag.regionId === PROLOGUE_SETTLEMENT_AREA_ID &&
+    flag.flagId === flagId && flag.value === true
   );
+
+const surveyMarkerFlagId = (markerId: string): string => `settlement.survey.inspected:${markerId}`;
+
+const surveyedMarkerIds = (state: GameSessionState): readonly string[] =>
+  PROLOGUE_SETTLEMENT_SURVEY_MARKER_IDS.filter((markerId) =>
+    regionFlag(state, surveyMarkerFlagId(markerId))
+  );
+
+const regionFlagDraft = (eventId: string, flagId: string, value: boolean | string): SessionEventDraft => ({
+  eventId,
+  type: "world_flag_set",
+  payload: {
+    flagId,
+    value,
+    scope: "region",
+    regionId: PROLOGUE_SETTLEMENT_AREA_ID,
+  },
+});
 
 const receiptDraft = (
   eventId: string,
@@ -282,62 +360,105 @@ export class PrologueSettlementSession {
   }
 
   static enterFromStream(session: GameSession, transactionId: string): SettlementEntryResult {
+    return this.commitEntry(session, transactionId, "direct_transition");
+  }
+
+  /**
+   * Adopts a transition already committed by GameSessionRuntimeBridge. This is
+   * intentionally separate from enterFromStream: the direct API must never
+   * accept a fresh transaction ID merely because the aggregate is at N02.
+   */
+  static adoptRuntimeEntry(session: GameSession, transactionId: string): SettlementEntryResult {
+    return this.commitEntry(session, transactionId, "adopted_runtime_transition");
+  }
+
+  private static commitEntry(
+    session: GameSession,
+    transactionId: string,
+    mode: "direct_transition" | "adopted_runtime_transition",
+  ): SettlementEntryResult {
     const id = requiredId(transactionId, "transactionId");
     const state = session.snapshot();
-    if (state.world.currentSceneId !== INBOUND_FROM_STREAM.sourceSceneId &&
-        state.world.currentSceneId !== SETTLEMENT_MANIFEST.sceneId) {
-      return { accepted: false, duplicate: false, reason: "wrong_source_scene", settlement: null };
-    }
-    const payloadHash = `settlement-entry:${SETTLEMENT_MANIFEST.sceneId}:${SETTLEMENT_ENTRY.id}`;
-    const prior = receiptMatches(state, id, "world", payloadHash);
-    if (prior === "conflict") {
-      return { accepted: false, duplicate: false, reason: "transaction_conflict", settlement: null };
-    }
+    const fingerprint = settlementOperationFingerprint("settlement_entry", {
+      mode,
+      sourceSceneId: INBOUND_FROM_STREAM.sourceSceneId,
+      sourceExitId: INBOUND_FROM_STREAM.sourceExitId,
+      targetSceneId: SETTLEMENT_MANIFEST.sceneId,
+      targetEntranceId: SETTLEMENT_ENTRY.id,
+    });
+    const prior = classifySettlementOperation(state, id, fingerprint);
+    if (prior === "conflict") return this.entryResult(false, false, "transaction_conflict", null, null);
     if (prior === "duplicate") {
-      return {
-        accepted: true,
-        duplicate: true,
-        reason: "duplicate",
-        settlement: new PrologueSettlementSession(session),
-      };
+      return state.world.currentSceneId === SETTLEMENT_MANIFEST.sceneId
+        ? this.entryResult(true, true, "duplicate", mode, new PrologueSettlementSession(session))
+        : this.entryResult(false, false, "wrong_source_scene", null, null);
     }
+
+    if (mode === "direct_transition" && state.world.currentSceneId !== INBOUND_FROM_STREAM.sourceSceneId) {
+      return this.entryResult(false, false, "wrong_source_scene", null, null);
+    }
+    if (mode === "adopted_runtime_transition") {
+      if (state.world.currentSceneId !== SETTLEMENT_MANIFEST.sceneId ||
+          !this.hasCanonicalRuntimeHandoff(session)) {
+        return this.entryResult(false, false, "wrong_source_scene", null, null);
+      }
+    }
+
     const checkpoint = {
       id: "checkpoint.valley.settlement.entry",
       sceneId: SETTLEMENT_MANIFEST.sceneId,
       position: { ...SETTLEMENT_ENTRY.spawnPx },
       revision: state.checkpoint.revision + 1,
     };
-    const batch: SessionProposalBatch = {
-      transactionId: id,
-      drafts: [
-        {
-          eventId: `session.settlement.entry.scene.${id}`,
-          type: "scene_entered",
-          payload: { sceneId: SETTLEMENT_MANIFEST.sceneId },
-        },
-        {
-          eventId: `session.settlement.entry.flag.${id}`,
-          type: "world_flag_set",
-          payload: { flagId: "settlement_reached", value: true, scope: "global" },
-        },
-        {
-          eventId: `session.settlement.entry.checkpoint.${id}`,
-          type: "checkpoint_set",
-          payload: { checkpoint },
-        },
-        receiptDraft(`session.settlement.entry.receipt.${id}`, id, "world", payloadHash),
-      ],
-    };
-    const commit = commitSessionProposal(session, batch);
-    if (!commit.committed) {
-      return { accepted: false, duplicate: false, reason: "session_rejected", settlement: null };
+    const drafts: SessionEventDraft[] = [];
+    if (mode === "direct_transition") {
+      drafts.push({
+        eventId: `session.settlement.entry.scene.${id}`,
+        type: "scene_entered",
+        payload: { sceneId: SETTLEMENT_MANIFEST.sceneId },
+      });
     }
-    return {
-      accepted: true,
-      duplicate: false,
-      reason: "committed",
-      settlement: new PrologueSettlementSession(commit.session),
-    };
+    drafts.push(
+      {
+        eventId: `session.settlement.entry.flag.${id}`,
+        type: "world_flag_set",
+        payload: { flagId: PROLOGUE_SETTLEMENT_REGION_FLAG_IDS.settlementReached, value: true, scope: "region", regionId: PROLOGUE_SETTLEMENT_AREA_ID },
+      },
+      {
+        eventId: `session.settlement.entry.checkpoint.${id}`,
+        type: "checkpoint_set",
+        payload: { checkpoint },
+      },
+      settlementOperationReceiptDraft(id, fingerprint),
+    );
+    const commit = commitSessionProposal(session, { transactionId: id, drafts });
+    if (!commit.committed) return this.entryResult(false, false, "session_rejected", null, null);
+    return this.entryResult(
+      true,
+      false,
+      "committed",
+      mode,
+      new PrologueSettlementSession(commit.session),
+    );
+  }
+
+  private static hasCanonicalRuntimeHandoff(session: GameSession): boolean {
+    if (!regionFlag(session.snapshot(), "settlement_entry_crossed")) return false;
+    const suffix = `${INBOUND_FROM_STREAM.sourceSceneId}->${SETTLEMENT_MANIFEST.sceneId}`;
+    return [...session.events()].reverse().some((event) =>
+      event.type === "scene_entered" && event.payload.sceneId === SETTLEMENT_MANIFEST.sceneId &&
+      event.eventId.endsWith(suffix)
+    );
+  }
+
+  private static entryResult(
+    accepted: boolean,
+    duplicate: boolean,
+    reason: SettlementActionReason,
+    entryMode: SettlementEntryResult["entryMode"],
+    settlement: PrologueSettlementSession | null,
+  ): SettlementEntryResult {
+    return Object.freeze({ accepted, duplicate, reason, entryMode, settlement });
   }
 
   static fromSave(candidate: unknown): PrologueSettlementSession {
@@ -366,6 +487,8 @@ export class PrologueSettlementSession {
         rewardCoin: ORIENTATION_TASK.reward.amount,
         nonviolent: true,
         magicRequired: false,
+        surveyedMarkerIds: Object.freeze([...surveyedMarkerIds(session)]),
+        requiredSurveyMarkerCount: PROLOGUE_SETTLEMENT_SURVEY_MARKER_IDS.length,
       }),
       softLockRecovery: Object.freeze({
         available: true,
@@ -407,185 +530,468 @@ export class PrologueSettlementSession {
   }
 
   usePublicRelief(transactionId: string): SettlementActionResult {
+    return this.usePublicReliefAt(transactionId, {
+      wellInteractionId: PROLOGUE_SETTLEMENT_INTERACTIONS.publicWell,
+      mealInteractionId: PROLOGUE_SETTLEMENT_INTERACTIONS.publicMeal,
+    });
+  }
+
+  usePublicReliefAt(
+    transactionId: string,
+    token: SettlementReliefInteractionToken,
+  ): SettlementActionResult {
     const id = requiredId(transactionId, "transactionId");
     if (!this.inSettlement()) return this.result(false, false, "wrong_scene");
+    const well = exactManifestInteraction(SETTLEMENT_MANIFEST, {
+      interactionId: token.wellInteractionId,
+      facilityId: "settlement.facility.public_well",
+    }, { verb: "drink_or_fill", facilityKind: "public_well" });
+    const meal = exactManifestInteraction(SETTLEMENT_MANIFEST, {
+      interactionId: token.mealInteractionId,
+      facilityId: "settlement.facility.communal_kitchen",
+    }, { verb: "eat", facilityKind: "communal_plant_meal" });
+    if (!well || !meal) return this.result(false, false, "unauthorized_interaction");
+    const fingerprint = settlementOperationFingerprint("public_relief", {
+      mealInteractionId: meal.id,
+      wellInteractionId: well.id,
+    });
+    const preflight = this.preflightOperation(id, fingerprint);
+    if (preflight) return preflight;
+
     const state = this.authoritativeSession.snapshot();
-    const existing = state.receiptIndex[id];
-    if (existing) {
-      return existing.domain === "survival"
-        ? this.result(true, true, "duplicate")
-        : this.result(false, false, "transaction_conflict");
-    }
     const executor = SurvivalSystem.fromSave(state.survival);
-    const execution = executor.usePublicRelief(id);
-    const proposal = proposeSurvivalTransaction(id, execution, executor.toSave());
+    const executorId = `settlement:relief:${id}`;
+    const execution = executor.usePublicRelief(executorId);
+    const proposal = proposeSurvivalTransaction(executorId, execution, executor.toSave());
     if (!proposal.accepted) return this.result(false, execution.duplicate, "session_rejected");
-    const batch: SessionProposalBatch = {
+    return this.commit({
       transactionId: id,
       drafts: [
+        settlementOperationReceiptDraft(id, fingerprint),
         ...proposal.batch.drafts,
         {
           eventId: `session.settlement.relief.well.${id}`,
           type: "world_flag_set",
-          payload: { flagId: "public_well_used", value: true, scope: "global" },
+          payload: { flagId: PROLOGUE_SETTLEMENT_REGION_FLAG_IDS.publicWellUsed, value: true, scope: "region", regionId: PROLOGUE_SETTLEMENT_AREA_ID },
         },
         {
           eventId: `session.settlement.relief.meal.${id}`,
           type: "world_flag_set",
-          payload: { flagId: "communal_plant_meal_offered", value: true, scope: "global" },
+          payload: { flagId: PROLOGUE_SETTLEMENT_REGION_FLAG_IDS.communalPlantMealOffered, value: true, scope: "region", regionId: PROLOGUE_SETTLEMENT_AREA_ID },
         },
       ],
-    };
-    return this.commit(batch);
+    });
   }
 
   meditate(transactionId: string, answerAccepted: boolean): SettlementActionResult {
+    return this.meditateAt(transactionId, answerAccepted, {
+      interactionId: PROLOGUE_SETTLEMENT_INTERACTIONS.meditation,
+      facilityId: "settlement.facility.meditation_court",
+    });
+  }
+
+  meditateAt(
+    transactionId: string,
+    answerAccepted: boolean,
+    token: SettlementInteractionToken,
+  ): SettlementActionResult {
     const id = requiredId(transactionId, "transactionId");
     if (!this.inSettlement()) return this.result(false, false, "wrong_scene");
+    const interaction = exactManifestInteraction(SETTLEMENT_MANIFEST, token, {
+      verb: "meditate",
+      facilityKind: "public_meditation_court",
+    });
+    if (!interaction) return this.result(false, false, "unauthorized_interaction");
+    const fingerprint = settlementOperationFingerprint("meditation", {
+      answerAccepted,
+      facilityId: interaction.facilityId,
+      interactionId: interaction.id,
+    });
+    const preflight = this.preflightOperation(id, fingerprint);
+    if (preflight) return preflight;
+
     const state = this.authoritativeSession.snapshot();
-    const receiptId = `meditation:${id}`;
-    const prior = state.receiptIndex[receiptId];
-    if (prior) {
-      const expectedAnswer = `:${String(answerAccepted)}`;
-      return prior.domain === "mp_recovery" && prior.payloadHash.endsWith(expectedAnswer)
-        ? this.result(true, true, "duplicate")
-        : this.result(false, false, "transaction_conflict");
-    }
     const learning = new CisternLearningSession({
       playerSaveId: this.authoritativeSession.sessionId,
       expressionCapacity: 1,
       learningSnapshot: state.learning,
     });
+    const executorRecoveryId = `settlement:${id}`;
     const proposal = learning.proposeMeditationRecovery({
-      recoveryId: id,
+      recoveryId: executorRecoveryId,
       answerAccepted,
-      // Recovery is guaranteed, but this N02 orientation prompt never writes evidence.
       evidenceEligible: false,
     });
     const ledger = new CastExecutionLedger(state.mp.currentMp, state.mp.worldVersion, state.mp.maxMp);
     const execution = ledger.applyMpRecovery(proposal);
     const sessionProposal = proposeMpRecovery(execution);
     if (!sessionProposal.accepted) return this.result(false, execution.duplicate, "session_rejected");
-    const batch: SessionProposalBatch = {
-      transactionId: sessionProposal.batch.transactionId,
+    return this.commit({
+      transactionId: id,
       drafts: [
+        settlementOperationReceiptDraft(id, fingerprint),
         ...sessionProposal.batch.drafts,
         {
           eventId: `session.settlement.meditation.flag.${id}`,
           type: "world_flag_set",
-          payload: { flagId: "meditation_court_activated", value: true, scope: "global" },
+          payload: { flagId: PROLOGUE_SETTLEMENT_REGION_FLAG_IDS.meditationCourtActivated, value: true, scope: "region", regionId: PROLOGUE_SETTLEMENT_AREA_ID },
         },
       ],
-    };
-    return this.commit(batch);
+    });
   }
 
   acceptSurveyJob(transactionId: string): SettlementActionResult {
-    if (!this.inSettlement()) return this.result(false, false, "wrong_scene");
-    const state = this.authoritativeSession.snapshot();
-    if (taskStage(state) !== "available") return this.result(true, true, "duplicate");
-    return this.commitQuestStage(transactionId, "accepted", 1);
+    return this.acceptSurveyJobAt(transactionId, {
+      interactionId: PROLOGUE_SETTLEMENT_INTERACTIONS.acceptSurvey,
+      npcId: PROLOGUE_SETTLEMENT_REPAIR_CONTRACTOR_ID,
+      facilityId: PROLOGUE_SETTLEMENT_JOB_BOARD_ID,
+    });
   }
 
-  inspectSurveyMarkers(transactionId: string): SettlementActionResult {
+  acceptSurveyJobAt(transactionId: string, token: SettlementInteractionToken): SettlementActionResult {
+    const id = requiredId(transactionId, "transactionId");
     if (!this.inSettlement()) return this.result(false, false, "wrong_scene");
-    const stage = taskStage(this.authoritativeSession.snapshot());
+    const interaction = exactManifestInteraction(SETTLEMENT_MANIFEST, token, {
+      verb: "accept_job",
+      npcProfessionId: "settlement.repair_contractor",
+      facilityKind: "job_board",
+      taskId: ORIENTATION_TASK.id,
+    });
+    if (!interaction) return this.result(false, false, "unauthorized_interaction");
+    const fingerprint = settlementOperationFingerprint("survey_job_accept", {
+      facilityId: interaction.facilityId,
+      interactionId: interaction.id,
+      npcId: interaction.npcId,
+      taskId: ORIENTATION_TASK.id,
+    });
+    const preflight = this.preflightOperation(id, fingerprint);
+    if (preflight) return preflight;
+    if (taskStage(this.authoritativeSession.snapshot()) !== "available") {
+      return this.result(true, true, "already_completed");
+    }
+    return this.commitQuestStageExact(id, "accepted", 1, fingerprint);
+  }
+
+  inspectSurveyMarkers(transactionId: string, markerId?: string): SettlementActionResult {
+    const nextMarker = markerId ?? PROLOGUE_SETTLEMENT_SURVEY_MARKER_IDS.find((candidate) =>
+      !regionFlag(this.authoritativeSession.snapshot(), surveyMarkerFlagId(candidate))
+    ) ?? PROLOGUE_SETTLEMENT_SURVEY_MARKER_IDS[0];
+    return this.inspectSurveyMarkerAt(transactionId, nextMarker, {
+      interactionId: PROLOGUE_SETTLEMENT_INTERACTIONS.inspectSurveyMarker,
+    });
+  }
+
+  inspectSurveyMarkerAt(
+    transactionId: string,
+    markerId: string,
+    token: SettlementInteractionToken,
+  ): SettlementActionResult {
+    const id = requiredId(transactionId, "transactionId");
+    if (!this.inSettlement()) return this.result(false, false, "wrong_scene");
+    if (!(PROLOGUE_SETTLEMENT_SURVEY_MARKER_IDS as readonly string[]).includes(markerId)) {
+      return this.result(false, false, "unknown_marker");
+    }
+    const interaction = exactManifestInteraction(SETTLEMENT_MANIFEST, token, {
+      verb: "survey",
+      taskId: ORIENTATION_TASK.id,
+    });
+    if (!interaction) return this.result(false, false, "unauthorized_interaction");
+    const fingerprint = settlementOperationFingerprint("survey_marker_inspect", {
+      interactionId: interaction.id,
+      markerId,
+      taskId: ORIENTATION_TASK.id,
+    });
+    const preflight = this.preflightOperation(id, fingerprint);
+    if (preflight) return preflight;
+    const state = this.authoritativeSession.snapshot();
+    const stage = taskStage(state);
     if (stage === "available") return this.result(false, false, "prerequisite_missing");
-    if (stage === "surveyed" || stage === "completed") return this.result(true, true, "duplicate");
-    return this.commitQuestStage(transactionId, "surveyed", 2);
+    if (stage === "completed") return this.result(true, true, "already_completed");
+    if (regionFlag(state, surveyMarkerFlagId(markerId))) {
+      return this.result(true, true, "duplicate");
+    }
+    const nextCount = surveyedMarkerIds(state).length + 1;
+    const drafts: SessionEventDraft[] = [
+      regionFlagDraft(
+        `session.settlement.survey.marker.${id}`,
+        surveyMarkerFlagId(markerId),
+        true,
+      ),
+      settlementOperationReceiptDraft(id, fingerprint),
+    ];
+    if (nextCount === PROLOGUE_SETTLEMENT_SURVEY_MARKER_IDS.length) {
+      drafts.unshift({
+        eventId: `session.quest.stage.${id}`,
+        type: "quest_stage_set",
+        payload: { questId: ORIENTATION_TASK.id, stageId: "surveyed", stageOrdinal: 2 },
+      });
+    }
+    return this.commit({ transactionId: id, drafts });
   }
 
   submitSurveyJob(transactionId: string): SettlementActionResult {
+    return this.submitSurveyJobAt(transactionId, {
+      interactionId: PROLOGUE_SETTLEMENT_INTERACTIONS.submitSurvey,
+      npcId: PROLOGUE_SETTLEMENT_REPAIR_CONTRACTOR_ID,
+    });
+  }
+
+  submitSurveyJobAt(transactionId: string, token: SettlementInteractionToken): SettlementActionResult {
     const id = requiredId(transactionId, "transactionId");
     if (!this.inSettlement()) return this.result(false, false, "wrong_scene");
+    const interaction = exactManifestInteraction(SETTLEMENT_MANIFEST, token, {
+      verb: "submit_job",
+      npcProfessionId: "settlement.repair_contractor",
+      taskId: ORIENTATION_TASK.id,
+    });
+    if (!interaction) return this.result(false, false, "unauthorized_interaction");
+    const fingerprint = settlementOperationFingerprint("survey_job_submit", {
+      interactionId: interaction.id,
+      npcId: interaction.npcId,
+      taskId: ORIENTATION_TASK.id,
+    });
     const state = this.authoritativeSession.snapshot();
-    const stage = taskStage(state);
     const rewardId = rewardReceiptId(this.authoritativeSession.sessionId);
     const rewardHash = `quest-reward:${ORIENTATION_TASK.id}:coin:${ORIENTATION_TASK.reward.amount}`;
     const rewardPrior = receiptMatches(state, rewardId, "quest", rewardHash);
-    if (rewardPrior === "conflict") return this.result(false, false, "transaction_conflict");
-    if (stage === "completed" || rewardPrior === "duplicate") return this.result(true, true, "already_completed");
-    if (stage !== "surveyed") return this.result(false, false, "prerequisite_missing");
-
-    const questBatch = proposeQuestStage(id, ORIENTATION_TASK.id, "completed", 3);
-    const expectedTxHash = `quest:${ORIENTATION_TASK.id}:completed:3`;
-    const txPrior = receiptMatches(state, id, "quest", expectedTxHash);
-    if (txPrior === "conflict") return this.result(false, false, "transaction_conflict");
-    if (txPrior === "duplicate") return this.result(true, true, "duplicate");
-    const batch: SessionProposalBatch = {
+    const completed = taskStage(state) === "completed";
+    if (rewardPrior === "conflict" || completed !== (rewardPrior === "duplicate")) {
+      return this.result(false, false, "reward_inconsistent");
+    }
+    const preflight = this.preflightOperation(id, fingerprint);
+    if (preflight) return preflight;
+    if (completed) return this.result(true, true, "already_completed");
+    if (taskStage(state) !== "surveyed") return this.result(false, false, "prerequisite_missing");
+    if (surveyedMarkerIds(state).length !== PROLOGUE_SETTLEMENT_SURVEY_MARKER_IDS.length) {
+      return this.result(false, false, "prerequisite_missing");
+    }
+    return this.commit({
       transactionId: id,
       drafts: [
-        ...questBatch.drafts,
+        {
+          eventId: `session.quest.stage.${id}`,
+          type: "quest_stage_set",
+          payload: { questId: ORIENTATION_TASK.id, stageId: "completed", stageOrdinal: 3 },
+        },
         {
           eventId: `session.settlement.reward.wallet.${id}`,
           type: "economy_replaced",
           payload: { economy: economyWithCoinDelta(state, ORIENTATION_TASK.reward.amount) },
         },
-        receiptDraft(
-          `session.settlement.reward.receipt.${id}`,
-          rewardId,
-          "quest",
-          rewardHash,
-        ),
+        receiptDraft(`session.settlement.reward.receipt.${id}`, rewardId, "quest", rewardHash),
+        settlementOperationReceiptDraft(id, fingerprint),
       ],
-    };
-    return this.commit(batch);
+    });
+  }
+
+  openTrade(transactionId: string): SettlementTradeOpenResult {
+    return this.openTradeAt(transactionId, {
+      interactionId: PROLOGUE_SETTLEMENT_INTERACTIONS.openSupplyTrade,
+      npcId: PROLOGUE_SETTLEMENT_SUPPLY_TRADER_ID,
+      facilityId: PROLOGUE_SETTLEMENT_SUPPLY_STALL_ID,
+    });
+  }
+
+  openTradeAt(transactionId: string, token: SettlementInteractionToken): SettlementTradeOpenResult {
+    const id = requiredId(transactionId, "transactionId");
+    if (!this.inSettlement()) return this.tradeResult(false, false, "wrong_scene", null, []);
+    const authorized = authorizedTradeEntry(SETTLEMENT_MANIFEST, token);
+    if (!authorized) return this.tradeResult(false, false, "unauthorized_interaction", null, []);
+    const fingerprint = settlementOperationFingerprint("open_trade", {
+      facilityId: authorized.interaction.facilityId,
+      interactionId: authorized.interaction.id,
+      npcId: authorized.npc.id,
+      tradeEntryId: authorized.tradeEntry.id,
+    });
+    const prior = classifySettlementOperation(this.authoritativeSession.snapshot(), id, fingerprint);
+    if (prior === "conflict") {
+      return this.tradeResult(false, false, "transaction_conflict", null, []);
+    }
+    if (prior === "duplicate") {
+      return this.tradeResult(true, true, "duplicate", authorized.tradeEntry.id, authorized.tradeEntry.merchantIds);
+    }
+    const result = this.commit({
+      transactionId: id,
+      drafts: [settlementOperationReceiptDraft(id, fingerprint)],
+    });
+    return this.tradeResult(
+      result.accepted,
+      result.duplicate,
+      result.reason,
+      result.accepted ? authorized.tradeEntry.id : null,
+      result.accepted ? authorized.tradeEntry.merchantIds : [],
+    );
   }
 
   setCheckpoint(transactionId: string, checkpointId: string): SettlementActionResult {
     const id = requiredId(transactionId, "transactionId");
+    const normalizedCheckpointId = requiredId(checkpointId, "checkpointId");
     if (!this.inSettlement()) return this.result(false, false, "wrong_scene");
+    const runtime = this.bridge.runtime.snapshot();
+    const fingerprint = settlementOperationFingerprint("checkpoint_set", {
+      checkpointId: normalizedCheckpointId,
+      positionX: runtime.player.position.x,
+      positionY: runtime.player.position.y,
+      sceneId: SETTLEMENT_MANIFEST.sceneId,
+    });
+    const preflight = this.preflightOperation(id, fingerprint);
+    if (preflight) return preflight;
     const state = this.authoritativeSession.snapshot();
-    const prior = state.receiptIndex[id];
-    if (prior) {
-      return prior.domain === "world"
-        ? this.result(true, true, "duplicate")
-        : this.result(false, false, "transaction_conflict");
-    }
-    try {
-      this.bridge.setCheckpoint(id, requiredId(checkpointId, "checkpointId"));
-      this.authoritativeSession = this.bridge.session;
-      return this.result(true, false, "committed");
-    } catch {
-      return this.result(false, false, "session_rejected");
-    }
+    return this.commit({
+      transactionId: id,
+      drafts: [
+        {
+          eventId: `session.settlement.checkpoint.${id}`,
+          type: "checkpoint_set",
+          payload: {
+            checkpoint: {
+              id: normalizedCheckpointId,
+              sceneId: SETTLEMENT_MANIFEST.sceneId,
+              position: { ...runtime.player.position },
+              revision: state.checkpoint.revision + 1,
+            },
+          },
+        },
+        settlementOperationReceiptDraft(id, fingerprint),
+      ],
+    });
   }
 
   resetToCheckpoint(transactionId: string): SettlementActionResult {
     const id = requiredId(transactionId, "transactionId");
-    try {
-      const commit = this.bridge.resetToCheckpoint(id);
-      this.authoritativeSession = this.bridge.session;
-      return this.result(true, commit.sessionResult.duplicate, commit.sessionResult.duplicate ? "duplicate" : "committed");
-    } catch {
-      return this.result(false, false, "session_rejected");
-    }
+    if (!this.inSettlement()) return this.result(false, false, "wrong_scene");
+    const checkpoint = this.authoritativeSession.snapshot().checkpoint;
+    const fingerprint = settlementOperationFingerprint("checkpoint_reset", {
+      checkpointId: checkpoint.id,
+      checkpointRevision: checkpoint.revision,
+      targetSceneId: checkpoint.sceneId,
+    });
+    const preflight = this.preflightOperation(id, fingerprint);
+    if (preflight) return preflight;
+    return this.commit({
+      transactionId: id,
+      drafts: [
+        {
+          eventId: `session.settlement.checkpoint.reset.${id}`,
+          type: "scene_entered",
+          payload: { sceneId: checkpoint.sceneId },
+        },
+        settlementOperationReceiptDraft(id, fingerprint),
+      ],
+    });
   }
 
   resetArea(transactionId: string): SettlementActionResult {
     const id = requiredId(transactionId, "transactionId");
-    try {
-      const commit = this.bridge.resetArea(id, PROLOGUE_SETTLEMENT_AREA_ID);
-      this.authoritativeSession = this.bridge.session;
-      return this.result(true, commit.sessionResult.duplicate, commit.sessionResult.duplicate ? "duplicate" : "committed");
-    } catch {
-      return this.result(false, false, "session_rejected");
-    }
+    if (!this.inSettlement()) return this.result(false, false, "wrong_scene");
+    const checkpoint = this.authoritativeSession.snapshot().checkpoint;
+    const fingerprint = settlementOperationFingerprint("area_reset", {
+      areaId: PROLOGUE_SETTLEMENT_AREA_ID,
+      checkpointId: checkpoint.id,
+      checkpointRevision: checkpoint.revision,
+      respawnSceneId: checkpoint.sceneId,
+    });
+    const preflight = this.preflightOperation(id, fingerprint);
+    if (preflight) return preflight;
+    return this.commit({
+      transactionId: id,
+      drafts: [
+        {
+          eventId: `session.settlement.area.reset.${id}`,
+          type: "area_reset",
+          payload: { areaId: PROLOGUE_SETTLEMENT_AREA_ID, respawnSceneId: checkpoint.sceneId },
+        },
+        settlementOperationReceiptDraft(id, fingerprint),
+      ],
+    });
   }
 
-  /** Public recovery path for lost survey props, bad local geometry, or a fall. */
+  /** Public N02-only recovery path; region progress and reward truth are preserved. */
   recoverSoftLock(transactionId: string): SettlementActionResult {
-    return this.resetToCheckpoint(transactionId);
+    const id = requiredId(transactionId, "transactionId");
+    if (!this.inSettlement()) return this.result(false, false, "wrong_scene");
+    const fingerprint = settlementOperationFingerprint("settlement_softlock_recovery", {
+      actions: SETTLEMENT_MANIFEST.recovery.actions.join(","),
+      sceneId: SETTLEMENT_MANIFEST.sceneId,
+    });
+    const preflight = this.preflightOperation(id, fingerprint);
+    if (preflight) return preflight;
+    const state = this.authoritativeSession.snapshot();
+    const checkpoint = {
+      id: "checkpoint.valley.settlement.entry",
+      sceneId: SETTLEMENT_MANIFEST.sceneId,
+      position: { ...SETTLEMENT_ENTRY.spawnPx },
+      revision: state.checkpoint.revision + 1,
+    };
+    return this.commit({
+      transactionId: id,
+      drafts: [
+        {
+          eventId: `session.settlement.recovery.scene.${id}`,
+          type: "scene_entered",
+          payload: { sceneId: SETTLEMENT_MANIFEST.sceneId },
+        },
+        {
+          eventId: `session.settlement.recovery.checkpoint.${id}`,
+          type: "checkpoint_set",
+          payload: { checkpoint },
+        },
+        regionFlagDraft(
+          `session.settlement.recovery.slate.${id}`,
+          "settlement.survey_slate_available",
+          true,
+        ),
+        regionFlagDraft(
+          `session.settlement.recovery.markers.${id}`,
+          "settlement.local_marker_tools_restored_by",
+          id,
+        ),
+        settlementOperationReceiptDraft(id, fingerprint),
+      ],
+    });
   }
 
-  private commitQuestStage(transactionId: string, stageId: string, stageOrdinal: number): SettlementActionResult {
-    const id = requiredId(transactionId, "transactionId");
-    const state = this.authoritativeSession.snapshot();
-    const payloadHash = `quest:${ORIENTATION_TASK.id}:${stageId}:${stageOrdinal}`;
-    const prior = receiptMatches(state, id, "quest", payloadHash);
-    if (prior === "conflict") return this.result(false, false, "transaction_conflict");
+  private commitQuestStageExact(
+    transactionId: string,
+    stageId: string,
+    stageOrdinal: number,
+    fingerprint: string,
+  ): SettlementActionResult {
+    return this.commit({
+      transactionId,
+      drafts: [
+        {
+          eventId: `session.quest.stage.${transactionId}`,
+          type: "quest_stage_set",
+          payload: { questId: ORIENTATION_TASK.id, stageId, stageOrdinal },
+        },
+        settlementOperationReceiptDraft(transactionId, fingerprint),
+      ],
+    });
+  }
+
+  private preflightOperation(transactionId: string, fingerprint: string): SettlementActionResult | null {
+    const prior = classifySettlementOperation(this.authoritativeSession.snapshot(), transactionId, fingerprint);
     if (prior === "duplicate") return this.result(true, true, "duplicate");
-    return this.commit(proposeQuestStage(id, ORIENTATION_TASK.id, stageId, stageOrdinal));
+    if (prior === "conflict") return this.result(false, false, "transaction_conflict");
+    return null;
+  }
+
+  private tradeResult(
+    accepted: boolean,
+    duplicate: boolean,
+    reason: SettlementActionReason,
+    tradeEntryId: string | null,
+    merchantIds: readonly string[],
+  ): SettlementTradeOpenResult {
+    return Object.freeze({
+      accepted,
+      duplicate,
+      reason,
+      snapshot: this.snapshot(),
+      tradeEntryId,
+      merchantIds: Object.freeze([...merchantIds]),
+    });
   }
 
   private commit(batch: SessionProposalBatch): SettlementActionResult {
@@ -661,4 +1067,4 @@ export const createPrologueSettlementInitialSession = (options: Readonly<{
 };
 
 export const settlementReached = (state: GameSessionState): boolean =>
-  globalFlag(state, "settlement_reached");
+  regionFlag(state, PROLOGUE_SETTLEMENT_REGION_FLAG_IDS.settlementReached);

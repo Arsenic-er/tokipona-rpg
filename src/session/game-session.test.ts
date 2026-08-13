@@ -274,6 +274,89 @@ describe("GameSession", () => {
     expect(receiptConflict).toMatchObject({ applied: false, duplicate: false, reason: "receipt_payload_conflict" });
   });
 
+  it("isolates identical flag IDs by region, preserves them across area reset, and round-trips", () => {
+    const session = createSession();
+    const events: GameSessionEvent[] = [
+      {
+        eventId: "event.flag.region.valley",
+        sequence: 1,
+        type: "world_flag_set",
+        payload: { flagId: "shared:landmark_reached", value: true, scope: "region", regionId: "valley_prologue" },
+      },
+      {
+        eventId: "event.flag.region.coast",
+        sequence: 2,
+        type: "world_flag_set",
+        payload: { flagId: "shared:landmark_reached", value: "coast", scope: "region", regionId: "coast_prologue" },
+      },
+      {
+        eventId: "event.flag.area.valley",
+        sequence: 3,
+        type: "world_flag_set",
+        payload: { flagId: "runtime_local", value: true, scope: "area", areaId: "valley_prologue" },
+      },
+      {
+        eventId: "event.reset.valley",
+        sequence: 4,
+        type: "area_reset",
+        payload: { areaId: "valley_prologue" },
+      },
+    ];
+    events.forEach((event) => expect(session.apply(event).applied).toBe(true));
+
+    const snapshot = session.snapshot();
+    expect(snapshot.world.flags["area:valley_prologue:runtime_local"]).toBeUndefined();
+    expect(snapshot.world.flags["region:valley_prologue:shared:landmark_reached"]).toMatchObject({
+      scope: "region",
+      regionId: "valley_prologue",
+      value: true,
+    });
+    expect(snapshot.world.flags["region:coast_prologue:shared:landmark_reached"]).toMatchObject({
+      scope: "region",
+      regionId: "coast_prologue",
+      value: "coast",
+    });
+
+    const save = session.toSave();
+    const loaded = GameSession.load(JSON.parse(JSON.stringify(save)));
+    expect(loaded.ok).toBe(true);
+    if (!loaded.ok) return;
+    expect(loaded.session.snapshot()).toEqual(snapshot);
+    const replayed = replayGameSession(save.sessionId, save.origin, save.eventLedger);
+    expect(replayed.ok).toBe(true);
+    if (replayed.ok) expect(replayed.session.snapshot()).toEqual(snapshot);
+  });
+
+  it("rejects region flags without ownership and keeps legacy v0.2 global/area flag shapes loadable", () => {
+    const invalid = createSession();
+    const missingOwner = {
+      eventId: "event.flag.region.missing-owner",
+      sequence: 1,
+      type: "world_flag_set",
+      payload: { flagId: "missing_owner", value: true, scope: "region" },
+    } as unknown as GameSessionEvent;
+    expect(invalid.apply(missingOwner)).toMatchObject({ applied: false, reason: "invalid_event" });
+
+    const compatible = createSession();
+    expect(compatible.apply({
+      eventId: "event.flag.global.compat",
+      sequence: 1,
+      type: "world_flag_set",
+      payload: { flagId: "legacy_global", value: true, scope: "global" },
+    }).applied).toBe(true);
+    expect(compatible.apply({
+      eventId: "event.flag.area.compat",
+      sequence: 2,
+      type: "world_flag_set",
+      payload: { flagId: "legacy_area", value: true, scope: "area", areaId: "n01" },
+    }).applied).toBe(true);
+    const save = compatible.toSave();
+    expect("regionId" in save.state.world.flags["global:legacy_global"]!).toBe(false);
+    expect("regionId" in save.state.world.flags["area:n01:legacy_area"]!).toBe(false);
+    const loaded = GameSession.load(JSON.parse(JSON.stringify(save)));
+    expect(loaded.ok).toBe(true);
+    if (loaded.ok) expect(loaded.session.snapshot()).toEqual(compatible.snapshot());
+  });
   it("adapts existing subsystem snapshots without sharing mutable child state", () => {
     expect(adaptMpLedgerSnapshot({ mp: 9, currentMp: 9, maxMp: 24, worldVersion: 3 })).toEqual({
       currentMp: 9,

@@ -24,7 +24,29 @@ export interface SessionMpState {
 }
 
 export type WorldFlagValue = boolean | number | string;
-export type WorldFlagScope = "global" | "area";
+export type WorldFlagScope = "global" | "region" | "area";
+export type WorldFlagSetPayload =
+  | Readonly<{
+      flagId: string;
+      value: WorldFlagValue;
+      scope: "global";
+      areaId?: never;
+      regionId?: never;
+    }>
+  | Readonly<{
+      flagId: string;
+      value: WorldFlagValue;
+      scope: "region";
+      regionId: string;
+      areaId?: never;
+    }>
+  | Readonly<{
+      flagId: string;
+      value: WorldFlagValue;
+      scope: "area";
+      areaId: string;
+      regionId?: never;
+    }>;
 
 export interface SessionWorldFlag {
   readonly flagId: string;
@@ -32,6 +54,8 @@ export interface SessionWorldFlag {
   readonly scope: WorldFlagScope;
   readonly areaId: string | null;
   readonly areaEpoch: number | null;
+  /** Present only for region-scoped flags; omitted by legacy-compatible global/area saves. */
+  readonly regionId?: string | null;
 }
 
 export interface SessionCheckpointState {
@@ -113,12 +137,7 @@ export type GameSessionEvent =
   | SessionEventBase<"mp_replaced", { readonly mp: SessionMpState }>
   | SessionEventBase<"scene_entered", { readonly sceneId: string }>
   | SessionEventBase<"checkpoint_set", { readonly checkpoint: SessionCheckpointState }>
-  | SessionEventBase<"world_flag_set", {
-      readonly flagId: string;
-      readonly value: WorldFlagValue;
-      readonly scope: WorldFlagScope;
-      readonly areaId?: string;
-    }>
+  | SessionEventBase<"world_flag_set", WorldFlagSetPayload>
   | SessionEventBase<"learning_replaced", { readonly learning: LearningProgressionSnapshot }>
   | SessionEventBase<"survival_replaced", { readonly survival: SurvivalSave }>
   | SessionEventBase<"economy_replaced", { readonly economy: SessionEconomySummary }>
@@ -341,12 +360,24 @@ const isWorldFlagValue = (value: unknown): value is WorldFlagValue =>
 
 const isWorldFlag = (value: unknown): value is SessionWorldFlag => {
   if (!isRecord(value) || !isNonEmptyString(value.flagId) || !isWorldFlagValue(value.value)) return false;
-  if (value.scope === "global") return value.areaId === null && value.areaEpoch === null;
-  return value.scope === "area" && isNonEmptyString(value.areaId) && isNonNegativeSafeInteger(value.areaEpoch);
+  if (value.scope === "global") {
+    return value.areaId === null && value.areaEpoch === null &&
+      (value.regionId === undefined || value.regionId === null);
+  }
+  if (value.scope === "region") {
+    return value.areaId === null && value.areaEpoch === null && isNonEmptyString(value.regionId);
+  }
+  return value.scope === "area" && isNonEmptyString(value.areaId) &&
+    isNonNegativeSafeInteger(value.areaEpoch) && (value.regionId === undefined || value.regionId === null);
 };
 
-const worldFlagKey = (flag: Pick<SessionWorldFlag, "scope" | "areaId" | "flagId">): string =>
-  flag.scope === "global" ? `global:${flag.flagId}` : `area:${flag.areaId}:${flag.flagId}`;
+const worldFlagKey = (
+  flag: Pick<SessionWorldFlag, "scope" | "areaId" | "regionId" | "flagId">,
+): string => {
+  if (flag.scope === "global") return `global:${flag.flagId}`;
+  if (flag.scope === "region") return `region:${flag.regionId}:${flag.flagId}`;
+  return `area:${flag.areaId}:${flag.flagId}`;
+};
 
 const isCheckpointState = (value: unknown): value is SessionCheckpointState => {
   if (!isRecord(value) || !isNonEmptyString(value.id) || !isNonEmptyString(value.sceneId) ||
@@ -363,7 +394,7 @@ const isWorldState = (value: unknown): value is SessionWorldState => {
     isNonEmptyString(areaId) && isNonNegativeSafeInteger(epoch));
   const flagsValid = Object.entries(value.flags).every(([key, flag]) =>
     isWorldFlag(flag) && key === worldFlagKey(flag) &&
-    (flag.scope === "global" || areaEpochs[flag.areaId!] === flag.areaEpoch));
+    (flag.scope !== "area" || areaEpochs[flag.areaId!] === flag.areaEpoch));
   return epochsValid && flagsValid;
 };
 
@@ -652,17 +683,27 @@ export class GameSession {
       }
       case "world_flag_set": {
         const { flagId, value, scope } = event.payload;
-        if (!isNonEmptyString(flagId) || !isWorldFlagValue(value) || (scope !== "global" && scope !== "area")) {
+        if (!isNonEmptyString(flagId) || !isWorldFlagValue(value) ||
+            (scope !== "global" && scope !== "region" && scope !== "area")) {
           return { reason: "invalid_event", duplicate: false };
         }
         const areaId = scope === "area" ? event.payload.areaId : undefined;
+        const regionId = scope === "region" ? event.payload.regionId : undefined;
         if (scope === "area" && !isNonEmptyString(areaId)) return { reason: "invalid_event", duplicate: false };
+        if (scope === "region" && !isNonEmptyString(regionId)) return { reason: "invalid_event", duplicate: false };
+        if (scope !== "area" && event.payload.areaId !== undefined) {
+          return { reason: "invalid_event", duplicate: false };
+        }
+        if (scope !== "region" && event.payload.regionId !== undefined) {
+          return { reason: "invalid_event", duplicate: false };
+        }
         const flag: SessionWorldFlag = {
           flagId,
           value,
           scope,
           areaId: areaId ?? null,
           areaEpoch: areaId === undefined ? null : (this.state.world.areaEpochs[areaId] ?? 0),
+          ...(regionId === undefined ? {} : { regionId }),
         };
         const areaEpochs = areaId !== undefined && this.state.world.areaEpochs[areaId] === undefined
           ? { ...this.state.world.areaEpochs, [areaId]: 0 }
@@ -751,7 +792,7 @@ export class GameSession {
         const nextEpoch = (this.state.world.areaEpochs[areaId] ?? 0) + 1;
         const remainingFlags = Object.fromEntries(
           Object.entries(this.state.world.flags).filter(([, flag]) =>
-            flag.scope === "global" || flag.areaId !== areaId),
+            flag.scope !== "area" || flag.areaId !== areaId),
         );
         return {
           state: withAppliedEvent(this.state, event, {

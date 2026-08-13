@@ -203,9 +203,10 @@ const runtimeFlag = (state: GameSessionState, key: string): boolean =>
     flag.scope === "area" && flag.areaId === PROLOGUE_AREA_ID &&
     flag.flagId === runtimeValueFlagId(PROLOGUE_STREAM_SCENE_ID, key) && flag.value === true
   );
-const globalFlag = (state: GameSessionState, key: string): boolean =>
+const regionFlag = (state: GameSessionState, key: string): boolean =>
   Object.values(state.world.flags).some((flag) =>
-    flag.scope === "global" && flag.flagId === key && flag.value === true
+    flag.scope === "region" && flag.regionId === PROLOGUE_AREA_ID &&
+    flag.flagId === key && flag.value === true
   );
 
 const MANIFESTED_WATER_INSTANCE_PREFIX = "manifested-water.instance:";
@@ -313,7 +314,7 @@ export class PrologueArrivalStreamSession {
           ? Math.max(0, SOFT_LOCK_RECOVERY_TICKS - (runtime.tick - this.damageStartedAtTick))
           : null,
       }),
-      settlementEntranceReached: globalFlag(session, PROLOGUE_ROUTE_FLAGS.settlementReached),
+      settlementEntranceReached: regionFlag(session, PROLOGUE_ROUTE_FLAGS.settlementReached),
       killCount: 0,
     });
   }
@@ -327,7 +328,7 @@ export class PrologueArrivalStreamSession {
       const enteredSettlement = before.runtime.sceneId === PROLOGUE_STREAM_SCENE_ID &&
         this.bridge.runtime.snapshot().sceneId === PROLOGUE_SETTLEMENT_SCENE_ID;
       if (enteredSettlement && before.routeReady) {
-        this.commitGlobalFlag(
+        this.commitRegionFlag(
           `runtime.scene.${SETTLEMENT_EXIT.firstTraverseCommit}`,
           PROLOGUE_ROUTE_FLAGS.settlementReached,
         );
@@ -490,7 +491,7 @@ export class PrologueArrivalStreamSession {
     if (!this.playerOverlapsSettlementExit(snapshot.runtime)) {
       return this.result(false, "too_far_from_entrance");
     }
-    return this.commitGlobalFlag(transactionId, PROLOGUE_ROUTE_FLAGS.settlementReached);
+    return this.commitRegionFlag(transactionId, PROLOGUE_ROUTE_FLAGS.settlementReached);
   }
 
   private playerOverlapsSettlementExit(runtime: RuntimeSnapshot): boolean {
@@ -551,15 +552,20 @@ export class PrologueArrivalStreamSession {
     return this.bridge.runtime.snapshot().sceneId === PROLOGUE_STREAM_SCENE_ID;
   }
 
-  private commitGlobalFlag(transactionId: string, flag: string): PrologueActionResult {
+  private commitRegionFlag(transactionId: string, flag: string): PrologueActionResult {
     const id = requiredId(transactionId, "transactionId");
-    if (globalFlag(this.authoritativeSession.snapshot(), flag)) return this.result(true, "committed");
+    if (regionFlag(this.authoritativeSession.snapshot(), flag)) return this.result(true, "committed");
     const commit = commitSessionProposal(this.authoritativeSession, {
       transactionId: id,
       drafts: [{
         eventId: id,
         type: "world_flag_set",
-        payload: { flagId: flag, value: true, scope: "global" },
+        payload: {
+          flagId: flag,
+          value: true,
+          scope: "region",
+          regionId: PROLOGUE_AREA_ID,
+        },
       }],
     });
     if (!commit.committed) return this.result(false, "session_rejected");
