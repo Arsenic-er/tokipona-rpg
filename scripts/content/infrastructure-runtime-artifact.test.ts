@@ -18,12 +18,13 @@ function repositorySources(): ContentSource[] {
   }));
 }
 
-describe("N03/N04 infrastructure runtime artifact", () => {
+describe("N03/N04/N05 infrastructure runtime artifact", () => {
   it("emits task modes, solution families and guards without raw YAML interpretation", () => {
     const artifact = buildRuntimeContentArtifact(compileContent(repositorySources()));
     const index = readRuntimeInfrastructureTaskManifestIndex(artifact);
 
     expect(Object.keys(index.byId).sort()).toEqual([
+      "ch01_length_cistern",
       "ch01_service_channel",
       "ch01_waterwheel",
     ]);
@@ -86,8 +87,9 @@ describe("N03/N04 infrastructure runtime artifact", () => {
       }),
     ]);
     expect(service?.exits.find((exit) => exit.id === "service.to_high_cistern")?.target).toEqual({
-      kind: "region_node",
-      regionNodeId: "valley.high_cistern",
+      kind: "scene",
+      sceneId: "scene.valley.high_cistern",
+      entranceId: "cistern.from_service",
     });
   });
 

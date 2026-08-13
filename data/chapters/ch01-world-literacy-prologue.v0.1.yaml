@@ -121,6 +121,7 @@ segments:
     focus_active_new_words: [lili, suli]
     previously_available_words: [telo, tawa, o]
     receptive_exposure: []
+    solution_families: [calibration_tool_bypass, transfer_tool_bypass, direct_length_calibration, direct_length_transfer]
     required_world_predicates: [high_cistern_reconnected, upper_channel_available, exit_ladder_lowered]
     completion_learning_state:
       authority: "task.completion.world_transition.learning_state_proposals"

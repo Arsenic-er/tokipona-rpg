@@ -21,6 +21,9 @@ import type {
   RuntimeTileRect,
 } from "../../src/content/runtime-scene-manifest.ts";
 import type {
+  RuntimeCisternFamilyManifest,
+  RuntimeCisternStageManifest,
+  RuntimeCisternTaskManifest,
   RuntimeInfrastructureGrammarContactManifest,
   RuntimeInfrastructureLanguageExposureManifest,
   RuntimeInfrastructureTaskManifest,
@@ -242,6 +245,57 @@ export function buildRuntimeContentArtifact(manifest: ContentManifest): RuntimeC
       productionRequired: requireBoolean(contact, ["production_required"]),
       masteryEvidenceAllowed: requireBoolean(contact, ["mastery_evidence_allowed"]),
     }));
+    const cistern: RuntimeCisternTaskManifest | null = id === "ch01_length_cistern" ? (() => {
+      const familySources = requireObjectArray(task, ["task_families"]);
+      const families: RuntimeCisternFamilyManifest[] = familySources.map((family) => ({
+        id: requireString(family, ["family_id"]),
+        independentCompletion: requireBoolean(family, ["independent_completion"]),
+        completionPredicate: requireString(family, ["completion_predicate"]),
+        stageIds: requireStringArray(family, ["stage_ids"]) as RuntimeCisternFamilyManifest["stageIds"],
+        toolBypassSolutionId: requireString(family, ["tool_bypass_solution_id"]),
+        languageEvidenceFromToolBypass: requireExactBoolean(family, ["language_evidence_from_tool_bypass"], false),
+      }));
+      const familyIdByStage = new Map(families.flatMap((family) => family.stageIds.map((stageId) => [stageId, family.id] as const)));
+      const stages: RuntimeCisternStageManifest[] = (["short", "default", "long"] as const).map((stageId) => {
+        const stage = requireObject(task, ["stage_contracts", stageId]);
+        const direct = requireObject(stage, ["direct_teaching_solution"]);
+        const familyId = familyIdByStage.get(stageId);
+        if (!familyId) throw new Error(`${id}.task_families must own stage ${stageId}`);
+        return {
+          id: stageId,
+          familyId,
+          canonicalWordIds: requireStringArray(direct, ["canonical_word_ids"]),
+          resolvedLengthClass: requireExactString(direct, ["resolved_length_class"], stageId),
+          activationMp: requireNonNegativeNumber(direct, ["activation_mp"]),
+          receiverWorldPredicates: requireStringArray(stage, ["world_goal_predicates"]),
+        };
+      });
+      const h0 = requireObject(task, ["hint_ladder", "levels", "H0"]);
+      const h1 = requireObject(task, ["hint_ladder", "levels", "H1"]);
+      requireExactBoolean(h0, ["answer_token_ids_visible"], false);
+      requireExactBoolean(h1, ["answer_token_ids_visible"], false);
+      const capacity = requireObject(task, ["capacity_milestone_binding"]);
+      const setFlags = requireObject(task, ["completion", "world_transition", "set_flags"]);
+      const completionFlags = ["high_cistern_reconnected", "upper_channel_available", "exit_ladder_lowered"]
+        .map((flag) => {
+          requireExactBoolean(setFlags, [flag], true);
+          return flag;
+        });
+      requireExactBoolean(task, ["semantic_acceptance", "legal_wrong_length_cast_executes_but_never_completes_stage"], true);
+      return {
+        stages,
+        families,
+        h0H1AnswerTokenIdsVisible: false,
+        legalWrongLengthCastCompletesStage: false,
+        maximumSoftlockRecoverySeconds: requirePositiveNumber(task, ["recovery", "maximum_softlock_recovery_seconds"]),
+        capacityMilestoneRef: {
+          sourcePath: resolveRepositoryContentPath(taskSource.path, requireString(capacity, ["source_ref"])),
+          milestoneId: requireString(capacity, ["milestone_id"]),
+          writerEvent: requireString(capacity, ["writer_event"]),
+        },
+        completionFlags,
+      };
+    })() : null;
     const result: RuntimeInfrastructureTaskManifest = {
       id,
       sourcePath: taskSource.path,
@@ -269,6 +323,7 @@ export function buildRuntimeContentArtifact(manifest: ContentManifest): RuntimeC
       maximumSoftlockRecoverySeconds: requirePositiveNumber(task, ["recovery", "maximum_softlock_recovery_seconds"]),
       recoveryActions: requireStringArray(task, ["recovery", "actions"]),
       recoveryPreserves: requireStringArray(task, ["recovery", "preserves"]),
+      cistern,
     };
     return [id, result];
   }));  return {
@@ -315,6 +370,16 @@ function optionalString(root: ContentObject, path: readonly string[]): string | 
 }
 function requireBoolean(root: ContentObject, path: readonly string[]): boolean {
   const value = readPath(root, path); if (typeof value !== "boolean") throw new Error(`${path.join(".")} must be boolean.`); return value;
+}
+function requireExactBoolean(root: ContentObject, path: readonly string[], expected: boolean): boolean {
+  const value = requireBoolean(root, path);
+  if (value !== expected) throw new Error(`${path.join(".")} must equal ${expected}.`);
+  return value;
+}
+function requireExactString<T extends string>(root: ContentObject, path: readonly string[], expected: T): T {
+  const value = requireString(root, path);
+  if (value !== expected) throw new Error(`${path.join(".")} must equal ${expected}.`);
+  return expected;
 }
 function optionalBoolean(root: ContentObject, path: readonly string[]): boolean | null {
   const value = readPath(root, path); if (value === undefined) return null; if (typeof value !== "boolean") throw new Error(`${path.join(".")} must be boolean.`); return value;

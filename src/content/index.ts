@@ -37,8 +37,12 @@ export type {
   RuntimeTileRect,
 } from "./runtime-scene-manifest";
 
-export { readRuntimeInfrastructureTaskManifestIndex } from "./runtime-task-manifest";
+export { readRuntimeCisternTaskManifest, readRuntimeInfrastructureTaskManifestIndex } from "./runtime-task-manifest";
 export type {
+  RuntimeCisternFamilyManifest,
+  RuntimeCisternLengthClass,
+  RuntimeCisternStageManifest,
+  RuntimeCisternTaskManifest,
   RuntimeInfrastructureGrammarContactManifest,
   RuntimeInfrastructureLanguageExposureManifest,
   RuntimeInfrastructureRouteKind,

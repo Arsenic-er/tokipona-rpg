@@ -1,5 +1,6 @@
 export type RuntimeInfrastructureTaskPredicateMode = "all" | "any";
 export type RuntimeInfrastructureRouteKind = "non_magic" | "optional_magic";
+export type RuntimeCisternLengthClass = "short" | "default" | "long";
 
 export interface RuntimeInfrastructureTaskModeManifest {
   readonly id: string;
@@ -36,6 +37,38 @@ export interface RuntimeInfrastructureGrammarContactManifest {
   readonly masteryEvidenceAllowed: boolean;
 }
 
+export interface RuntimeCisternStageManifest {
+  readonly id: RuntimeCisternLengthClass;
+  readonly familyId: string;
+  readonly canonicalWordIds: readonly string[];
+  readonly resolvedLengthClass: RuntimeCisternLengthClass;
+  readonly activationMp: number;
+  readonly receiverWorldPredicates: readonly string[];
+}
+
+export interface RuntimeCisternFamilyManifest {
+  readonly id: string;
+  readonly independentCompletion: boolean;
+  readonly completionPredicate: string;
+  readonly stageIds: readonly RuntimeCisternLengthClass[];
+  readonly toolBypassSolutionId: string;
+  readonly languageEvidenceFromToolBypass: false;
+}
+
+export interface RuntimeCisternTaskManifest {
+  readonly stages: readonly RuntimeCisternStageManifest[];
+  readonly families: readonly RuntimeCisternFamilyManifest[];
+  readonly h0H1AnswerTokenIdsVisible: false;
+  readonly legalWrongLengthCastCompletesStage: false;
+  readonly maximumSoftlockRecoverySeconds: number;
+  readonly capacityMilestoneRef: {
+    readonly sourcePath: string;
+    readonly milestoneId: string;
+    readonly writerEvent: string;
+  };
+  readonly completionFlags: readonly string[];
+}
+
 export interface RuntimeInfrastructureTaskManifest {
   readonly id: string;
   readonly sourcePath: string;
@@ -61,6 +94,7 @@ export interface RuntimeInfrastructureTaskManifest {
   readonly maximumSoftlockRecoverySeconds: number;
   readonly recoveryActions: readonly string[];
   readonly recoveryPreserves: readonly string[];
+  readonly cistern: RuntimeCisternTaskManifest | null;
 }
 
 export interface RuntimeInfrastructureTaskManifestIndex {
@@ -98,12 +132,67 @@ export function readRuntimeInfrastructureTaskManifestIndex(
         raw.maximumSoftlockRecoverySeconds <= 0 || raw.maximumSoftlockRecoverySeconds > 60) {
       throw new Error(`infrastructure task ${taskId} must recover within 60 seconds`);
     }
+    if (raw.cistern !== null) validateRuntimeCisternManifest(raw.cistern, taskId);
+    if (taskId === "ch01_length_cistern" && raw.cistern === null) {
+      throw new Error("ch01_length_cistern requires its dedicated runtime cistern contract");
+    }
     byId[taskId] = value as RuntimeInfrastructureTaskManifest;
   }
   return Object.freeze({
     sourceDigest: digest as `sha256:${string}`,
     byId: Object.freeze(byId),
   });
+}
+
+/** Returns the dedicated N05 receiver contract after full infrastructure-index validation. */
+export function readRuntimeCisternTaskManifest(
+  candidate: unknown,
+  taskId = "ch01_length_cistern",
+): RuntimeCisternTaskManifest {
+  const task = readRuntimeInfrastructureTaskManifestIndex(candidate).byId[taskId];
+  if (!task) throw new Error(`runtime cistern task ${taskId} is missing`);
+  if (!task.cistern) throw new Error(`runtime task ${taskId} has no cistern contract`);
+  validateRuntimeCisternManifest(task.cistern, taskId);
+  return task.cistern;
+}
+
+function validateRuntimeCisternManifest(candidate: unknown, taskId: string): asserts candidate is RuntimeCisternTaskManifest {
+  const cistern = record(candidate, `${taskId}.cistern`);
+  const stages = objectArray(cistern.stages, `${taskId}.cistern.stages`);
+  const expectedStages = [
+    { id: "short", familyId: "cistern.family_a.calibration", words: ["word.telo", "word.lili"], mp: 6 },
+    { id: "default", familyId: "cistern.family_a.calibration", words: ["word.telo"], mp: 5 },
+    { id: "long", familyId: "cistern.family_b.transfer", words: ["word.telo", "word.suli"], mp: 10 },
+  ] as const;
+  if (stages.length !== expectedStages.length) throw new Error(`${taskId}.cistern requires exactly three stages`);
+  expectedStages.forEach((expected, index) => {
+    const stage = stages[index];
+    if (!stage || stage.id !== expected.id || stage.familyId !== expected.familyId || stage.resolvedLengthClass !== expected.id || stage.activationMp !== expected.mp ||
+        !sameStrings(stage.canonicalWordIds, expected.words) || !nonEmptyStringArray(stage.receiverWorldPredicates)) {
+      throw new Error(`${taskId}.cistern stage ${expected.id} is invalid`);
+    }
+  });
+  const families = objectArray(cistern.families, `${taskId}.cistern.families`);
+  if (families.length !== 2 || families[0]?.id !== "cistern.family_a.calibration" ||
+      !sameStrings(families[0]?.stageIds, ["short", "default"]) || typeof families[0]?.completionPredicate !== "string" || families[0].completionPredicate.length === 0 || families[0]?.toolBypassSolutionId !== "cistern.calibration_tool_bypass" || families[0]?.independentCompletion !== true || families[0]?.languageEvidenceFromToolBypass !== false ||
+      families[1]?.id !== "cistern.family_b.transfer" || !sameStrings(families[1]?.stageIds, ["long"]) || typeof families[1]?.completionPredicate !== "string" || families[1].completionPredicate.length === 0 || families[1]?.toolBypassSolutionId !== "cistern.transfer_tool_bypass" ||
+      families[1]?.independentCompletion !== true || families[1]?.languageEvidenceFromToolBypass !== false) {
+    throw new Error(`${taskId}.cistern families must remain independent calibration and transfer contracts`);
+  }
+  if (cistern.h0H1AnswerTokenIdsVisible !== false || cistern.legalWrongLengthCastCompletesStage !== false) {
+    throw new Error(`${taskId}.cistern must not reveal answer tokens or pass legal wrong-length casts`);
+  }
+  if (typeof cistern.maximumSoftlockRecoverySeconds !== "number" || cistern.maximumSoftlockRecoverySeconds <= 0 || cistern.maximumSoftlockRecoverySeconds > 60) {
+    throw new Error(`${taskId}.cistern must recover within 60 seconds`);
+  }
+  const ref = record(cistern.capacityMilestoneRef, `${taskId}.cistern.capacityMilestoneRef`);
+  for (const field of ["sourcePath", "milestoneId", "writerEvent"] as const) stringValue(ref[field], `${taskId}.cistern.capacityMilestoneRef.${field}`);
+  if (ref.sourcePath !== "data/chapters/ch01-world-literacy-prologue.v0.1.yaml" || ref.milestoneId !== "pre_cistern_length_phrase" || ref.writerEvent !== "first_evidence_package_committed") {
+    throw new Error(`${taskId}.cistern capacity milestone reference is not canonical`);
+  }
+  if (!sameStrings(cistern.completionFlags, ["high_cistern_reconnected", "upper_channel_available", "exit_ladder_lowered"])) {
+    throw new Error(`${taskId}.cistern completion flags are invalid`);
+  }
 }
 
 function record(value: unknown, label: string): Record<string, unknown> {
@@ -113,9 +202,22 @@ function record(value: unknown, label: string): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 
+function objectArray(value: unknown, label: string): Record<string, unknown>[] {
+  if (!Array.isArray(value)) throw new Error(`${label} must be an array`);
+  return value.map((entry, index) => record(entry, `${label}[${index}]`));
+}
+
 function stringValue(value: unknown, label: string): string {
   if (typeof value !== "string" || value.length === 0) {
     throw new Error(`${label} must be a non-empty string`);
   }
   return value;
+}
+
+function nonEmptyStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.length > 0 && value.every((item) => typeof item === "string" && item.length > 0);
+}
+
+function sameStrings(value: unknown, expected: readonly string[]): boolean {
+  return Array.isArray(value) && value.length === expected.length && value.every((item, index) => item === expected[index]);
 }

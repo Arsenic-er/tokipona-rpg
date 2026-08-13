@@ -87,7 +87,7 @@ nodes:
     world_literacy_tags: [water, mud, stone, wood, thin_ice]
 
   - node_id: "valley.high_cistern"
-    scene_id: "valley.high_cistern.graybox.v0.1"
+    scene_id: "scene.valley.high_cistern"
     implementation_status: "specified"
     task_ref: "../../tasks/ch01-length-cistern.v0.1.yaml"
     suggested_size_tiles: [30, 48]

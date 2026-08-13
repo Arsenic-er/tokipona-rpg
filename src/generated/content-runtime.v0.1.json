@@ -33,7 +33,7 @@
     }
   },
   "scenes": {
-    "sourceDigest": "sha256:2311ae7b30dc41daae66c96fa73d3dfd584b36cba490b2ba8cd004272ccfd458",
+    "sourceDigest": "sha256:be269d8569c6fd4189a71cd68a7947eae8f905aa69122877c93db1b6c5af7fb7",
     "byId": {
       "scene.valley.arrival_shelf": {
         "sceneId": "scene.valley.arrival_shelf",
@@ -279,6 +279,413 @@
           "patch.valley.arrival_route.v0.1"
         ]
       },
+      "scene.valley.high_cistern": {
+        "sceneId": "scene.valley.high_cistern",
+        "sourcePath": "data/scenes/valley-high-cistern.v0.1.yaml",
+        "regionId": "valley_prologue",
+        "regionNodeId": "valley.high_cistern",
+        "chapterFlowId": "ch01_world_literacy_prologue",
+        "chapterSegmentId": "high_cistern",
+        "tileSizePx": 16,
+        "sizeTiles": {
+          "width": 30,
+          "height": 48
+        },
+        "collisionRows": [
+          "..............................",
+          "..............................",
+          "..............................",
+          "..............................",
+          "..............................",
+          "..................############",
+          "..............................",
+          "..............................",
+          "..............................",
+          "..............................",
+          "..............................",
+          "..............................",
+          "..################............",
+          "..............................",
+          "..............................",
+          "..............................",
+          "..............................",
+          "..............................",
+          "..............................",
+          ".............#################",
+          "..............................",
+          "..............................",
+          "..............................",
+          "..............................",
+          "..............................",
+          "..............................",
+          "..################............",
+          "..............................",
+          "..............................",
+          "..............................",
+          "..............................",
+          "..............................",
+          "..............................",
+          "..............################",
+          "..............................",
+          "..............................",
+          "..............................",
+          "..............................",
+          "..............................",
+          "..............................",
+          ".....###########..............",
+          "..............................",
+          "..............................",
+          "..............................",
+          "..............................",
+          "..............................",
+          "..............................",
+          "##############################"
+        ],
+        "entrances": [
+          {
+            "id": "cistern.from_service",
+            "spawnTile": [
+              2,
+              1
+            ],
+            "spawnPx": {
+              "x": 32,
+              "y": 738
+            },
+            "recoveryEntry": true,
+            "checkpointPolicy": "scene_entry_and_stage_recovery"
+          },
+          {
+            "id": "cistern.from_return",
+            "spawnTile": [
+              27,
+              1
+            ],
+            "spawnPx": {
+              "x": 432,
+              "y": 738
+            },
+            "recoveryEntry": true,
+            "checkpointPolicy": "return_route"
+          }
+        ],
+        "exits": [
+          {
+            "id": "cistern.to_service",
+            "boundsTiles": {
+              "x": 0,
+              "y": 0,
+              "width": 2,
+              "height": 7
+            },
+            "boundsPx": {
+              "x": 0,
+              "y": 656,
+              "width": 32,
+              "height": 112
+            },
+            "target": {
+              "kind": "scene",
+              "sceneId": "scene.valley.service_channel",
+              "entranceId": "service.from_cistern"
+            },
+            "firstTraverseCommit": null,
+            "traversalGuardAny": [
+              "service_gate_open == true",
+              "service_bypass_open == true"
+            ]
+          },
+          {
+            "id": "cistern.to_return_channel",
+            "boundsTiles": {
+              "x": 26,
+              "y": 40,
+              "width": 4,
+              "height": 8
+            },
+            "boundsPx": {
+              "x": 416,
+              "y": 0,
+              "width": 64,
+              "height": 128
+            },
+            "target": {
+              "kind": "region_node",
+              "regionNodeId": "valley.return_channel"
+            },
+            "firstTraverseCommit": null,
+            "traversalGuardAny": [
+              "exit_ladder_lowered == true"
+            ]
+          }
+        ],
+        "recovery": {
+          "entryEntranceId": "cistern.from_service",
+          "maximumSoftlockRecoverySeconds": 60,
+          "actions": [
+            "restore_task_local_calibration_tools",
+            "restore_task_local_transfer_tools",
+            "reset_uncommitted_receiver_state",
+            "restore_latest_stage_checkpoint",
+            "expose_signed_service_return"
+          ],
+          "preserves": [
+            "learning_evidence",
+            "completed_stages",
+            "committed_completion",
+            "survival_state"
+          ]
+        },
+        "routeObjectives": [
+          {
+            "id": "cistern.observe_default",
+            "predicate": "length_default_baseline_observed == true"
+          },
+          {
+            "id": "cistern.calibrate_short",
+            "predicate": "receiver.short.calibrated == true"
+          },
+          {
+            "id": "cistern.calibrate_default",
+            "predicate": "receiver.default.calibrated == true"
+          },
+          {
+            "id": "cistern.transfer_long",
+            "predicate": "receiver.long.transfer_complete == true"
+          },
+          {
+            "id": "cistern.reconnect",
+            "predicate": "high_cistern_reconnected == true && upper_channel_available == true && exit_ladder_lowered == true"
+          }
+        ],
+        "routes": [
+          {
+            "id": "cistern.direct_length_route",
+            "kind": "optional_magic",
+            "solutionFamily": "direct_length_calibration_and_transfer",
+            "fromEntranceId": "cistern.from_service",
+            "toExitId": "cistern.to_return_channel",
+            "objectiveIds": [
+              "cistern.observe_default",
+              "cistern.calibrate_short",
+              "cistern.calibrate_default",
+              "cistern.transfer_long",
+              "cistern.reconnect"
+            ]
+          },
+          {
+            "id": "cistern.calibration_tool_route",
+            "kind": "non_magic",
+            "solutionFamily": "calibration_tool_bypass",
+            "fromEntranceId": "cistern.from_service",
+            "toExitId": "cistern.to_return_channel",
+            "objectiveIds": [
+              "cistern.observe_default",
+              "cistern.calibrate_short",
+              "cistern.calibrate_default",
+              "cistern.reconnect"
+            ]
+          },
+          {
+            "id": "cistern.transfer_tool_route",
+            "kind": "non_magic",
+            "solutionFamily": "transfer_tool_bypass",
+            "fromEntranceId": "cistern.from_service",
+            "toExitId": "cistern.to_return_channel",
+            "objectiveIds": [
+              "cistern.transfer_long",
+              "cistern.reconnect"
+            ]
+          },
+          {
+            "id": "cistern.signed_service_return",
+            "kind": "non_magic",
+            "solutionFamily": "signed_service_return",
+            "fromEntranceId": "cistern.from_return",
+            "toExitId": "cistern.to_service",
+            "objectiveIds": []
+          }
+        ],
+        "nonMagicAlternativeRouteIds": [
+          "cistern.calibration_tool_route",
+          "cistern.transfer_tool_route",
+          "cistern.signed_service_return"
+        ],
+        "targets": [
+          {
+            "id": "cistern.entry_echo",
+            "kind": "scripted_length_demonstration",
+            "material": "water_and_stone"
+          },
+          {
+            "id": "cistern.short_receiver",
+            "kind": "calibration_receiver",
+            "material": "copper_and_stone"
+          },
+          {
+            "id": "cistern.default_receiver",
+            "kind": "calibration_receiver",
+            "material": "copper_and_stone"
+          },
+          {
+            "id": "cistern.long_receiver",
+            "kind": "transfer_receiver",
+            "material": "copper_and_stone"
+          },
+          {
+            "id": "cistern.calibration_tools",
+            "kind": "task_local_tool_cache",
+            "material": "wood_copper_and_cloth"
+          },
+          {
+            "id": "cistern.transfer_tools",
+            "kind": "task_local_tool_cache",
+            "material": "wood_copper_and_cloth"
+          },
+          {
+            "id": "cistern.return_ladder",
+            "kind": "completion_route",
+            "material": "wood_and_iron"
+          }
+        ],
+        "interactions": [
+          {
+            "id": "cistern.observe_default_result",
+            "targetId": "cistern.entry_echo",
+            "verb": "observe_three_feedback_layers",
+            "toolOrMagicRequired": false,
+            "optionalWordId": null,
+            "npcId": null,
+            "facilityId": null,
+            "taskId": null
+          },
+          {
+            "id": "cistern.preview_short",
+            "targetId": "cistern.short_receiver",
+            "verb": "preview_receiver_fit",
+            "toolOrMagicRequired": null,
+            "optionalWordId": "word.lili",
+            "npcId": null,
+            "facilityId": null,
+            "taskId": null
+          },
+          {
+            "id": "cistern.preview_default",
+            "targetId": "cistern.default_receiver",
+            "verb": "preview_receiver_fit",
+            "toolOrMagicRequired": null,
+            "optionalWordId": "word.telo",
+            "npcId": null,
+            "facilityId": null,
+            "taskId": null
+          },
+          {
+            "id": "cistern.preview_long",
+            "targetId": "cistern.long_receiver",
+            "verb": "preview_supported_transfer",
+            "toolOrMagicRequired": null,
+            "optionalWordId": "word.suli",
+            "npcId": null,
+            "facilityId": null,
+            "taskId": null
+          },
+          {
+            "id": "cistern.use_calibration_tools",
+            "targetId": "cistern.calibration_tools",
+            "verb": "measure_and_open_calibration_gates",
+            "toolOrMagicRequired": false,
+            "optionalWordId": null,
+            "npcId": null,
+            "facilityId": null,
+            "taskId": null
+          },
+          {
+            "id": "cistern.use_transfer_tools",
+            "targetId": "cistern.transfer_tools",
+            "verb": "prime_hand_pump_and_lower_bell",
+            "toolOrMagicRequired": false,
+            "optionalWordId": null,
+            "npcId": null,
+            "facilityId": null,
+            "taskId": null
+          },
+          {
+            "id": "cistern.use_return_ladder",
+            "targetId": "cistern.return_ladder",
+            "verb": "leave_after_atomic_completion",
+            "toolOrMagicRequired": false,
+            "optionalWordId": null,
+            "npcId": null,
+            "facilityId": null,
+            "taskId": null
+          }
+        ],
+        "npcs": [],
+        "facilities": [],
+        "tasks": [],
+        "taskRefs": [
+          {
+            "id": "ch01_length_cistern",
+            "authoritativeTaskSourcePath": "data/tasks/ch01-length-cistern.v0.1.yaml",
+            "objectiveIds": [
+              "cistern.calibrate_short",
+              "cistern.calibrate_default",
+              "cistern.transfer_long",
+              "cistern.reconnect"
+            ]
+          }
+        ],
+        "tradeEntries": [],
+        "inboundRoutes": [
+          {
+            "id": "cistern.inbound_from_service",
+            "sourceSceneId": "scene.valley.service_channel",
+            "sourceExitId": "service.to_high_cistern",
+            "entranceId": "cistern.from_service"
+          }
+        ],
+        "softFailureRecoveries": [
+          {
+            "id": "cistern.lost_calibration_tools",
+            "action": "restore_task_local_calibration_tools",
+            "preserves": [
+              "learning_evidence",
+              "completed_stages",
+              "region_commits"
+            ]
+          },
+          {
+            "id": "cistern.lost_transfer_tools",
+            "action": "restore_task_local_transfer_tools",
+            "preserves": [
+              "learning_evidence",
+              "completed_stages",
+              "region_commits"
+            ]
+          },
+          {
+            "id": "cistern.receiver_contaminated",
+            "action": "reset_uncommitted_receiver_state",
+            "preserves": [
+              "learning_evidence",
+              "completed_stages",
+              "region_commits"
+            ]
+          },
+          {
+            "id": "cistern.route_blocked",
+            "action": "restore_latest_stage_checkpoint",
+            "preserves": [
+              "learning_evidence",
+              "committed_completion",
+              "survival_state"
+            ]
+          }
+        ],
+        "materialPatchRecordRefs": [
+          "patch.valley.cistern_return_ladder.v0.1"
+        ]
+      },
       "scene.valley.service_channel": {
         "sceneId": "scene.valley.service_channel",
         "sourcePath": "data/scenes/valley-service-channel.v0.1.yaml",
@@ -402,8 +809,9 @@
               "height": 112
             },
             "target": {
-              "kind": "region_node",
-              "regionNodeId": "valley.high_cistern"
+              "kind": "scene",
+              "sceneId": "scene.valley.high_cistern",
+              "entranceId": "cistern.from_service"
             },
             "firstTraverseCommit": null,
             "traversalGuardAny": [
@@ -2033,8 +2441,272 @@
     }
   },
   "infrastructureTasks": {
-    "sourceDigest": "sha256:3a87467e3e871662d7ba89e4cf4dc49d74abf95833164cd93eb011ac93b8b020",
+    "sourceDigest": "sha256:59bcba0ae85518e9f42388007ec6ef5dd7344b01909edc121c00d729fb6a8d7f",
     "byId": {
+      "ch01_length_cistern": {
+        "id": "ch01_length_cistern",
+        "sourcePath": "data/tasks/ch01-length-cistern.v0.1.yaml",
+        "familyId": "axial_length_infrastructure",
+        "chapterFlowId": "ch01_world_literacy_prologue",
+        "chapterSegmentId": "high_cistern",
+        "regionId": "valley_prologue",
+        "regionNodeId": "valley.high_cistern",
+        "sceneId": "scene.valley.high_cistern",
+        "implementationBoundary": "authored_receiver_and_progression_contract_not_particle_simulation",
+        "predicateMode": "all",
+        "worldGoalPredicates": [
+          {
+            "id": "cistern.reconnected",
+            "expression": "high_cistern_reconnected == true"
+          },
+          {
+            "id": "cistern.upper_channel",
+            "expression": "upper_channel_available == true"
+          },
+          {
+            "id": "cistern.exit_ladder",
+            "expression": "exit_ladder_lowered == true"
+          }
+        ],
+        "modes": [
+          {
+            "id": "incomplete",
+            "completionValid": false,
+            "persistenceScope": "none",
+            "persistsAcrossReload": false,
+            "patchRecordRef": null
+          },
+          {
+            "id": "calibrated",
+            "completionValid": false,
+            "persistenceScope": "checkpoint_local",
+            "persistsAcrossReload": false,
+            "patchRecordRef": null
+          },
+          {
+            "id": "transfer_ready",
+            "completionValid": false,
+            "persistenceScope": "checkpoint_local",
+            "persistsAcrossReload": false,
+            "patchRecordRef": null
+          },
+          {
+            "id": "reconnected",
+            "completionValid": true,
+            "persistenceScope": "region_persistent",
+            "persistsAcrossReload": true,
+            "patchRecordRef": "patch.valley.cistern_return_ladder.v0.1"
+          }
+        ],
+        "validResultModes": [
+          "reconnected"
+        ],
+        "solutions": [
+          {
+            "id": "cistern.calibration_tool_bypass",
+            "routeKind": "non_magic",
+            "chapterSolutionFamily": "calibration_tool_bypass",
+            "mainline": true,
+            "resultMode": "calibrated",
+            "requiredActions": [
+              "measure_short_receiver",
+              "open_right_gate",
+              "measure_default_receiver",
+              "open_left_gate"
+            ],
+            "requiredWorldPredicates": [
+              "receiver_short_calibrated",
+              "receiver_default_calibrated"
+            ]
+          },
+          {
+            "id": "cistern.transfer_tool_bypass",
+            "routeKind": "non_magic",
+            "chapterSolutionFamily": "transfer_tool_bypass",
+            "mainline": true,
+            "resultMode": "transfer_ready",
+            "requiredActions": [
+              "lower_siphon_bell",
+              "prime_hand_pump",
+              "transfer_existing_water"
+            ],
+            "requiredWorldPredicates": [
+              "cistern_siphon_primed",
+              "lift_water_powered_available"
+            ]
+          },
+          {
+            "id": "cistern.direct_length_calibration",
+            "routeKind": "optional_magic",
+            "chapterSolutionFamily": "direct_length_calibration",
+            "mainline": true,
+            "resultMode": "calibrated",
+            "requiredActions": [
+              "resolve_short_receiver",
+              "resolve_default_receiver"
+            ],
+            "requiredWorldPredicates": [
+              "receiver_short_calibrated",
+              "receiver_default_calibrated"
+            ]
+          },
+          {
+            "id": "cistern.direct_length_transfer",
+            "routeKind": "optional_magic",
+            "chapterSolutionFamily": "direct_length_transfer",
+            "mainline": true,
+            "resultMode": "transfer_ready",
+            "requiredActions": [
+              "support_long_manifestation",
+              "prime_high_siphon"
+            ],
+            "requiredWorldPredicates": [
+              "cistern_siphon_primed",
+              "lift_water_powered_available"
+            ]
+          }
+        ],
+        "nonMagicMainlineSolutionIds": [
+          "cistern.calibration_tool_bypass",
+          "cistern.transfer_tool_bypass"
+        ],
+        "entryGuardAny": [
+          "service_gate_open == true",
+          "service_bypass_open == true",
+          "den_route_open == true"
+        ],
+        "exitGuardAny": [
+          "exit_ladder_lowered == true"
+        ],
+        "materialPatchRefs": [
+          "patch.valley.cistern_return_ladder.v0.1"
+        ],
+        "languageExposure": [
+          {
+            "wordId": "word.lili",
+            "discoveryTrigger": "observe_or_resolve_short_receiver_geometry",
+            "learningPrompt": "predict_which_water_length_fits_before_the_baffle",
+            "eligibleStateProposals": [
+              "seen",
+              "available"
+            ],
+            "automaticMasteryForbidden": true,
+            "toolSolutionStillAllowsObservation": true
+          },
+          {
+            "wordId": "word.suli",
+            "discoveryTrigger": "observe_or_resolve_supported_long_transfer_geometry",
+            "learningPrompt": "predict_which_water_length_reaches_the_siphon_bell",
+            "eligibleStateProposals": [
+              "seen",
+              "available"
+            ],
+            "automaticMasteryForbidden": true,
+            "toolSolutionStillAllowsObservation": true
+          }
+        ],
+        "grammarContacts": [],
+        "materialReactionKinds": [
+          "water"
+        ],
+        "maximumSoftlockRecoverySeconds": 60,
+        "recoveryActions": [
+          "restore_task_local_calibration_tools",
+          "restore_task_local_transfer_tools",
+          "reset_uncommitted_receiver_state",
+          "restore_latest_stage_checkpoint",
+          "expose_signed_service_return"
+        ],
+        "recoveryPreserves": [
+          "learning_evidence",
+          "completed_stages",
+          "committed_completion",
+          "survival_state"
+        ],
+        "cistern": {
+          "stages": [
+            {
+              "id": "short",
+              "familyId": "cistern.family_a.calibration",
+              "canonicalWordIds": [
+                "word.telo",
+                "word.lili"
+              ],
+              "resolvedLengthClass": "short",
+              "activationMp": 6,
+              "receiverWorldPredicates": [
+                "receiver.short.collected_water_mass_mu >= 0.25",
+                "screen.short.protected_contact == false",
+                "gate.right_shaft.open == true"
+              ]
+            },
+            {
+              "id": "default",
+              "familyId": "cistern.family_a.calibration",
+              "canonicalWordIds": [
+                "word.telo"
+              ],
+              "resolvedLengthClass": "default",
+              "activationMp": 5,
+              "receiverWorldPredicates": [
+                "receiver.default.collected_water_mass_mu >= 1.6",
+                "receiver.default.overflow_contact == false",
+                "gate.left_shaft.open == true"
+              ]
+            },
+            {
+              "id": "long",
+              "familyId": "cistern.family_b.transfer",
+              "canonicalWordIds": [
+                "word.telo",
+                "word.suli"
+              ],
+              "resolvedLengthClass": "long",
+              "activationMp": 10,
+              "receiverWorldPredicates": [
+                "cistern.siphon_primed == true",
+                "lift.water_powered.available == true"
+              ]
+            }
+          ],
+          "families": [
+            {
+              "id": "cistern.family_a.calibration",
+              "independentCompletion": true,
+              "completionPredicate": "receiver.short.calibrated == true && receiver.default.calibrated == true",
+              "stageIds": [
+                "short",
+                "default"
+              ],
+              "toolBypassSolutionId": "cistern.calibration_tool_bypass",
+              "languageEvidenceFromToolBypass": false
+            },
+            {
+              "id": "cistern.family_b.transfer",
+              "independentCompletion": true,
+              "completionPredicate": "receiver.long.transfer_complete == true && cistern.siphon_primed == true",
+              "stageIds": [
+                "long"
+              ],
+              "toolBypassSolutionId": "cistern.transfer_tool_bypass",
+              "languageEvidenceFromToolBypass": false
+            }
+          ],
+          "h0H1AnswerTokenIdsVisible": false,
+          "legalWrongLengthCastCompletesStage": false,
+          "maximumSoftlockRecoverySeconds": 60,
+          "capacityMilestoneRef": {
+            "sourcePath": "data/chapters/ch01-world-literacy-prologue.v0.1.yaml",
+            "milestoneId": "pre_cistern_length_phrase",
+            "writerEvent": "first_evidence_package_committed"
+          },
+          "completionFlags": [
+            "high_cistern_reconnected",
+            "upper_channel_available",
+            "exit_ladder_lowered"
+          ]
+        }
+      },
       "ch01_service_channel": {
         "id": "ch01_service_channel",
         "sourcePath": "data/tasks/ch01-service-channel.v0.1.yaml",
@@ -2244,7 +2916,8 @@
           "committed_gate_patch",
           "committed_bypass_patch",
           "region_commits"
-        ]
+        ],
+        "cistern": null
       },
       "ch01_waterwheel": {
         "id": "ch01_waterwheel",
@@ -2437,7 +3110,8 @@
           "structurally_restored_patch",
           "task_receipt",
           "region_commits"
-        ]
+        ],
+        "cistern": null
       }
     }
   }

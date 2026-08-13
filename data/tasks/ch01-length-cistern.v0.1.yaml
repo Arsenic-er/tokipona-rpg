@@ -2,7 +2,15 @@ schema_version: "g01.task.v0.1"
 task_id: "ch01_length_cistern"
 task_version: "0.1.0"
 content_version: "chapter-01.4"
-status: "draft"
+status: "machine_contract_ready"
+task_type: "infrastructure_world_predicate"
+task_family_id: "axial_length_infrastructure"
+chapter_flow_id: "ch01_world_literacy_prologue"
+chapter_segment_id: "high_cistern"
+region_id: "valley_prologue"
+region_node_id: "valley.high_cistern"
+scene_ref: "../scenes/valley-high-cistern.v0.1.yaml"
+implementation_boundary: "authored_receiver_and_progression_contract_not_particle_simulation"
 title_zh: "高位蓄水槽"
 spec_document: "../../docs/design/levels/ch01-length-cistern-graybox-zh.md"
 
@@ -41,6 +49,99 @@ cache_key_contract:
       - artifact_capabilities
       - version_bindings
 
+capacity_milestone_binding:
+  source_ref: "../chapters/ch01-world-literacy-prologue.v0.1.yaml"
+  milestone_id: "pre_cistern_length_phrase"
+  writer_event: "first_evidence_package_committed"
+  runtime_projection: "reference_only"
+  hardcoded_resulting_state_forbidden: true
+
+world_goal:
+  evaluation: "world_state_predicates_only"
+  predicate_mode: "all"
+  raw_utterance_string_matching_forbidden: true
+  predicates:
+    - {predicate_id: "cistern.reconnected", expression: "high_cistern_reconnected == true"}
+    - {predicate_id: "cistern.upper_channel", expression: "upper_channel_available == true"}
+    - {predicate_id: "cistern.exit_ladder", expression: "exit_ladder_lowered == true"}
+
+result_modes:
+  - {mode_id: "incomplete", completion_valid: false, persistence_scope: "none", persists_across_reload: false, patch_record_ref: null}
+  - {mode_id: "calibrated", completion_valid: false, persistence_scope: "checkpoint_local", persists_across_reload: false, patch_record_ref: null}
+  - {mode_id: "transfer_ready", completion_valid: false, persistence_scope: "checkpoint_local", persists_across_reload: false, patch_record_ref: null}
+  - {mode_id: "reconnected", completion_valid: true, persistence_scope: "region_persistent", persists_across_reload: true, patch_record_ref: "patch.valley.cistern_return_ladder.v0.1"}
+
+solution_families:
+  - solution_id: "cistern.calibration_tool_bypass"
+    route_kind: "non_magic"
+    chapter_solution_family: "calibration_tool_bypass"
+    mainline: true
+    result_mode: "calibrated"
+    required_actions: [measure_short_receiver, open_right_gate, measure_default_receiver, open_left_gate]
+    required_world_predicates: [receiver_short_calibrated, receiver_default_calibrated]
+  - solution_id: "cistern.transfer_tool_bypass"
+    route_kind: "non_magic"
+    chapter_solution_family: "transfer_tool_bypass"
+    mainline: true
+    result_mode: "transfer_ready"
+    required_actions: [lower_siphon_bell, prime_hand_pump, transfer_existing_water]
+    required_world_predicates: [cistern_siphon_primed, lift_water_powered_available]
+  - solution_id: "cistern.direct_length_calibration"
+    route_kind: "optional_magic"
+    chapter_solution_family: "direct_length_calibration"
+    mainline: true
+    result_mode: "calibrated"
+    required_actions: [resolve_short_receiver, resolve_default_receiver]
+    required_world_predicates: [receiver_short_calibrated, receiver_default_calibrated]
+  - solution_id: "cistern.direct_length_transfer"
+    route_kind: "optional_magic"
+    chapter_solution_family: "direct_length_transfer"
+    mainline: true
+    result_mode: "transfer_ready"
+    required_actions: [support_long_manifestation, prime_high_siphon]
+    required_world_predicates: [cistern_siphon_primed, lift_water_powered_available]
+
+language_exposure:
+  - word_id: "word.lili"
+    discovery_trigger: "observe_or_resolve_short_receiver_geometry"
+    learning_prompt: "predict_which_water_length_fits_before_the_baffle"
+    eligible_state_proposals: [seen, available]
+    automatic_mastery_forbidden: true
+    tool_solution_still_allows_observation: true
+  - word_id: "word.suli"
+    discovery_trigger: "observe_or_resolve_supported_long_transfer_geometry"
+    learning_prompt: "predict_which_water_length_reaches_the_siphon_bell"
+    eligible_state_proposals: [seen, available]
+    automatic_mastery_forbidden: true
+    tool_solution_still_allows_observation: true
+
+grammar_contacts: []
+material_reactions:
+  - {material: water, observations: [falls_under_gravity, fills_receivers, primes_siphon]}
+
+entry_guard_any: ["service_gate_open == true", "service_bypass_open == true", "den_route_open == true"]
+exit_guard_any: ["exit_ladder_lowered == true"]
+material_patch_refs: ["patch.valley.cistern_return_ladder.v0.1"]
+
+task_families:
+  - family_id: "cistern.family_a.calibration"
+    independent_completion: true
+    completion_predicate: "receiver.short.calibrated == true && receiver.default.calibrated == true"
+    stage_ids: [short, default]
+    tool_bypass_solution_id: "cistern.calibration_tool_bypass"
+    language_evidence_from_tool_bypass: false
+  - family_id: "cistern.family_b.transfer"
+    independent_completion: true
+    completion_predicate: "receiver.long.transfer_complete == true && cistern.siphon_primed == true"
+    stage_ids: [long]
+    tool_bypass_solution_id: "cistern.transfer_tool_bypass"
+    language_evidence_from_tool_bypass: false
+family_completion_contract:
+  required_family_ids: ["cistern.family_a.calibration", "cistern.family_b.transfer"]
+  aggregate_mode: "all"
+  commit_event_after_all: "cistern_world_transition_committed"
+  no_single_family_may_set_region_completion_flags: true
+
 initial_state_snapshot:
   snapshot_id: "cistern.entry.v0.1"
   snapshot_hash: null
@@ -49,8 +150,9 @@ initial_state_snapshot:
   random_seed: null
   player:
     current_mp: 24.0
-    max_mp: 24.0
+    max_mp: 26.0
     expression_capacity_meaningful_tokens: 2
+    expression_capacity_source_ref: "capacity_milestone_binding"
     task_enabled_word_ids: ["word.telo", "word.lili", "word.suli"]
     living_safety_class: "normal"
   artifact:
@@ -94,7 +196,7 @@ entry_state_contract:
     insufficient_for_direct_path_keeps_tool_fallback: true
   task_enabled_words_are_not_persistent_unlocks: true
 scene:
-  scene_id: "valley.high_cistern.graybox.v0.1"
+  scene_id: "scene.valley.high_cistern"
   coordinate_origin: "bottom_left"
   tile_size_px: 16
   bounds_tiles: {width: 30, height: 48}
@@ -193,6 +295,8 @@ stations:
     alternate_action_classes: ["lower_siphon_bell", "maintenance_platform_and_bucket", "repair_hand_pump"]
 
 semantic_acceptance:
+  stage_pass_authority: "receiver_world_predicates_only"
+  legal_wrong_length_cast_executes_but_never_completes_stage: true
   raw_utterance_string_match_forbidden: true
   task_completion_reads:
     - world_goal_predicates
@@ -242,6 +346,7 @@ stage_contracts:
       - "gate.right_shaft.open == true"
     direct_teaching_solution:
       resolved_length_class: "short"
+      canonical_word_ids: ["word.telo", "word.lili"]
       length_modifier_id: "word.lili"
       nominal_length_px: 16
       fixed_width_px: 12
@@ -258,6 +363,7 @@ stage_contracts:
       - "gate.left_shaft.open == true"
     direct_teaching_solution:
       resolved_length_class: "default"
+      canonical_word_ids: ["word.telo"]
       length_modifier_id: null
       nominal_length_px: 32
       fixed_width_px: 12
@@ -275,6 +381,7 @@ stage_contracts:
       - "lift.water_powered.available == true"
     direct_teaching_solution:
       resolved_length_class: "long"
+      canonical_word_ids: ["word.telo", "word.suli"]
       length_modifier_id: "word.suli"
       nominal_length_px: 64
       fixed_width_px: 12
@@ -329,8 +436,8 @@ hint_ladder:
     H4: {reveals: "two partial expressions and contrasting outlines", independent_evidence_allowed: false}
     H3: {reveals: "candidate modifier words", independent_evidence_allowed: false}
     H2: {reveals: "observe distance, clearance or receiver", independent_evidence_allowed: false}
-    H1: {reveals: "normal environmental replay only", independent_evidence_allowed: true}
-    H0: {reveals: "normal scene and post-construction preview only", independent_evidence_allowed: true}
+    H1: {reveals: "normal environmental replay, receiver geometry and current world result only", answer_token_ids_visible: false, independent_evidence_allowed: true}
+    H0: {reveals: "normal scene, receiver geometry, MP quote and post-construction preview only", answer_token_ids_visible: false, independent_evidence_allowed: true}
   trigger: ["player_request", "two_distinct_attempts_without_new_information"]
   real_time_wait_required: false
   accessibility_support_counts_as_hint: false
@@ -408,6 +515,12 @@ soft_failure:
     idempotent: true
     economy_gain_forbidden: true
 
+recovery:
+  maximum_softlock_recovery_seconds: 60
+  actions: [restore_task_local_calibration_tools, restore_task_local_transfer_tools, reset_uncommitted_receiver_state, restore_latest_stage_checkpoint, expose_signed_service_return]
+  preserves: [learning_evidence, completed_stages, committed_completion, survival_state]
+  duplicate_resources_forbidden: true
+
 fallback:
   all_world_goal_predicates_still_required: true
   action_classes:
@@ -455,6 +568,8 @@ learning_state_event_contracts:
     task_completion_independent_from_learning_write: true
 
 completion:
+  valid_result_modes: [reconnected]
+  raw_expression_never_read_for_success: true
   task_goal_predicate: "gate.right_shaft.open && gate.left_shaft.open && cistern.siphon_primed"
   world_transition:
     writer_event: "cistern_world_transition_committed"

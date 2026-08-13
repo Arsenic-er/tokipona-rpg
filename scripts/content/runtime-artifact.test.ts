@@ -31,10 +31,11 @@ describe("runtime content artifact generator", () => {
     expect(() => assertRuntimeArtifactCurrent(generatedRuntimeText, expected)).not.toThrow();
   });
 
-  it("emits the validated N00 through N04 runtime scene manifest", () => {
+  it("emits the validated N00 through N05 runtime scene manifest", () => {
     const artifact = buildRuntimeContentArtifact(compileContent(repositorySources()));
     expect(Object.keys(artifact.scenes.byId).sort()).toEqual([
       "scene.valley.arrival_shelf",
+      "scene.valley.high_cistern",
       "scene.valley.service_channel",
       "scene.valley.settlement",
       "scene.valley.stream_section",

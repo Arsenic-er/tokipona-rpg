@@ -1,0 +1,166 @@
+schema_version: "g01.scene.v0.1"
+content_version: "chapter-01.high-cistern.1"
+scene_id: "scene.valley.high_cistern"
+region_id: "valley_prologue"
+region_node_id: "valley.high_cistern"
+chapter_flow_id: "ch01_world_literacy_prologue"
+chapter_segment_id: "high_cistern"
+status: "graybox_machine_ready"
+tile_size_px: 16
+size_tiles: {width: 30, height: 48}
+collision_rows_top_down:
+  - ".............................."
+  - ".............................."
+  - ".............................."
+  - ".............................."
+  - ".............................."
+  - "..................############"
+  - ".............................."
+  - ".............................."
+  - ".............................."
+  - ".............................."
+  - ".............................."
+  - ".............................."
+  - "..################............"
+  - ".............................."
+  - ".............................."
+  - ".............................."
+  - ".............................."
+  - ".............................."
+  - ".............................."
+  - ".............#################"
+  - ".............................."
+  - ".............................."
+  - ".............................."
+  - ".............................."
+  - ".............................."
+  - ".............................."
+  - "..################............"
+  - ".............................."
+  - ".............................."
+  - ".............................."
+  - ".............................."
+  - ".............................."
+  - ".............................."
+  - "..............################"
+  - ".............................."
+  - ".............................."
+  - ".............................."
+  - ".............................."
+  - ".............................."
+  - ".............................."
+  - ".....###########.............."
+  - ".............................."
+  - ".............................."
+  - ".............................."
+  - ".............................."
+  - ".............................."
+  - ".............................."
+  - "##############################"
+
+entrances:
+  - entrance_id: "cistern.from_service"
+    spawn_tile: [2, 1]
+    recovery_entry: true
+    checkpoint_policy: "scene_entry_and_stage_recovery"
+  - entrance_id: "cistern.from_return"
+    spawn_tile: [27, 1]
+    recovery_entry: true
+    checkpoint_policy: "return_route"
+
+inbound_route_refs:
+  - inbound_ref_id: "cistern.inbound_from_service"
+    source_scene_id: "scene.valley.service_channel"
+    source_exit_id: "service.to_high_cistern"
+    entrance_id: "cistern.from_service"
+
+exits:
+  - exit_id: "cistern.to_service"
+    trigger_rect_tiles: {x: 0, y: 0, width: 2, height: 7}
+    target_scene_id: "scene.valley.service_channel"
+    target_entrance_id: "service.from_cistern"
+    traversal_guard:
+      any: ["service_gate_open == true", "service_bypass_open == true"]
+  - exit_id: "cistern.to_return_channel"
+    trigger_rect_tiles: {x: 26, y: 40, width: 4, height: 8}
+    target_region_node_id: "valley.return_channel"
+    traversal_guard: {any: ["exit_ladder_lowered == true"]}
+
+route_objectives:
+  - objective_id: "cistern.observe_default"
+    predicate: "length_default_baseline_observed == true"
+  - objective_id: "cistern.calibrate_short"
+    predicate: "receiver.short.calibrated == true"
+  - objective_id: "cistern.calibrate_default"
+    predicate: "receiver.default.calibrated == true"
+  - objective_id: "cistern.transfer_long"
+    predicate: "receiver.long.transfer_complete == true"
+  - objective_id: "cistern.reconnect"
+    predicate: "high_cistern_reconnected == true && upper_channel_available == true && exit_ladder_lowered == true"
+
+routes:
+  - route_id: "cistern.direct_length_route"
+    route_kind: "optional_magic"
+    solution_family: "direct_length_calibration_and_transfer"
+    from_entrance_id: "cistern.from_service"
+    to_exit_id: "cistern.to_return_channel"
+    objective_ids: [cistern.observe_default, cistern.calibrate_short, cistern.calibrate_default, cistern.transfer_long, cistern.reconnect]
+  - route_id: "cistern.calibration_tool_route"
+    route_kind: "non_magic"
+    solution_family: "calibration_tool_bypass"
+    from_entrance_id: "cistern.from_service"
+    to_exit_id: "cistern.to_return_channel"
+    objective_ids: [cistern.observe_default, cistern.calibrate_short, cistern.calibrate_default, cistern.reconnect]
+  - route_id: "cistern.transfer_tool_route"
+    route_kind: "non_magic"
+    solution_family: "transfer_tool_bypass"
+    from_entrance_id: "cistern.from_service"
+    to_exit_id: "cistern.to_return_channel"
+    objective_ids: [cistern.transfer_long, cistern.reconnect]
+  - route_id: "cistern.signed_service_return"
+    route_kind: "non_magic"
+    solution_family: "signed_service_return"
+    from_entrance_id: "cistern.from_return"
+    to_exit_id: "cistern.to_service"
+    objective_ids: []
+
+targets:
+  - {target_id: "cistern.entry_echo", target_kind: "scripted_length_demonstration", material: "water_and_stone"}
+  - {target_id: "cistern.short_receiver", target_kind: "calibration_receiver", material: "copper_and_stone"}
+  - {target_id: "cistern.default_receiver", target_kind: "calibration_receiver", material: "copper_and_stone"}
+  - {target_id: "cistern.long_receiver", target_kind: "transfer_receiver", material: "copper_and_stone"}
+  - {target_id: "cistern.calibration_tools", target_kind: "task_local_tool_cache", material: "wood_copper_and_cloth"}
+  - {target_id: "cistern.transfer_tools", target_kind: "task_local_tool_cache", material: "wood_copper_and_cloth"}
+  - {target_id: "cistern.return_ladder", target_kind: "completion_route", material: "wood_and_iron"}
+
+interactions:
+  - {interaction_id: "cistern.observe_default_result", target_id: "cistern.entry_echo", verb: "observe_three_feedback_layers", tool_or_magic_required: false}
+  - {interaction_id: "cistern.preview_short", target_id: "cistern.short_receiver", verb: "preview_receiver_fit", optional_word_id: "word.lili"}
+  - {interaction_id: "cistern.preview_default", target_id: "cistern.default_receiver", verb: "preview_receiver_fit", optional_word_id: "word.telo"}
+  - {interaction_id: "cistern.preview_long", target_id: "cistern.long_receiver", verb: "preview_supported_transfer", optional_word_id: "word.suli"}
+  - {interaction_id: "cistern.use_calibration_tools", target_id: "cistern.calibration_tools", verb: "measure_and_open_calibration_gates", tool_or_magic_required: false}
+  - {interaction_id: "cistern.use_transfer_tools", target_id: "cistern.transfer_tools", verb: "prime_hand_pump_and_lower_bell", tool_or_magic_required: false}
+  - {interaction_id: "cistern.use_return_ladder", target_id: "cistern.return_ladder", verb: "leave_after_atomic_completion", tool_or_magic_required: false}
+
+task_refs:
+  - task_id: "ch01_length_cistern"
+    task_ref: "../tasks/ch01-length-cistern.v0.1.yaml"
+    objective_ids: [cistern.calibrate_short, cistern.calibrate_default, cistern.transfer_long, cistern.reconnect]
+
+material_patches:
+  - patch_id: "scene.patch.cistern.return_ladder"
+    patch_record_ref: "patch.valley.cistern_return_ladder.v0.1"
+    activation_predicate: "exit_ladder_lowered == true"
+    ordered_ops: [restore_ladder_and_channel, rebuild_collision, verify_return_route]
+
+soft_failure_recoveries:
+  - {failure_id: "cistern.lost_calibration_tools", action: "restore_task_local_calibration_tools", preserves: [learning_evidence, completed_stages, region_commits]}
+  - {failure_id: "cistern.lost_transfer_tools", action: "restore_task_local_transfer_tools", preserves: [learning_evidence, completed_stages, region_commits]}
+  - {failure_id: "cistern.receiver_contaminated", action: "reset_uncommitted_receiver_state", preserves: [learning_evidence, completed_stages, region_commits]}
+  - {failure_id: "cistern.route_blocked", action: "restore_latest_stage_checkpoint", preserves: [learning_evidence, committed_completion, survival_state]}
+
+recovery:
+  entry_entrance_id: "cistern.from_service"
+  maximum_softlock_recovery_seconds: 60
+  actions: [restore_task_local_calibration_tools, restore_task_local_transfer_tools, reset_uncommitted_receiver_state, restore_latest_stage_checkpoint, expose_signed_service_return]
+  preserves: [learning_evidence, completed_stages, committed_completion, survival_state]

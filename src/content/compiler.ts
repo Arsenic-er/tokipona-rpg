@@ -578,7 +578,57 @@ function validateInfrastructureTaskReferences(
     const authoredExit = new Set(readStringArray(source.content, "exit_guard_any"));
     if (!sameStringSet(authoredExit, new Set(guardedOutbound))) addIssue(issues, "ref.mismatch", source.path, "exit_guard_any", "task exit guards must equal guarded outbound region traversal predicates");
   }
+  if (taskId === "ch01_length_cistern") {
+    validateCisternTaskReferences(source, sources, sceneSource, chapter, region, issues);
+  }
 }
+
+function validateCisternTaskReferences(
+  source: CompiledSource,
+  sources: readonly CompiledSource[],
+  sceneSource: CompiledSource | undefined,
+  chapter: ContentObject | undefined,
+  region: ContentObject | undefined,
+  issues: ContentIssue[],
+): void {
+  const binding = readObject(source.content, "capacity_milestone_binding");
+  const bindingSource = resolveReferencedSource(source, readString(binding, "source_ref"), sources);
+  if (!bindingSource || bindingSource.kind !== "chapter" || bindingSource.content !== chapter) {
+    addIssue(issues, "task.cistern_capacity_ref", source.path, "capacity_milestone_binding.source_ref", "capacity milestone must reference the authoritative chapter contract");
+  } else {
+    const milestoneId = readString(binding, "milestone_id");
+    const milestone = readObjectArray(readObject(bindingSource.content, "capacity_progression"), "milestones")
+      .find((candidate) => readString(candidate, "milestone_id") === milestoneId);
+    if (!milestone) addIssue(issues, "task.cistern_capacity_ref", source.path, "capacity_milestone_binding.milestone_id", `unknown capacity milestone ${milestoneId}`);
+    else if (readString(milestone, "unique_writer_event") !== readString(binding, "writer_event")) {
+      addIssue(issues, "task.cistern_capacity_ref", source.path, "capacity_milestone_binding.writer_event", "capacity writer must match the authoritative chapter milestone");
+    }
+  }
+
+  if (sceneSource) {
+    const size = readObject(sceneSource.content, "size_tiles");
+    if (readString(sceneSource.content, "scene_id") !== "scene.valley.high_cistern" || readNumber(size, "width") !== 30 || readNumber(size, "height") !== 48) {
+      addIssue(issues, "task.cistern_scene_contract", source.path, "scene_ref", "high cistern scene must remain canonical scene.valley.high_cistern at 30x48 tiles");
+    }
+    const inbound = readObjectArray(sceneSource.content, "inbound_route_refs")
+      .find((route) => readString(route, "inbound_ref_id") === "cistern.inbound_from_service");
+    const serviceScene = sources.find((item) => item.kind === "scene" && readString(item.content, "scene_id") === "scene.valley.service_channel");
+    const serviceExit = serviceScene ? readObjectArray(serviceScene.content, "exits").find((exit) => readString(exit, "exit_id") === "service.to_high_cistern") : undefined;
+    if (!inbound || !serviceExit || readString(serviceExit, "target_scene_id") !== "scene.valley.high_cistern" || readString(serviceExit, "target_entrance_id") !== "cistern.from_service") {
+      addIssue(issues, "task.cistern_direct_inbound", source.path, "scene_ref", "N04 service.to_high_cistern must directly target the canonical N05 entrance");
+    }
+  }
+
+  if (region) {
+    const states = new Set(readObjectArray(region, "state_registry").map((state) => readString(state, "state_id")));
+    const writer = readNestedObject(region, ["event_commit_points", "cistern_world_transition_committed"]);
+    const writes = readObject(writer, "atomic_writes");
+    for (const flag of ["high_cistern_reconnected", "upper_channel_available", "exit_ladder_lowered"]) {
+      if (!states.has(flag) || writes[flag] !== true) addIssue(issues, "task.cistern_region_commit", source.path, "completion.world_transition", `${flag} must be registered and atomically committed by the authoritative region event`);
+    }
+  }
+}
+
 function guardStrings(contract: ContentObject): string[] {
   const predicate = readString(contract, "predicate");
   if (predicate) return [predicate];
@@ -1028,7 +1078,84 @@ function validateInfrastructureTaskSource(source: CompiledSource, issues: Conten
     const oContact = readObjectArray(source.content, "grammar_contacts").find((contact) => readString(contact, "token") === "o");
     if (!oContact || oContact.automatic_state_grant !== false || oContact.mastery_evidence_allowed !== false) addIssue(issues, "task.o_contact_only", source.path, "grammar_contacts", "o must remain receptive grammar contact with no automatic grant or mastery evidence");
   }
+  if (readString(source.content, "task_id") === "ch01_length_cistern") {
+    validateCisternTaskSource(source, issues);
+  }
 }
+
+function validateCisternTaskSource(source: CompiledSource, issues: ContentIssue[]): void {
+  const expected = {
+    short: { tokens: ["word.telo", "word.lili"], modifier: "word.lili", mp: 6 },
+    default: { tokens: ["word.telo"], modifier: "", mp: 5 },
+    long: { tokens: ["word.telo", "word.suli"], modifier: "word.suli", mp: 10 },
+  } as const;
+  const stageContracts = readObject(source.content, "stage_contracts");
+  for (const [stageId, contract] of Object.entries(expected)) {
+    const stage = readObject(stageContracts, stageId);
+    const direct = readObject(stage, "direct_teaching_solution");
+    if (readString(direct, "resolved_length_class") !== stageId || readNumber(direct, "activation_mp") !== contract.mp) {
+      addIssue(issues, "task.cistern_stage_profile", source.path, `stage_contracts.${stageId}.direct_teaching_solution`, `${stageId} must retain its canonical length class and ${contract.mp} MP quote`);
+    }
+    if (readString(direct, "length_modifier_id") !== contract.modifier || !sameStringArray(readStringArray(direct, "canonical_word_ids"), contract.tokens)) {
+      addIssue(issues, "task.cistern_stage_expression", source.path, `stage_contracts.${stageId}.direct_teaching_solution`, `${stageId} must compile from the canonical ${contract.tokens.join(" ")} expression`);
+    }
+    if (readStringArray(stage, "world_goal_predicates").length === 0) {
+      addIssue(issues, "task.cistern_receiver_predicate", source.path, `stage_contracts.${stageId}.world_goal_predicates`, "stage completion requires receiver world predicates");
+    }
+  }
+
+  const families = readObjectArray(source.content, "task_families");
+  const expectedFamilies = new Map<string, readonly string[]>([
+    ["cistern.family_a.calibration", ["short", "default"]],
+    ["cistern.family_b.transfer", ["long"]],
+  ]);
+  const seenStages = new Set<string>();
+  for (const [familyId, expectedStages] of expectedFamilies) {
+    const family = families.find((candidate) => readString(candidate, "family_id") === familyId);
+    if (!family || family.independent_completion !== true || !readString(family, "completion_predicate") || family.language_evidence_from_tool_bypass !== false ||
+        !sameStringArray(readStringArray(family, "stage_ids"), expectedStages)) {
+      addIssue(issues, "task.cistern_family_contract", source.path, "task_families", `${familyId} must remain independently completable with its canonical stages and evidence-safe tool bypass`);
+      continue;
+    }
+    for (const stage of readStringArray(family, "stage_ids")) {
+      if (seenStages.has(stage)) addIssue(issues, "task.cistern_family_overlap", source.path, "task_families", `stage ${stage} belongs to more than one cistern family`);
+      seenStages.add(stage);
+    }
+  }
+  if (families.length !== 2 || seenStages.size !== 3) addIssue(issues, "task.cistern_family_contract", source.path, "task_families", "cistern requires exactly independent family A calibration and family B transfer");
+  const aggregate = readObject(source.content, "family_completion_contract");
+  if (!sameStringArray(readStringArray(aggregate, "required_family_ids"), [...expectedFamilies.keys()]) || readString(aggregate, "aggregate_mode") !== "all" ||
+      readString(aggregate, "commit_event_after_all") !== "cistern_world_transition_committed" || aggregate.no_single_family_may_set_region_completion_flags !== true ||
+      readObjectArray(source.content, "solution_families").some((solution) => readString(solution, "result_mode") === "reconnected")) {
+    addIssue(issues, "task.cistern_family_atomicity", source.path, "family_completion_contract", "both independent families must complete before the cistern region transition commits");
+  }
+
+  const hintLevels = readNestedObject(source.content, ["hint_ladder", "levels"]);
+  for (const levelId of ["H0", "H1"] as const) {
+    const level = readObject(hintLevels, levelId);
+    if (level.answer_token_ids_visible !== false || level.independent_evidence_allowed !== true) {
+      addIssue(issues, "task.cistern_nonanswer_hint", source.path, `hint_ladder.levels.${levelId}`, `${levelId} must expose receiver information without answer token IDs`);
+    }
+  }
+  const semantic = readObject(source.content, "semantic_acceptance");
+  if (readString(semantic, "stage_pass_authority") !== "receiver_world_predicates_only" || semantic.legal_wrong_length_cast_executes_but_never_completes_stage !== true) {
+    addIssue(issues, "task.cistern_world_predicate_authority", source.path, "semantic_acceptance", "legal wrong casts may execute but stage success must be receiver-predicate-only");
+  }
+  const completion = readObject(source.content, "completion");
+  const setFlags = readNestedObject(completion, ["world_transition", "set_flags"]);
+  for (const flag of ["high_cistern_reconnected", "upper_channel_available", "exit_ladder_lowered"]) {
+    if (setFlags[flag] !== true) addIssue(issues, "task.cistern_completion_flag", source.path, `completion.world_transition.set_flags.${flag}`, `completion must atomically set ${flag}`);
+  }
+  const binding = readObject(source.content, "capacity_milestone_binding");
+  if (readString(binding, "runtime_projection") !== "reference_only" || binding.hardcoded_resulting_state_forbidden !== true || binding.resulting_state !== undefined) {
+    addIssue(issues, "task.cistern_capacity_reference", source.path, "capacity_milestone_binding", "runtime capacity output must remain a reference-only machine contract");
+  }
+}
+
+function sameStringArray(left: readonly string[], right: readonly string[]): boolean {
+  return left.length === right.length && left.every((value, index) => value === right[index]);
+}
+
 function validateTaskExpectedProfiles(source: CompiledSource, issues: ContentIssue[]): void {
   const profiles = readNestedObject(source.content, ["enabled_content", "expected_profiles"]);
   const ledger = readNestedObject(source.content, ["completion", "expected_direct_mp_ledger"]);

@@ -43,11 +43,12 @@ function expectIssue(run: () => unknown, code: string): void {
 }
 
 describe("scene content compiler", () => {
-  it("compiles the canonical N00 through N04 scene documents as a multi-source content kind", () => {
+  it("compiles the canonical N00 through N05 scene documents as a multi-source content kind", () => {
     const manifest = compileContent(repositorySources());
-    expect(manifest.byKind.scene).toHaveLength(5);
+    expect(manifest.byKind.scene).toHaveLength(6);
     expect(Object.keys(manifest.indexes.scenes).sort()).toEqual([
       "scene.valley.arrival_shelf",
+      "scene.valley.high_cistern",
       "scene.valley.service_channel",
       "scene.valley.settlement",
       "scene.valley.stream_section",
