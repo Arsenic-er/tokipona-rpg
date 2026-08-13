@@ -1,0 +1,109 @@
+schema_version: "g01.scene.v0.1"
+content_version: "chapter-01.arrival-shelf.1"
+scene_id: "scene.valley.arrival_shelf"
+region_id: "valley_prologue"
+region_node_id: "valley.arrival_shelf"
+chapter_flow_id: "ch01_world_literacy_prologue"
+chapter_segment_id: "arrival"
+status: "graybox_machine_ready"
+tile_size_px: 16
+size_tiles: {width: 24, height: 20}
+collision_rows_top_down:
+  - "........................"
+  - "........................"
+  - "........................"
+  - "........................"
+  - "..##################...."
+  - "........................"
+  - "........................"
+  - "........................"
+  - "........................"
+  - "........................"
+  - "........................"
+  - "........................"
+  - "..................######"
+  - "........................"
+  - "........................"
+  - "........................"
+  - "........................"
+  - "........................"
+  - "........................"
+  - "########################"
+
+entrances:
+  - entrance_id: "arrival.spawn"
+    spawn_tile: [3, 16]
+    recovery_entry: true
+    checkpoint_policy: "initial_and_softlock_recovery"
+  - entrance_id: "arrival.from_stream"
+    spawn_tile: [21, 8]
+    recovery_entry: true
+    checkpoint_policy: "return_route"
+
+exits:
+  - exit_id: "arrival.to_stream"
+    trigger_rect_tiles: {x: 22, y: 6, width: 2, height: 5}
+    target_scene_id: "scene.valley.stream_section"
+    target_entrance_id: "stream.from_arrival"
+
+route_objectives:
+  - objective_id: "arrival.reach_stream"
+    predicate: "player_reaches_exit(arrival.to_stream)"
+  - objective_id: "arrival.observe_material_fall"
+    predicate: "loose_material_moves_under_gravity == true"
+
+routes:
+  - route_id: "arrival.natural_slope"
+    route_kind: "non_magic"
+    solution_family: "upper_slope_route"
+    from_entrance_id: "arrival.spawn"
+    to_exit_id: "arrival.to_stream"
+    objective_ids: [arrival.reach_stream]
+  - route_id: "arrival.shallow_water"
+    route_kind: "non_magic"
+    solution_family: "shallow_water_route"
+    from_entrance_id: "arrival.spawn"
+    to_exit_id: "arrival.to_stream"
+    objective_ids: [arrival.reach_stream]
+  - route_id: "arrival.rotten_wood_bridge"
+    route_kind: "non_magic"
+    solution_family: "place_rotten_wood"
+    from_entrance_id: "arrival.spawn"
+    to_exit_id: "arrival.to_stream"
+    objective_ids: [arrival.reach_stream, arrival.observe_material_fall]
+  - route_id: "arrival.loose_material_foothold"
+    route_kind: "non_magic"
+    solution_family: "move_loose_material"
+    from_entrance_id: "arrival.spawn"
+    to_exit_id: "arrival.to_stream"
+    objective_ids: [arrival.reach_stream, arrival.observe_material_fall]
+  - route_id: "arrival.telo_optional"
+    route_kind: "optional_magic"
+    solution_family: "manifest_water_into_old_flume"
+    from_entrance_id: "arrival.spawn"
+    to_exit_id: "arrival.to_stream"
+    objective_ids: [arrival.reach_stream]
+
+targets:
+  - {target_id: "arrival.loose_stone", target_kind: "movable_material", material: "loose_stone"}
+  - {target_id: "arrival.rotten_wood", target_kind: "movable_material", material: "rotten_wood"}
+  - {target_id: "arrival.wet_soil", target_kind: "destructible_material", material: "wet_soil"}
+  - {target_id: "arrival.old_flume", target_kind: "container", material: "wood"}
+
+interactions:
+  - {interaction_id: "arrival.move_stone", target_id: "arrival.loose_stone", verb: "move", tool_or_magic_required: false}
+  - {interaction_id: "arrival.place_wood", target_id: "arrival.rotten_wood", verb: "place", tool_or_magic_required: false}
+  - {interaction_id: "arrival.dig_soil", target_id: "arrival.wet_soil", verb: "dig", tool_or_magic_required: false}
+  - {interaction_id: "arrival.fill_flume", target_id: "arrival.old_flume", verb: "fill", optional_word_id: "word.telo"}
+
+material_patches:
+  - patch_id: "scene.patch.arrival.foothold"
+    patch_record_ref: "patch.valley.arrival_route.v0.1"
+    activation_predicate: "arrival_route_stabilized == true"
+    ordered_ops: [restore_committed_tile_delta, rebuild_collision, validate_route_clearance]
+
+recovery:
+  entry_entrance_id: "arrival.spawn"
+  maximum_softlock_recovery_seconds: 60
+  actions: [restore_loose_materials, restore_rotten_wood, clear_temporary_manifested_matter]
+  preserves: [learning_evidence, region_persistent_material_patches]

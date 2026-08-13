@@ -1,0 +1,354 @@
+:root {
+  color: #e9e2d0;
+  background: #07080a;
+  font-family: ui-monospace, "Cascadia Mono", "Microsoft YaHei UI", monospace;
+  font-synthesis: none;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  min-width: 320px;
+  min-height: 100%;
+  margin: 0;
+  background: #07080a;
+}
+
+button,
+a {
+  font: inherit;
+}
+
+button {
+  color: #e9e2d0;
+  border: 1px solid #51483a;
+  border-radius: 0;
+  background: #18191a;
+  cursor: pointer;
+}
+
+button:hover:not(:disabled),
+button:focus-visible {
+  border-color: #d1a655;
+  background: #28231b;
+  outline: 1px solid #f1ce79;
+  outline-offset: 1px;
+}
+
+button:disabled {
+  color: #625f59;
+  cursor: not-allowed;
+}
+
+#app {
+  min-height: 100vh;
+  padding: max(8px, env(safe-area-inset-top)) 8px max(14px, env(safe-area-inset-bottom));
+}
+
+.rpg-shell {
+  width: min(100%, 460px);
+  margin: 0 auto;
+}
+
+.rpg-header,
+.hud-row,
+.meter-row,
+.telo-panel,
+.command-row,
+.touch-controls {
+  display: flex;
+  align-items: center;
+}
+
+.rpg-header {
+  justify-content: space-between;
+  gap: 16px;
+  padding: 3px 1px 7px;
+}
+
+.rpg-header h1,
+.rpg-header p,
+.hud p,
+.status,
+.telo-panel p {
+  margin: 0;
+}
+
+.rpg-header h1 {
+  font-family: "Microsoft YaHei UI", sans-serif;
+  font-size: 18px;
+  letter-spacing: 0.12em;
+}
+
+.rpg-header a {
+  color: #b9a778;
+  font-size: 10px;
+  text-decoration: none;
+}
+
+.eyebrow {
+  color: #817b6e;
+  font-size: 8px;
+  letter-spacing: 0.14em;
+}
+
+.notice,
+.hud,
+.telo-panel,
+.status,
+.command-row {
+  border: 1px solid #39352e;
+  background: #101113;
+}
+
+.notice {
+  margin-bottom: 6px;
+  padding: 6px 8px;
+  color: #aaa18e;
+  font-size: 9px;
+  line-height: 1.5;
+}
+
+.hud {
+  margin-bottom: 6px;
+  padding: 7px 8px;
+}
+
+.hud-row,
+.meter-row {
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.hud-row strong {
+  color: #e7c373;
+  font-size: 11px;
+}
+
+.hud-row span,
+.hud p,
+.meter-row {
+  color: #9b9588;
+  font-size: 9px;
+}
+
+.meter-row {
+  margin-top: 6px;
+}
+
+.meter-row span {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.meter-row em {
+  color: #c7c0b2;
+  font-style: normal;
+}
+
+.meter {
+  display: inline-block;
+  width: 48px;
+  height: 5px;
+  background: #25272a;
+}
+
+.meter b {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.meter-health b {
+  background: #a74332;
+}
+
+.meter-mp b {
+  background: #3f75a8;
+}
+
+.hud p {
+  margin-top: 6px;
+  line-height: 1.4;
+}
+
+.game-frame {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid #554b3a;
+  background: #050608;
+  box-shadow: 0 12px 34px rgb(0 0 0 / 55%);
+}
+
+#rpg-canvas {
+  display: block;
+  width: 100%;
+  aspect-ratio: 9 / 16;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  touch-action: none;
+}
+
+.scene-shade {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 50% 70%, transparent 0 18%, rgb(0 0 0 / 24%) 72%);
+  pointer-events: none;
+}
+
+.interaction-hint {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  max-width: calc(100% - 12px);
+  padding: 4px 6px;
+  color: #8f8a80;
+  background: rgb(5 7 8 / 86%);
+  border-left: 2px solid #4d4a43;
+  font-size: 8px;
+  pointer-events: none;
+}
+
+.interaction-hint[data-active="true"] {
+  color: #f1d68e;
+  border-color: #e2ac4b;
+}
+
+.telo-panel {
+  --activation: 0;
+  display: grid;
+  grid-template-columns: 42px 1fr auto;
+  gap: 8px;
+  margin-top: 6px;
+  padding: 7px;
+}
+
+.glyph-placeholder {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  color: rgb(132 163 168 / calc(45% + var(--activation) * 55%));
+  border: 1px solid rgb(85 109 113 / calc(55% + var(--activation) * 45%));
+  background: rgb(19 27 29);
+  box-shadow:
+    inset 0 0 0 3px #101416,
+    0 0 calc(var(--activation) * 13px) rgb(99 210 239 / calc(var(--activation) * 70%));
+}
+
+.glyph-placeholder span {
+  font-size: 8px;
+  letter-spacing: 0.08em;
+}
+
+.telo-panel[data-phase="undiscovered"] .glyph-placeholder span {
+  opacity: 0;
+}
+
+.telo-panel strong,
+.telo-panel small {
+  display: block;
+}
+
+.telo-panel strong {
+  margin-top: 3px;
+  color: rgb(
+    calc(150 + var(--activation) * 70)
+    calc(164 + var(--activation) * 70)
+    calc(165 + var(--activation) * 70)
+  );
+  font-size: 10px;
+}
+
+.telo-panel small {
+  margin-top: 3px;
+  color: #78746c;
+  font-size: 7px;
+}
+
+.telo-panel button {
+  min-width: 70px;
+  padding: 5px;
+  font-size: 9px;
+}
+
+.status {
+  min-height: 29px;
+  margin-top: 6px;
+  padding: 6px 8px;
+  color: #a8a195;
+  font-size: 9px;
+  line-height: 1.5;
+}
+
+.status[data-tone="success"] {
+  color: #9bd6ac;
+}
+
+.status[data-tone="warning"] {
+  color: #dfc175;
+}
+
+.status[data-tone="danger"] {
+  color: #e68a7c;
+}
+
+.command-row,
+.touch-controls {
+  gap: 5px;
+  margin-top: 6px;
+  padding: 6px;
+}
+
+.command-row button {
+  flex: 1;
+  min-height: 31px;
+  padding: 4px;
+  font-size: 8px;
+}
+
+.touch-controls {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1.2fr 1.2fr;
+  border: 1px solid #2b2b29;
+  background: #0c0d0f;
+}
+
+.touch-controls button {
+  min-height: 46px;
+  padding: 6px;
+  font-size: 11px;
+  touch-action: none;
+  user-select: none;
+}
+
+@media (hover: hover) and (pointer: fine) and (min-width: 700px) {
+  .touch-controls {
+    opacity: 0.72;
+  }
+}
+
+@media (max-width: 370px) {
+  .telo-panel {
+    grid-template-columns: 38px 1fr;
+  }
+
+  .telo-panel button {
+    grid-column: 1 / -1;
+  }
+
+  .command-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .glyph-placeholder {
+    transition: none;
+  }
+}

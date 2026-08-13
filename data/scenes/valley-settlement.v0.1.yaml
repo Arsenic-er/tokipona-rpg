@@ -1,0 +1,203 @@
+schema_version: "g01.scene.v0.1"
+content_version: "chapter-01.valley-settlement.1"
+scene_id: "scene.valley.settlement"
+region_id: "valley_prologue"
+region_node_id: "valley.settlement"
+chapter_flow_id: "ch01_world_literacy_prologue"
+chapter_segment_id: "settlement_orientation"
+status: "graybox_machine_ready"
+tile_size_px: 16
+size_tiles: {width: 40, height: 30}
+collision_rows_top_down:
+  - "........................................"
+  - "........................................"
+  - "........................................"
+  - "........................................"
+  - "........................................"
+  - "........................................"
+  - "........................................"
+  - "........................................"
+  - "........................................"
+  - "........................................"
+  - "........................................"
+  - "........................................"
+  - "........................................"
+  - "........................................"
+  - "........................................"
+  - "........................................"
+  - "........................................"
+  - "........................................"
+  - "........................................"
+  - "........................................"
+  - "........................................"
+  - "........................................"
+  - "........................................"
+  - "........................................"
+  - "........................................"
+  - "........................................"
+  - "........................................"
+  - "........................................"
+  - "........................................"
+  - "########################################"
+
+entrances:
+  - entrance_id: "settlement.from_stream"
+    spawn_tile: [2, 1]
+    recovery_entry: true
+    checkpoint_policy: "scene_entry_and_softlock_recovery"
+  - entrance_id: "settlement.from_waterwheel"
+    spawn_tile: [37, 1]
+    recovery_entry: true
+    checkpoint_policy: "return_route"
+
+inbound_route_refs:
+  - inbound_ref_id: "settlement.inbound_from_stream"
+    source_scene_id: "scene.valley.stream_section"
+    source_exit_id: "stream.to_settlement"
+    entrance_id: "settlement.from_stream"
+
+exits:
+  - exit_id: "settlement.to_stream"
+    trigger_rect_tiles: {x: 0, y: 0, width: 2, height: 7}
+    target_scene_id: "scene.valley.stream_section"
+    target_entrance_id: "stream.from_settlement"
+  - exit_id: "settlement.to_waterwheel"
+    trigger_rect_tiles: {x: 38, y: 0, width: 2, height: 7}
+    target_region_node_id: "valley.waterwheel"
+
+route_objectives:
+  - objective_id: "settlement.use_public_relief"
+    predicate: "public_well_used == true && communal_plant_meal_offered == true"
+  - objective_id: "settlement.meet_service_people"
+    predicate: "facility_manager_met == true && repair_contractor_met == true && supply_trader_met == true"
+  - objective_id: "settlement.activate_meditation_court"
+    predicate: "meditation_court_activated == true"
+  - objective_id: "settlement.inspect_survey_markers"
+    predicate: "survey_markers_inspected >= 3"
+  - objective_id: "settlement.complete_survey"
+    predicate: "quest(ch01_settlement_orientation).status == completed"
+  - objective_id: "settlement.reach_waterwheel"
+    predicate: "player_reaches_exit(settlement.to_waterwheel)"
+
+routes:
+  - route_id: "settlement.people_guided_orientation"
+    route_kind: "non_magic"
+    solution_family: "ask_facility_people"
+    from_entrance_id: "settlement.from_stream"
+    to_exit_id: "settlement.to_waterwheel"
+    objective_ids: [settlement.meet_service_people, settlement.activate_meditation_court, settlement.reach_waterwheel]
+  - route_id: "settlement.marker_survey_orientation"
+    route_kind: "non_magic"
+    solution_family: "survey_public_infrastructure"
+    from_entrance_id: "settlement.from_stream"
+    to_exit_id: "settlement.to_waterwheel"
+    objective_ids: [settlement.use_public_relief, settlement.complete_survey, settlement.activate_meditation_court, settlement.reach_waterwheel]
+
+targets:
+  - {target_id: "settlement.npc.facility_manager", target_kind: "npc", material: "living_noncombatant"}
+  - {target_id: "settlement.npc.repair_contractor", target_kind: "npc", material: "living_noncombatant"}
+  - {target_id: "settlement.npc.supply_trader", target_kind: "npc", material: "living_noncombatant"}
+  - {target_id: "settlement.public_well", target_kind: "public_relief", material: "stone_and_water"}
+  - {target_id: "settlement.communal_kitchen", target_kind: "public_relief", material: "wood_and_food"}
+  - {target_id: "settlement.meditation_court", target_kind: "learning_facility", material: "stone"}
+  - {target_id: "settlement.repair_board", target_kind: "job_board", material: "wood"}
+  - {target_id: "settlement.survey_markers", target_kind: "survey_route", material: "wood_and_charcoal"}
+  - {target_id: "settlement.supply_stall", target_kind: "trade_counter", material: "wood"}
+
+npcs:
+  - npc_id: "settlement.npc.facility_manager"
+    profession_id: "settlement.facility_manager"
+    profession_label_zh: "设施主管"
+    functions: [orientation, checkpoint_explanation, public_service_explanation]
+    interaction_ids: [settlement.talk_facility_manager]
+  - npc_id: "settlement.npc.repair_contractor"
+    profession_id: "settlement.repair_contractor"
+    profession_label_zh: "维修承包人"
+    functions: [job_assignment, repair_board, route_advice]
+    interaction_ids: [settlement.talk_repair_contractor, settlement.inspect_repair_board, settlement.accept_survey, settlement.submit_survey]
+  - npc_id: "settlement.npc.supply_trader"
+    profession_id: "settlement.supply_trader"
+    profession_label_zh: "补给商"
+    functions: [trade_entry, ration_explanation, canteen_refill]
+    interaction_ids: [settlement.talk_supply_trader, settlement.open_supply_trade]
+
+facilities:
+  - facility_id: "settlement.facility.public_well"
+    facility_kind: "public_well"
+    target_id: "settlement.public_well"
+    interaction_ids: [settlement.draw_public_water]
+    public_relief: true
+    economy_eligible: false
+  - facility_id: "settlement.facility.communal_kitchen"
+    facility_kind: "communal_plant_meal"
+    target_id: "settlement.communal_kitchen"
+    interaction_ids: [settlement.take_plant_meal]
+    public_relief: true
+    economy_eligible: false
+  - facility_id: "settlement.facility.meditation_court"
+    facility_kind: "public_meditation_court"
+    target_id: "settlement.meditation_court"
+    interaction_ids: [settlement.meditate]
+    public_relief: false
+    economy_eligible: false
+  - facility_id: "settlement.facility.repair_board"
+    facility_kind: "job_board"
+    target_id: "settlement.repair_board"
+    interaction_ids: [settlement.inspect_repair_board, settlement.accept_survey]
+    public_relief: false
+    economy_eligible: false
+  - facility_id: "settlement.facility.supply_stall"
+    facility_kind: "trade_entry"
+    target_id: "settlement.supply_stall"
+    interaction_ids: [settlement.open_supply_trade]
+    public_relief: false
+    economy_eligible: true
+
+interactions:
+  - {interaction_id: "settlement.talk_facility_manager", target_id: "settlement.npc.facility_manager", verb: "talk", npc_id: "settlement.npc.facility_manager", tool_or_magic_required: false}
+  - {interaction_id: "settlement.talk_repair_contractor", target_id: "settlement.npc.repair_contractor", verb: "talk", npc_id: "settlement.npc.repair_contractor", tool_or_magic_required: false}
+  - {interaction_id: "settlement.talk_supply_trader", target_id: "settlement.npc.supply_trader", verb: "talk", npc_id: "settlement.npc.supply_trader", tool_or_magic_required: false}
+  - {interaction_id: "settlement.draw_public_water", target_id: "settlement.public_well", verb: "drink_or_fill", facility_id: "settlement.facility.public_well", tool_or_magic_required: false}
+  - {interaction_id: "settlement.take_plant_meal", target_id: "settlement.communal_kitchen", verb: "eat", facility_id: "settlement.facility.communal_kitchen", tool_or_magic_required: false}
+  - {interaction_id: "settlement.meditate", target_id: "settlement.meditation_court", verb: "meditate", facility_id: "settlement.facility.meditation_court", tool_or_magic_required: false}
+  - {interaction_id: "settlement.inspect_repair_board", target_id: "settlement.repair_board", verb: "inspect", npc_id: "settlement.npc.repair_contractor", facility_id: "settlement.facility.repair_board", task_id: "ch01_settlement_orientation", tool_or_magic_required: false}
+  - {interaction_id: "settlement.accept_survey", target_id: "settlement.repair_board", verb: "accept_job", npc_id: "settlement.npc.repair_contractor", facility_id: "settlement.facility.repair_board", task_id: "ch01_settlement_orientation", tool_or_magic_required: false}
+  - {interaction_id: "settlement.inspect_survey_markers", target_id: "settlement.survey_markers", verb: "survey", task_id: "ch01_settlement_orientation", tool_or_magic_required: false}
+  - {interaction_id: "settlement.submit_survey", target_id: "settlement.npc.repair_contractor", verb: "submit_job", npc_id: "settlement.npc.repair_contractor", task_id: "ch01_settlement_orientation", tool_or_magic_required: false}
+  - {interaction_id: "settlement.open_supply_trade", target_id: "settlement.supply_stall", verb: "trade", npc_id: "settlement.npc.supply_trader", facility_id: "settlement.facility.supply_stall", tool_or_magic_required: false}
+
+tasks:
+  - task_id: "ch01_settlement_orientation"
+    task_family_id: "community_orientation"
+    assignment_npc_id: "settlement.npc.repair_contractor"
+    objective_ids: [settlement.inspect_survey_markers]
+    interaction_ids: [settlement.accept_survey, settlement.inspect_survey_markers, settlement.submit_survey]
+    nonviolent: true
+    magic_required: false
+    required_for_mainline: false
+    solution_families: [survey_route_markers, interview_facility_workers]
+    reward: {currency: "coin", amount: 10, claim_once: true, receipt_required: true}
+    reward_idempotency_key_fields: [player_save_id, task_id]
+    recovery_actions: [reissue_nontradeable_survey_slate, restore_checkpoint_local_markers, preserve_completed_objectives, never_duplicate_reward_receipt]
+
+trade_entries:
+  - trade_entry_id: "settlement.trade.supply_stall"
+    npc_id: "settlement.npc.supply_trader"
+    interaction_id: "settlement.open_supply_trade"
+    authoritative_economy_ref: "../economy/settlement-trade.v0.1.yaml"
+    merchant_ids: [settlement.grocer]
+    scene_defines_catalog_or_prices: false
+
+soft_failure_recoveries:
+  - {failure_id: "settlement.lost_survey_slate", action: "reissue_nontradeable_survey_slate", preserves: [survey_progress, wallet, learning_evidence]}
+  - {failure_id: "settlement.misplaced_markers", action: "restore_checkpoint_local_markers", preserves: [survey_progress, wallet, learning_evidence]}
+  - {failure_id: "settlement.job_declined", action: "keep_people_guided_orientation_available", preserves: [mainline_access, public_relief, meditation_access]}
+  - {failure_id: "settlement.no_coin", action: "keep_public_services_free", preserves: [mainline_access, public_relief, meditation_access]}
+
+material_patches: []
+
+recovery:
+  entry_entrance_id: "settlement.from_stream"
+  maximum_softlock_recovery_seconds: 60
+  actions: [restore_public_route, reissue_nontradeable_survey_slate, restore_checkpoint_local_markers, reopen_people_guided_orientation]
+  preserves: [learning_evidence, quest_completion, reward_receipts, wallet, public_relief_claim_state, meditation_court_activated]

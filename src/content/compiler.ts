@@ -1,4 +1,4 @@
-﻿import type {
+import type {
   CompiledSource,
   ContentIssue,
   ContentKind,
@@ -39,6 +39,7 @@ const ALL_KINDS: readonly ContentKind[] = [
   "p0_curriculum",
   "persistence",
   "region",
+  "scene",
   "settlement_trade",
   "single_word_spells",
   "survival",
@@ -136,6 +137,7 @@ interface MutableIndexes {
   attackSignatures: Record<string, ContentObject>;
   chapters: Record<string, ContentObject>;
   regions: Record<string, ContentObject>;
+  scenes: Record<string, ContentObject>;
   ecologies: Record<string, ContentObject>;
   economies: Record<string, ContentObject>;
   persistenceCoordinators: Record<string, ContentObject>;
@@ -208,6 +210,9 @@ function validateSource(
       break;
     case "chapter":
       validateArrayIds(source, "segments", "segment_id", issues);
+      break;
+    case "scene":
+      validateSceneSource(source, issues);
       break;
     case "region":
       validateArrayIds(source, "nodes", "node_id", issues);
@@ -311,6 +316,7 @@ function buildIndexes(sources: readonly CompiledSource[], issues: ContentIssue[]
     attackSignatures: {},
     chapters: {},
     regions: {},
+    scenes: {},
     ecologies: {},
     economies: {},
     persistenceCoordinators: {},
@@ -336,6 +342,9 @@ function buildIndexes(sources: readonly CompiledSource[], issues: ContentIssue[]
         break;
       case "region":
         indexRoot(source, "region_id", indexes.regions, issues);
+        break;
+      case "scene":
+        indexRoot(source, "scene_id", indexes.scenes, issues);
         break;
       case "ecology":
         indexRoot(source, "ecology_id", indexes.ecologies, issues);
@@ -476,6 +485,9 @@ function validateCrossDomainReferences(
     if (source.kind === "region") {
       validateRegionReferences(source, graphIds, issues);
     }
+    if (source.kind === "scene") {
+      validateSceneReferences(source, sources, indexes, issues);
+    }
     if (source.kind === "wildlife_economy") {
       validateEconomyItemReferences(source, issues);
     }
@@ -491,6 +503,265 @@ function validateCrossDomainReferences(
   }
 }
 
+function validateSceneSource(source: CompiledSource, issues: ContentIssue[]): void {
+  validateArrayIds(source, "entrances", "entrance_id", issues);
+  validateArrayIds(source, "exits", "exit_id", issues);
+  validateArrayIds(source, "targets", "target_id", issues);
+  validateArrayIds(source, "interactions", "interaction_id", issues);
+  validateArrayIds(source, "route_objectives", "objective_id", issues);
+  validateArrayIds(source, "routes", "route_id", issues);
+  validateArrayIds(source, "material_patches", "patch_id", issues);
+  validateArrayIds(source, "npcs", "npc_id", issues, false);
+  validateArrayIds(source, "facilities", "facility_id", issues, false);
+  validateArrayIds(source, "tasks", "task_id", issues, false);
+  validateArrayIds(source, "trade_entries", "trade_entry_id", issues, false);
+  validateArrayIds(source, "inbound_route_refs", "inbound_ref_id", issues, false);
+  validateArrayIds(source, "soft_failure_recoveries", "failure_id", issues, false);
+  const sceneId = readString(source.content, "scene_id");
+  if (!sceneId.startsWith("scene.")) addIssue(issues, "scene.id", source.path, "scene_id", "scene_id must start with scene.");
+  if (readNumber(source.content, "tile_size_px") !== 16) addIssue(issues, "scene.tile_size", source.path, "tile_size_px", "scene tile size must be exactly 16 logical pixels");
+  const size = readObject(source.content, "size_tiles");
+  for (const field of ["width", "height"] as const) {
+    const value = readNumber(size, field);
+    if (value === null || !Number.isInteger(value) || value <= 0) addIssue(issues, "scene.size", source.path, `size_tiles.${field}`, "scene dimension must be a positive integer tile count");
+  }
+  const collisionRows = readStringArray(source.content, "collision_rows_top_down");
+  const width = readNumber(size, "width");
+  const height = readNumber(size, "height");
+  if (height !== null && collisionRows.length !== height) {
+    addIssue(issues, "scene.collision_height", source.path, "collision_rows_top_down", `expected ${height} collision rows, received ${collisionRows.length}`);
+  }
+  collisionRows.forEach((row, index) => {
+    if (width !== null && row.length !== width) addIssue(issues, "scene.collision_width", source.path, `collision_rows_top_down[${index}]`, `expected row width ${width}, received ${row.length}`);
+    if (/[^.#]/u.test(row)) addIssue(issues, "scene.collision_symbol", source.path, `collision_rows_top_down[${index}]`, "collision row may contain only . and #");
+  });  validateSceneStaticReachability(source, collisionRows, width, height, issues);
+
+  const entrances = readObjectArray(source.content, "entrances");
+  const exits = readObjectArray(source.content, "exits");
+  if (entrances.length === 0) addIssue(issues, "scene.entrance_required", source.path, "entrances", "at least one entrance is required");
+  if (exits.length === 0) addIssue(issues, "scene.exit_required", source.path, "exits", "at least one exit is required");
+  const entranceIds = new Set(entrances.map((entry) => readString(entry, "entrance_id")));
+  const exitIds = new Set(exits.map((entry) => readString(entry, "exit_id")));
+  const targetIds = new Set(readObjectArray(source.content, "targets").map((target) => readString(target, "target_id")));
+  const objectiveIds = new Set(readObjectArray(source.content, "route_objectives").map((objective) => readString(objective, "objective_id")));
+  const interactions = readObjectArray(source.content, "interactions");
+  const interactionIds = new Set(interactions.map((interaction) => readString(interaction, "interaction_id")));
+  const npcs = readObjectArray(source.content, "npcs");
+  const npcIds = new Set(npcs.map((npc) => readString(npc, "npc_id")));
+  const facilities = readObjectArray(source.content, "facilities");
+  const facilityIds = new Set(facilities.map((facility) => readString(facility, "facility_id")));
+  const tasks = readObjectArray(source.content, "tasks");
+  const taskIds = new Set(tasks.map((task) => readString(task, "task_id")));
+  if (!entrances.some((entry) => entry.recovery_entry === true)) addIssue(issues, "scene.recovery_entrance_missing", source.path, "entrances", "at least one entrance must declare recovery_entry: true");
+  for (const [index, interaction] of interactions.entries()) {
+    const target = readString(interaction, "target_id");
+    if (!targetIds.has(target)) addIssue(issues, "ref.missing", source.path, `interactions[${index}].target_id`, `unknown scene target ${target}`);
+    const npcId = readString(interaction, "npc_id");
+    const facilityId = readString(interaction, "facility_id");
+    const taskId = readString(interaction, "task_id");
+    if (npcId && !npcIds.has(npcId)) addIssue(issues, "ref.missing", source.path, `interactions[${index}].npc_id`, `unknown scene NPC ${npcId}`);
+    if (facilityId && !facilityIds.has(facilityId)) addIssue(issues, "ref.missing", source.path, `interactions[${index}].facility_id`, `unknown scene facility ${facilityId}`);
+    if (taskId && !taskIds.has(taskId)) addIssue(issues, "ref.missing", source.path, `interactions[${index}].task_id`, `unknown scene task ${taskId}`);
+  }
+  for (const [index, npc] of npcs.entries()) {
+    for (const [refIndex, interactionId] of readStringArray(npc, "interaction_ids").entries()) {
+      if (!interactionIds.has(interactionId)) addIssue(issues, "ref.missing", source.path, `npcs[${index}].interaction_ids[${refIndex}]`, `unknown interaction ${interactionId}`);
+    }
+  }
+  for (const [index, facility] of facilities.entries()) {
+    const targetId = readString(facility, "target_id");
+    if (!targetIds.has(targetId)) addIssue(issues, "ref.missing", source.path, `facilities[${index}].target_id`, `unknown scene target ${targetId}`);
+    for (const [refIndex, interactionId] of readStringArray(facility, "interaction_ids").entries()) {
+      if (!interactionIds.has(interactionId)) addIssue(issues, "ref.missing", source.path, `facilities[${index}].interaction_ids[${refIndex}]`, `unknown interaction ${interactionId}`);
+    }
+    if (facility.public_relief === true && facility.economy_eligible !== false) {
+      addIssue(issues, "scene.public_relief_trade_forbidden", source.path, `facilities[${index}].economy_eligible`, "public relief facilities must be economy-ineligible");
+    }
+  }
+  for (const [index, task] of tasks.entries()) {
+    const npcId = readString(task, "assignment_npc_id");
+    if (!npcIds.has(npcId)) addIssue(issues, "ref.missing", source.path, `tasks[${index}].assignment_npc_id`, `unknown assignment NPC ${npcId}`);
+    for (const [refIndex, objectiveId] of readStringArray(task, "objective_ids").entries()) {
+      if (!objectiveIds.has(objectiveId)) addIssue(issues, "ref.missing", source.path, `tasks[${index}].objective_ids[${refIndex}]`, `unknown route objective ${objectiveId}`);
+    }
+    for (const [refIndex, interactionId] of readStringArray(task, "interaction_ids").entries()) {
+      if (!interactionIds.has(interactionId)) addIssue(issues, "ref.missing", source.path, `tasks[${index}].interaction_ids[${refIndex}]`, `unknown interaction ${interactionId}`);
+    }
+    if (sceneId === "scene.valley.settlement") {
+      if (task.nonviolent !== true || task.magic_required !== false) {
+        addIssue(issues, "scene.orientation_job_contract", source.path, `tasks[${index}]`, "settlement orientation jobs must be explicitly nonviolent and must not require magic");
+      }
+      const reward = readObject(task, "reward");
+      if (reward.claim_once !== true || reward.receipt_required !== true) {
+        addIssue(issues, "scene.reward_receipt_required", source.path, `tasks[${index}].reward`, "settlement currency rewards must be claim-once and receipt-backed");
+      }
+    }
+  }
+  for (const [index, trade] of readObjectArray(source.content, "trade_entries").entries()) {
+    const npcId = readString(trade, "npc_id");
+    const interactionId = readString(trade, "interaction_id");
+    if (!npcIds.has(npcId)) addIssue(issues, "ref.missing", source.path, `trade_entries[${index}].npc_id`, `unknown scene NPC ${npcId}`);
+    if (!interactionIds.has(interactionId)) addIssue(issues, "ref.missing", source.path, `trade_entries[${index}].interaction_id`, `unknown interaction ${interactionId}`);
+    if (trade.scene_defines_catalog_or_prices !== false) addIssue(issues, "scene.trade_truth_duplicated", source.path, `trade_entries[${index}].scene_defines_catalog_or_prices`, "scene trade entries must defer catalogs and prices to the economy source");
+  }
+  const routes = readObjectArray(source.content, "routes");
+  if (!routes.some((route) => readString(route, "route_kind") === "non_magic")) addIssue(issues, "scene.non_magic_route_missing", source.path, "routes", "at least one route must declare route_kind: non_magic");
+  for (const [index, route] of routes.entries()) {
+    const entrance = readString(route, "from_entrance_id");
+    const exit = readString(route, "to_exit_id");
+    if (!entranceIds.has(entrance)) addIssue(issues, "ref.missing", source.path, `routes[${index}].from_entrance_id`, `unknown entrance ${entrance}`);
+    if (!exitIds.has(exit)) addIssue(issues, "ref.missing", source.path, `routes[${index}].to_exit_id`, `unknown exit ${exit}`);
+    for (const [objectiveIndex, objective] of readStringArray(route, "objective_ids").entries()) {
+      if (!objectiveIds.has(objective)) addIssue(issues, "ref.missing", source.path, `routes[${index}].objective_ids[${objectiveIndex}]`, `unknown route objective ${objective}`);
+    }
+  }
+  const recoveryEntrance = readNestedString(source.content, ["recovery", "entry_entrance_id"]);
+  if (!entranceIds.has(recoveryEntrance)) addIssue(issues, "ref.missing", source.path, "recovery.entry_entrance_id", `unknown recovery entrance ${recoveryEntrance}`);
+}
+
+function validateSceneStaticReachability(
+  source: CompiledSource,
+  collisionRows: readonly string[],
+  width: number | null,
+  height: number | null,
+  issues: ContentIssue[],
+): void {
+  if (width === null || height === null || !Number.isInteger(width) || !Number.isInteger(height) || collisionRows.length !== height || collisionRows.some((row) => row.length !== width)) return;
+  const starts: Array<{ readonly id: string; readonly x: number; readonly row: number }> = [];
+  for (const [index, entrance] of readObjectArray(source.content, "entrances").entries()) {
+    const spawn = entrance.spawn_tile;
+    if (!Array.isArray(spawn) || spawn.length !== 2 || !spawn.every((value) => typeof value === "number" && Number.isInteger(value))) {
+      addIssue(issues, "scene.spawn_tile", source.path, `entrances[${index}].spawn_tile`, "spawn tile must be an integer [x, y] pair");
+      continue;
+    }
+    const x = spawn[0] as number;
+    const authoredY = spawn[1] as number;
+    const supportRow: number = height - authoredY;
+    const standingRow = supportRow - 1;
+    if (x < 0 || x >= width || standingRow < 0 || supportRow >= height || collisionRows[standingRow]?.[x] !== "." || collisionRows[supportRow]?.[x] !== "#") {
+      addIssue(issues, "scene.entrance_unsupported", source.path, `entrances[${index}].spawn_tile`, "entrance must stand in an empty tile directly above collision support");
+      continue;
+    }
+    starts.push({ id: readString(entrance, "entrance_id"), x, row: standingRow });
+  }
+  const reachableByStart = starts.map((start) => ({ start, cells: floodEmptyTiles(collisionRows, width, height, start.x, start.row) }));
+  for (const [index, exit] of readObjectArray(source.content, "exits").entries()) {
+    const rect = readObject(exit, "trigger_rect_tiles");
+    const x = readNumber(rect, "x");
+    const y = readNumber(rect, "y");
+    const rectWidth = readNumber(rect, "width");
+    const rectHeight = readNumber(rect, "height");
+    if ([x, y, rectWidth, rectHeight].some((value) => value === null || !Number.isInteger(value)) || x === null || y === null || rectWidth === null || rectHeight === null || rectWidth <= 0 || rectHeight <= 0 || x < 0 || y < 0 || x + rectWidth > width || y + rectHeight > height) {
+      addIssue(issues, "scene.exit_bounds", source.path, `exits[${index}].trigger_rect_tiles`, "exit trigger must be a positive integer rectangle inside the scene");
+      continue;
+    }
+    const topRow = height - y - rectHeight;
+    const bottomRow = height - y - 1;
+    const targetKeys = new Set<string>();
+    for (let row = topRow; row <= bottomRow; row += 1) {
+      for (let column = x; column < x + rectWidth; column += 1) {
+        if (collisionRows[row]?.[column] === ".") targetKeys.add(`${column},${row}`);
+      }
+    }
+    const reachable = targetKeys.size > 0 && reachableByStart.some(({ cells }) => [...targetKeys].some((key) => cells.has(key)));
+    if (!reachable) addIssue(issues, "scene.exit_unreachable", source.path, `exits[${index}].trigger_rect_tiles`, "no supported entrance has a static empty-tile route to this exit trigger");
+  }
+}
+
+function floodEmptyTiles(rows: readonly string[], width: number, height: number, startX: number, startRow: number): ReadonlySet<string> {
+  const visited = new Set<string>();
+  const queue: Array<readonly [number, number]> = [[startX, startRow]];
+  for (let cursor = 0; cursor < queue.length; cursor += 1) {
+    const [x, row] = queue[cursor]!;
+    const key = `${x},${row}`;
+    if (visited.has(key) || x < 0 || x >= width || row < 0 || row >= height || rows[row]?.[x] !== ".") continue;
+    visited.add(key);
+    queue.push([x - 1, row], [x + 1, row], [x, row - 1], [x, row + 1]);
+  }
+  return visited;
+}
+function validateSceneReferences(source: CompiledSource, sources: readonly CompiledSource[], indexes: MutableIndexes, issues: ContentIssue[]): void {
+  const regionId = readString(source.content, "region_id");
+  const chapterId = readString(source.content, "chapter_flow_id");
+  const segmentId = readString(source.content, "chapter_segment_id");
+  const nodeId = readString(source.content, "region_node_id");
+  const region = indexes.regions[regionId];
+  const chapter = indexes.chapters[chapterId];
+  if (!region) addIssue(issues, "ref.missing", source.path, "region_id", `unknown region ${regionId}`);
+  if (!chapter) addIssue(issues, "ref.missing", source.path, "chapter_flow_id", `unknown chapter ${chapterId}`);
+  const regionNodes = new Map((region ? readObjectArray(region, "nodes") : []).map((node) => [readString(node, "node_id"), node]));
+  const node = regionNodes.get(nodeId);
+  if (!node) addIssue(issues, "ref.missing", source.path, "region_node_id", `unknown region node ${nodeId}`);
+  else if (readString(node, "scene_id") !== readString(source.content, "scene_id")) addIssue(issues, "ref.mismatch", source.path, "scene_id", `region node ${nodeId} declares scene ${readString(node, "scene_id")}`);
+  const segments = chapter ? readObjectArray(chapter, "segments") : [];
+  const segment = segments.find((candidate) => readString(candidate, "segment_id") === segmentId);
+  if (!segment) addIssue(issues, "ref.missing", source.path, "chapter_segment_id", `unknown chapter segment ${segmentId}`);
+  const declaredTaskIds = new Set(segment ? [
+    ...readStringArray(segment, "task_ids"),
+    ...readStringArray(segment, "required_task_ids"),
+    ...readStringArray(segment, "optional_task_ids"),
+  ] : []);
+  for (const [index, task] of readObjectArray(source.content, "tasks").entries()) {
+    const taskId = readString(task, "task_id");
+    if (!declaredTaskIds.has(taskId)) addIssue(issues, "ref.missing", source.path, `tasks[${index}].task_id`, `task ${taskId} is not declared by chapter segment ${segmentId}`);
+    const familyId = readString(task, "task_family_id");
+    if (segment && familyId !== readString(segment, "task_family_id")) addIssue(issues, "ref.mismatch", source.path, `tasks[${index}].task_family_id`, `chapter segment declares task family ${readString(segment, "task_family_id")}`);
+  }
+  for (const [index, exit] of readObjectArray(source.content, "exits").entries()) {
+    const targetSceneId = readString(exit, "target_scene_id");
+    const targetNodeId = readString(exit, "target_region_node_id");
+    if (targetSceneId) {
+      const targetScene = indexes.scenes[targetSceneId];
+      if (!targetScene) addIssue(issues, "ref.missing", source.path, `exits[${index}].target_scene_id`, `unknown target scene ${targetSceneId}`);
+      else {
+        const targetEntranceId = readString(exit, "target_entrance_id");
+        const targetEntrances = new Set(readObjectArray(targetScene, "entrances").map((entry) => readString(entry, "entrance_id")));
+        if (!targetEntrances.has(targetEntranceId)) addIssue(issues, "ref.missing", source.path, `exits[${index}].target_entrance_id`, `unknown target entrance ${targetEntranceId}`);
+      }
+    } else if (targetNodeId) {
+      if (!regionNodes.has(targetNodeId)) addIssue(issues, "ref.missing", source.path, `exits[${index}].target_region_node_id`, `unknown target region node ${targetNodeId}`);
+    } else addIssue(issues, "scene.exit_target_required", source.path, `exits[${index}]`, "exit must declare target_scene_id or target_region_node_id");
+  }
+  const localEntranceIds = new Set(readObjectArray(source.content, "entrances").map((entry) => readString(entry, "entrance_id")));
+  for (const [index, inbound] of readObjectArray(source.content, "inbound_route_refs").entries()) {
+    const sourceSceneId = readString(inbound, "source_scene_id");
+    const sourceScene = indexes.scenes[sourceSceneId];
+    if (!sourceScene) {
+      addIssue(issues, "ref.missing", source.path, `inbound_route_refs[${index}].source_scene_id`, `unknown source scene ${sourceSceneId}`);
+      continue;
+    }
+    const sourceExitId = readString(inbound, "source_exit_id");
+    const sourceExit = readObjectArray(sourceScene, "exits").find((exit) => readString(exit, "exit_id") === sourceExitId);
+    if (!sourceExit) addIssue(issues, "ref.missing", source.path, `inbound_route_refs[${index}].source_exit_id`, `unknown source exit ${sourceExitId}`);
+    else {
+      const directSceneId = readString(sourceExit, "target_scene_id");
+      const targetRegionNodeId = readString(sourceExit, "target_region_node_id");
+      const currentSceneId = readString(source.content, "scene_id");
+      if (directSceneId !== currentSceneId && targetRegionNodeId !== nodeId) {
+        addIssue(issues, "ref.mismatch", source.path, `inbound_route_refs[${index}].source_exit_id`, `source exit does not target scene ${currentSceneId} or region node ${nodeId}`);
+      }
+    }
+    const entranceId = readString(inbound, "entrance_id");
+    if (!localEntranceIds.has(entranceId)) addIssue(issues, "ref.missing", source.path, `inbound_route_refs[${index}].entrance_id`, `unknown local entrance ${entranceId}`);
+  }
+  for (const [index, entry] of readObjectArray(source.content, "trade_entries").entries()) {
+    const economyRef = readString(entry, "authoritative_economy_ref");
+    const economySource = resolveReferencedSource(source, economyRef, sources);
+    if (!economySource || economySource.kind !== "settlement_trade") {
+      addIssue(issues, "ref.mismatch", source.path, `trade_entries[${index}].authoritative_economy_ref`, "trade entry must reference the settlement trade authority");
+      continue;
+    }
+    const merchantIds = new Set(readObjectArray(economySource.content, "merchants").map((merchant) => readString(merchant, "id")));
+    for (const [merchantIndex, merchantId] of readStringArray(entry, "merchant_ids").entries()) {
+      if (!merchantIds.has(merchantId)) addIssue(issues, "ref.missing", source.path, `trade_entries[${index}].merchant_ids[${merchantIndex}]`, `unknown authoritative merchant ${merchantId}`);
+    }
+  }
+  const patchIds = new Set(sources.filter((item) => item.kind === "region").flatMap((item) => readObjectArray(readNestedObject(item.content, ["meaningful_material_patch_records"]), "records")).map((patch) => readString(patch, "patch_id")));
+  for (const [index, patch] of readObjectArray(source.content, "material_patches").entries()) {
+    const record = readString(patch, "patch_record_ref");
+    if (record && !patchIds.has(record)) addIssue(issues, "ref.missing", source.path, `material_patches[${index}].patch_record_ref`, `unknown material patch record ${record}`);
+  }
+}
 function validateSingleWordSource(source: CompiledSource, issues: ContentIssue[]): void {
   validateArrayIds(source, "entries", "id", issues);
   const minimum = readNestedNumber(source.content, ["shared_rules", "minimum_tokens_for_direct_attack"]);
@@ -740,6 +1011,7 @@ function classifySchema(schema: string): ContentKind | null {
   if (schema.startsWith("g02.attack-signatures.")) return "attack_signatures";
   if (schema.startsWith("g01.chapter-flow.")) return "chapter";
   if (schema.startsWith("g01.region.")) return "region";
+  if (schema.startsWith("g01.scene.")) return "scene";
   if (schema.startsWith("w03.ecology.")) return "ecology";
   if (schema.startsWith("w03.wildlife-economy.")) return "wildlife_economy";
   if (schema.startsWith("economy.settlement-trade.")) return "settlement_trade";

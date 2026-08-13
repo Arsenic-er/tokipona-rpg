@@ -1,0 +1,116 @@
+schema_version: "g01.scene.v0.1"
+content_version: "chapter-01.stream-section.1"
+scene_id: "scene.valley.stream_section"
+region_id: "valley_prologue"
+region_node_id: "valley.stream_section"
+chapter_flow_id: "ch01_world_literacy_prologue"
+chapter_segment_id: "arrival"
+status: "graybox_machine_ready"
+tile_size_px: 16
+size_tiles: {width: 32, height: 24}
+collision_rows_top_down:
+  - "................................"
+  - "................................"
+  - "................................"
+  - "................................"
+  - "................................"
+  - "................................"
+  - "################################"
+  - "................................"
+  - "................................"
+  - "................................"
+  - "................................"
+  - "................................"
+  - "................................"
+  - "................................"
+  - "................................"
+  - "................................"
+  - "................................"
+  - "................................"
+  - "................................"
+  - "................................"
+  - "................................"
+  - "................................"
+  - "................................"
+  - "################################"
+
+entrances:
+  - entrance_id: "stream.from_arrival"
+    spawn_tile: [2, 18]
+    recovery_entry: true
+    checkpoint_policy: "scene_entry_and_softlock_recovery"
+  - entrance_id: "stream.from_settlement"
+    spawn_tile: [29, 18]
+    recovery_entry: true
+    checkpoint_policy: "return_route"
+
+exits:
+  - exit_id: "stream.to_arrival"
+    trigger_rect_tiles: {x: 0, y: 15, width: 2, height: 5}
+    target_scene_id: "scene.valley.arrival_shelf"
+    target_entrance_id: "arrival.from_stream"
+  - exit_id: "stream.to_settlement"
+    trigger_rect_tiles: {x: 30, y: 15, width: 2, height: 6}
+    target_scene_id: "scene.valley.settlement"
+    target_entrance_id: "settlement.from_stream"
+    on_first_traverse_commit: "settlement_entry_crossed"
+
+route_objectives:
+  - objective_id: "stream.reach_settlement"
+    predicate: "player_reaches_exit(stream.to_settlement)"
+  - objective_id: "stream.observe_water_path"
+    predicate: "player_observed(gravity_slope_container_absorption) == true"
+  - objective_id: "stream.stabilize_foothold"
+    predicate: "arrival_route_stabilized == true"
+
+routes:
+  - route_id: "stream.upper_bank"
+    route_kind: "non_magic"
+    solution_family: "upper_slope_route"
+    from_entrance_id: "stream.from_arrival"
+    to_exit_id: "stream.to_settlement"
+    objective_ids: [stream.reach_settlement, stream.observe_water_path]
+  - route_id: "stream.shallow_crossing"
+    route_kind: "non_magic"
+    solution_family: "shallow_water_route"
+    from_entrance_id: "stream.from_arrival"
+    to_exit_id: "stream.to_settlement"
+    objective_ids: [stream.reach_settlement, stream.observe_water_path]
+  - route_id: "stream.repaired_foothold"
+    route_kind: "non_magic"
+    solution_family: "move_loose_material"
+    from_entrance_id: "stream.from_arrival"
+    to_exit_id: "stream.to_settlement"
+    objective_ids: [stream.reach_settlement, stream.stabilize_foothold]
+  - route_id: "stream.telo_observation"
+    route_kind: "optional_magic"
+    solution_family: "manifest_water_into_shallow_basin"
+    from_entrance_id: "stream.from_arrival"
+    to_exit_id: "stream.to_settlement"
+    objective_ids: [stream.observe_water_path]
+
+targets:
+  - {target_id: "stream.natural_cascade", target_kind: "natural_water_source", material: "water"}
+  - {target_id: "stream.shallow_basin", target_kind: "container", material: "stone"}
+  - {target_id: "stream.soil_bank", target_kind: "destructible_material", material: "wet_soil"}
+  - {target_id: "stream.loose_foothold", target_kind: "movable_material", material: "loose_stone"}
+  - {target_id: "stream.old_channel", target_kind: "channel", material: "wood"}
+
+interactions:
+  - {interaction_id: "stream.observe_cascade", target_id: "stream.natural_cascade", verb: "observe", tool_or_magic_required: false}
+  - {interaction_id: "stream.fill_basin", target_id: "stream.shallow_basin", verb: "fill", optional_word_id: "word.telo"}
+  - {interaction_id: "stream.dig_bank", target_id: "stream.soil_bank", verb: "dig", tool_or_magic_required: false}
+  - {interaction_id: "stream.place_foothold", target_id: "stream.loose_foothold", verb: "place", tool_or_magic_required: false}
+  - {interaction_id: "stream.guide_existing_water", target_id: "stream.old_channel", verb: "align", tool_or_magic_required: false}
+
+material_patches:
+  - patch_id: "scene.patch.stream.arrival_route"
+    patch_record_ref: "patch.valley.arrival_route.v0.1"
+    activation_predicate: "arrival_route_stabilized == true"
+    ordered_ops: [restore_committed_tile_delta, rebuild_collision, validate_route_clearance]
+
+recovery:
+  entry_entrance_id: "stream.from_arrival"
+  maximum_softlock_recovery_seconds: 60
+  actions: [restore_loose_foothold, reset_soft_soil_band, drain_temporary_manifested_water]
+  preserves: [learning_evidence, arrival_route_stabilized, region_persistent_material_patches]

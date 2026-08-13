@@ -31,5 +31,1073 @@
         "crossSectionWidthPx": 12
       }
     }
+  },
+  "scenes": {
+    "sourceDigest": "sha256:600302f3ba40d70650a86ee19483c4cbaf61ee70bb9a8dc88cae36ef92b5d206",
+    "byId": {
+      "scene.valley.arrival_shelf": {
+        "sceneId": "scene.valley.arrival_shelf",
+        "sourcePath": "data/scenes/valley-arrival-shelf.v0.1.yaml",
+        "regionId": "valley_prologue",
+        "regionNodeId": "valley.arrival_shelf",
+        "chapterFlowId": "ch01_world_literacy_prologue",
+        "chapterSegmentId": "arrival",
+        "tileSizePx": 16,
+        "sizeTiles": {
+          "width": 24,
+          "height": 20
+        },
+        "collisionRows": [
+          "........................",
+          "........................",
+          "........................",
+          "........................",
+          "..##################....",
+          "........................",
+          "........................",
+          "........................",
+          "........................",
+          "........................",
+          "........................",
+          "........................",
+          "..................######",
+          "........................",
+          "........................",
+          "........................",
+          "........................",
+          "........................",
+          "........................",
+          "########################"
+        ],
+        "entrances": [
+          {
+            "id": "arrival.spawn",
+            "spawnTile": [
+              3,
+              16
+            ],
+            "spawnPx": {
+              "x": 48,
+              "y": 50
+            },
+            "recoveryEntry": true,
+            "checkpointPolicy": "initial_and_softlock_recovery"
+          },
+          {
+            "id": "arrival.from_stream",
+            "spawnTile": [
+              21,
+              8
+            ],
+            "spawnPx": {
+              "x": 336,
+              "y": 178
+            },
+            "recoveryEntry": true,
+            "checkpointPolicy": "return_route"
+          }
+        ],
+        "exits": [
+          {
+            "id": "arrival.to_stream",
+            "boundsTiles": {
+              "x": 22,
+              "y": 6,
+              "width": 2,
+              "height": 5
+            },
+            "boundsPx": {
+              "x": 352,
+              "y": 144,
+              "width": 32,
+              "height": 80
+            },
+            "target": {
+              "kind": "scene",
+              "sceneId": "scene.valley.stream_section",
+              "entranceId": "stream.from_arrival"
+            },
+            "firstTraverseCommit": null
+          }
+        ],
+        "recovery": {
+          "entryEntranceId": "arrival.spawn",
+          "maximumSoftlockRecoverySeconds": 60,
+          "actions": [
+            "restore_loose_materials",
+            "restore_rotten_wood",
+            "clear_temporary_manifested_matter"
+          ],
+          "preserves": [
+            "learning_evidence",
+            "region_persistent_material_patches"
+          ]
+        },
+        "routeObjectives": [
+          {
+            "id": "arrival.reach_stream",
+            "predicate": "player_reaches_exit(arrival.to_stream)"
+          },
+          {
+            "id": "arrival.observe_material_fall",
+            "predicate": "loose_material_moves_under_gravity == true"
+          }
+        ],
+        "routes": [
+          {
+            "id": "arrival.natural_slope",
+            "kind": "non_magic",
+            "solutionFamily": "upper_slope_route",
+            "fromEntranceId": "arrival.spawn",
+            "toExitId": "arrival.to_stream",
+            "objectiveIds": [
+              "arrival.reach_stream"
+            ]
+          },
+          {
+            "id": "arrival.shallow_water",
+            "kind": "non_magic",
+            "solutionFamily": "shallow_water_route",
+            "fromEntranceId": "arrival.spawn",
+            "toExitId": "arrival.to_stream",
+            "objectiveIds": [
+              "arrival.reach_stream"
+            ]
+          },
+          {
+            "id": "arrival.rotten_wood_bridge",
+            "kind": "non_magic",
+            "solutionFamily": "place_rotten_wood",
+            "fromEntranceId": "arrival.spawn",
+            "toExitId": "arrival.to_stream",
+            "objectiveIds": [
+              "arrival.reach_stream",
+              "arrival.observe_material_fall"
+            ]
+          },
+          {
+            "id": "arrival.loose_material_foothold",
+            "kind": "non_magic",
+            "solutionFamily": "move_loose_material",
+            "fromEntranceId": "arrival.spawn",
+            "toExitId": "arrival.to_stream",
+            "objectiveIds": [
+              "arrival.reach_stream",
+              "arrival.observe_material_fall"
+            ]
+          },
+          {
+            "id": "arrival.telo_optional",
+            "kind": "optional_magic",
+            "solutionFamily": "manifest_water_into_old_flume",
+            "fromEntranceId": "arrival.spawn",
+            "toExitId": "arrival.to_stream",
+            "objectiveIds": [
+              "arrival.reach_stream"
+            ]
+          }
+        ],
+        "nonMagicAlternativeRouteIds": [
+          "arrival.natural_slope",
+          "arrival.shallow_water",
+          "arrival.rotten_wood_bridge",
+          "arrival.loose_material_foothold"
+        ],
+        "targets": [
+          {
+            "id": "arrival.loose_stone",
+            "kind": "movable_material",
+            "material": "loose_stone"
+          },
+          {
+            "id": "arrival.rotten_wood",
+            "kind": "movable_material",
+            "material": "rotten_wood"
+          },
+          {
+            "id": "arrival.wet_soil",
+            "kind": "destructible_material",
+            "material": "wet_soil"
+          },
+          {
+            "id": "arrival.old_flume",
+            "kind": "container",
+            "material": "wood"
+          }
+        ],
+        "interactions": [
+          {
+            "id": "arrival.move_stone",
+            "targetId": "arrival.loose_stone",
+            "verb": "move",
+            "toolOrMagicRequired": false,
+            "optionalWordId": null,
+            "npcId": null,
+            "facilityId": null,
+            "taskId": null
+          },
+          {
+            "id": "arrival.place_wood",
+            "targetId": "arrival.rotten_wood",
+            "verb": "place",
+            "toolOrMagicRequired": false,
+            "optionalWordId": null,
+            "npcId": null,
+            "facilityId": null,
+            "taskId": null
+          },
+          {
+            "id": "arrival.dig_soil",
+            "targetId": "arrival.wet_soil",
+            "verb": "dig",
+            "toolOrMagicRequired": false,
+            "optionalWordId": null,
+            "npcId": null,
+            "facilityId": null,
+            "taskId": null
+          },
+          {
+            "id": "arrival.fill_flume",
+            "targetId": "arrival.old_flume",
+            "verb": "fill",
+            "toolOrMagicRequired": null,
+            "optionalWordId": "word.telo",
+            "npcId": null,
+            "facilityId": null,
+            "taskId": null
+          }
+        ],
+        "npcs": [],
+        "facilities": [],
+        "tasks": [],
+        "tradeEntries": [],
+        "inboundRoutes": [],
+        "softFailureRecoveries": [],
+        "materialPatchRecordRefs": [
+          "patch.valley.arrival_route.v0.1"
+        ]
+      },
+      "scene.valley.settlement": {
+        "sceneId": "scene.valley.settlement",
+        "sourcePath": "data/scenes/valley-settlement.v0.1.yaml",
+        "regionId": "valley_prologue",
+        "regionNodeId": "valley.settlement",
+        "chapterFlowId": "ch01_world_literacy_prologue",
+        "chapterSegmentId": "settlement_orientation",
+        "tileSizePx": 16,
+        "sizeTiles": {
+          "width": 40,
+          "height": 30
+        },
+        "collisionRows": [
+          "........................................",
+          "........................................",
+          "........................................",
+          "........................................",
+          "........................................",
+          "........................................",
+          "........................................",
+          "........................................",
+          "........................................",
+          "........................................",
+          "........................................",
+          "........................................",
+          "........................................",
+          "........................................",
+          "........................................",
+          "........................................",
+          "........................................",
+          "........................................",
+          "........................................",
+          "........................................",
+          "........................................",
+          "........................................",
+          "........................................",
+          "........................................",
+          "........................................",
+          "........................................",
+          "........................................",
+          "........................................",
+          "........................................",
+          "########################################"
+        ],
+        "entrances": [
+          {
+            "id": "settlement.from_stream",
+            "spawnTile": [
+              2,
+              1
+            ],
+            "spawnPx": {
+              "x": 32,
+              "y": 450
+            },
+            "recoveryEntry": true,
+            "checkpointPolicy": "scene_entry_and_softlock_recovery"
+          },
+          {
+            "id": "settlement.from_waterwheel",
+            "spawnTile": [
+              37,
+              1
+            ],
+            "spawnPx": {
+              "x": 592,
+              "y": 450
+            },
+            "recoveryEntry": true,
+            "checkpointPolicy": "return_route"
+          }
+        ],
+        "exits": [
+          {
+            "id": "settlement.to_stream",
+            "boundsTiles": {
+              "x": 0,
+              "y": 0,
+              "width": 2,
+              "height": 7
+            },
+            "boundsPx": {
+              "x": 0,
+              "y": 368,
+              "width": 32,
+              "height": 112
+            },
+            "target": {
+              "kind": "scene",
+              "sceneId": "scene.valley.stream_section",
+              "entranceId": "stream.from_settlement"
+            },
+            "firstTraverseCommit": null
+          },
+          {
+            "id": "settlement.to_waterwheel",
+            "boundsTiles": {
+              "x": 38,
+              "y": 0,
+              "width": 2,
+              "height": 7
+            },
+            "boundsPx": {
+              "x": 608,
+              "y": 368,
+              "width": 32,
+              "height": 112
+            },
+            "target": {
+              "kind": "region_node",
+              "regionNodeId": "valley.waterwheel"
+            },
+            "firstTraverseCommit": null
+          }
+        ],
+        "recovery": {
+          "entryEntranceId": "settlement.from_stream",
+          "maximumSoftlockRecoverySeconds": 60,
+          "actions": [
+            "restore_public_route",
+            "reissue_nontradeable_survey_slate",
+            "restore_checkpoint_local_markers",
+            "reopen_people_guided_orientation"
+          ],
+          "preserves": [
+            "learning_evidence",
+            "quest_completion",
+            "reward_receipts",
+            "wallet",
+            "public_relief_claim_state",
+            "meditation_court_activated"
+          ]
+        },
+        "routeObjectives": [
+          {
+            "id": "settlement.use_public_relief",
+            "predicate": "public_well_used == true && communal_plant_meal_offered == true"
+          },
+          {
+            "id": "settlement.meet_service_people",
+            "predicate": "facility_manager_met == true && repair_contractor_met == true && supply_trader_met == true"
+          },
+          {
+            "id": "settlement.activate_meditation_court",
+            "predicate": "meditation_court_activated == true"
+          },
+          {
+            "id": "settlement.inspect_survey_markers",
+            "predicate": "survey_markers_inspected >= 3"
+          },
+          {
+            "id": "settlement.complete_survey",
+            "predicate": "quest(ch01_settlement_orientation).status == completed"
+          },
+          {
+            "id": "settlement.reach_waterwheel",
+            "predicate": "player_reaches_exit(settlement.to_waterwheel)"
+          }
+        ],
+        "routes": [
+          {
+            "id": "settlement.people_guided_orientation",
+            "kind": "non_magic",
+            "solutionFamily": "ask_facility_people",
+            "fromEntranceId": "settlement.from_stream",
+            "toExitId": "settlement.to_waterwheel",
+            "objectiveIds": [
+              "settlement.meet_service_people",
+              "settlement.activate_meditation_court",
+              "settlement.reach_waterwheel"
+            ]
+          },
+          {
+            "id": "settlement.marker_survey_orientation",
+            "kind": "non_magic",
+            "solutionFamily": "survey_public_infrastructure",
+            "fromEntranceId": "settlement.from_stream",
+            "toExitId": "settlement.to_waterwheel",
+            "objectiveIds": [
+              "settlement.use_public_relief",
+              "settlement.complete_survey",
+              "settlement.activate_meditation_court",
+              "settlement.reach_waterwheel"
+            ]
+          }
+        ],
+        "nonMagicAlternativeRouteIds": [
+          "settlement.people_guided_orientation",
+          "settlement.marker_survey_orientation"
+        ],
+        "targets": [
+          {
+            "id": "settlement.npc.facility_manager",
+            "kind": "npc",
+            "material": "living_noncombatant"
+          },
+          {
+            "id": "settlement.npc.repair_contractor",
+            "kind": "npc",
+            "material": "living_noncombatant"
+          },
+          {
+            "id": "settlement.npc.supply_trader",
+            "kind": "npc",
+            "material": "living_noncombatant"
+          },
+          {
+            "id": "settlement.public_well",
+            "kind": "public_relief",
+            "material": "stone_and_water"
+          },
+          {
+            "id": "settlement.communal_kitchen",
+            "kind": "public_relief",
+            "material": "wood_and_food"
+          },
+          {
+            "id": "settlement.meditation_court",
+            "kind": "learning_facility",
+            "material": "stone"
+          },
+          {
+            "id": "settlement.repair_board",
+            "kind": "job_board",
+            "material": "wood"
+          },
+          {
+            "id": "settlement.survey_markers",
+            "kind": "survey_route",
+            "material": "wood_and_charcoal"
+          },
+          {
+            "id": "settlement.supply_stall",
+            "kind": "trade_counter",
+            "material": "wood"
+          }
+        ],
+        "interactions": [
+          {
+            "id": "settlement.talk_facility_manager",
+            "targetId": "settlement.npc.facility_manager",
+            "verb": "talk",
+            "toolOrMagicRequired": false,
+            "optionalWordId": null,
+            "npcId": "settlement.npc.facility_manager",
+            "facilityId": null,
+            "taskId": null
+          },
+          {
+            "id": "settlement.talk_repair_contractor",
+            "targetId": "settlement.npc.repair_contractor",
+            "verb": "talk",
+            "toolOrMagicRequired": false,
+            "optionalWordId": null,
+            "npcId": "settlement.npc.repair_contractor",
+            "facilityId": null,
+            "taskId": null
+          },
+          {
+            "id": "settlement.talk_supply_trader",
+            "targetId": "settlement.npc.supply_trader",
+            "verb": "talk",
+            "toolOrMagicRequired": false,
+            "optionalWordId": null,
+            "npcId": "settlement.npc.supply_trader",
+            "facilityId": null,
+            "taskId": null
+          },
+          {
+            "id": "settlement.draw_public_water",
+            "targetId": "settlement.public_well",
+            "verb": "drink_or_fill",
+            "toolOrMagicRequired": false,
+            "optionalWordId": null,
+            "npcId": null,
+            "facilityId": "settlement.facility.public_well",
+            "taskId": null
+          },
+          {
+            "id": "settlement.take_plant_meal",
+            "targetId": "settlement.communal_kitchen",
+            "verb": "eat",
+            "toolOrMagicRequired": false,
+            "optionalWordId": null,
+            "npcId": null,
+            "facilityId": "settlement.facility.communal_kitchen",
+            "taskId": null
+          },
+          {
+            "id": "settlement.meditate",
+            "targetId": "settlement.meditation_court",
+            "verb": "meditate",
+            "toolOrMagicRequired": false,
+            "optionalWordId": null,
+            "npcId": null,
+            "facilityId": "settlement.facility.meditation_court",
+            "taskId": null
+          },
+          {
+            "id": "settlement.inspect_repair_board",
+            "targetId": "settlement.repair_board",
+            "verb": "inspect",
+            "toolOrMagicRequired": false,
+            "optionalWordId": null,
+            "npcId": "settlement.npc.repair_contractor",
+            "facilityId": "settlement.facility.repair_board",
+            "taskId": "ch01_settlement_orientation"
+          },
+          {
+            "id": "settlement.accept_survey",
+            "targetId": "settlement.repair_board",
+            "verb": "accept_job",
+            "toolOrMagicRequired": false,
+            "optionalWordId": null,
+            "npcId": "settlement.npc.repair_contractor",
+            "facilityId": "settlement.facility.repair_board",
+            "taskId": "ch01_settlement_orientation"
+          },
+          {
+            "id": "settlement.inspect_survey_markers",
+            "targetId": "settlement.survey_markers",
+            "verb": "survey",
+            "toolOrMagicRequired": false,
+            "optionalWordId": null,
+            "npcId": null,
+            "facilityId": null,
+            "taskId": "ch01_settlement_orientation"
+          },
+          {
+            "id": "settlement.submit_survey",
+            "targetId": "settlement.npc.repair_contractor",
+            "verb": "submit_job",
+            "toolOrMagicRequired": false,
+            "optionalWordId": null,
+            "npcId": "settlement.npc.repair_contractor",
+            "facilityId": null,
+            "taskId": "ch01_settlement_orientation"
+          },
+          {
+            "id": "settlement.open_supply_trade",
+            "targetId": "settlement.supply_stall",
+            "verb": "trade",
+            "toolOrMagicRequired": false,
+            "optionalWordId": null,
+            "npcId": "settlement.npc.supply_trader",
+            "facilityId": "settlement.facility.supply_stall",
+            "taskId": null
+          }
+        ],
+        "npcs": [
+          {
+            "id": "settlement.npc.facility_manager",
+            "professionId": "settlement.facility_manager",
+            "professionLabelZh": "设施主管",
+            "functions": [
+              "orientation",
+              "checkpoint_explanation",
+              "public_service_explanation"
+            ],
+            "interactionIds": [
+              "settlement.talk_facility_manager"
+            ]
+          },
+          {
+            "id": "settlement.npc.repair_contractor",
+            "professionId": "settlement.repair_contractor",
+            "professionLabelZh": "维修承包人",
+            "functions": [
+              "job_assignment",
+              "repair_board",
+              "route_advice"
+            ],
+            "interactionIds": [
+              "settlement.talk_repair_contractor",
+              "settlement.inspect_repair_board",
+              "settlement.accept_survey",
+              "settlement.submit_survey"
+            ]
+          },
+          {
+            "id": "settlement.npc.supply_trader",
+            "professionId": "settlement.supply_trader",
+            "professionLabelZh": "补给商",
+            "functions": [
+              "trade_entry",
+              "ration_explanation",
+              "canteen_refill"
+            ],
+            "interactionIds": [
+              "settlement.talk_supply_trader",
+              "settlement.open_supply_trade"
+            ]
+          }
+        ],
+        "facilities": [
+          {
+            "id": "settlement.facility.public_well",
+            "kind": "public_well",
+            "targetId": "settlement.public_well",
+            "interactionIds": [
+              "settlement.draw_public_water"
+            ],
+            "publicRelief": true,
+            "economyEligible": false
+          },
+          {
+            "id": "settlement.facility.communal_kitchen",
+            "kind": "communal_plant_meal",
+            "targetId": "settlement.communal_kitchen",
+            "interactionIds": [
+              "settlement.take_plant_meal"
+            ],
+            "publicRelief": true,
+            "economyEligible": false
+          },
+          {
+            "id": "settlement.facility.meditation_court",
+            "kind": "public_meditation_court",
+            "targetId": "settlement.meditation_court",
+            "interactionIds": [
+              "settlement.meditate"
+            ],
+            "publicRelief": false,
+            "economyEligible": false
+          },
+          {
+            "id": "settlement.facility.repair_board",
+            "kind": "job_board",
+            "targetId": "settlement.repair_board",
+            "interactionIds": [
+              "settlement.inspect_repair_board",
+              "settlement.accept_survey"
+            ],
+            "publicRelief": false,
+            "economyEligible": false
+          },
+          {
+            "id": "settlement.facility.supply_stall",
+            "kind": "trade_entry",
+            "targetId": "settlement.supply_stall",
+            "interactionIds": [
+              "settlement.open_supply_trade"
+            ],
+            "publicRelief": false,
+            "economyEligible": true
+          }
+        ],
+        "tasks": [
+          {
+            "id": "ch01_settlement_orientation",
+            "familyId": "community_orientation",
+            "assignmentNpcId": "settlement.npc.repair_contractor",
+            "objectiveIds": [
+              "settlement.inspect_survey_markers"
+            ],
+            "interactionIds": [
+              "settlement.accept_survey",
+              "settlement.inspect_survey_markers",
+              "settlement.submit_survey"
+            ],
+            "nonviolent": true,
+            "magicRequired": false,
+            "requiredForMainline": false,
+            "solutionFamilies": [
+              "survey_route_markers",
+              "interview_facility_workers"
+            ],
+            "reward": {
+              "currency": "coin",
+              "amount": 10,
+              "claimOnce": true,
+              "receiptRequired": true
+            },
+            "rewardIdempotencyKeyFields": [
+              "player_save_id",
+              "task_id"
+            ],
+            "recoveryActions": [
+              "reissue_nontradeable_survey_slate",
+              "restore_checkpoint_local_markers",
+              "preserve_completed_objectives",
+              "never_duplicate_reward_receipt"
+            ]
+          }
+        ],
+        "tradeEntries": [
+          {
+            "id": "settlement.trade.supply_stall",
+            "npcId": "settlement.npc.supply_trader",
+            "interactionId": "settlement.open_supply_trade",
+            "authoritativeEconomySourcePath": "data/economy/settlement-trade.v0.1.yaml",
+            "merchantIds": [
+              "settlement.grocer"
+            ]
+          }
+        ],
+        "inboundRoutes": [
+          {
+            "id": "settlement.inbound_from_stream",
+            "sourceSceneId": "scene.valley.stream_section",
+            "sourceExitId": "stream.to_settlement",
+            "entranceId": "settlement.from_stream"
+          }
+        ],
+        "softFailureRecoveries": [
+          {
+            "id": "settlement.lost_survey_slate",
+            "action": "reissue_nontradeable_survey_slate",
+            "preserves": [
+              "survey_progress",
+              "wallet",
+              "learning_evidence"
+            ]
+          },
+          {
+            "id": "settlement.misplaced_markers",
+            "action": "restore_checkpoint_local_markers",
+            "preserves": [
+              "survey_progress",
+              "wallet",
+              "learning_evidence"
+            ]
+          },
+          {
+            "id": "settlement.job_declined",
+            "action": "keep_people_guided_orientation_available",
+            "preserves": [
+              "mainline_access",
+              "public_relief",
+              "meditation_access"
+            ]
+          },
+          {
+            "id": "settlement.no_coin",
+            "action": "keep_public_services_free",
+            "preserves": [
+              "mainline_access",
+              "public_relief",
+              "meditation_access"
+            ]
+          }
+        ],
+        "materialPatchRecordRefs": []
+      },
+      "scene.valley.stream_section": {
+        "sceneId": "scene.valley.stream_section",
+        "sourcePath": "data/scenes/valley-stream-section.v0.1.yaml",
+        "regionId": "valley_prologue",
+        "regionNodeId": "valley.stream_section",
+        "chapterFlowId": "ch01_world_literacy_prologue",
+        "chapterSegmentId": "arrival",
+        "tileSizePx": 16,
+        "sizeTiles": {
+          "width": 32,
+          "height": 24
+        },
+        "collisionRows": [
+          "................................",
+          "................................",
+          "................................",
+          "................................",
+          "................................",
+          "................................",
+          "################################",
+          "................................",
+          "................................",
+          "................................",
+          "................................",
+          "................................",
+          "................................",
+          "................................",
+          "................................",
+          "................................",
+          "................................",
+          "................................",
+          "................................",
+          "................................",
+          "................................",
+          "................................",
+          "................................",
+          "################################"
+        ],
+        "entrances": [
+          {
+            "id": "stream.from_arrival",
+            "spawnTile": [
+              2,
+              18
+            ],
+            "spawnPx": {
+              "x": 32,
+              "y": 82
+            },
+            "recoveryEntry": true,
+            "checkpointPolicy": "scene_entry_and_softlock_recovery"
+          },
+          {
+            "id": "stream.from_settlement",
+            "spawnTile": [
+              29,
+              18
+            ],
+            "spawnPx": {
+              "x": 464,
+              "y": 82
+            },
+            "recoveryEntry": true,
+            "checkpointPolicy": "return_route"
+          }
+        ],
+        "exits": [
+          {
+            "id": "stream.to_arrival",
+            "boundsTiles": {
+              "x": 0,
+              "y": 15,
+              "width": 2,
+              "height": 5
+            },
+            "boundsPx": {
+              "x": 0,
+              "y": 64,
+              "width": 32,
+              "height": 80
+            },
+            "target": {
+              "kind": "scene",
+              "sceneId": "scene.valley.arrival_shelf",
+              "entranceId": "arrival.from_stream"
+            },
+            "firstTraverseCommit": null
+          },
+          {
+            "id": "stream.to_settlement",
+            "boundsTiles": {
+              "x": 30,
+              "y": 15,
+              "width": 2,
+              "height": 6
+            },
+            "boundsPx": {
+              "x": 480,
+              "y": 48,
+              "width": 32,
+              "height": 96
+            },
+            "target": {
+              "kind": "scene",
+              "sceneId": "scene.valley.settlement",
+              "entranceId": "settlement.from_stream"
+            },
+            "firstTraverseCommit": "settlement_entry_crossed"
+          }
+        ],
+        "recovery": {
+          "entryEntranceId": "stream.from_arrival",
+          "maximumSoftlockRecoverySeconds": 60,
+          "actions": [
+            "restore_loose_foothold",
+            "reset_soft_soil_band",
+            "drain_temporary_manifested_water"
+          ],
+          "preserves": [
+            "learning_evidence",
+            "arrival_route_stabilized",
+            "region_persistent_material_patches"
+          ]
+        },
+        "routeObjectives": [
+          {
+            "id": "stream.reach_settlement",
+            "predicate": "player_reaches_exit(stream.to_settlement)"
+          },
+          {
+            "id": "stream.observe_water_path",
+            "predicate": "player_observed(gravity_slope_container_absorption) == true"
+          },
+          {
+            "id": "stream.stabilize_foothold",
+            "predicate": "arrival_route_stabilized == true"
+          }
+        ],
+        "routes": [
+          {
+            "id": "stream.upper_bank",
+            "kind": "non_magic",
+            "solutionFamily": "upper_slope_route",
+            "fromEntranceId": "stream.from_arrival",
+            "toExitId": "stream.to_settlement",
+            "objectiveIds": [
+              "stream.reach_settlement",
+              "stream.observe_water_path"
+            ]
+          },
+          {
+            "id": "stream.shallow_crossing",
+            "kind": "non_magic",
+            "solutionFamily": "shallow_water_route",
+            "fromEntranceId": "stream.from_arrival",
+            "toExitId": "stream.to_settlement",
+            "objectiveIds": [
+              "stream.reach_settlement",
+              "stream.observe_water_path"
+            ]
+          },
+          {
+            "id": "stream.repaired_foothold",
+            "kind": "non_magic",
+            "solutionFamily": "move_loose_material",
+            "fromEntranceId": "stream.from_arrival",
+            "toExitId": "stream.to_settlement",
+            "objectiveIds": [
+              "stream.reach_settlement",
+              "stream.stabilize_foothold"
+            ]
+          },
+          {
+            "id": "stream.telo_observation",
+            "kind": "optional_magic",
+            "solutionFamily": "manifest_water_into_shallow_basin",
+            "fromEntranceId": "stream.from_arrival",
+            "toExitId": "stream.to_settlement",
+            "objectiveIds": [
+              "stream.observe_water_path"
+            ]
+          }
+        ],
+        "nonMagicAlternativeRouteIds": [
+          "stream.upper_bank",
+          "stream.shallow_crossing",
+          "stream.repaired_foothold"
+        ],
+        "targets": [
+          {
+            "id": "stream.natural_cascade",
+            "kind": "natural_water_source",
+            "material": "water"
+          },
+          {
+            "id": "stream.shallow_basin",
+            "kind": "container",
+            "material": "stone"
+          },
+          {
+            "id": "stream.soil_bank",
+            "kind": "destructible_material",
+            "material": "wet_soil"
+          },
+          {
+            "id": "stream.loose_foothold",
+            "kind": "movable_material",
+            "material": "loose_stone"
+          },
+          {
+            "id": "stream.old_channel",
+            "kind": "channel",
+            "material": "wood"
+          }
+        ],
+        "interactions": [
+          {
+            "id": "stream.observe_cascade",
+            "targetId": "stream.natural_cascade",
+            "verb": "observe",
+            "toolOrMagicRequired": false,
+            "optionalWordId": null,
+            "npcId": null,
+            "facilityId": null,
+            "taskId": null
+          },
+          {
+            "id": "stream.fill_basin",
+            "targetId": "stream.shallow_basin",
+            "verb": "fill",
+            "toolOrMagicRequired": null,
+            "optionalWordId": "word.telo",
+            "npcId": null,
+            "facilityId": null,
+            "taskId": null
+          },
+          {
+            "id": "stream.dig_bank",
+            "targetId": "stream.soil_bank",
+            "verb": "dig",
+            "toolOrMagicRequired": false,
+            "optionalWordId": null,
+            "npcId": null,
+            "facilityId": null,
+            "taskId": null
+          },
+          {
+            "id": "stream.place_foothold",
+            "targetId": "stream.loose_foothold",
+            "verb": "place",
+            "toolOrMagicRequired": false,
+            "optionalWordId": null,
+            "npcId": null,
+            "facilityId": null,
+            "taskId": null
+          },
+          {
+            "id": "stream.guide_existing_water",
+            "targetId": "stream.old_channel",
+            "verb": "align",
+            "toolOrMagicRequired": false,
+            "optionalWordId": null,
+            "npcId": null,
+            "facilityId": null,
+            "taskId": null
+          }
+        ],
+        "npcs": [],
+        "facilities": [],
+        "tasks": [],
+        "tradeEntries": [],
+        "inboundRoutes": [],
+        "softFailureRecoveries": [],
+        "materialPatchRecordRefs": [
+          "patch.valley.arrival_route.v0.1"
+        ]
+      }
+    }
   }
 }

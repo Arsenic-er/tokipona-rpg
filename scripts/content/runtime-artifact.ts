@@ -1,8 +1,28 @@
 import { createHash } from "node:crypto";
+import { posix } from "node:path";
 import type { ContentManifest, ContentObject, ContentValue } from "../../src/content/types.ts";
+import type {
+  RuntimeSceneEntranceManifest,
+  RuntimeSceneExitManifest,
+  RuntimeSceneFacilityManifest,
+  RuntimeSceneInboundRouteManifest,
+  RuntimeSceneInteractionManifest,
+  RuntimeSceneManifest,
+  RuntimeSceneManifestIndex,
+  RuntimeSceneNpcManifest,
+  RuntimeSceneRecoveryManifest,
+  RuntimeSceneRouteManifest,
+  RuntimeSceneRouteObjectiveManifest,
+  RuntimeSceneSoftFailureRecoveryManifest,
+  RuntimeSceneTargetManifest,
+  RuntimeSceneTaskManifest,
+  RuntimeSceneTradeEntryManifest,
+  RuntimeTileRect,
+} from "../../src/content/runtime-scene-manifest.ts";
 
 export const RUNTIME_CONTENT_SCHEMA_VERSION = "tokipona.runtime-content.v0.1" as const;
 export const RUNTIME_CONTENT_OUTPUT_PATH = "src/generated/content-runtime.v0.1.json" as const;
+export const RUNTIME_SCENE_PLAYER_HEIGHT_PX = 14 as const;
 
 export type RuntimeTeloLengthClass = "short" | "default" | "long";
 
@@ -17,25 +37,19 @@ export interface RuntimeTeloLengthProfile {
 export interface RuntimeContentArtifact {
   readonly schemaVersion: typeof RUNTIME_CONTENT_SCHEMA_VERSION;
   readonly sourceDigest: `sha256:${string}`;
-  readonly source: {
-    readonly path: string;
-    readonly schemaVersion: string;
-    readonly contentVersion: string;
-  };
+  readonly source: { readonly path: string; readonly schemaVersion: string; readonly contentVersion: string };
   readonly telo: {
     readonly pixelsPerTile: number;
     readonly profiles: Readonly<Record<RuntimeTeloLengthClass, RuntimeTeloLengthProfile>>;
   };
+  readonly scenes: RuntimeSceneManifestIndex;
 }
 
 export function buildRuntimeContentArtifact(manifest: ContentManifest): RuntimeContentArtifact {
   const lengthSources = manifest.byKind.length_profiles;
-  if (lengthSources.length !== 1) {
-    throw new Error(`Expected exactly one validated length profile source, received ${lengthSources.length}.`);
-  }
+  if (lengthSources.length !== 1) throw new Error(`Expected exactly one validated length profile source, received ${lengthSources.length}.`);
   const source = lengthSources[0];
   if (!source) throw new Error("Validated length profile source is unavailable.");
-
   const content = source.content;
   const pixelsPerTile = requirePositiveNumber(content, ["world_units", "pixels_per_tile"]);
   const lengthClasses = requireObject(content, ["length_classes"]);
@@ -44,109 +58,197 @@ export function buildRuntimeContentArtifact(manifest: ContentManifest): RuntimeC
   const crossSectionWidthPx = requirePositiveNumber(telo, ["cross_section_width_px"]);
   const expectedActivationMp = requireObject(telo, ["expected_activation_mp"]);
   const lengthTileFields: Readonly<Record<RuntimeTeloLengthClass, string>> = {
-    short: "short_length_tiles",
-    default: "base_length_tiles",
-    long: "long_length_tiles",
+    short: "short_length_tiles", default: "base_length_tiles", long: "long_length_tiles",
   };
+  const profiles = Object.fromEntries(([
+    "short", "default", "long",
+  ] as const).map((lengthClass) => {
+    const nominalLengthTiles = requirePositiveNumber(telo, [lengthTileFields[lengthClass]]);
+    const classContract = requireObject(lengthClasses, [lengthClass]);
+    const minimumRatio = requirePositiveNumber(classContract, ["minimum_realized_ratio_to_base"]);
+    const activationMp = requireNonNegativeNumber(expectedActivationMp, [lengthClass]);
+    return [lengthClass, {
+      profileVersion: source.schemaVersion,
+      nominalLengthPx: exactProduct(nominalLengthTiles, pixelsPerTile, `${lengthClass}.nominalLengthPx`),
+      minimumRealizedLengthPx: exactProduct(baseLengthTiles, pixelsPerTile, minimumRatio, `${lengthClass}.minimumRealizedLengthPx`),
+      activationMp,
+      crossSectionWidthPx,
+    }];
+  })) as unknown as Record<RuntimeTeloLengthClass, RuntimeTeloLengthProfile>;
 
-  const profiles = Object.fromEntries(
-    (["short", "default", "long"] as const).map((lengthClass) => {
-      const nominalLengthTiles = requirePositiveNumber(telo, [lengthTileFields[lengthClass]]);
-      const classContract = requireObject(lengthClasses, [lengthClass]);
-      const minimumRatio = requirePositiveNumber(classContract, ["minimum_realized_ratio_to_base"]);
-      const activationMp = requireNonNegativeNumber(expectedActivationMp, [lengthClass]);
-      return [
-        lengthClass,
-        {
-          profileVersion: source.schemaVersion,
-          nominalLengthPx: exactProduct(nominalLengthTiles, pixelsPerTile, `${lengthClass}.nominalLengthPx`),
-          minimumRealizedLengthPx: exactProduct(
-            baseLengthTiles,
-            pixelsPerTile,
-            minimumRatio,
-            `${lengthClass}.minimumRealizedLengthPx`,
-          ),
-          activationMp,
-          crossSectionWidthPx,
+  const sceneSources = [...manifest.byKind.scene].sort((left, right) => left.path.localeCompare(right.path));
+  const scenes = Object.fromEntries(sceneSources.map((sceneSource) => {
+    const scene = sceneSource.content;
+    const sceneId = requireString(scene, ["scene_id"]);
+    const tileSizePx = requireExactNumber(scene, ["tile_size_px"], 16) as 16;
+    const sizeTiles = {
+      width: requirePositiveInteger(scene, ["size_tiles", "width"]),
+      height: requirePositiveInteger(scene, ["size_tiles", "height"]),
+    };
+    const entrances: RuntimeSceneEntranceManifest[] = requireObjectArray(scene, ["entrances"]).map((entry) => {
+      const spawnTile = requireNumberPair(entry, ["spawn_tile"]);
+      return {
+        id: requireString(entry, ["entrance_id"]),
+        spawnTile,
+        spawnPx: {
+          x: exactProduct(spawnTile[0], tileSizePx, "entrance.spawnPx.x"),
+          y: exactDifference(exactProduct(sizeTiles.height - spawnTile[1], tileSizePx, "entrance.bottomToTopPx"), RUNTIME_SCENE_PLAYER_HEIGHT_PX, "entrance.spawnPx.y"),
         },
-      ];
-    }),
-  ) as unknown as Record<RuntimeTeloLengthClass, RuntimeTeloLengthProfile>;
-
+        recoveryEntry: requireBoolean(entry, ["recovery_entry"]),
+        checkpointPolicy: requireString(entry, ["checkpoint_policy"]),
+      };
+    });
+    const exits: RuntimeSceneExitManifest[] = requireObjectArray(scene, ["exits"]).map((exit) => {
+      const boundsTiles = requireTileRect(exit, ["trigger_rect_tiles"]);
+      const boundsPx: RuntimeTileRect = {
+        x: exactProduct(boundsTiles.x, tileSizePx, "exit.boundsPx.x"),
+        y: exactProduct(sizeTiles.height - boundsTiles.y - boundsTiles.height, tileSizePx, "exit.boundsPx.y"),
+        width: exactProduct(boundsTiles.width, tileSizePx, "exit.boundsPx.width"),
+        height: exactProduct(boundsTiles.height, tileSizePx, "exit.boundsPx.height"),
+      };
+      const targetSceneId = optionalString(exit, ["target_scene_id"]);
+      const target = targetSceneId !== null
+        ? { kind: "scene" as const, sceneId: targetSceneId, entranceId: requireString(exit, ["target_entrance_id"]) }
+        : { kind: "region_node" as const, regionNodeId: requireString(exit, ["target_region_node_id"]) };
+      return {
+        id: requireString(exit, ["exit_id"]), boundsTiles, boundsPx, target,
+        firstTraverseCommit: optionalString(exit, ["on_first_traverse_commit"]),
+      };
+    });
+    const routeObjectives: RuntimeSceneRouteObjectiveManifest[] = requireObjectArray(scene, ["route_objectives"]).map((objective) => ({
+      id: requireString(objective, ["objective_id"]), predicate: requireString(objective, ["predicate"]),
+    }));
+    const routes: RuntimeSceneRouteManifest[] = requireObjectArray(scene, ["routes"]).map((route) => ({
+      id: requireString(route, ["route_id"]),
+      kind: requireRouteKind(route, ["route_kind"]),
+      solutionFamily: requireString(route, ["solution_family"]),
+      fromEntranceId: requireString(route, ["from_entrance_id"]),
+      toExitId: requireString(route, ["to_exit_id"]),
+      objectiveIds: requireStringArray(route, ["objective_ids"]),
+    }));
+    const targets: RuntimeSceneTargetManifest[] = requireObjectArray(scene, ["targets"]).map((target) => ({
+      id: requireString(target, ["target_id"]), kind: requireString(target, ["target_kind"]), material: requireString(target, ["material"]),
+    }));
+    const interactions: RuntimeSceneInteractionManifest[] = requireObjectArray(scene, ["interactions"]).map((interaction) => ({
+      id: requireString(interaction, ["interaction_id"]), targetId: requireString(interaction, ["target_id"]), verb: requireString(interaction, ["verb"]),
+      toolOrMagicRequired: optionalBoolean(interaction, ["tool_or_magic_required"]), optionalWordId: optionalString(interaction, ["optional_word_id"]),
+      npcId: optionalString(interaction, ["npc_id"]), facilityId: optionalString(interaction, ["facility_id"]), taskId: optionalString(interaction, ["task_id"]),
+    }));
+    const npcs: RuntimeSceneNpcManifest[] = optionalObjectArray(scene, ["npcs"]).map((npc) => ({
+      id: requireString(npc, ["npc_id"]), professionId: requireString(npc, ["profession_id"]),
+      professionLabelZh: requireString(npc, ["profession_label_zh"]), functions: requireStringArray(npc, ["functions"]),
+      interactionIds: requireStringArray(npc, ["interaction_ids"]),
+    }));
+    const facilities: RuntimeSceneFacilityManifest[] = optionalObjectArray(scene, ["facilities"]).map((facility) => ({
+      id: requireString(facility, ["facility_id"]), kind: requireString(facility, ["facility_kind"]),
+      targetId: requireString(facility, ["target_id"]), interactionIds: requireStringArray(facility, ["interaction_ids"]),
+      publicRelief: requireBoolean(facility, ["public_relief"]), economyEligible: requireBoolean(facility, ["economy_eligible"]),
+    }));
+    const tasks: RuntimeSceneTaskManifest[] = optionalObjectArray(scene, ["tasks"]).map((task) => ({
+      id: requireString(task, ["task_id"]), familyId: requireString(task, ["task_family_id"]),
+      assignmentNpcId: requireString(task, ["assignment_npc_id"]), objectiveIds: requireStringArray(task, ["objective_ids"]),
+      interactionIds: requireStringArray(task, ["interaction_ids"]), nonviolent: requireBoolean(task, ["nonviolent"]),
+      magicRequired: requireBoolean(task, ["magic_required"]), requiredForMainline: requireBoolean(task, ["required_for_mainline"]),
+      solutionFamilies: requireStringArray(task, ["solution_families"]),
+      reward: {
+        currency: requireString(task, ["reward", "currency"]), amount: requireNonNegativeNumber(task, ["reward", "amount"]),
+        claimOnce: requireBoolean(task, ["reward", "claim_once"]), receiptRequired: requireBoolean(task, ["reward", "receipt_required"]),
+      },
+      rewardIdempotencyKeyFields: requireStringArray(task, ["reward_idempotency_key_fields"]),
+      recoveryActions: requireStringArray(task, ["recovery_actions"]),
+    }));
+    const tradeEntries: RuntimeSceneTradeEntryManifest[] = optionalObjectArray(scene, ["trade_entries"]).map((entry) => ({
+      id: requireString(entry, ["trade_entry_id"]), npcId: requireString(entry, ["npc_id"]),
+      interactionId: requireString(entry, ["interaction_id"]),
+      authoritativeEconomySourcePath: resolveRepositoryContentPath(sceneSource.path, requireString(entry, ["authoritative_economy_ref"])),
+      merchantIds: requireStringArray(entry, ["merchant_ids"]),
+    }));
+    const inboundRoutes: RuntimeSceneInboundRouteManifest[] = optionalObjectArray(scene, ["inbound_route_refs"]).map((route) => ({
+      id: requireString(route, ["inbound_ref_id"]), sourceSceneId: requireString(route, ["source_scene_id"]),
+      sourceExitId: requireString(route, ["source_exit_id"]), entranceId: requireString(route, ["entrance_id"]),
+    }));
+    const softFailureRecoveries: RuntimeSceneSoftFailureRecoveryManifest[] = optionalObjectArray(scene, ["soft_failure_recoveries"]).map((recovery) => ({
+      id: requireString(recovery, ["failure_id"]), action: requireString(recovery, ["action"]),
+      preserves: requireStringArray(recovery, ["preserves"]),
+    }));
+    const recovery: RuntimeSceneRecoveryManifest = {
+      entryEntranceId: requireString(scene, ["recovery", "entry_entrance_id"]),
+      maximumSoftlockRecoverySeconds: requirePositiveNumber(scene, ["recovery", "maximum_softlock_recovery_seconds"]),
+      actions: requireStringArray(scene, ["recovery", "actions"]), preserves: requireStringArray(scene, ["recovery", "preserves"]),
+    };
+    const result: RuntimeSceneManifest = {
+      sceneId, sourcePath: sceneSource.path,
+      regionId: requireString(scene, ["region_id"]), regionNodeId: requireString(scene, ["region_node_id"]),
+      chapterFlowId: requireString(scene, ["chapter_flow_id"]), chapterSegmentId: requireString(scene, ["chapter_segment_id"]),
+      tileSizePx, sizeTiles, collisionRows: requireStringArray(scene, ["collision_rows_top_down"]), entrances, exits, recovery,
+      routeObjectives, routes, nonMagicAlternativeRouteIds: routes.filter((route) => route.kind === "non_magic").map((route) => route.id),
+      targets, interactions, npcs, facilities, tasks, tradeEntries, inboundRoutes, softFailureRecoveries,
+      materialPatchRecordRefs: requireObjectArray(scene, ["material_patches"]).map((patch) => optionalString(patch, ["patch_record_ref"])).filter((value): value is string => value !== null),
+    };
+    return [sceneId, result];
+  }));
   return {
     schemaVersion: RUNTIME_CONTENT_SCHEMA_VERSION,
     sourceDigest: `sha256:${createHash("sha256").update(stableStringify(content)).digest("hex")}`,
-    source: {
-      path: source.path,
-      schemaVersion: source.schemaVersion,
-      contentVersion: source.contentVersion,
-    },
+    source: { path: source.path, schemaVersion: source.schemaVersion, contentVersion: source.contentVersion },
     telo: { pixelsPerTile, profiles },
+    scenes: {
+      sourceDigest: `sha256:${createHash("sha256").update(stableStringify(sceneSources.map((item) => item.content))).digest("hex")}`,
+      byId: scenes,
+    },
   };
 }
 
-export function serializeRuntimeContentArtifact(artifact: RuntimeContentArtifact): string {
-  return `${JSON.stringify(artifact, null, 2)}\n`;
-}
-
+export function serializeRuntimeContentArtifact(artifact: RuntimeContentArtifact): string { return `${JSON.stringify(artifact, null, 2)}\n`; }
 export function assertRuntimeArtifactCurrent(actual: string, expected: string): void {
-  if (actual !== expected) {
-    throw new Error(
-      `Generated runtime content is stale. Run the content runtime generator to refresh ${RUNTIME_CONTENT_OUTPUT_PATH}.`,
-    );
-  }
+  if (actual !== expected) throw new Error(`Generated runtime content is stale. Run the content runtime generator to refresh ${RUNTIME_CONTENT_OUTPUT_PATH}.`);
 }
-
 function stableStringify(value: ContentValue): string {
   if (Array.isArray(value)) return `[${value.map(stableStringify).join(",")}]`;
   if (typeof value !== "object" || value === null) return JSON.stringify(value);
-  return `{${Object.keys(value)
-    .sort()
-    .map((key) => `${JSON.stringify(key)}:${stableStringify(value[key] as ContentValue)}`)
-    .join(",")}}`;
+  return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${stableStringify(value[key] as ContentValue)}`).join(",")}}`;
 }
-
 function exactProduct(...valuesAndLabel: readonly (number | string)[]): number {
-  const label = valuesAndLabel.at(-1);
-  const values = valuesAndLabel.slice(0, -1) as number[];
+  const label = valuesAndLabel.at(-1); const values = valuesAndLabel.slice(0, -1) as number[];
   const result = values.reduce((product, value) => product * value, 1);
-  if (!Number.isSafeInteger(result)) {
-    throw new Error(`${String(label)} must resolve to an integer number of logical pixels, received ${result}.`);
-  }
+  if (!Number.isSafeInteger(result)) throw new Error(`${String(label)} must resolve to an integer number of logical pixels, received ${result}.`);
   return result;
 }
-
-function requireObject(root: ContentObject, path: readonly string[]): ContentObject {
-  const value = readPath(root, path);
-  if (!isContentObject(value)) throw new Error(`${path.join(".")} must be an object.`);
-  return value;
+function exactDifference(left: number, right: number, label: string): number {
+  const result = left - right;
+  if (!Number.isSafeInteger(result) || result < 0) throw new Error(`${label} must resolve inside the scene, received ${result}.`);
+  return result;
 }
-
-function requirePositiveNumber(root: ContentObject, path: readonly string[]): number {
-  const value = readPath(root, path);
-  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
-    throw new Error(`${path.join(".")} must be a finite positive number.`);
-  }
-  return value;
+function requireString(root: ContentObject, path: readonly string[]): string {
+  const value = readPath(root, path); if (typeof value !== "string" || value.length === 0) throw new Error(`${path.join(".")} must be a non-empty string.`); return value;
 }
-
-function requireNonNegativeNumber(root: ContentObject, path: readonly string[]): number {
-  const value = readPath(root, path);
-  if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
-    throw new Error(`${path.join(".")} must be a finite non-negative number.`);
-  }
-  return value;
+function optionalString(root: ContentObject, path: readonly string[]): string | null {
+  const value = readPath(root, path); if (value === undefined) return null; if (typeof value !== "string" || value.length === 0) throw new Error(`${path.join(".")} must be a non-empty string.`); return value;
 }
-
-function readPath(root: ContentObject, path: readonly string[]): ContentValue | undefined {
-  let value: ContentValue | undefined = root;
-  for (const key of path) {
-    if (!isContentObject(value)) return undefined;
-    value = value[key];
-  }
-  return value;
+function requireBoolean(root: ContentObject, path: readonly string[]): boolean {
+  const value = readPath(root, path); if (typeof value !== "boolean") throw new Error(`${path.join(".")} must be boolean.`); return value;
 }
-
-function isContentObject(value: ContentValue | undefined): value is ContentObject {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
+function optionalBoolean(root: ContentObject, path: readonly string[]): boolean | null {
+  const value = readPath(root, path); if (value === undefined) return null; if (typeof value !== "boolean") throw new Error(`${path.join(".")} must be boolean.`); return value;
+}
+function requireRouteKind(root: ContentObject, path: readonly string[]): "non_magic" | "optional_magic" {
+  const value = requireString(root, path); if (value !== "non_magic" && value !== "optional_magic") throw new Error(`${path.join(".")} has unknown route kind ${value}.`); return value;
+}
+function requireExactNumber(root: ContentObject, path: readonly string[], expected: number): number { const value = readPath(root, path); if (value !== expected) throw new Error(`${path.join(".")} must equal ${expected}.`); return value; }
+function requireObjectArray(root: ContentObject, path: readonly string[]): ContentObject[] { const value = readPath(root, path); if (!Array.isArray(value) || !value.every(isContentObject)) throw new Error(`${path.join(".")} must be an object array.`); return value; }
+function optionalObjectArray(root: ContentObject, path: readonly string[]): ContentObject[] { const value = readPath(root, path); if (value === undefined) return []; if (!Array.isArray(value) || !value.every(isContentObject)) throw new Error(`${path.join(".")} must be an object array when provided.`); return value; }
+function requireStringArray(root: ContentObject, path: readonly string[]): string[] { const value = readPath(root, path); if (!Array.isArray(value) || !value.every((item) => typeof item === "string" && item.length > 0)) throw new Error(`${path.join(".")} must be a string array.`); return value; }
+function requireNumberPair(root: ContentObject, path: readonly string[]): readonly [number, number] { const value = readPath(root, path); if (!Array.isArray(value) || value.length !== 2 || !value.every((item) => typeof item === "number" && Number.isInteger(item) && item >= 0)) throw new Error(`${path.join(".")} must be a non-negative integer pair.`); return [value[0] as number, value[1] as number]; }
+function requireTileRect(root: ContentObject, path: readonly string[]): RuntimeTileRect { const value = requireObject(root, path); return { x: requireNonNegativeInteger(value, ["x"]), y: requireNonNegativeInteger(value, ["y"]), width: requirePositiveInteger(value, ["width"]), height: requirePositiveInteger(value, ["height"]) }; }
+function requireObject(root: ContentObject, path: readonly string[]): ContentObject { const value = readPath(root, path); if (!isContentObject(value)) throw new Error(`${path.join(".")} must be an object.`); return value; }
+function requirePositiveInteger(root: ContentObject, path: readonly string[]): number { const value = requirePositiveNumber(root, path); if (!Number.isInteger(value)) throw new Error(`${path.join(".")} must be an integer.`); return value; }
+function requireNonNegativeInteger(root: ContentObject, path: readonly string[]): number { const value = readPath(root, path); if (typeof value !== "number" || !Number.isInteger(value) || value < 0) throw new Error(`${path.join(".")} must be a non-negative integer.`); return value; }
+function requirePositiveNumber(root: ContentObject, path: readonly string[]): number { const value = readPath(root, path); if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) throw new Error(`${path.join(".")} must be a finite positive number.`); return value; }
+function requireNonNegativeNumber(root: ContentObject, path: readonly string[]): number { const value = readPath(root, path); if (typeof value !== "number" || !Number.isFinite(value) || value < 0) throw new Error(`${path.join(".")} must be a finite non-negative number.`); return value; }
+function readPath(root: ContentObject, path: readonly string[]): ContentValue | undefined { let value: ContentValue | undefined = root; for (const key of path) { if (!isContentObject(value)) return undefined; value = value[key]; } return value; }
+function isContentObject(value: ContentValue | undefined): value is ContentObject { return typeof value === "object" && value !== null && !Array.isArray(value); }
+function resolveRepositoryContentPath(sourcePath: string, reference: string): string {
+  const resolved = posix.normalize(posix.join(posix.dirname(sourcePath), reference));
+  if (!resolved.startsWith("data/") || resolved.startsWith("../")) throw new Error(`content reference escapes data/: ${reference}`);
+  return resolved;
 }

@@ -5,7 +5,7 @@ export default defineConfig({
   build: {
     target: "es2022",
     rollupOptions: {
-      input: ["index.html", "survival.html", "trade.html", "cistern.html"],
+      input: ["index.html", "survival.html", "trade.html", "cistern.html", "rpg.html"],
     },
   },
 });

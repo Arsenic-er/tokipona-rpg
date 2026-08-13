@@ -1,6 +1,7 @@
 import { parse } from "yaml";
 import { describe, expect, it } from "vitest";
 import { compileContent } from "../../src/content/compiler";
+import { readRuntimeSceneManifestIndex } from "../../src/content/runtime-scene-manifest";
 import type { ContentSource } from "../../src/content/types";
 import generatedRuntimeText from "../../src/generated/content-runtime.v0.1.json?raw";
 import {
@@ -30,6 +31,88 @@ describe("runtime content artifact generator", () => {
     expect(() => assertRuntimeArtifactCurrent(generatedRuntimeText, expected)).not.toThrow();
   });
 
+  it("emits the validated N00/N01/N02 runtime scene manifest", () => {
+    const artifact = buildRuntimeContentArtifact(compileContent(repositorySources()));
+    expect(Object.keys(artifact.scenes.byId).sort()).toEqual([
+      "scene.valley.arrival_shelf",
+      "scene.valley.settlement",
+      "scene.valley.stream_section",
+    ]);
+    expect(artifact.scenes.byId["scene.valley.arrival_shelf"]).toMatchObject({
+      regionId: "valley_prologue",
+      regionNodeId: "valley.arrival_shelf",
+      chapterFlowId: "ch01_world_literacy_prologue",
+      chapterSegmentId: "arrival",
+      sceneId: "scene.valley.arrival_shelf",
+      tileSizePx: 16,
+      sizeTiles: { width: 24, height: 20 },
+      recovery: { entryEntranceId: "arrival.spawn", maximumSoftlockRecoverySeconds: 60 },
+    });
+    const arrival = artifact.scenes.byId["scene.valley.arrival_shelf"]!;
+    expect(arrival.collisionRows).toHaveLength(20);
+    expect(arrival.entrances.find((entry) => entry.id === "arrival.spawn")).toMatchObject({
+      spawnTile: [3, 16], spawnPx: { x: 48, y: 50 }, recoveryEntry: true,
+    });
+    expect(arrival.exits[0]).toMatchObject({
+      id: "arrival.to_stream",
+      boundsTiles: { x: 22, y: 6, width: 2, height: 5 },
+      boundsPx: { x: 352, y: 144, width: 32, height: 80 },
+      target: { kind: "scene", sceneId: "scene.valley.stream_section", entranceId: "stream.from_arrival" },
+    });
+    const stream = artifact.scenes.byId["scene.valley.stream_section"]!;
+    expect(stream.nonMagicAlternativeRouteIds).toEqual([
+      "stream.upper_bank", "stream.shallow_crossing", "stream.repaired_foothold",
+    ]);
+    expect(stream.exits.find((exit) => exit.id === "stream.to_settlement")).toMatchObject({
+      boundsPx: { x: 480, y: 48, width: 32, height: 96 },
+      target: { kind: "scene", sceneId: "scene.valley.settlement", entranceId: "settlement.from_stream" },
+      firstTraverseCommit: "settlement_entry_crossed",
+    });
+    expect(stream.routeObjectives.map((objective) => objective.id)).toContain("stream.reach_settlement");
+    expect(stream.interactions.map((interaction) => interaction.id)).toContain("stream.fill_basin");
+    const settlement = artifact.scenes.byId["scene.valley.settlement"]!;
+    expect(settlement.entrances.find((entry) => entry.id === "settlement.from_stream")).toMatchObject({
+      spawnTile: [2, 1], spawnPx: { x: 32, y: 450 }, recoveryEntry: true,
+    });
+    expect(settlement.npcs.map((npc) => npc.professionId)).toEqual([
+      "settlement.facility_manager", "settlement.repair_contractor", "settlement.supply_trader",
+    ]);
+    expect(settlement.facilities.filter((facility) => facility.publicRelief)).toEqual([
+      expect.objectContaining({ kind: "public_well", economyEligible: false }),
+      expect.objectContaining({ kind: "communal_plant_meal", economyEligible: false }),
+    ]);
+    expect(settlement.tasks).toEqual([
+      expect.objectContaining({
+        id: "ch01_settlement_orientation", nonviolent: true, magicRequired: false,
+        reward: { currency: "coin", amount: 10, claimOnce: true, receiptRequired: true },
+      }),
+    ]);
+    expect(settlement.tradeEntries).toEqual([
+      expect.objectContaining({
+        authoritativeEconomySourcePath: "data/economy/settlement-trade.v0.1.yaml",
+        merchantIds: ["settlement.grocer"],
+      }),
+    ]);
+    expect(settlement.inboundRoutes).toEqual([
+      expect.objectContaining({
+        sourceSceneId: "scene.valley.stream_section", sourceExitId: "stream.to_settlement",
+        entranceId: "settlement.from_stream",
+      }),
+    ]);
+  });
+  it("exposes a fail-closed runtime scene index reader", () => {
+    const artifact = buildRuntimeContentArtifact(compileContent(repositorySources()));
+    expect(readRuntimeSceneManifestIndex(artifact).byId["scene.valley.stream_section"]?.sizeTiles).toEqual({
+      width: 32,
+      height: 24,
+    });
+    const tampered = structuredClone(artifact) as unknown as { scenes: { byId: Record<string, { sceneId: string }> } };
+    tampered.scenes.byId["scene.valley.stream_section"]!.sceneId = "scene.not_canonical";
+    expect(() => readRuntimeSceneManifestIndex(tampered)).toThrow(/does not match sceneId/);
+    const missingNpcs = structuredClone(artifact) as unknown as { scenes: { byId: Record<string, { npcs?: unknown }> } };
+    delete missingNpcs.scenes.byId["scene.valley.settlement"]!.npcs;
+    expect(() => readRuntimeSceneManifestIndex(missingNpcs)).toThrow(/\.npcs must be an array/);
+  });
   it("fails the check when the generated artifact is stale", () => {
     const expected = serializeRuntimeContentArtifact(
       buildRuntimeContentArtifact(compileContent(repositorySources())),

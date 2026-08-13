@@ -26,6 +26,7 @@ export type ContentKind =
   | "p0_curriculum"
   | "persistence"
   | "region"
+  | "scene"
   | "settlement_trade"
   | "single_word_spells"
   | "survival"
@@ -53,6 +54,7 @@ export interface ContentManifest {
     readonly attackSignatures: Readonly<Record<string, ContentObject>>;
     readonly chapters: Readonly<Record<string, ContentObject>>;
     readonly regions: Readonly<Record<string, ContentObject>>;
+    readonly scenes: Readonly<Record<string, ContentObject>>;
     readonly ecologies: Readonly<Record<string, ContentObject>>;
     readonly economies: Readonly<Record<string, ContentObject>>;
     readonly persistenceCoordinators: Readonly<Record<string, ContentObject>>;
@@ -84,6 +86,7 @@ export interface SerializableManifestIndex {
     readonly attackSignatures: readonly string[];
     readonly chapters: readonly string[];
     readonly regions: readonly string[];
+    readonly scenes: readonly string[];
     readonly ecologies: readonly string[];
     readonly economies: readonly string[];
     readonly persistenceCoordinators: readonly string[];
