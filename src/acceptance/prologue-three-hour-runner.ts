@@ -1,5 +1,7 @@
 import generatedRuntimeArtifact from "../generated/content-runtime.v0.1.json";
+import { readRuntimeP0CurriculumManifest } from "../content/runtime-p0-curriculum-manifest";
 import { readRuntimeInfrastructureTaskManifestIndex } from "../content/runtime-task-manifest";
+import { readRuntimeSafeRangeManifest } from "../content/runtime-safe-range-manifest";
 import {
   PROLOGUE_RETURN_FLOW_FLAGS,
   PROLOGUE_RETURN_FLOW_SOLUTION_CONTRACTS,
@@ -16,6 +18,13 @@ import {
 } from "../game/prologue-waterwheel";
 import { PROLOGUE_OLD_MINE_SCENE_ID, PROLOGUE_STREAM_SCENE_ID } from "../game/prologue-arrival-stream";
 import { PrologueFlowSession } from "../game/prologue-flow";
+import {
+  PROLOGUE_SETTLEMENT_ATTACK_QUALIFICATION_ACTION_IDS,
+  PROLOGUE_SETTLEMENT_ATTACK_QUALIFICATION_UNRELATED_ACTION_IDS,
+  type SettlementAttackQualificationSemanticActionId,
+} from "../game/prologue-attack-qualification";
+import { safeRangeInteractionPointPx } from "../game/safe-range-authority";
+import { P0_LEARNING_ACTION_KINDS, type P0LearningActionId } from "../game/p0-learning-contract";
 import type { GameSessionSave } from "../session/game-session";
 import {
   ExclusivePrologueActivityTimer,
@@ -23,12 +32,26 @@ import {
   emptyPrologueTelemetrySemantic,
   evaluatePrologueActivityAcceptance,
   type PrologueActivityAcceptanceReport,
+  type PrologueQualificationTimingSample,
   type PrologueTelemetryEvent,
 } from "./prologue-telemetry";
 import type { PrologueActivityKind, PrologueTelemetryEventId } from "../content/runtime-prologue-acceptance-manifest";
 
 const TASKS = readRuntimeInfrastructureTaskManifestIndex(generatedRuntimeArtifact);
+const P0_CURRICULUM = readRuntimeP0CurriculumManifest(generatedRuntimeArtifact);
+const SAFE_RANGE = readRuntimeSafeRangeManifest(generatedRuntimeArtifact);
 const MINUTE_MS = 60_000;
+const DELAYED_QUALIFICATION_ACTION_ID = "settlement.delayed_retrieval_h0" as const;
+const QUALIFICATION_ACTION_IDS = Object.freeze([
+  ...PROLOGUE_SETTLEMENT_ATTACK_QUALIFICATION_ACTION_IDS.filter((actionId) =>
+    actionId !== DELAYED_QUALIFICATION_ACTION_ID),
+  ...PROLOGUE_SETTLEMENT_ATTACK_QUALIFICATION_UNRELATED_ACTION_IDS,
+  DELAYED_QUALIFICATION_ACTION_ID,
+] satisfies readonly SettlementAttackQualificationSemanticActionId[]);
+const QUALIFICATION_POINT_PX = Object.freeze({
+  x: SAFE_RANGE.parallelCalibration.interactionPointTiles[0] * 16,
+  y: SAFE_RANGE.parallelCalibration.interactionPointTiles[1] * 16,
+});
 
 const WATER_WORLD: Readonly<Record<string, WaterwheelSolutionEvidence["world"]>> = Object.freeze({
   "waterwheel.clear_natural_inflow": Object.freeze({ naturalInflowReachesWheel: true, axleAlignmentSafe: true, downstreamFlowBandSafe: true }),
@@ -57,6 +80,7 @@ export interface PrologueThreeHourAcceptanceReport {
   readonly finalSceneId: "scene.valley.settlement";
   readonly oldMineVisited: true;
   readonly peacefulExitReceiptPresent: true;
+  readonly qualificationTiming: PrologueQualificationTimingSample;
   readonly finalSave: GameSessionSave;
 }
 
@@ -64,6 +88,7 @@ export function runPrologueThreeHourAcceptance(input: Readonly<{
   sessionId: string;
   routeVariant: PrologueAcceptanceRouteVariant;
   injectSoftRecoveries?: boolean;
+  attemptFormalAttackQualification?: boolean;
 }>): PrologueThreeHourAcceptanceReport {
   const route = input.routeVariant === "primary"
     ? { water: "waterwheel.repair_axle", service: "service.open_bypass_valve", returnIndex: 0 }
@@ -96,6 +121,21 @@ export function runPrologueThreeHourAcceptance(input: Readonly<{
   goRightUntil(flow, PROLOGUE_SETTLEMENT_SCENE_ID);
   advanceActivity("world_people_physics", 35);
   record("prologue_segment_completed", "arrival", "scene.valley.settlement", "segment.completed");
+
+  if (input.attemptFormalAttackQualification) {
+    const archivePoint = Object.freeze({
+      x: P0_CURRICULUM.recoveryStation.interactionPointTiles[0] * 16,
+      y: P0_CURRICULUM.recoveryStation.interactionPointTiles[1] * 16,
+    });
+    walkHorizontallyNear(flow, archivePoint, "settlement P0 recovery archive");
+    for (const wordId of ["telo", "tawa"] as const) {
+      for (const [index, kind] of P0_LEARNING_ACTION_KINDS.entries()) {
+        const actionId = `p0.${wordId}.${kind}` as P0LearningActionId;
+        accepted(flow.performP0LearningAction(`${input.sessionId}.p0.${wordId}.${index}`, actionId),
+          `P0 learning action ${actionId}`);
+      }
+    }
+  }
 
   advanceActivity("language", 12);
   record("world_literacy_observed", "settlement_orientation", "settlement.public_relief", "non_attack_route.available");
@@ -139,6 +179,16 @@ export function runPrologueThreeHourAcceptance(input: Readonly<{
     accepted(flow.performReturnFlowAction(`${input.sessionId}.return.action.${index}`, actionId), `return-flow action ${actionId}`);
   }
   accepted(flow.completeReturnFlowSolution(`${input.sessionId}.return.complete`, returnSolution.id), "return-flow solution");
+  if (input.attemptFormalAttackQualification) {
+    accepted(flow.discoverReturnFlowWawa(`${input.sessionId}.return.wawa.discover`), "return-flow wawa discovery");
+    accepted(flow.attuneReturnFlowWawa(`${input.sessionId}.return.wawa.attune`), "return-flow wawa attunement");
+    accepted(flow.groundReturnFlowWawa(`${input.sessionId}.return.wawa.ground`, {
+      solutionId: returnSolution.id,
+      promptLevel: 0,
+      predictedForceContrastCorrect: true,
+      worldOutcomeContribution: true,
+    }), "return-flow inert wawa grounding");
+  }
   reload();
   accepted(flow.returnFlowToSettlement(`${input.sessionId}.return.settlement`), "return to settlement");
   advanceActivity("world_people_physics", 35);
@@ -147,6 +197,41 @@ export function runPrologueThreeHourAcceptance(input: Readonly<{
   record("delayed_retrieval_completed", "den_and_return_flow", "word.wawa", "inert_force.recalled");
   advanceActivity("long_explanation", 6);
   record("prologue_segment_completed", "den_and_return_flow", "scene.valley.return_channel", "segment.completed");
+
+  let rangeTrialPermissionContentMs: number | null = null;
+  let firstAttackSignatureContentMs: number | null = null;
+  if (input.attemptFormalAttackQualification) {
+    record("attack_qualification_started", "return_and_safe_range", "attack.water.forceful_motion.prerequisite_graph", "qualification.started");
+    walkHorizontallyNear(flow, QUALIFICATION_POINT_PX, "settlement attack-calibration table");
+    for (const [index, actionId] of QUALIFICATION_ACTION_IDS.entries()) {
+      accepted(flow.performAttackQualificationAction(`${input.sessionId}.qualification.${index}`, actionId),
+        `attack qualification action ${actionId}`);
+    }
+    accepted(flow.calibrateAttackCapacity(`${input.sessionId}.qualification.calibrate`), "attack capacity calibration");
+    record("attack_capacity_calibrated", "return_and_safe_range", "attack.water.forceful_motion.prerequisite_graph", "capacity.4_4_30");
+    accepted(flow.grantRangeTrialPermission(`${input.sessionId}.qualification.permission`), "range-trial permission");
+    rangeTrialPermissionContentMs = timer.snapshot(nowMs).contentActiveMs;
+    record("range_trial_permission_granted", "return_and_safe_range", "scene.valley.safe_range", "permission.granted");
+    record("attack_qualification_completed", "return_and_safe_range", "attack.water.forceful_motion.prerequisite_graph", "qualification.completed");
+    let meditationIndex = 0;
+    while (flow.snapshot().session.mp.currentMp < 13 && meditationIndex < 20) {
+      accepted(flow.meditate(`${input.sessionId}.qualification.meditate.${meditationIndex}`, false), "qualification MP refill");
+      meditationIndex += 1;
+    }
+    accepted(flow.enterSafeRange(`${input.sessionId}.safe-range.entry`), "safe-range entry");
+    const woodPoint = safeRangeInteractionPointPx("wood_dummy");
+    if (!woodPoint) throw new Error("generated safe-range wood target has no interaction point");
+    walkHorizontallyNear(flow, woodPoint, "safe-range wood target");
+    const compiled = flow.compileSafeRange({ targetClass: "wood_dummy", promptLevel: 0, waterSource: "bound_existing" });
+    if (!compiled.accepted || !compiled.result?.ok || !compiled.result.preview) {
+      throw new Error(`safe-range first signature compile was rejected: ${compiled.reason}`);
+    }
+    accepted(flow.executeSafeRange(`${input.sessionId}.safe-range.first-signature`, compiled.result.preview.previewId),
+      "safe-range first inert transfer");
+    firstAttackSignatureContentMs = timer.snapshot(nowMs).contentActiveMs;
+    record("first_attack_signature_unlocked", "return_and_safe_range", "wood_dummy", "signature.available");
+    accepted(flow.safeRangeToSettlement(`${input.sessionId}.safe-range.return`), "safe-range return to settlement");
+  }
 
   accepted(flow.enterOldMine(`${input.sessionId}.old-mine.entry`), "old-mine peaceful entry");
   requireScene(flow, PROLOGUE_OLD_MINE_SCENE_ID);
@@ -177,7 +262,13 @@ export function runPrologueThreeHourAcceptance(input: Readonly<{
     contentMinutes: 180, elapsedMinutesIncludingExcluded: 210, activity, telemetryEvents: telemetry.events(),
     reloadCount, softRecoveryCount, killCount: 0, wildlifeHarmEventCount: 0,
     meaningfulReturnWorldDeltaIds: Object.freeze(worldDeltaIds), finalSceneId: PROLOGUE_SETTLEMENT_SCENE_ID as "scene.valley.settlement",
-    oldMineVisited: true, peacefulExitReceiptPresent: true, finalSave: flow.toSave(),
+    oldMineVisited: true, peacefulExitReceiptPresent: true,
+    qualificationTiming: Object.freeze({
+      sessionId: input.sessionId,
+      rangeTrialPermissionContentMs,
+      firstAttackSignatureContentMs,
+    }),
+    finalSave: flow.toSave(),
   });
 }
 
@@ -196,6 +287,29 @@ function requireScene(flow: PrologueFlowSession, sceneId: string): void {
   if (flow.snapshot().runtime.sceneId !== sceneId) throw new Error(`expected scene ${sceneId}, received ${flow.snapshot().runtime.sceneId}`);
 }
 
-function accepted(value: Readonly<{ accepted: boolean; reason?: string }>, label: string): void {
-  if (!value.accepted) throw new Error(`${label} was rejected${value.reason ? `: ${value.reason}` : ""}`);
+function walkHorizontallyNear(
+  flow: PrologueFlowSession,
+  point: Readonly<{ x: number; y: number }>,
+  label: string,
+  maximumTicks = 1_500,
+): void {
+  for (let tick = 0; tick < maximumTicks; tick += 1) {
+    const position = flow.snapshot().runtime.player.position;
+    if (Math.hypot(position.x - point.x, position.y - point.y) <= 16) return;
+    flow.advanceTicks(1, { moveX: position.x < point.x ? 1 : -1 });
+  }
+  const position = flow.snapshot().runtime.player.position;
+  throw new Error(`${label} remained out of range at ${position.x},${position.y}`);
+}
+
+function accepted(value: Readonly<{ accepted: boolean; reason?: string; result?: unknown }>, label: string): void {
+  if (!value.accepted) {
+    const result = typeof value.result === "object" && value.result !== null
+      ? value.result as Record<string, unknown> : null;
+    const nested = typeof result?.reason === "string" ? result.reason : null;
+    const sessionReason = typeof result?.sessionReason === "string" ? result.sessionReason : null;
+    const failedDraftId = typeof result?.failedDraftId === "string" ? result.failedDraftId : null;
+    throw new Error(`${label} was rejected${value.reason ? `: ${value.reason}` : ""}${nested ? `/${nested}` : ""}` +
+      `${sessionReason ? `/${sessionReason}` : ""}${failedDraftId ? ` at ${failedDraftId}` : ""}`);
+  }
 }

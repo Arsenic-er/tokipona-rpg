@@ -17,7 +17,39 @@ describe("deterministic three-hour prologue acceptance runner", () => {
     ]);
     expect(report.telemetryEvents.map((event) => event.sequence)).toEqual(report.telemetryEvents.map((_, index) => index + 1));
     expect(report.telemetryEvents.every((event) => event.schemaVersion === "prologue.telemetry.v0.1")).toBe(true);
+    expect(report.qualificationTiming).toEqual({
+      sessionId: `acceptance.${routeVariant}`,
+      rangeTrialPermissionContentMs: null,
+      firstAttackSignatureContentMs: null,
+    });
     expect(() => PrologueFlowSession.fromSave(JSON.parse(JSON.stringify(report.finalSave)))).not.toThrow();
+  });
+
+  it("records a formal low-hint qualification and first inert signature before the 180-minute deadline", () => {
+    const report = runPrologueThreeHourAcceptance({
+      sessionId: "acceptance.formal-attack",
+      routeVariant: "primary",
+      attemptFormalAttackQualification: true,
+    });
+    expect(report.qualificationTiming).toEqual({
+      sessionId: "acceptance.formal-attack",
+      rangeTrialPermissionContentMs: 159 * 60_000,
+      firstAttackSignatureContentMs: 159 * 60_000,
+    });
+    expect(report.telemetryEvents.map((event) => event.eventId)).toEqual(expect.arrayContaining([
+      "attack_qualification_started",
+      "attack_capacity_calibrated",
+      "range_trial_permission_granted",
+      "attack_qualification_completed",
+      "first_attack_signature_unlocked",
+    ]));
+    const reloaded = PrologueFlowSession.fromSave(JSON.parse(JSON.stringify(report.finalSave)));
+    expect(reloaded.snapshot().session.world.flags).toMatchObject({
+      "global:attack_capacity_calibration_complete": { value: true },
+      "global:range_trial_permission": { value: true },
+      "global:first_attack_signature_available": { value: true },
+    });
+    expect(reloaded.snapshot()).toMatchObject({ killCount: 0, mode: "settlement" });
   });
 
   it("is deterministic across identical route runs without reusing transaction identity", () => {

@@ -54,6 +54,23 @@ export interface PrologueActivityAcceptanceReport {
   readonly accepted: boolean;
 }
 
+export interface PrologueQualificationTimingSample {
+  readonly sessionId: string;
+  readonly rangeTrialPermissionContentMs: number | null;
+  readonly firstAttackSignatureContentMs: number | null;
+}
+
+export interface PrologueQualificationCohortAcceptanceReport {
+  readonly sampleSize: number;
+  readonly rangeTrialPermissionContentMsP90: number | null;
+  readonly formalAttackUnlockByDeadlineProportion: number;
+  readonly passes: Readonly<{
+    rangeTrialPermissionP90: boolean;
+    formalAttackUnlockProportion: boolean;
+  }>;
+  readonly accepted: boolean;
+}
+
 export class ExclusivePrologueActivityTimer {
   readonly #totals = new Map<PrologueActivityKind, number>(ACTIVITY_KINDS.map((kind) => [kind, 0]));
   #active: PrologueActivityKind | null = null;
@@ -176,6 +193,49 @@ export function evaluatePrologueActivityAcceptance(snapshot: ExclusiveActivitySn
   return Object.freeze({ contentActiveMs: total, shares, passes, accepted: total > 0 && Object.values(passes).every(Boolean) });
 }
 
+/**
+ * Evaluates observed playtest samples. Missing permission/signature timestamps
+ * remain failures; callers must not manufacture successful samples from the
+ * deterministic acceptance runner.
+ */
+export function evaluatePrologueQualificationCohort(
+  samples: readonly PrologueQualificationTimingSample[],
+): PrologueQualificationCohortAcceptanceReport {
+  const maximumMs = CONTRACT.acceptance.playtest.rangeTrialPermissionContentMinutesP90Maximum * 60_000;
+  const minimumUnlockProportion = CONTRACT.acceptance.playtest.formalAttackUnlockBy180ContentMinutesProportionMinimum;
+  const normalized = samples.map((sample) => {
+    semanticId(sample.sessionId, "qualification sample sessionId");
+    validateOptionalContentTimestamp(sample.rangeTrialPermissionContentMs, "rangeTrialPermissionContentMs");
+    validateOptionalContentTimestamp(sample.firstAttackSignatureContentMs, "firstAttackSignatureContentMs");
+    if (sample.firstAttackSignatureContentMs !== null &&
+        (sample.rangeTrialPermissionContentMs === null ||
+          sample.firstAttackSignatureContentMs < sample.rangeTrialPermissionContentMs)) {
+      throw new Error("first attack signature must follow range-trial permission");
+    }
+    return sample;
+  });
+  const permissionTimes = normalized
+    .map((sample) => sample.rangeTrialPermissionContentMs ?? Number.POSITIVE_INFINITY)
+    .sort((left, right) => left - right);
+  const p90Index = permissionTimes.length === 0 ? -1 : Math.ceil(permissionTimes.length * 0.9) - 1;
+  const rawP90 = p90Index < 0 ? Number.POSITIVE_INFINITY : permissionTimes[p90Index]!;
+  const permissionP90 = Number.isFinite(rawP90) ? rawP90 : null;
+  const unlocksByDeadline = normalized.filter((sample) =>
+    sample.firstAttackSignatureContentMs !== null && sample.firstAttackSignatureContentMs <= maximumMs).length;
+  const unlockProportion = normalized.length === 0 ? 0 : unlocksByDeadline / normalized.length;
+  const passes = Object.freeze({
+    rangeTrialPermissionP90: permissionP90 !== null && permissionP90 <= maximumMs,
+    formalAttackUnlockProportion: normalized.length > 0 && unlockProportion >= minimumUnlockProportion,
+  });
+  return Object.freeze({
+    sampleSize: normalized.length,
+    rangeTrialPermissionContentMsP90: permissionP90,
+    formalAttackUnlockByDeadlineProportion: unlockProportion,
+    passes,
+    accepted: Object.values(passes).every(Boolean),
+  });
+}
+
 export function emptyPrologueTelemetrySemantic(overrides: Partial<PrologueTelemetrySemantic> = {}): PrologueTelemetrySemantic {
   return validateSemantic({ subjectId: null, outcomeId: null, promptLevel: null, count: null, durationMs: null, ...overrides });
 }
@@ -229,3 +289,8 @@ function validateActivity(value: string): asserts value is PrologueActivityKind 
 function validateTimestamp(value: number, minimum: number): void { if (!Number.isSafeInteger(value) || value < 0 || value < minimum) throw new Error("activity timestamp must be monotonic non-negative milliseconds"); }
 function semanticId(value: unknown, label: string): string { if (typeof value !== "string" || !SEMANTIC_ID.test(value)) throw new Error(`${label} must be a semantic identifier`); return value; }
 function nullableNonNegativeSafeInteger(value: unknown, label: string): number | null { if (value === null) return null; if (!Number.isSafeInteger(value) || (value as number) < 0) throw new Error(`${label} must be a non-negative safe integer or null`); return value as number; }
+function validateOptionalContentTimestamp(value: number | null, label: string): void {
+  if (value !== null && (!Number.isSafeInteger(value) || value < 0)) {
+    throw new Error(`${label} must be a non-negative safe integer or null`);
+  }
+}

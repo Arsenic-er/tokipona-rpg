@@ -4,6 +4,7 @@ import {
   PrologueTelemetryRecorder,
   emptyPrologueTelemetrySemantic,
   evaluatePrologueActivityAcceptance,
+  evaluatePrologueQualificationCohort,
 } from "./prologue-telemetry";
 
 describe("prologue acceptance telemetry", () => {
@@ -58,5 +59,37 @@ describe("prologue acceptance telemetry", () => {
     timer.switchTo("long_explanation", 60);
     timer.stop(100);
     expect(evaluatePrologueActivityAcceptance(timer.snapshot(100))).toMatchObject({ accepted: false, passes: { worldPeoplePhysicsMinimum: false, languageRange: false, longExplanationMaximum: false } });
+  });
+
+  it("evaluates observed qualification cohorts without treating missing sessions as successes", () => {
+    const minute = (value: number): number => value * 60_000;
+    const passing = Array.from({ length: 10 }, (_, index) => ({
+      sessionId: `cohort.pass.${index}`,
+      rangeTrialPermissionContentMs: index < 7 ? minute(159) : index < 9 ? minute(170) : null,
+      firstAttackSignatureContentMs: index < 7 ? minute(159) : null,
+    }));
+    expect(evaluatePrologueQualificationCohort(passing)).toEqual({
+      sampleSize: 10,
+      rangeTrialPermissionContentMsP90: minute(170),
+      formalAttackUnlockByDeadlineProportion: 0.7,
+      passes: { rangeTrialPermissionP90: true, formalAttackUnlockProportion: true },
+      accepted: true,
+    });
+
+    const missing = passing.map((sample, index) => index === 6
+      ? { ...sample, rangeTrialPermissionContentMs: null, firstAttackSignatureContentMs: null }
+      : sample);
+    expect(evaluatePrologueQualificationCohort(missing)).toMatchObject({
+      rangeTrialPermissionContentMsP90: null,
+      formalAttackUnlockByDeadlineProportion: 0.6,
+      passes: { rangeTrialPermissionP90: false, formalAttackUnlockProportion: false },
+      accepted: false,
+    });
+    expect(evaluatePrologueQualificationCohort([])).toMatchObject({ accepted: false, sampleSize: 0 });
+    expect(() => evaluatePrologueQualificationCohort([{
+      sessionId: "cohort.bad.order",
+      rangeTrialPermissionContentMs: minute(160),
+      firstAttackSignatureContentMs: minute(159),
+    }])).toThrow(/must follow/);
   });
 });
