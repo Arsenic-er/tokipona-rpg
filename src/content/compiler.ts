@@ -308,14 +308,23 @@ function validatePrologueAcceptanceSource(source: CompiledSource, issues: Conten
   const contract = readObject(source.content, "telemetry_contract");
   const taxonomy = readObject(contract, "primary_activity_taxonomy");
   const payload = readObject(contract, "event_payload");
+  const cadence = readObject(contract, "cadence");
+  const activeRetrievalInterval = cadence.active_retrieval_interval_minutes;
   if (readString(contract, "schema_version") !== "prologue.telemetry.v0.1" ||
       !same(readStringArray(taxonomy, "included"), ["world_people_physics", "language", "long_explanation"]) ||
       !same(readStringArray(taxonomy, "excluded"), ["pause", "idle", "settings", "optional_free_roam"]) ||
       taxonomy.exclusive_one_of_required !== true ||
       !same(readStringArray(payload, "required_fields"), ["schemaVersion", "eventId", "sessionId", "sequence", "worldTick", "segmentId", "primaryActivity", "contentActiveMs", "semantic"]) ||
-      !same(readStringArray(payload, "semantic_field_keys"), ["subjectId", "outcomeId", "promptLevel", "count", "durationMs"]) ||
-      !same(readStringArray(payload, "forbidden_fields"), ["rawUtterance", "rawText", "inventoryLotId", "damageOverride", "worldFlagOverride"])) {
-    addIssue(issues, "chapter.telemetry_contract", source.path, "telemetry_contract", "telemetry taxonomy and privacy-safe payload schema are noncanonical");
+      !same(readStringArray(payload, "semantic_field_keys"), ["subjectId", "outcomeId", "practiceFamilyId", "promptLevel", "count", "durationMs"]) ||
+      !same(readStringArray(payload, "forbidden_fields"), ["rawUtterance", "rawText", "inventoryLotId", "damageOverride", "worldFlagOverride"]) ||
+      !same(readStringArray(cadence, "consequential_choice_event_ids"), ["world_literacy_intervened", "repair_completed", "alternate_method_used"]) ||
+      readNumber(cadence, "consequential_choice_maximum_gap_minutes") !== 20 ||
+      !same(readStringArray(cadence, "active_retrieval_event_ids"), ["active_retrieval_submitted", "delayed_retrieval_completed"]) ||
+      !Array.isArray(activeRetrievalInterval) || activeRetrievalInterval.length !== 2 ||
+      activeRetrievalInterval[0] !== 30 || activeRetrievalInterval[1] !== 40 ||
+      readString(cadence, "active_retrieval_practice_family_semantic_field") !== "practiceFamilyId" ||
+      readNumber(cadence, "maximum_consecutive_same_practice_family") !== 2) {
+    addIssue(issues, "chapter.telemetry_contract", source.path, "telemetry_contract", "telemetry taxonomy, privacy-safe payload schema, and cadence authority are noncanonical");
   }
   const acceptance = readObject(source.content, "acceptance");
   const required = readObject(acceptance, "required");

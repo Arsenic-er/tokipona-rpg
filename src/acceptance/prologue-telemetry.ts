@@ -17,6 +17,7 @@ const SEMANTIC_ID = /^[a-z0-9][a-z0-9_.:-]*$/;
 export interface PrologueTelemetrySemantic {
   readonly subjectId: string | null;
   readonly outcomeId: string | null;
+  readonly practiceFamilyId: string | null;
   readonly promptLevel: 0 | 1 | null;
   readonly count: number | null;
   readonly durationMs: number | null;
@@ -67,6 +68,23 @@ export interface PrologueQualificationCohortAcceptanceReport {
   readonly passes: Readonly<{
     rangeTrialPermissionP90: boolean;
     formalAttackUnlockProportion: boolean;
+  }>;
+  readonly accepted: boolean;
+}
+
+export interface PrologueCadenceAcceptanceReport {
+  readonly contentActiveMs: number;
+  readonly consequentialChoiceEventCount: number;
+  readonly maximumConsequentialChoiceGapMs: number | null;
+  readonly activeRetrievalEventCount: number;
+  readonly activeRetrievalIntervalGapsMs: readonly number[];
+  readonly trailingActiveRetrievalGapMs: number | null;
+  readonly maximumConsecutiveSamePracticeFamily: number;
+  readonly passes: Readonly<{
+    consequentialChoiceMaximumGap: boolean;
+    activeRetrievalIntervals: boolean;
+    activeRetrievalTrailingWindow: boolean;
+    practiceFamilyAlternation: boolean;
   }>;
   readonly accepted: boolean;
 }
@@ -236,8 +254,82 @@ export function evaluatePrologueQualificationCohort(
   });
 }
 
+export function evaluatePrologueCadenceAcceptance(
+  events: readonly PrologueTelemetryEvent[],
+  contentActiveMs: number,
+): PrologueCadenceAcceptanceReport {
+  if (!Number.isSafeInteger(contentActiveMs) || contentActiveMs <= 0) {
+    throw new Error("cadence contentActiveMs must be a positive safe integer");
+  }
+  let minimumContentActiveMs = 0;
+  const sessionId = events[0]?.sessionId ?? "cadence.empty";
+  const validated = events.map((event, index) => {
+    const candidate = validateEvent(event, sessionId, index + 1, minimumContentActiveMs);
+    minimumContentActiveMs = candidate.contentActiveMs;
+    if (candidate.contentActiveMs > contentActiveMs) {
+      throw new Error("telemetry event exceeds the cadence content window");
+    }
+    return candidate;
+  });
+  const choiceEventIds = CONTRACT.telemetry.cadence.consequentialChoiceEventIds as readonly PrologueTelemetryEventId[];
+  const retrievalEventIds = CONTRACT.telemetry.cadence.activeRetrievalEventIds as readonly PrologueTelemetryEventId[];
+  const choiceTimes = validated.filter((event) => choiceEventIds.includes(event.eventId))
+    .map((event) => event.contentActiveMs);
+  const choiceBoundaries = [0, ...choiceTimes, contentActiveMs];
+  const choiceGaps = choiceBoundaries.slice(1).map((time, index) => time - choiceBoundaries[index]!);
+  const maximumChoiceGap = choiceGaps.length === 0 ? null : Math.max(...choiceGaps);
+
+  const retrievals = validated.filter((event) => retrievalEventIds.includes(event.eventId));
+  const retrievalFamilies = retrievals.map((event) => {
+    if (event.semantic.practiceFamilyId === null) {
+      throw new Error("active retrieval telemetry requires practiceFamilyId");
+    }
+    return event.semantic.practiceFamilyId;
+  });
+  const retrievalTimes = retrievals.map((event) => event.contentActiveMs);
+  const retrievalIntervals = retrievalTimes.map((time, index) => time - (retrievalTimes[index - 1] ?? 0));
+  const trailingRetrievalGap = retrievalTimes.length === 0
+    ? null
+    : contentActiveMs - retrievalTimes[retrievalTimes.length - 1]!;
+  let maximumConsecutiveFamily = 0;
+  let currentFamily: string | null = null;
+  let currentFamilyCount = 0;
+  for (const family of retrievalFamilies) {
+    if (family === currentFamily) currentFamilyCount += 1;
+    else {
+      currentFamily = family;
+      currentFamilyCount = 1;
+    }
+    maximumConsecutiveFamily = Math.max(maximumConsecutiveFamily, currentFamilyCount);
+  }
+  const [minimumRetrievalGapMinutes, maximumRetrievalGapMinutes] =
+    CONTRACT.telemetry.cadence.activeRetrievalIntervalMinutes;
+  const minimumRetrievalGapMs = minimumRetrievalGapMinutes * 60_000;
+  const maximumRetrievalGapMs = maximumRetrievalGapMinutes * 60_000;
+  const passes = Object.freeze({
+    consequentialChoiceMaximumGap: maximumChoiceGap !== null &&
+      maximumChoiceGap <= CONTRACT.telemetry.cadence.consequentialChoiceMaximumGapMinutes * 60_000,
+    activeRetrievalIntervals: retrievalIntervals.length > 0 && retrievalIntervals.every((gap) =>
+      gap >= minimumRetrievalGapMs && gap <= maximumRetrievalGapMs),
+    activeRetrievalTrailingWindow: trailingRetrievalGap !== null && trailingRetrievalGap <= maximumRetrievalGapMs,
+    practiceFamilyAlternation: retrievalFamilies.length > 0 &&
+      maximumConsecutiveFamily <= CONTRACT.telemetry.cadence.maximumConsecutiveSamePracticeFamily,
+  });
+  return Object.freeze({
+    contentActiveMs,
+    consequentialChoiceEventCount: choiceTimes.length,
+    maximumConsequentialChoiceGapMs: maximumChoiceGap,
+    activeRetrievalEventCount: retrievalTimes.length,
+    activeRetrievalIntervalGapsMs: Object.freeze(retrievalIntervals),
+    trailingActiveRetrievalGapMs: trailingRetrievalGap,
+    maximumConsecutiveSamePracticeFamily: maximumConsecutiveFamily,
+    passes,
+    accepted: Object.values(passes).every(Boolean),
+  });
+}
+
 export function emptyPrologueTelemetrySemantic(overrides: Partial<PrologueTelemetrySemantic> = {}): PrologueTelemetrySemantic {
-  return validateSemantic({ subjectId: null, outcomeId: null, promptLevel: null, count: null, durationMs: null, ...overrides });
+  return validateSemantic({ subjectId: null, outcomeId: null, practiceFamilyId: null, promptLevel: null, count: null, durationMs: null, ...overrides });
 }
 
 function validateSemantic(value: unknown): PrologueTelemetrySemantic {
@@ -247,10 +339,11 @@ function validateSemantic(value: unknown): PrologueTelemetrySemantic {
   if (keys.length !== PROLOGUE_TELEMETRY_SEMANTIC_FIELDS.length || PROLOGUE_TELEMETRY_SEMANTIC_FIELDS.some((key) => !(key in record))) throw new Error("telemetry semantic contains unknown or missing fields");
   const subjectId = record.subjectId === null ? null : semanticId(record.subjectId, "semantic.subjectId");
   const outcomeId = record.outcomeId === null ? null : semanticId(record.outcomeId, "semantic.outcomeId");
+  const practiceFamilyId = record.practiceFamilyId === null ? null : semanticId(record.practiceFamilyId, "semantic.practiceFamilyId");
   if (record.promptLevel !== null && record.promptLevel !== 0 && record.promptLevel !== 1) throw new Error("semantic.promptLevel must be H0, H1, or null");
   const count = nullableNonNegativeSafeInteger(record.count, "semantic.count");
   const durationMs = nullableNonNegativeSafeInteger(record.durationMs, "semantic.durationMs");
-  return Object.freeze({ subjectId, outcomeId, promptLevel: record.promptLevel as 0 | 1 | null, count, durationMs });
+  return Object.freeze({ subjectId, outcomeId, practiceFamilyId, promptLevel: record.promptLevel as 0 | 1 | null, count, durationMs });
 }
 
 function validateEvent(

@@ -14,8 +14,10 @@ const PROLOGUE_TELEMETRY_EVENT_IDS = [
 const PROLOGUE_INCLUDED_ACTIVITY_KINDS = ["world_people_physics", "language", "long_explanation"] as const;
 const PROLOGUE_EXCLUDED_ACTIVITY_KINDS = ["pause", "idle", "settings", "optional_free_roam"] as const;
 const PROLOGUE_TELEMETRY_REQUIRED_FIELDS = ["schemaVersion", "eventId", "sessionId", "sequence", "worldTick", "segmentId", "primaryActivity", "contentActiveMs", "semantic"] as const;
-const PROLOGUE_TELEMETRY_SEMANTIC_FIELDS = ["subjectId", "outcomeId", "promptLevel", "count", "durationMs"] as const;
+const PROLOGUE_TELEMETRY_SEMANTIC_FIELDS = ["subjectId", "outcomeId", "practiceFamilyId", "promptLevel", "count", "durationMs"] as const;
 const PROLOGUE_TELEMETRY_FORBIDDEN_FIELDS = ["rawUtterance", "rawText", "inventoryLotId", "damageOverride", "worldFlagOverride"] as const;
+const PROLOGUE_CONSEQUENTIAL_CHOICE_EVENT_IDS = ["world_literacy_intervened", "repair_completed", "alternate_method_used"] as const;
+const PROLOGUE_ACTIVE_RETRIEVAL_EVENT_IDS = ["active_retrieval_submitted", "delayed_retrieval_completed"] as const;
 
 export function projectPrologueAcceptance(manifest: ContentManifest): RuntimePrologueAcceptanceManifest {
   const source = manifest.byKind.chapter[0];
@@ -27,6 +29,7 @@ export function projectPrologueAcceptance(manifest: ContentManifest): RuntimePro
   const telemetryContract = object(source.content.telemetry_contract, "telemetry_contract");
   const taxonomy = object(telemetryContract.primary_activity_taxonomy, "telemetry primary activity taxonomy");
   const payload = object(telemetryContract.event_payload, "telemetry event payload");
+  const cadence = object(telemetryContract.cadence, "telemetry cadence");
   exactStrings(source.content.telemetry_events, PROLOGUE_TELEMETRY_EVENT_IDS, "telemetry_events");
   exactStrings(taxonomy.included, PROLOGUE_INCLUDED_ACTIVITY_KINDS, "telemetry included activities");
   exactStrings(taxonomy.excluded, PROLOGUE_EXCLUDED_ACTIVITY_KINDS, "telemetry excluded activities");
@@ -49,6 +52,21 @@ export function projectPrologueAcceptance(manifest: ContentManifest): RuntimePro
         requiredFields: [...PROLOGUE_TELEMETRY_REQUIRED_FIELDS],
         semanticFieldKeys: [...PROLOGUE_TELEMETRY_SEMANTIC_FIELDS],
         forbiddenFields: [...PROLOGUE_TELEMETRY_FORBIDDEN_FIELDS],
+      },
+      cadence: {
+        consequentialChoiceEventIds: exactStrings(cadence.consequential_choice_event_ids,
+          PROLOGUE_CONSEQUENTIAL_CHOICE_EVENT_IDS, "consequential choice event IDs"),
+        consequentialChoiceMaximumGapMinutes: exact(cadence.consequential_choice_maximum_gap_minutes,
+          20, "consequential choice maximum gap"),
+        activeRetrievalEventIds: exactStrings(cadence.active_retrieval_event_ids,
+          PROLOGUE_ACTIVE_RETRIEVAL_EVENT_IDS, "active retrieval event IDs"),
+        activeRetrievalIntervalMinutes: exactNumberPair(cadence.active_retrieval_interval_minutes,
+          30, 40, "active retrieval interval"),
+        activeRetrievalPracticeFamilySemanticField: exact(
+          cadence.active_retrieval_practice_family_semantic_field, "practiceFamilyId",
+          "active retrieval practice-family field"),
+        maximumConsecutiveSamePracticeFamily: exact(cadence.maximum_consecutive_same_practice_family,
+          2, "maximum consecutive same practice family"),
       },
     },
     acceptance: {

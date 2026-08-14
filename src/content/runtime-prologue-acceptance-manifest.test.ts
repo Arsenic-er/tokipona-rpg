@@ -34,6 +34,17 @@ describe("prologue acceptance runtime contract", () => {
       includedPrimaryActivities: ["world_people_physics", "language", "long_explanation"],
       excludedActivities: ["pause", "idle", "settings", "optional_free_roam"],
       exclusivePrimaryActivity: true,
+      payload: {
+        semanticFieldKeys: ["subjectId", "outcomeId", "practiceFamilyId", "promptLevel", "count", "durationMs"],
+      },
+      cadence: {
+        consequentialChoiceEventIds: ["world_literacy_intervened", "repair_completed", "alternate_method_used"],
+        consequentialChoiceMaximumGapMinutes: 20,
+        activeRetrievalEventIds: ["active_retrieval_submitted", "delayed_retrieval_completed"],
+        activeRetrievalIntervalMinutes: [30, 40],
+        activeRetrievalPracticeFamilySemanticField: "practiceFamilyId",
+        maximumConsecutiveSamePracticeFamily: 2,
+      },
     });
     expect(value.telemetry.eventIds).toHaveLength(24);
     expect(value.acceptance.required).toMatchObject({ mandatoryKills: 0, safeRangeUsesLivingTargets: false, meaningfulWorldDeltasOnReturnMinimum: 3 });
@@ -50,6 +61,9 @@ describe("prologue acceptance runtime contract", () => {
     const unknown = structuredClone(generated) as any;
     unknown.prologueAcceptance.telemetry.payload.rawPayloadAllowed = true;
     expect(() => readRuntimePrologueAcceptanceManifest(resign(unknown))).toThrow(/unknown or missing/);
+    const cadence = structuredClone(generated) as any;
+    cadence.prologueAcceptance.telemetry.cadence.activeRetrievalIntervalMinutes = [20, 50];
+    expect(() => readRuntimePrologueAcceptanceManifest(resign(cadence))).toThrow(/cadence/);
     const threshold = structuredClone(generated) as any;
     threshold.prologueAcceptance.acceptance.playtest.worldPeoplePhysicsTimeShareMinimum = 0.5;
     expect(() => readRuntimePrologueAcceptanceManifest(resign(threshold))).toThrow(/playtest acceptance/);
@@ -63,6 +77,10 @@ describe("prologue acceptance runtime contract", () => {
     const contract = chapter(payloadDrift).telemetry_contract as Record<string, unknown>;
     (contract.event_payload as Record<string, unknown>).forbidden_fields = [];
     expectIssue(payloadDrift, "chapter.telemetry_contract");
+    const cadenceDrift = sources();
+    const cadenceContract = (chapter(cadenceDrift).telemetry_contract as Record<string, unknown>).cadence as Record<string, unknown>;
+    cadenceContract.maximum_consecutive_same_practice_family = 3;
+    expectIssue(cadenceDrift, "chapter.telemetry_contract");
     const acceptanceDrift = sources();
     const acceptance = chapter(acceptanceDrift).acceptance as Record<string, unknown>;
     (acceptance.playtest_targets as Record<string, unknown>).world_people_physics_time_share_minimum = 0.5;

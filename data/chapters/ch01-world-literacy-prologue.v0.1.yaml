@@ -318,8 +318,15 @@ telemetry_contract:
     exclusive_one_of_required: true
   event_payload:
     required_fields: [schemaVersion, eventId, sessionId, sequence, worldTick, segmentId, primaryActivity, contentActiveMs, semantic]
-    semantic_field_keys: [subjectId, outcomeId, promptLevel, count, durationMs]
+    semantic_field_keys: [subjectId, outcomeId, practiceFamilyId, promptLevel, count, durationMs]
     forbidden_fields: [rawUtterance, rawText, inventoryLotId, damageOverride, worldFlagOverride]
+  cadence:
+    consequential_choice_event_ids: [world_literacy_intervened, repair_completed, alternate_method_used]
+    consequential_choice_maximum_gap_minutes: 20
+    active_retrieval_event_ids: [active_retrieval_submitted, delayed_retrieval_completed]
+    active_retrieval_interval_minutes: [30, 40]
+    active_retrieval_practice_family_semantic_field: "practiceFamilyId"
+    maximum_consecutive_same_practice_family: 2
 
 acceptance:
   required:

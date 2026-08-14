@@ -31,7 +31,9 @@ import {
   PrologueTelemetryRecorder,
   emptyPrologueTelemetrySemantic,
   evaluatePrologueActivityAcceptance,
+  evaluatePrologueCadenceAcceptance,
   type PrologueActivityAcceptanceReport,
+  type PrologueCadenceAcceptanceReport,
   type PrologueQualificationTimingSample,
   type PrologueTelemetryEvent,
 } from "./prologue-telemetry";
@@ -71,6 +73,7 @@ export interface PrologueThreeHourAcceptanceReport {
   readonly contentMinutes: 180;
   readonly elapsedMinutesIncludingExcluded: 210;
   readonly activity: PrologueActivityAcceptanceReport;
+  readonly cadence: PrologueCadenceAcceptanceReport;
   readonly telemetryEvents: readonly PrologueTelemetryEvent[];
   readonly reloadCount: number;
   readonly softRecoveryCount: number;
@@ -106,9 +109,15 @@ export function runPrologueThreeHourAcceptance(input: Readonly<{
     timer.switchTo(kind, nowMs);
     nowMs += minutes * MINUTE_MS;
   };
-  const record = (eventId: PrologueTelemetryEventId, segmentId: string, subjectId: string, outcomeId: string): void => {
+  const record = (
+    eventId: PrologueTelemetryEventId,
+    segmentId: string,
+    subjectId: string,
+    outcomeId: string,
+    practiceFamilyId: string | null = null,
+  ): void => {
     telemetry.record({ eventId, segmentId, worldTick: flow.snapshot().session.survival.worldTicks, atMs: nowMs,
-      semantic: emptyPrologueTelemetrySemantic({ subjectId, outcomeId }) });
+      semantic: emptyPrologueTelemetrySemantic({ subjectId, outcomeId, practiceFamilyId }) });
   };
   const reload = (): void => {
     flow = PrologueFlowSession.fromSave(JSON.parse(JSON.stringify(flow.toSave())));
@@ -119,8 +128,13 @@ export function runPrologueThreeHourAcceptance(input: Readonly<{
   goRightUntil(flow, PROLOGUE_STREAM_SCENE_ID);
   accepted(flow.pushLooseStone(`${input.sessionId}.arrival.stone`), "arrival loose-stone route");
   goRightUntil(flow, PROLOGUE_SETTLEMENT_SCENE_ID);
-  advanceActivity("world_people_physics", 35);
+  accepted(flow.usePublicRelief(`${input.sessionId}.settlement.public-relief`), "settlement public relief choice");
+  advanceActivity("world_people_physics", 18);
+  record("world_literacy_intervened", "arrival", "arrival.loose_stone", "route.non_attack");
+  advanceActivity("world_people_physics", 17);
+  record("alternate_method_used", "settlement_orientation", "settlement.public_relief", "survival.non_trade");
   record("prologue_segment_completed", "arrival", "scene.valley.settlement", "segment.completed");
+  record("active_retrieval_submitted", "arrival", "arrival.causal_route", "retrieval.correct", "arrival_causality");
 
   if (input.attemptFormalAttackQualification) {
     const archivePoint = Object.freeze({
@@ -152,20 +166,26 @@ export function runPrologueThreeHourAcceptance(input: Readonly<{
     accepted(flow.observeWaterwheelPhysics(`${input.sessionId}.waterwheel.physics.after-recovery`, { angularVelocityRpm: 12, elapsedTicks: 600, downstreamFlowBand: "safe", overflowContact: false }), "waterwheel physics after recovery");
   }
   accepted(flow.completeWaterwheelSolution(`${input.sessionId}.waterwheel.complete`, route.water, { completedActionIds: requiredActions("ch01_waterwheel", route.water), world: WATER_WORLD[route.water]! }), "waterwheel solution");
+  record("world_literacy_intervened", "waterwheel", route.water, "route.non_magic");
   accepted(flow.enterServiceChannel(`${input.sessionId}.service.entry`), "service-channel entry");
   requireScene(flow, PROLOGUE_SERVICE_CHANNEL_SCENE_ID);
   accepted(flow.completeServiceSolution(`${input.sessionId}.service.complete`, route.service, { completedActionIds: requiredActions("ch01_service_channel", route.service), world: SERVICE_WORLD[route.service]! }), "service-channel solution");
+  advanceActivity("world_people_physics", 17);
+  record("active_retrieval_submitted", "service_channel", route.water, "cause.retrieved", "water_route");
+  advanceActivity("world_people_physics", 1);
+  record("alternate_method_used", "service_channel", route.service, "route.non_magic");
   accepted(flow.enterCistern(`${input.sessionId}.cistern.entry`), "cistern entry");
   requireScene(flow, PROLOGUE_CISTERN_SCENE_ID);
   accepted(flow.completeCisternFamilyWithTools(`${input.sessionId}.cistern.family-a`, "cistern.family_a.calibration"), "cistern family A");
   accepted(flow.completeCisternFamilyWithTools(`${input.sessionId}.cistern.family-b`, "cistern.family_b.transfer"), "cistern family B");
   reload();
-  advanceActivity("world_people_physics", 35);
+  advanceActivity("world_people_physics", 17);
+  record("world_literacy_intervened", "high_cistern", "cistern.two_families", "length.transfer");
   record("prologue_segment_completed", "high_cistern", "scene.valley.high_cistern", "water_flow.restored");
   advanceActivity("language", 12);
-  record("active_retrieval_submitted", "high_cistern", "word.telo", "retrieval.non_attack");
+  record("active_retrieval_submitted", "high_cistern", "word.telo", "retrieval.non_attack", "cistern_length");
   advanceActivity("long_explanation", 6);
-  record("alternate_method_used", "service_channel", route.service, "route.non_magic");
+  record("alternate_method_used", "high_cistern", "cistern.tool_route", "route.non_magic");
   advanceActivity("optional_free_roam", 20);
 
   accepted(flow.enterReturnFlow(`${input.sessionId}.return.entry`), "return-flow entry");
@@ -191,12 +211,18 @@ export function runPrologueThreeHourAcceptance(input: Readonly<{
   }
   reload();
   accepted(flow.returnFlowToSettlement(`${input.sessionId}.return.settlement`), "return to settlement");
-  advanceActivity("world_people_physics", 35);
+  advanceActivity("world_people_physics", 18);
+  record("world_literacy_intervened", "den_and_return_flow", returnSolution.requiredActions[0]!, "mechanism.changed");
+  advanceActivity("world_people_physics", 11);
+  record("delayed_retrieval_completed", "den_and_return_flow", "word.wawa", "inert_force.recalled", "return_flow_force");
+  advanceActivity("language", 6);
+  record("world_literacy_intervened", "den_and_return_flow", returnSolution.requiredActions.at(-1)!, "mechanism.verified");
+  advanceActivity("language", 6);
+  advanceActivity("world_people_physics", 6);
   record("repair_completed", "den_and_return_flow", returnSolution.id, "return_flow.committed");
-  advanceActivity("language", 12);
-  record("delayed_retrieval_completed", "den_and_return_flow", "word.wawa", "inert_force.recalled");
   advanceActivity("long_explanation", 6);
   record("prologue_segment_completed", "den_and_return_flow", "scene.valley.return_channel", "segment.completed");
+  record("alternate_method_used", "den_and_return_flow", returnSolution.id, "route.non_magic");
 
   let rangeTrialPermissionContentMs: number | null = null;
   let firstAttackSignatureContentMs: number | null = null;
@@ -239,12 +265,18 @@ export function runPrologueThreeHourAcceptance(input: Readonly<{
   if (!flow.snapshot().oldMine?.chapterComplete) throw new Error("old-mine completion did not survive reload");
   accepted(flow.returnOldMineToSettlement(`${input.sessionId}.old-mine.return`), "old-mine return");
   requireScene(flow, PROLOGUE_SETTLEMENT_SCENE_ID);
-  advanceActivity("world_people_physics", 21);
+  advanceActivity("world_people_physics", 11);
+  record("active_retrieval_submitted", "return_and_safe_range", "old_mine.peaceful_transfer", "retrieval.correct", "old_mine_transfer");
+  advanceActivity("world_people_physics", 7);
+  record("world_literacy_intervened", "return_and_safe_range", "old_mine.peaceful_exit", "route.non_attack");
+  advanceActivity("world_people_physics", 3);
   record("prologue_segment_completed", "return_and_safe_range", "valley.old_mine_threshold", "peaceful_exit.completed");
   timer.stop(nowMs);
 
   const activity = evaluatePrologueActivityAcceptance(timer.snapshot(nowMs));
   if (!activity.accepted || activity.contentActiveMs !== 180 * MINUTE_MS) throw new Error("three-hour activity-share acceptance failed");
+  const cadence = evaluatePrologueCadenceAcceptance(telemetry.events(), activity.contentActiveMs);
+  if (!cadence.accepted) throw new Error("three-hour cadence acceptance failed");
   const final = flow.snapshot();
   const eventTypes = flow.session.events().map((event) => event.type);
   const wildlifeHarmEventCount = eventTypes.filter((type) => type === "wildlife_damage_committed" || type === "wildlife_death_committed").length;
@@ -259,7 +291,7 @@ export function runPrologueThreeHourAcceptance(input: Readonly<{
   if (final.killCount !== 0 || wildlifeHarmEventCount !== 0 || worldDeltaIds.length < 3 || !peacefulExitReceiptPresent) throw new Error("three-hour zero-harm peaceful completion invariants failed");
   return Object.freeze({
     completed: true, routeVariant: input.routeVariant, routeIds: Object.freeze([route.water, route.service, returnSolution.id]) as readonly [string, string, string],
-    contentMinutes: 180, elapsedMinutesIncludingExcluded: 210, activity, telemetryEvents: telemetry.events(),
+    contentMinutes: 180, elapsedMinutesIncludingExcluded: 210, activity, cadence, telemetryEvents: telemetry.events(),
     reloadCount, softRecoveryCount, killCount: 0, wildlifeHarmEventCount: 0,
     meaningfulReturnWorldDeltaIds: Object.freeze(worldDeltaIds), finalSceneId: PROLOGUE_SETTLEMENT_SCENE_ID as "scene.valley.settlement",
     oldMineVisited: true, peacefulExitReceiptPresent: true,

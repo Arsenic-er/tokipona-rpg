@@ -14792,7 +14792,7 @@
     "sourceDigest": "sha256:33b53f953c5771d7fbf7e10e89ce2b86b8d825c8cc090d9f61d42384f90ccda0"
   },
   "prologueAcceptance": {
-    "sourceDigest": "sha256:afb1aedcd1eeae9fa912cd521f7f5a697fe58a2795228d574ec94eb75884b0ca",
+    "sourceDigest": "sha256:2f3d1d3e151e5f49e68f478dcfe742888e273e0acc7c93ae81cfdcd4d13b0887",
     "sourcePath": "data/chapters/ch01-world-literacy-prologue.v0.1.yaml",
     "contentVersion": "chapter-01.prologue.1",
     "telemetry": {
@@ -14850,6 +14850,7 @@
         "semanticFieldKeys": [
           "subjectId",
           "outcomeId",
+          "practiceFamilyId",
           "promptLevel",
           "count",
           "durationMs"
@@ -14861,6 +14862,24 @@
           "damageOverride",
           "worldFlagOverride"
         ]
+      },
+      "cadence": {
+        "consequentialChoiceEventIds": [
+          "world_literacy_intervened",
+          "repair_completed",
+          "alternate_method_used"
+        ],
+        "consequentialChoiceMaximumGapMinutes": 20,
+        "activeRetrievalEventIds": [
+          "active_retrieval_submitted",
+          "delayed_retrieval_completed"
+        ],
+        "activeRetrievalIntervalMinutes": [
+          30,
+          40
+        ],
+        "activeRetrievalPracticeFamilySemanticField": "practiceFamilyId",
+        "maximumConsecutiveSamePracticeFamily": 2
       }
     },
     "acceptance": {

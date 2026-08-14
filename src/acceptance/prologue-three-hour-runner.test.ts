@@ -8,6 +8,15 @@ describe("deterministic three-hour prologue acceptance runner", () => {
     expect(report).toMatchObject({
       completed: true, routeVariant, contentMinutes: 180, elapsedMinutesIncludingExcluded: 210,
       activity: { accepted: true, shares: { world_people_physics: 0.70, language: 0.20, long_explanation: 0.10 } },
+      cadence: {
+        accepted: true,
+        consequentialChoiceEventCount: 11,
+        maximumConsequentialChoiceGapMs: 18 * 60_000,
+        activeRetrievalEventCount: 5,
+        activeRetrievalIntervalGapsMs: [35, 35, 30, 35, 35].map((minutes) => minutes * 60_000),
+        trailingActiveRetrievalGapMs: 10 * 60_000,
+        maximumConsecutiveSamePracticeFamily: 1,
+      },
       reloadCount: 3, softRecoveryCount: 2, killCount: 0, wildlifeHarmEventCount: 0,
       finalSceneId: "scene.valley.settlement", oldMineVisited: true, peacefulExitReceiptPresent: true,
     });
@@ -17,6 +26,8 @@ describe("deterministic three-hour prologue acceptance runner", () => {
     ]);
     expect(report.telemetryEvents.map((event) => event.sequence)).toEqual(report.telemetryEvents.map((_, index) => index + 1));
     expect(report.telemetryEvents.every((event) => event.schemaVersion === "prologue.telemetry.v0.1")).toBe(true);
+    expect(report.telemetryEvents.filter((event) => ["active_retrieval_submitted", "delayed_retrieval_completed"].includes(event.eventId))
+      .every((event) => event.semantic.practiceFamilyId !== null)).toBe(true);
     expect(report.qualificationTiming).toEqual({
       sessionId: `acceptance.${routeVariant}`,
       rangeTrialPermissionContentMs: null,

@@ -24,11 +24,19 @@ export const PROLOGUE_TELEMETRY_REQUIRED_FIELDS = Object.freeze([
 ] as const);
 
 export const PROLOGUE_TELEMETRY_SEMANTIC_FIELDS = Object.freeze([
-  "subjectId", "outcomeId", "promptLevel", "count", "durationMs",
+  "subjectId", "outcomeId", "practiceFamilyId", "promptLevel", "count", "durationMs",
 ] as const);
 
 export const PROLOGUE_TELEMETRY_FORBIDDEN_FIELDS = Object.freeze([
   "rawUtterance", "rawText", "inventoryLotId", "damageOverride", "worldFlagOverride",
+] as const);
+
+export const PROLOGUE_CONSEQUENTIAL_CHOICE_EVENT_IDS = Object.freeze([
+  "world_literacy_intervened", "repair_completed", "alternate_method_used",
+] as const);
+
+export const PROLOGUE_ACTIVE_RETRIEVAL_EVENT_IDS = Object.freeze([
+  "active_retrieval_submitted", "delayed_retrieval_completed",
 ] as const);
 
 export type PrologueTelemetryEventId = typeof PROLOGUE_TELEMETRY_EVENT_IDS[number];
@@ -50,6 +58,14 @@ export interface RuntimePrologueAcceptanceManifest {
       requiredFields: readonly string[];
       semanticFieldKeys: readonly string[];
       forbiddenFields: readonly string[];
+    }>;
+    cadence: Readonly<{
+      consequentialChoiceEventIds: readonly (typeof PROLOGUE_CONSEQUENTIAL_CHOICE_EVENT_IDS)[number][];
+      consequentialChoiceMaximumGapMinutes: 20;
+      activeRetrievalEventIds: readonly (typeof PROLOGUE_ACTIVE_RETRIEVAL_EVENT_IDS)[number][];
+      activeRetrievalIntervalMinutes: readonly [30, 40];
+      activeRetrievalPracticeFamilySemanticField: "practiceFamilyId";
+      maximumConsecutiveSamePracticeFamily: 2;
     }>;
   }>;
   readonly acceptance: Readonly<{
@@ -110,7 +126,7 @@ export function readRuntimePrologueAcceptanceManifest(candidate: unknown): Runti
   if (raw.sourcePath !== "data/chapters/ch01-world-literacy-prologue.v0.1.yaml" || raw.contentVersion !== "chapter-01.prologue.1") throw new Error("prologue acceptance source identity is invalid");
 
   const telemetry = record(raw.telemetry, "prologue telemetry");
-  exactKeys(telemetry, ["schemaVersion", "eventIds", "includedPrimaryActivities", "excludedActivities", "exclusivePrimaryActivity", "payload"], "prologue telemetry");
+  exactKeys(telemetry, ["schemaVersion", "eventIds", "includedPrimaryActivities", "excludedActivities", "exclusivePrimaryActivity", "payload", "cadence"], "prologue telemetry");
   if (telemetry.schemaVersion !== "prologue.telemetry.v0.1" || telemetry.exclusivePrimaryActivity !== true ||
       !same(telemetry.eventIds, PROLOGUE_TELEMETRY_EVENT_IDS) ||
       !same(telemetry.includedPrimaryActivities, PROLOGUE_INCLUDED_ACTIVITY_KINDS) ||
@@ -123,6 +139,16 @@ export function readRuntimePrologueAcceptanceManifest(candidate: unknown): Runti
       !same(payloadContract.semanticFieldKeys, PROLOGUE_TELEMETRY_SEMANTIC_FIELDS) ||
       !same(payloadContract.forbiddenFields, PROLOGUE_TELEMETRY_FORBIDDEN_FIELDS)) {
     throw new Error("prologue telemetry payload contract is noncanonical");
+  }
+  const cadence = record(telemetry.cadence, "prologue telemetry cadence");
+  exactKeys(cadence, ["consequentialChoiceEventIds", "consequentialChoiceMaximumGapMinutes", "activeRetrievalEventIds", "activeRetrievalIntervalMinutes", "activeRetrievalPracticeFamilySemanticField", "maximumConsecutiveSamePracticeFamily"], "prologue telemetry cadence");
+  if (!same(cadence.consequentialChoiceEventIds, PROLOGUE_CONSEQUENTIAL_CHOICE_EVENT_IDS) ||
+      cadence.consequentialChoiceMaximumGapMinutes !== 20 ||
+      !same(cadence.activeRetrievalEventIds, PROLOGUE_ACTIVE_RETRIEVAL_EVENT_IDS) ||
+      !numberPair(cadence.activeRetrievalIntervalMinutes, 30, 40) ||
+      cadence.activeRetrievalPracticeFamilySemanticField !== "practiceFamilyId" ||
+      cadence.maximumConsecutiveSamePracticeFamily !== 2) {
+    throw new Error("prologue telemetry cadence contract is noncanonical");
   }
 
   const acceptance = record(raw.acceptance, "prologue acceptance thresholds");
