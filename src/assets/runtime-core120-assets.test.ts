@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import generated from "../generated/content-runtime.v0.1.json";
 import releaseContract from "./runtime-release-contract.v0.1.json";
+import missingPrivateExport from "./runtime-core120-private-export.v0.1.json";
 import {
   computeRuntimeCore120CurriculumDigest,
   readRuntimeCore120CurriculumManifest,
@@ -92,6 +93,15 @@ describe("core-120 public/private asset boundary", () => {
     expect(Object.keys(runtimeCore120AssetReadiness.wordAssets)).toHaveLength(120);
     expect(Object.values(runtimeCore120AssetReadiness.wordAssets).every((word) => !word.audioReady && word.audioPublicPath === null && !word.glyphReady && word.glyphAtlasPublicPath === null && word.glyphAtlasFrameId === null)).toBe(true);
     expect(JSON.stringify(runtimeCore120AssetReadiness)).not.toMatch(/sourceUrl|licenseSpdx|containsPrivatePaths|[A-Z]:\\|file:\/\//i);
+    expect(readRuntimeCore120AssetReadiness(manifest, missingPrivateExport, releaseContract))
+      .toEqual(runtimeCore120AssetReadiness);
+  });
+
+  it("rejects a poisoned missing-export placeholder instead of treating it as absent", () => {
+    const poisoned = structuredClone(missingPrivateExport) as any;
+    poisoned.entries.telo = { privatePath: "C:\\review\\telo.wav" };
+    expect(() => readRuntimeCore120AssetReadiness(manifest, poisoned, releaseContract))
+      .toThrow(/missing private asset export/);
   });
 
   it("does not let an approved audio export override blocked glyph and catalog gates", () => {

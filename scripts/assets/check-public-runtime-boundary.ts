@@ -5,7 +5,7 @@ const repositoryRoot = resolve(import.meta.dirname, "../..");
 const release = readJson("src/assets/runtime-release-contract.v0.1.json");
 const catalog = readJson("data/language/pu-120-glyph-catalog.v0.2.json");
 const pronunciation = readJson("src/assets/p0-pronunciation-manifest.v0.1.json");
-const privateExportPath = resolve(repositoryRoot, "src/assets/runtime-core120-private-export.v0.1.json");
+const privateExport = readJson("src/assets/runtime-core120-private-export.v0.1.json");
 
 assert(release.schemaVersion === "tokipona.asset-release-gate.v0.1", "release_schema_invalid");
 assert(release.status === "blocked", "approved_release_requires_private_export_integration");
@@ -33,7 +33,13 @@ assert(wordIds.length === 12 && new Set(wordIds).size === 12 &&
   Object.keys(entries).length === 12 && wordIds.every((wordId) => emptyPronunciation(entries[wordId])),
 "pronunciation_partial_approval");
 
-assert(!existsSync(privateExportPath), "unreviewed_private_export_present");
+assert(privateExport.schemaVersion === "tokipona.pu120-private-asset-export.v0.1" &&
+  privateExport.status === "missing" && privateExport.manifestDigest === null &&
+  privateExport.corpusId === "pu-120" && equalStrings(privateExport.wordIds, []) &&
+  privateExport.glyphAtlas === null && Object.keys(record(privateExport.entries, "private_export_entries_invalid")).length === 0,
+"private_export_placeholder_invalid");
+const exportPrivacy = record(privateExport.privacy, "private_export_privacy_invalid");
+assert(Object.values(exportPrivacy).every((value) => value === false), "private_export_privacy_not_clean");
 const glyphFiles = filesBelow("public/assets/magic-glyphs");
 assert(glyphFiles.length === 1 && glyphFiles[0] === "README.md", "unapproved_glyph_runtime_present");
 assert(filesBelow("public/assets/pronunciation").length === 0, "unapproved_pronunciation_runtime_present");
@@ -44,7 +50,8 @@ process.stdout.write(`${JSON.stringify({
   glyphCatalogWordCount: 120,
   pronunciationWordCount: 12,
   publicGlyphFiles: glyphFiles,
-  privateExportPresent: false,
+  approvedPrivateExportPresent: false,
+  missingExportPlaceholderPresent: true,
 })}\n`);
 
 function readJson(path: string): Record<string, unknown> {

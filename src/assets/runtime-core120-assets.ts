@@ -1,5 +1,6 @@
 import generated from "../generated/content-runtime.v0.1.json";
 import glyphReleaseContract from "./runtime-release-contract.v0.1.json";
+import privateAssetExport from "./runtime-core120-private-export.v0.1.json";
 import {
   isVerifiedRuntimeCore120CurriculumManifest,
   readRuntimeCore120CurriculumManifest,
@@ -31,12 +32,12 @@ const defaultManifest = readRuntimeCore120CurriculumManifest(generated);
 
 export function readRuntimeCore120AssetReadiness(
   manifest: RuntimeCore120CurriculumManifest,
-  privateExport: unknown = null,
+  privateExport: unknown = privateAssetExport,
   glyphRelease: unknown = glyphReleaseContract,
 ): RuntimeCore120AssetReadiness {
   if (!isVerifiedRuntimeCore120CurriculumManifest(manifest)) throw new Error("core120 assets require a verified curriculum manifest");
   const glyphReleaseApproved = readGlyphReleaseApproval(glyphRelease);
-  const approvedExport = privateExport === null ? null : readApprovedPrivateExport(manifest, privateExport);
+  const approvedExport = readPrivateExport(manifest, privateExport);
   const catalogApproved = manifest.catalogReviewStatus === "approved" && manifest.catalogRuntimeReady;
   const audioApproved = approvedExport !== null;
   const glyphApproved = approvedExport !== null && glyphReleaseApproved && catalogApproved;
@@ -71,6 +72,26 @@ interface ApprovedPrivateExport {
     readonly pronunciation: Readonly<{ readonly publicPath: string }>;
     readonly glyph: Readonly<{ readonly atlasFrameId: string }>;
   }>>>;
+}
+
+function readPrivateExport(
+  manifest: RuntimeCore120CurriculumManifest,
+  candidate: unknown,
+): ApprovedPrivateExport | null {
+  if (candidate === null) return null;
+  const root = record(candidate, "core120 private asset export");
+  if (root.status !== "missing") return readApprovedPrivateExport(manifest, candidate);
+  exactKeys(root, ["schemaVersion", "status", "manifestDigest", "corpusId", "wordIds", "glyphAtlas", "entries", "privacy"], "core120 missing private asset export");
+  const privacy = record(root.privacy, "core120 missing private export privacy");
+  exactKeys(privacy, ["containsPrivatePaths", "containsPrivateAssets", "containsSourceFonts", "containsReviewMedia"], "core120 missing private export privacy");
+  if (root.schemaVersion !== CORE120_PRIVATE_ASSET_EXPORT_SCHEMA || root.manifestDigest !== null ||
+      root.corpusId !== "pu-120" || !same(root.wordIds, []) || root.glyphAtlas !== null ||
+      !same(Object.keys(record(root.entries, "core120 missing private export entries")), []) ||
+      privacy.containsPrivatePaths !== false || privacy.containsPrivateAssets !== false ||
+      privacy.containsSourceFonts !== false || privacy.containsReviewMedia !== false) {
+    throw new Error("core120 missing private asset export is invalid");
+  }
+  return null;
 }
 
 function readApprovedPrivateExport(
