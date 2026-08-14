@@ -321,6 +321,7 @@ export function createRpgReturnFlowUi(onCommand: (command: ReturnFlowUiCommand) 
     </section>`;
   anchor.parentElement.insertBefore(root, anchor);
   let currentModel = deriveReturnFlowUiModel({ mode: "hidden", runtime: { sceneId: "" }, returnFlow: null });
+  let renderedRouteState = "";
 
   root.addEventListener("click", (event) => {
     const button = event.target instanceof Element ? event.target.closest<HTMLButtonElement>("button") : null;
@@ -345,7 +346,11 @@ export function createRpgReturnFlowUi(onCommand: (command: ReturnFlowUiCommand) 
       panel.hidden = !currentModel.panelVisible;
       if (!currentModel.panelVisible) return;
       text(root, "[data-return-flow-phase]", currentModel.phase);
-      renderRoutes(root, currentModel);
+      const nextRouteState = JSON.stringify(currentModel.routes);
+      if (nextRouteState !== renderedRouteState) {
+        renderRoutes(root, currentModel);
+        renderedRouteState = nextRouteState;
+      }
       setDisabled(root, "discover_wawa", !currentModel.canDiscover);
       setDisabled(root, "attune_wawa", !currentModel.canAttune);
       setDisabled(root, "ground_h0", !currentModel.canGround);
