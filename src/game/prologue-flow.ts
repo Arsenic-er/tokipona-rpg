@@ -663,6 +663,16 @@ export class PrologueFlowSession {
     const state = this.session.snapshot();
     const receipts = state.receiptIndex;
     const receiptIds = Object.keys(receipts);
+    const settlementRuntime = this.settlement?.snapshot().runtime ?? null;
+    const qualificationPointTiles = SAFE_RANGE_MANIFEST.parallelCalibration.interactionPointTiles;
+    const qualificationAuthorityInRange = settlementRuntime !== null &&
+      settlementRuntime.sceneId === SAFE_RANGE_MANIFEST.parallelCalibration.authoritySceneId &&
+      Number.isFinite(settlementRuntime.player.position.x) &&
+      Number.isFinite(settlementRuntime.player.position.y) &&
+      Math.hypot(
+        settlementRuntime.player.position.x - qualificationPointTiles[0] * WORLD_TILE_SIZE_PX,
+        settlementRuntime.player.position.y - qualificationPointTiles[1] * WORLD_TILE_SIZE_PX,
+      ) <= WORLD_TILE_SIZE_PX;
     const settlementActions = [
       ...SAFE_RANGE_MANIFEST.parallelCalibration.actions.filter((action) =>
         action.authoritySceneId === SAFE_RANGE_MANIFEST.parallelCalibration.authoritySceneId &&
@@ -681,7 +691,7 @@ export class PrologueFlowSession {
         ? receipts[`attack-qualification-world:${action.actionId}`] !== undefined
         : receiptIds.some((receiptId) => receiptId.startsWith(
             `attack-qualification-evidence:attack-qualification:${this.session.sessionId}:${action.actionId}:`));
-      const available = unrelated || action.actionId.startsWith("settlement.telo.")
+      const prerequisiteAvailable = unrelated || action.actionId.startsWith("settlement.telo.")
         ? unrelated || grounded("telo")
         : action.actionId === "settlement.delayed_retrieval_h0"
           ? grounded("telo") && SAFE_RANGE_MANIFEST.parallelCalibration.unrelatedSemanticWorldActions.every(
@@ -689,7 +699,8 @@ export class PrologueFlowSession {
           : grounded("tawa");
       return Object.freeze({ actionId: action.actionId, taskFamilyId: action.taskFamilyId,
         evidenceType: unrelated ? "unrelated_world_action" : "evidenceType" in action ? action.evidenceType : "invalid",
-        promptLevel: "promptLevel" in action ? action.promptLevel : null, unrelated, available, completed });
+        promptLevel: "promptLevel" in action ? action.promptLevel : null, unrelated,
+        available: prerequisiteAvailable && qualificationAuthorityInRange, completed });
     }));
     const globalFlag = (flagId: string): boolean =>
       state.world.flags[`global:${flagId}`]?.scope === "global" &&

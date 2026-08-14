@@ -78,18 +78,6 @@ async function activateWhileMovingRightUntilDisabled(page: Page, selector: strin
   await expect(control).toBeDisabled();
 }
 
-async function activateWhileMovingLeftUntilDisabled(page: Page, selector: string): Promise<void> {
-  const control = page.locator(selector);
-  await expect(control).toBeVisible();
-  const deadline = Date.now() + 20_000;
-  while (Date.now() < deadline && await control.isEnabled()) {
-    await stepHorizontal(page, "a");
-    await control.click({ timeout: 1_000 }).catch(() => undefined);
-  }
-  const status = await page.locator('[data-ui="status"]').textContent().catch(() => null);
-  await expect(control, `control remained enabled; last status: ${status ?? "unavailable"}`).toBeDisabled();
-}
-
 async function compileWhileScanningForTarget(page: Page): Promise<void> {
   const compile = page.locator('[data-safe-range-intent="compile"]');
   const execute = page.locator('[data-safe-range-intent="execute"]');
@@ -112,26 +100,17 @@ async function stepRight(page: Page): Promise<void> {
 }
 
 async function stepHorizontal(page: Page, key: "a" | "d"): Promise<void> {
+  await stepHorizontalFor(page, key, 100);
+}
+
+async function stepHorizontalFor(page: Page, key: "a" | "d", durationMs: number): Promise<void> {
   await page.locator("#rpg-canvas").focus();
   await page.keyboard.down(key);
   try {
-    await page.waitForTimeout(100);
+    await page.waitForTimeout(durationMs);
   } finally {
     await page.keyboard.up(key);
   }
-}
-
-async function groundP0WordAtArchive(page: Page, wordId: "telo" | "tawa", unlockSelector: string): Promise<void> {
-  const action = page.locator(`[data-p0-word="${wordId}"]`);
-  const unlock = page.locator(unlockSelector);
-  const deadline = Date.now() + 20_000;
-  while (Date.now() < deadline && await action.isDisabled()) await stepRight(page);
-  await expect(action).toBeEnabled();
-  while (Date.now() < deadline && await unlock.isDisabled()) {
-    await action.click();
-    await page.waitForTimeout(25);
-  }
-  await expect(unlock).toBeEnabled();
 }
 
 async function refillSettlementMp(page: Page): Promise<void> {
@@ -151,8 +130,39 @@ async function moveRightUntilEnabled(page: Page, selector: string): Promise<void
   }
 }
 
+async function settleAtSettlementControl(page: Page, selector: string): Promise<void> {
+  const control = page.locator(selector);
+  await expect(control).toBeVisible();
+  if (await control.isDisabled()) await page.waitForTimeout(1_000);
+  const deadline = Date.now() + 24_000;
+  let direction: "a" | "d" = "d";
+  while (Date.now() < deadline) {
+    const sceneId = await app(page).getAttribute("data-scene-id");
+    expect(sceneId, `left settlement while approaching ${selector}`).toBe(SETTLEMENT);
+    if (await control.isEnabled()) {
+      await page.waitForTimeout(200);
+      if (await control.isEnabled()) return;
+      direction = direction === "d" ? "a" : "d";
+      continue;
+    }
+    await stepHorizontalFor(page, direction, 40);
+  }
+  const status = await page.locator('[data-ui="status"]').textContent().catch(() => null);
+  await expect(control, `control never settled as enabled; last status: ${status ?? "unavailable"}`).toBeEnabled();
+}
+
+async function activateAtSettlementControl(page: Page, selector: string): Promise<void> {
+  const control = page.locator(selector);
+  await settleAtSettlementControl(page, selector);
+  await control.click();
+  await page.waitForTimeout(200);
+  const status = await page.locator('[data-ui="status"]').textContent().catch(() => null);
+  await expect(control, `control did not commit; last status: ${status ?? "unavailable"}`).toBeDisabled();
+  await expect(app(page)).toHaveAttribute("data-scene-id", SETTLEMENT);
+}
+
 async function completeP0RecoveryCurriculum(page: Page): Promise<void> {
-  await moveRightUntilEnabled(page, '[data-p0-word="telo"]');
+  await settleAtSettlementControl(page, '[data-p0-word="telo"]');
   for (const wordId of P0_WORD_IDS) {
     const action = page.locator(`[data-p0-word="${wordId}"]`);
     for (const [index, label] of LEARNING_ACTION_LABELS.entries()) {
@@ -166,10 +176,14 @@ async function completeP0RecoveryCurriculum(page: Page): Promise<void> {
   await expect(page.locator("[data-p0-learning-count]")).toHaveText("12 / 12");
 }
 
-async function prepareCore120WordAtArchive(page: Page, band: string, wordId: string): Promise<void> {
+async function openCore120Word(page: Page, band: string, wordId: string): Promise<void> {
   await page.locator(`[data-core120-band="${band}"]`).click();
   await page.locator("[data-core120-search]").fill(wordId);
   await expect(page.locator("[data-core120-search-status]")).toHaveText("1 个匹配词。");
+}
+
+async function prepareCore120WordAtArchive(page: Page, band: string, wordId: string): Promise<void> {
+  await openCore120Word(page, band, wordId);
   const action = page.locator(`[data-core120-word="${wordId}"]`);
   for (const [index, label] of LEARNING_ACTION_LABELS.slice(0, 2).entries()) {
     await expect(action).toBeEnabled();
@@ -259,7 +273,7 @@ test("flushes a checked envelope on pagehide and keeps the touch controls labell
 });
 
 test("completes N07, the optional production N08 trial, and the old-mine threshold", async ({ page }) => {
-  test.setTimeout(120_000);
+  test.setTimeout(180_000);
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await clearAndOpen(page);
@@ -268,6 +282,9 @@ test("completes N07, the optional production N08 trial, and the old-mine thresho
   await page.locator('[data-tool="stone"]').click();
   await holdKeyboardRightUntil(page, SETTLEMENT);
   await expectModeAndScene(page, "settlement", SETTLEMENT);
+  await completeP0RecoveryCurriculum(page);
+  await prepareCore120WordAtArchive(page, "P1", "ala");
+  await expect(page.locator("[data-core120-learning-count]")).toHaveText("2 / 600");
 
   await clickEnabled(page, '[data-infra-command="enter_waterwheel"]');
   await expectModeAndScene(page, "infrastructure", WATERWHEEL);
@@ -313,23 +330,22 @@ test("completes N07, the optional production N08 trial, and the old-mine thresho
   await expect(page.locator('[data-return-flag="meadow"]')).toHaveText("是");
   await clickEnabled(page, '[data-return-intent="ground_h0"]');
   await clickEnabled(page, '[data-return-intent="ground_h1"]');
+  await openCore120Word(page, "P1", "ala");
+  await moveRightUntilEnabled(page, '[data-core120-word="ala"]');
+  await expect(page.locator('[data-core120-word="ala"]')).toHaveText("context 1");
+  await page.locator('[data-core120-word="ala"]').click();
+  await expect(page.locator('[data-core120-word="ala"]')).toHaveText("待现场见证");
+  await expect(page.locator("[data-core120-learning-count]")).toHaveText("3 / 600");
   await page.reload();
   await expectModeAndScene(page, "return_flow", RETURN_CHANNEL);
+  await expect(page.locator("[data-core120-learning-count]")).toHaveText("3 / 600");
   await clickEnabled(page, '[data-return-intent="return_settlement"]');
   await expectModeAndScene(page, "settlement", SETTLEMENT);
 
   const qualificationActions = page.locator("[data-safe-range-qualification-action]");
   await expect(qualificationActions).toHaveCount(8);
   const teloH0 = '[data-safe-range-qualification-action="settlement.telo.h0"]';
-  const tawaH0 = '[data-safe-range-qualification-action="settlement.tawa.h0"]';
-  await expect(page.locator(teloH0)).toBeDisabled();
-  await expect(page.locator(tawaH0)).toBeDisabled();
-  await groundP0WordAtArchive(page, "telo", teloH0);
-  await groundP0WordAtArchive(page, "tawa", tawaH0);
-  await activateWhileMovingLeftUntilDisabled(
-    page,
-    teloH0,
-  );
+  await activateAtSettlementControl(page, teloH0);
   for (const actionId of [
     "settlement.telo.h1",
     "settlement.tawa.h0",
@@ -339,10 +355,10 @@ test("completes N07, the optional production N08 trial, and the old-mine thresho
     "settlement.calibration.unrelated_route_commit",
     "settlement.delayed_retrieval_h0",
   ]) {
-    const action = page.locator(`[data-safe-range-qualification-action="${actionId}"]`);
-    await expect(action).toBeEnabled();
-    await action.click();
-    await expect(action).toBeDisabled();
+    await activateAtSettlementControl(
+      page,
+      `[data-safe-range-qualification-action="${actionId}"]`,
+    );
   }
   await clickEnabled(page, '[data-safe-range-intent="calibrate_attack_capacity"]');
   await clickEnabled(page, '[data-safe-range-intent="grant_range_trial_permission"]');
@@ -369,11 +385,24 @@ test("completes N07, the optional production N08 trial, and the old-mine thresho
   }
   await activateWhileMovingRightUntilDisabled(page, '[data-safe-range-intent="inspect_material_table"]');
   await expect(page.locator("[data-safe-range-completed]")).toHaveText("是");
+  await openCore120Word(page, "P1", "ala");
+  await expect(page.locator('[data-core120-word="ala"]')).toBeEnabled();
+  await expect(page.locator('[data-core120-word="ala"]')).toHaveText("context 0");
+  await page.locator('[data-core120-word="ala"]').click();
+  await expect(page.locator('[data-core120-word="ala"]')).toHaveText("待现场见证");
+  await expect(page.locator("[data-core120-learning-count]")).toHaveText("4 / 600");
   await page.reload();
   await expectModeAndScene(page, "safe_range", SAFE_RANGE);
   await expect(page.locator("[data-safe-range-completed]")).toHaveText("是");
+  await expect(page.locator("[data-core120-learning-count]")).toHaveText("4 / 600");
   await clickEnabled(page, '[data-safe-range-intent="return_settlement"]');
   await expectModeAndScene(page, "settlement", SETTLEMENT);
+  await openCore120Word(page, "P1", "ala");
+  await settleAtSettlementControl(page, '[data-core120-word="ala"]');
+  await expect(page.locator('[data-core120-word="ala"]')).toHaveText("repair");
+  await activateAtSettlementControl(page, '[data-core120-word="ala"]');
+  await expect(page.locator('[data-core120-word="ala"]')).toHaveText("完成");
+  await expect(page.locator("[data-core120-learning-count]")).toHaveText("5 / 600");
 
   await clickEnabled(page, "[data-old-mine-enter]");
   await expectModeAndScene(page, "old_mine", OLD_MINE);

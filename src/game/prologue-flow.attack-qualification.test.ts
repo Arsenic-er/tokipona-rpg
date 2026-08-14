@@ -89,12 +89,18 @@ describe("PrologueFlow attack qualification semantic API", () => {
 
   it("commits the complete generated N02 catalog through semantic IDs and persists it", () => {
     const flow = settlementFlowAfterRealN07Grounding();
+    expect(flow.safeRangeView().qualificationActions.find((action) =>
+      action.actionId === "settlement.telo.h0")?.available).toBe(false);
     expect(flow.performAttackQualificationAction("remote", "settlement.telo.h0"))
       .toMatchObject({ accepted: false, result: { reason: "out_of_range" } });
     moveToTable(flow);
+    expect(flow.safeRangeView().qualificationActions.find((action) =>
+      action.actionId === "settlement.telo.h0")?.available).toBe(true);
     for (const [index, actionId] of n02Actions.entries()) {
       expect(flow.performAttackQualificationAction(`catalog.${index}`, actionId), actionId)
         .toMatchObject({ accepted: true, reason: "delegated", result: { accepted: true, duplicate: false } });
+      expect(flow.safeRangeView().qualificationActions.find((action) =>
+        action.actionId === actionId)?.completed, actionId).toBe(true);
     }
     expect(flow.performAttackQualificationAction("catalog.0", "settlement.telo.h0"))
       .toMatchObject({ accepted: true, result: { accepted: true, duplicate: true } });
