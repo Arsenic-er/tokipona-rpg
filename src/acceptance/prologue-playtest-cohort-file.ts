@@ -1,6 +1,8 @@
 import {
   evaluateProloguePlaytestCohort,
+  readProloguePlaytestSessionSample,
   type ProloguePlaytestCohortAcceptanceReport,
+  type ProloguePlaytestSessionSample,
 } from "./prologue-playtest-cohort.ts";
 
 export const PROLOGUE_PLAYTEST_COHORT_FILE_SCHEMA = "tokipona.prologue-playtest-cohort.v0.1" as const;
@@ -13,7 +15,7 @@ export interface ProloguePlaytestCohortFile {
   readonly schemaVersion: typeof PROLOGUE_PLAYTEST_COHORT_FILE_SCHEMA;
   readonly collectionMode: typeof PROLOGUE_PLAYTEST_COLLECTION_MODE;
   readonly cohortId: string;
-  readonly samples: readonly unknown[];
+  readonly samples: readonly ProloguePlaytestSessionSample[];
 }
 
 export interface ProloguePlaytestCohortFileReport {
@@ -42,11 +44,34 @@ export function readProloguePlaytestCohortFile(candidate: unknown): ProloguePlay
     throw new Error("prologue playtest cohortId must be a semantic identifier");
   }
   if (!Array.isArray(value.samples)) throw new Error("prologue playtest cohort samples must be an array");
+  const samples = Object.freeze(value.samples.map(readProloguePlaytestSessionSample));
   return Object.freeze({
     schemaVersion: PROLOGUE_PLAYTEST_COHORT_FILE_SCHEMA,
     collectionMode: PROLOGUE_PLAYTEST_COLLECTION_MODE,
     cohortId: value.cohortId,
-    samples: Object.freeze([...value.samples]),
+    samples,
+  });
+}
+
+export function mergeProloguePlaytestCohortFiles(input: Readonly<{
+  cohortId: string;
+  cohorts: readonly unknown[];
+}>): ProloguePlaytestCohortFile {
+  if (!Array.isArray(input.cohorts) || input.cohorts.length === 0) {
+    throw new Error("at least one observed cohort envelope is required");
+  }
+  const samples = input.cohorts.flatMap((candidate) => readProloguePlaytestCohortFile(candidate).samples);
+  if (samples.length === 0) throw new Error("observed cohort envelopes contain no samples");
+  const sessionIds = new Set<string>();
+  for (const sample of samples) {
+    if (sessionIds.has(sample.sessionId)) throw new Error("prologue playtest cohort contains duplicate session IDs");
+    sessionIds.add(sample.sessionId);
+  }
+  return readProloguePlaytestCohortFile({
+    schemaVersion: PROLOGUE_PLAYTEST_COHORT_FILE_SCHEMA,
+    collectionMode: PROLOGUE_PLAYTEST_COLLECTION_MODE,
+    cohortId: input.cohortId,
+    samples: [...samples].sort((left, right) => left.sessionId < right.sessionId ? -1 : left.sessionId > right.sessionId ? 1 : 0),
   });
 }
 

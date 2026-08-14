@@ -20,9 +20,18 @@ an unresolved user-visible failure. The downloaded file is a valid cohort
 envelope containing one pseudonymous sample. Paused, idle, settings, and
 optional free-roam time do not count toward the 180-minute threshold.
 
-Combine the `samples` arrays from independently exported envelopes, keep one
-unique pseudonymous `sessionId` per participant, and choose a new semantic
-`cohortId`. Do not replace `collectionMode` or add identifying metadata.
+Merge independently exported envelopes with the strict CLI. The output path
+must not exist and cannot be one of the inputs:
+
+```powershell
+pnpm acceptance:cohort:merge -- cohort.prologue.alpha `
+  .\private-input\prologue-cohort.json `
+  .\exports\session-a.json .\exports\session-b.json
+```
+
+The merger validates every sample, rejects duplicate pseudonymous session IDs
+and privacy-expanding fields, and sorts samples deterministically. Do not replace
+`collectionMode` or add identifying metadata.
 
 ## Evaluate a cohort
 

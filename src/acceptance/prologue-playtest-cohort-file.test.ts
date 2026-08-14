@@ -4,6 +4,7 @@ import {
   PROLOGUE_PLAYTEST_COHORT_REPORT_SCHEMA,
   PROLOGUE_PLAYTEST_COLLECTION_MODE,
   evaluateProloguePlaytestCohortFile,
+  mergeProloguePlaytestCohortFiles,
   readProloguePlaytestCohortFile,
 } from "./prologue-playtest-cohort-file";
 import { PROLOGUE_PLAYTEST_SESSION_SCHEMA, type ProloguePlaytestSessionSample } from "./prologue-playtest-cohort";
@@ -46,6 +47,36 @@ describe("portable prologue playtest cohort files", () => {
         passes: { zeroForcedHunts: false, zeroWildlifeHarm: false, needsFloor: false },
       },
     });
+  });
+
+  it("strictly merges observed exports in deterministic pseudonymous-session order", () => {
+    const merged = mergeProloguePlaytestCohortFiles({
+      cohortId: "cohort.prologue.merged",
+      cohorts: [cohort([sample(2), sample(0)]), { ...cohort([sample(1)]), cohortId: "cohort.local.export" }],
+    });
+    expect(merged).toMatchObject({
+      schemaVersion: PROLOGUE_PLAYTEST_COHORT_FILE_SCHEMA,
+      collectionMode: PROLOGUE_PLAYTEST_COLLECTION_MODE,
+      cohortId: "cohort.prologue.merged",
+    });
+    expect(merged.samples.map((entry) => entry.sessionId)).toEqual([
+      "playtest.session.0", "playtest.session.1", "playtest.session.2",
+    ]);
+  });
+
+  it("rejects empty, duplicate, and privacy-expanding merge inputs", () => {
+    expect(() => mergeProloguePlaytestCohortFiles({ cohortId: "cohort.empty", cohorts: [] }))
+      .toThrow(/at least one/);
+    expect(() => mergeProloguePlaytestCohortFiles({ cohortId: "cohort.empty", cohorts: [cohort([])] }))
+      .toThrow(/no samples/);
+    expect(() => mergeProloguePlaytestCohortFiles({
+      cohortId: "cohort.duplicate",
+      cohorts: [cohort([sample(0)]), cohort([sample(0)])],
+    })).toThrow(/duplicate session/);
+    expect(() => mergeProloguePlaytestCohortFiles({
+      cohortId: "cohort.private",
+      cohorts: [cohort([{ ...sample(0), rawText: "telo" }])],
+    })).toThrow(/unknown or missing/);
   });
 });
 
