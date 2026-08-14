@@ -2,6 +2,7 @@ import { parse } from "yaml";
 import { describe, expect, it } from "vitest";
 import { compileContent } from "../../src/content/compiler";
 import { readRuntimeSceneManifestIndex } from "../../src/content/runtime-scene-manifest";
+import { readRuntimePortraitCameraProfile } from "../../src/content/runtime-camera-profile";
 import type { ContentSource } from "../../src/content/types";
 import generatedRuntimeText from "../../src/generated/content-runtime.v0.1.json?raw";
 import {
@@ -33,6 +34,14 @@ describe("runtime content artifact generator", () => {
 
   it("emits the validated N00 through N08 runtime scene manifest", () => {
     const artifact = buildRuntimeContentArtifact(compileContent(repositorySources()));
+    expect(readRuntimePortraitCameraProfile(artifact)).toMatchObject({
+      profileId: "portrait_scroll.v0.1",
+      viewportPx: { width: 180, height: 320 },
+      focusAnchorNormalized: { x: 0.5, y: 0.62 },
+      clampToSceneBounds: true,
+      pixelSnap: true,
+      sceneSizeIndependentFromCamera: true,
+    });
     expect(Object.keys(artifact.scenes.byId).sort()).toEqual([
       "scene.valley.arrival_shelf",
       "scene.valley.den_bypass",

@@ -6,6 +6,7 @@ import { projectPrologueAcceptance } from "./prologue-acceptance-runtime-artifac
 import type { RuntimeSafeRangeManifest } from "../../src/content/runtime-safe-range-manifest.ts";
 import type { RuntimeP0CurriculumManifest } from "../../src/content/runtime-p0-curriculum-manifest.ts";
 import type { RuntimeCore120CurriculumManifest } from "../../src/content/runtime-core120-curriculum-manifest.ts";
+import type { RuntimePortraitCameraProfile } from "../../src/content/runtime-camera-profile.ts";
 import type { RuntimePrologueAcceptanceManifest } from "../../src/content/runtime-prologue-acceptance-manifest.ts";
 import { posix } from "node:path";
 import type { ContentManifest, ContentObject, ContentValue } from "../../src/content/types.ts";
@@ -72,6 +73,7 @@ export interface RuntimeContentArtifact {
   readonly safeRangeQualification: RuntimeSafeRangeManifest;
   readonly p0Curriculum: RuntimeP0CurriculumManifest;
   readonly core120Curriculum: RuntimeCore120CurriculumManifest;
+  readonly cameraProfile: RuntimePortraitCameraProfile;
   readonly prologueAcceptance: RuntimePrologueAcceptanceManifest;
   readonly capabilityProgression: CapabilityMilestoneMachineProjection;
   readonly ecology: RuntimeEcologyManifest;
@@ -94,6 +96,7 @@ export function buildRuntimeContentArtifact(manifest: ContentManifest): RuntimeC
   const lengthSources = manifest.byKind.length_profiles;
   if (lengthSources.length !== 1) throw new Error(`Expected exactly one validated length profile source, received ${lengthSources.length}.`);
   const source = lengthSources[0];
+  const cameraProfile = projectPortraitCameraProfile(manifest);
   if (!source) throw new Error("Validated length profile source is unavailable.");
   const content = source.content;
   const pixelsPerTile = requirePositiveNumber(content, ["world_units", "pixels_per_tile"]);
@@ -600,12 +603,43 @@ export function buildRuntimeContentArtifact(manifest: ContentManifest): RuntimeC
     safeRangeQualification,
     p0Curriculum,
     core120Curriculum,
+    cameraProfile,
     prologueAcceptance,
     capabilityProgression,
     ecology,
     wildlifeProcessing,
     trade,
     survivalConsumption,
+  };
+}
+
+function projectPortraitCameraProfile(manifest: ContentManifest): RuntimePortraitCameraProfile {
+  const regions = manifest.byKind.region;
+  if (regions.length !== 1) throw new Error(`Expected exactly one region source, received ${regions.length}.`);
+  const source = regions[0]!;
+  if (source.path !== "data/world/regions/valley-prologue.v0.1.yaml") throw new Error("portrait camera region source is noncanonical");
+  const coordinateSystem = requireObject(source.content, ["coordinate_system"]);
+  const camera = requireObject(coordinateSystem, ["camera_profile"]);
+  const viewport = requireObject(camera, ["viewport_px"]);
+  const anchor = requireObject(camera, ["focus_anchor_normalized"]);
+  const body = {
+    sourcePath: source.path,
+    profileId: requireExactString(coordinateSystem, ["camera_profile_id"], "portrait_scroll.v0.1"),
+    viewportPx: {
+      width: requireExactNumber(viewport, ["width"], 180),
+      height: requireExactNumber(viewport, ["height"], 320),
+    },
+    focusAnchorNormalized: {
+      x: requireExactNumber(anchor, ["x"], 0.5),
+      y: requireExactNumber(anchor, ["y"], 0.62),
+    },
+    clampToSceneBounds: requireExactBoolean(camera, ["clamp_to_scene_bounds"], true),
+    pixelSnap: requireExactBoolean(camera, ["pixel_snap"], true),
+    sceneSizeIndependentFromCamera: requireExactBoolean(coordinateSystem, ["scene_size_independent_from_camera"], true),
+  } as const;
+  return {
+    ...body,
+    sourceDigest: `sha256:${createHash("sha256").update(stableStringify(body)).digest("hex")}`,
   };
 }
 

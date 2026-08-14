@@ -1728,6 +1728,23 @@ function validateTaskExpectedProfiles(source: CompiledSource, issues: ContentIss
 }
 
 function validateRegionReferences(source: CompiledSource, graphIds: ReadonlySet<string>, issues: ContentIssue[]): void {
+  const coordinateSystem = readObject(source.content, "coordinate_system");
+  const cameraProfile = readObject(coordinateSystem, "camera_profile");
+  const cameraChecks: readonly [string, ContentValue | undefined, ContentValue][] = [
+    ["coordinate_system.origin", coordinateSystem.origin, "bottom_left"],
+    ["coordinate_system.world_tile_size_px", coordinateSystem.world_tile_size_px, 16],
+    ["coordinate_system.camera_profile_id", coordinateSystem.camera_profile_id, "portrait_scroll.v0.1"],
+    ["coordinate_system.camera_profile.viewport_px.width", readNestedValue(cameraProfile, ["viewport_px", "width"]), 180],
+    ["coordinate_system.camera_profile.viewport_px.height", readNestedValue(cameraProfile, ["viewport_px", "height"]), 320],
+    ["coordinate_system.camera_profile.focus_anchor_normalized.x", readNestedValue(cameraProfile, ["focus_anchor_normalized", "x"]), 0.5],
+    ["coordinate_system.camera_profile.focus_anchor_normalized.y", readNestedValue(cameraProfile, ["focus_anchor_normalized", "y"]), 0.62],
+    ["coordinate_system.camera_profile.clamp_to_scene_bounds", cameraProfile.clamp_to_scene_bounds, true],
+    ["coordinate_system.camera_profile.pixel_snap", cameraProfile.pixel_snap, true],
+    ["coordinate_system.scene_size_independent_from_camera", coordinateSystem.scene_size_independent_from_camera, true],
+  ];
+  for (const [field, actual, expected] of cameraChecks) {
+    if (actual !== expected) addIssue(issues, "region.camera_profile", source.path, field, `expected ${String(expected)}, received ${String(actual)}`);
+  }
   const nodes = new Set(readObjectArray(source.content, "nodes").map((node) => readString(node, "node_id")));
   const states = new Set(readObjectArray(source.content, "state_registry").map((state) => readString(state, "state_id")));
   for (const [index, connection] of readObjectArray(source.content, "connections").entries()) {

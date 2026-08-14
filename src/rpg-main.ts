@@ -4,6 +4,7 @@ import {
   type RuntimeSceneManifest,
   type RuntimeSceneNpcManifest,
 } from "./content/runtime-scene-manifest";
+import { readRuntimePortraitCameraProfile } from "./content/runtime-camera-profile";
 import {
   PrologueFlowSession,
   type PrologueFlowAction,
@@ -24,7 +25,8 @@ import {
   PROLOGUE_ARRIVAL_SCENE_ID,
   PROLOGUE_STREAM_SCENE_ID,
 } from "./game/prologue-arrival-stream";
-import { WORLD_TILE_SIZE_PX, type RuntimeInput, type RuntimeSnapshot } from "./runtime";
+import { WORLD_TILE_SIZE_PX, type CameraState, type RuntimeInput, type RuntimeSnapshot } from "./runtime";
+import { projectPortraitCamera } from "./runtime/portrait-camera";
 import type { BrowserGameSessionWalCoordinator } from "./persistence/browser-game-session-wal";
 import { bootstrapBrowserPrologue, persistBrowserPrologueCheckpoint } from "./persistence/browser-prologue-persistence";
 import { nextInventoryConsumptionSequence } from "./session/adapters";
@@ -67,9 +69,9 @@ interface UiResult {
   readonly tone: Tone;
 }
 
-const WIDTH = 180;
-const HEIGHT = 320;
-const WORLD_Y_OFFSET = 96;
+const CAMERA_PROFILE = readRuntimePortraitCameraProfile(generatedRuntimeArtifact);
+const WIDTH = CAMERA_PROFILE.viewportPx.width;
+const HEIGHT = CAMERA_PROFILE.viewportPx.height;
 const STORAGE_KEY = "tokipona.rpg.prologue.v0.3";
 const COMPANION_STORAGE_KEY = `${STORAGE_KEY}.cross-save-wal`;
 const TELEMETRY_STORAGE_KEY = `${STORAGE_KEY}.telemetry`;
@@ -767,47 +769,49 @@ function render(snapshot: PrologueFlowSnapshot, now: number): void {
 }
 
 function drawWorld(snapshot: PrologueFlowSnapshot, scene: RuntimeSceneManifest): void {
-  const cameraX = browserCameraX(snapshot.runtime, scene);
+  const camera = projectPortraitCamera(CAMERA_PROFILE, snapshot.runtime, scene);
   context.imageSmoothingEnabled = false;
   context.fillStyle = snapshot.mode === "settlement" ? "#0d0b08" : snapshot.runtime.sceneId === PROLOGUE_ARRIVAL_SCENE_ID ? "#08090c" : "#07100e";
   context.fillRect(0, 0, WIDTH, HEIGHT);
   drawBackdrop(snapshot.runtime.tick, snapshot.mode);
-  const firstX = Math.max(0, Math.floor(cameraX / WORLD_TILE_SIZE_PX));
-  const lastX = Math.min(scene.collisionRows[0]!.length - 1, Math.ceil((cameraX + WIDTH) / WORLD_TILE_SIZE_PX));
-  for (let y = 0; y < scene.collisionRows.length; y += 1) {
+  const firstX = Math.max(0, Math.floor(camera.x / WORLD_TILE_SIZE_PX));
+  const lastX = Math.min(scene.collisionRows[0]!.length - 1, Math.ceil((camera.x + camera.width) / WORLD_TILE_SIZE_PX));
+  const firstY = Math.max(0, Math.floor(camera.y / WORLD_TILE_SIZE_PX));
+  const lastY = Math.min(scene.collisionRows.length - 1, Math.ceil((camera.y + camera.height) / WORLD_TILE_SIZE_PX));
+  for (let y = firstY; y <= lastY; y += 1) {
     for (let x = firstX; x <= lastX; x += 1) {
       if (scene.collisionRows[y]![x] !== "#") continue;
-      rockTile(x * WORLD_TILE_SIZE_PX - cameraX, y * WORLD_TILE_SIZE_PX + WORLD_Y_OFFSET, x, y, snapshot.mode);
+      rockTile(x * WORLD_TILE_SIZE_PX - camera.x, y * WORLD_TILE_SIZE_PX - camera.y, x, y, snapshot.mode);
     }
   }
   if (snapshot.runtime.sceneId === PROLOGUE_STREAM_SCENE_ID && snapshot.arrival) {
     context.fillStyle = "#154866";
     context.fillRect(
-      Math.round(snapshot.arrival.shallowWater.leftPx - cameraX),
-      Math.round(snapshot.arrival.shallowWater.surfaceYPx + WORLD_Y_OFFSET),
+      Math.round(snapshot.arrival.shallowWater.leftPx - camera.x),
+      Math.round(snapshot.arrival.shallowWater.surfaceYPx - camera.y),
       snapshot.arrival.shallowWater.rightPx - snapshot.arrival.shallowWater.leftPx,
       16,
     );
-    drawGlyph(GLYPH_POSITION.x - cameraX, GLYPH_POSITION.y + WORLD_Y_OFFSET, glyphPhase(snapshot));
+    drawGlyph(GLYPH_POSITION.x - camera.x, GLYPH_POSITION.y - camera.y, glyphPhase(snapshot));
     for (const water of snapshot.arrival.manifestedWater) {
       context.fillStyle = water.settled ? "#65c7ed" : "#a4e8f9";
-      context.fillRect(Math.round(water.position.x - cameraX), Math.round(water.position.y + WORLD_Y_OFFSET), 3, 3);
+      context.fillRect(Math.round(water.position.x - camera.x), Math.round(water.position.y - camera.y), 3, 3);
     }
   }
   if (snapshot.mode === "settlement") {
-    drawSettlementFacilities(scene, cameraX);
-    drawSettlementNpcs(scene, cameraX);
-    drawSurveyMarkers(scene, cameraX);
+    drawSettlementFacilities(scene, camera);
+    drawSettlementNpcs(scene, camera);
+    drawSurveyMarkers(scene, camera);
   }
-  if (snapshot.mode === "wildlife" && snapshot.wildlife) drawWildlifeFox(snapshot, cameraX);
-  drawPlayer(snapshot.runtime, cameraX);
+  if (snapshot.mode === "wildlife" && snapshot.wildlife) drawWildlifeFox(snapshot, camera);
+  drawPlayer(snapshot.runtime, camera);
 }
 
-function drawWildlifeFox(snapshot: PrologueFlowSnapshot, cameraX: number): void {
+function drawWildlifeFox(snapshot: PrologueFlowSnapshot, camera: CameraState): void {
   if (!snapshot.wildlife) return;
   const position = snapshot.wildlife.foxPositionTiles;
-  const x = Math.round(position.x * WORLD_TILE_SIZE_PX - cameraX);
-  const y = Math.round(position.y * WORLD_TILE_SIZE_PX + WORLD_Y_OFFSET);
+  const x = Math.round(position.x * WORLD_TILE_SIZE_PX - camera.x);
+  const y = Math.round(position.y * WORLD_TILE_SIZE_PX - camera.y);
   const fleeing = snapshot.wildlife.fox.behaviorState === "flee" || snapshot.wildlife.fox.behaviorState === "return";
   context.fillStyle = fleeing ? "#b88b53" : "#9d673f";
   context.fillRect(x + 3, y + 7, 11, 6);
@@ -846,12 +850,13 @@ function rockTile(
   context.fillRect(Math.floor(x + ((tileX * 5) % 11)), Math.floor(y + ((tileY * 3) % 11)), 2, 2);
 }
 
-function drawSettlementFacilities(scene: RuntimeSceneManifest, cameraX: number): void {
+function drawSettlementFacilities(scene: RuntimeSceneManifest, camera: CameraState): void {
   const worldWidth = scene.sizeTiles.width * WORLD_TILE_SIZE_PX;
+  const worldHeight = scene.sizeTiles.height * WORLD_TILE_SIZE_PX;
   const facilityX = [0.22, 0.5, 0.78];
   scene.facilities.slice(0, 3).forEach((facility, index) => {
-    const x = Math.round(worldWidth * facilityX[index]! - cameraX);
-    const y = 208;
+    const x = Math.round(worldWidth * facilityX[index]! - camera.x);
+    const y = Math.round(worldHeight - 64 - camera.y);
     context.fillStyle = facility.publicRelief ? "#315c66" : "#59472d";
     context.fillRect(x, y, 13, 13);
     context.fillStyle = "#bda96c";
@@ -859,11 +864,12 @@ function drawSettlementFacilities(scene: RuntimeSceneManifest, cameraX: number):
   });
 }
 
-function drawSettlementNpcs(scene: RuntimeSceneManifest, cameraX: number): void {
+function drawSettlementNpcs(scene: RuntimeSceneManifest, camera: CameraState): void {
   const worldWidth = scene.sizeTiles.width * WORLD_TILE_SIZE_PX;
+  const worldHeight = scene.sizeTiles.height * WORLD_TILE_SIZE_PX;
   scene.npcs.forEach((npc, index) => {
-    const x = Math.round(worldWidth * (0.32 + index * 0.18) - cameraX);
-    const y = 220;
+    const x = Math.round(worldWidth * (0.32 + index * 0.18) - camera.x);
+    const y = Math.round(worldHeight - 60 - camera.y);
     context.fillStyle = ["#bd9457", "#738c62", "#9671a4"][index] ?? "#a88c63";
     context.fillRect(x + 2, y, 7, 11);
     context.fillStyle = "#e3cfa8";
@@ -876,20 +882,22 @@ function drawSettlementNpcs(scene: RuntimeSceneManifest, cameraX: number): void 
   });
 }
 
-function drawSurveyMarkers(scene: RuntimeSceneManifest, cameraX: number): void {
+function drawSurveyMarkers(scene: RuntimeSceneManifest, camera: CameraState): void {
   const worldWidth = scene.sizeTiles.width * WORLD_TILE_SIZE_PX;
+  const worldHeight = scene.sizeTiles.height * WORLD_TILE_SIZE_PX;
   for (const ratio of [0.18, 0.55, 0.86]) {
-    const x = Math.round(worldWidth * ratio - cameraX);
+    const x = Math.round(worldWidth * ratio - camera.x);
+    const y = Math.round(worldHeight - 67 - camera.y);
     context.fillStyle = "#b88a3a";
-    context.fillRect(x, 213, 2, 17);
+    context.fillRect(x, y, 2, 17);
     context.fillStyle = "#d9c27e";
-    context.fillRect(x - 2, 213, 6, 3);
+    context.fillRect(x - 2, y, 6, 3);
   }
 }
 
-function drawPlayer(runtime: RuntimeSnapshot, cameraX: number): void {
-  const x = Math.round(runtime.player.position.x - cameraX);
-  const y = Math.round(runtime.player.position.y + WORLD_Y_OFFSET);
+function drawPlayer(runtime: RuntimeSnapshot, camera: CameraState): void {
+  const x = Math.round(runtime.player.position.x - camera.x);
+  const y = Math.round(runtime.player.position.y - camera.y);
   context.fillStyle = "#211632";
   context.fillRect(x + 2, y, 8, 3);
   context.fillStyle = "#7744a5";
@@ -1173,12 +1181,6 @@ function isNearGlyph(runtime: RuntimeSnapshot): boolean {
   const centerX = runtime.player.position.x + runtime.player.body.width / 2;
   const centerY = runtime.player.position.y + runtime.player.body.height / 2;
   return Math.hypot(centerX - GLYPH_POSITION.x, centerY - GLYPH_POSITION.y) <= GLYPH_RADIUS;
-}
-
-function browserCameraX(runtime: RuntimeSnapshot, scene: RuntimeSceneManifest): number {
-  const worldWidth = scene.sizeTiles.width * WORLD_TILE_SIZE_PX;
-  const center = runtime.player.position.x + runtime.player.body.width / 2;
-  return Math.min(Math.max(0, center - WIDTH / 2), Math.max(0, worldWidth - WIDTH));
 }
 
 function flowResult<T>(

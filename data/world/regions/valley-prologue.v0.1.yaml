@@ -10,7 +10,12 @@ wal_ref: "../../persistence/cross-save-wal.v0.1.yaml"
 coordinate_system:
   origin: "bottom_left"
   world_tile_size_px: 16
-  camera_profile_id: "portrait_scroll.runtime_pending"
+  camera_profile_id: "portrait_scroll.v0.1"
+  camera_profile:
+    viewport_px: {width: 180, height: 320}
+    focus_anchor_normalized: {x: 0.5, y: 0.62}
+    clamp_to_scene_bounds: true
+    pixel_snap: true
   scene_size_independent_from_camera: true
 
 contracts:

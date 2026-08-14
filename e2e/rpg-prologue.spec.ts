@@ -66,6 +66,9 @@ test("runs the real keyboard/touch route and restores companion-first without ma
   page.on("pageerror", (error) => errors.push(error.message));
   await clearAndOpen(page);
 
+  await expect(page.locator("#rpg-canvas")).toHaveAttribute("width", "180");
+  await expect(page.locator("#rpg-canvas")).toHaveAttribute("height", "320");
+
   await expect(page.locator('section[aria-label="游戏状态"]')).toBeVisible();
   await expect(page.locator('section[aria-label="触屏操作"]')).toBeVisible();
   await expect(page.locator('[data-ui="status"]')).toHaveAttribute("aria-live", "polite");

@@ -13720,6 +13720,22 @@
       "fixedSlotOnlyProductionForbidden": true
     }
   },
+  "cameraProfile": {
+    "sourcePath": "data/world/regions/valley-prologue.v0.1.yaml",
+    "profileId": "portrait_scroll.v0.1",
+    "viewportPx": {
+      "width": 180,
+      "height": 320
+    },
+    "focusAnchorNormalized": {
+      "x": 0.5,
+      "y": 0.62
+    },
+    "clampToSceneBounds": true,
+    "pixelSnap": true,
+    "sceneSizeIndependentFromCamera": true,
+    "sourceDigest": "sha256:33b53f953c5771d7fbf7e10e89ce2b86b8d825c8cc090d9f61d42384f90ccda0"
+  },
   "prologueAcceptance": {
     "sourceDigest": "sha256:afb1aedcd1eeae9fa912cd521f7f5a697fe58a2795228d574ec94eb75884b0ca",
     "sourcePath": "data/chapters/ch01-world-literacy-prologue.v0.1.yaml",
