@@ -1,6 +1,7 @@
 ﻿import generatedRuntimeArtifact from "../generated/content-runtime.v0.1.json";
 import { readRuntimeSafeRangeManifest } from "../content/runtime-safe-range-manifest";
 import { readRuntimeP0CurriculumManifest } from "../content/runtime-p0-curriculum-manifest";
+import { readRuntimeCore120CurriculumManifest } from "../content/runtime-core120-curriculum-manifest";
 import {
   validSafeRangeRuntimeFramePayload,
   type SafeRangeRuntimeFramePayload,
@@ -15,7 +16,26 @@ import {
   type AttackQualificationCommitProof,
 } from "../game/prologue-attack-qualification";
 import { isTrustedP0LearningCommitProof, type P0LearningCommitProof } from "../game/prologue-p0-learning";
-import { materializeP0LearningEvidence, p0EvidenceMatches, type P0LearningActionId } from "../game/p0-learning-contract";
+import {
+  core120LearningActionPayloadHash,
+  core120LearningActionReceiptId,
+  isTrustedCore120LearningCommitProof,
+  type Core120LearningCommitProof,
+} from "../game/prologue-core120-learning";
+import {
+  materializeP0LearningEvidence,
+  p0EvidenceMatches,
+  p0TargetReached,
+  type P0LearningActionId,
+} from "../game/p0-learning-contract";
+import {
+  applyCore120LearningAction,
+  core120EvidenceMatches,
+  createCore120CampaignState,
+  isCore120LearningActionComplete,
+  materializeCore120LearningEvidence,
+  type Core120LearningActionId,
+} from "../learning/core120-campaign";
 import { createCrossSaveReceiptId, sha256Canonical, type JsonValue } from "../persistence/cross-save-wal";
 import {
   LEARNING_SAVE_SCHEMA,
@@ -97,6 +117,7 @@ import {
 
 const RUNTIME_SAFE_RANGE_MANIFEST = readRuntimeSafeRangeManifest(generatedRuntimeArtifact);
 const RUNTIME_P0_CURRICULUM_MANIFEST = readRuntimeP0CurriculumManifest(generatedRuntimeArtifact);
+const RUNTIME_CORE120_CURRICULUM_MANIFEST = readRuntimeCore120CurriculumManifest(generatedRuntimeArtifact);
 
 export const GAME_SESSION_SAVE_SCHEMA = "tokipona.game-session.v0.2" as const;
 export const LEGACY_GAME_SESSION_SAVE_SCHEMA = "tokipona.game-session.v0.1" as const;
@@ -313,7 +334,7 @@ export type GameSessionEvent =
       readonly interactionId: string;
       readonly playerPositionPx: Readonly<{ readonly x: number; readonly y: number }>;
       readonly runtimeSceneRevision: number;
-    }>
+  }>
   | SessionEventBase<"attack_qualification_interaction_committed", {
       readonly operationId: string;
       readonly sceneId: "scene.valley.settlement";
@@ -322,12 +343,23 @@ export type GameSessionEvent =
       readonly playerPositionPx: Readonly<{ readonly x: number; readonly y: number }>;
       readonly expectedWorldRevision: number;
     }>  | SessionEventBase<"learning_evidence_committed",
-      | { readonly evidence: LearningEvidenceEvent; readonly qualificationActionId?: never; readonly p0CurriculumActionId?: never }
+      | { readonly evidence: LearningEvidenceEvent; readonly qualificationActionId?: never;
+          readonly p0CurriculumActionId?: never; readonly core120CurriculumActionId?: never }
       | { readonly evidence: LearningEvidenceEvent; readonly p0CurriculumActionId: P0LearningActionId;
-          readonly p0EvidenceOrdinal: number; readonly qualificationActionId?: never }
+          readonly p0EvidenceOrdinal: number; readonly qualificationActionId?: never;
+          readonly core120CurriculumActionId?: never }
+      | { readonly evidence: LearningEvidenceEvent; readonly core120CurriculumActionId: Core120LearningActionId;
+          readonly core120EvidenceOrdinal: number; readonly qualificationActionId?: never;
+          readonly p0CurriculumActionId?: never }
       | { readonly qualificationActionId: AttackQualificationEvidenceActionId; readonly transactionId: string;
           readonly unrelatedWorldEventIds?: readonly string[]; readonly interactionReceiptId?: string;
-          readonly sourceEvidenceEventId?: string; readonly evidence?: never; readonly p0CurriculumActionId?: never }>
+          readonly sourceEvidenceEventId?: string; readonly evidence?: never; readonly p0CurriculumActionId?: never;
+          readonly core120CurriculumActionId?: never }>
+  | SessionEventBase<"core120_learning_action_committed", {
+      readonly actionId: Core120LearningActionId;
+      readonly receiptId: string;
+      readonly payloadHash: `sha256:${string}`;
+    }>
   | SessionEventBase<"attack_capacity_calibrated", {
       readonly transactionId: string;
       readonly writerEvent: typeof ATTACK_CALIBRATION_WRITER_EVENT;
@@ -818,6 +850,7 @@ const isEventEnvelope = (value: unknown): value is GameSessionEvent => {
     "verified_trade_sale_committed",
     "attack_qualification_interaction_committed",
     "learning_evidence_committed",
+    "core120_learning_action_committed",
     "attack_capacity_calibrated",
     "prologue_return_observation_committed",
     "attack_prerequisites_verified",
@@ -1129,35 +1162,41 @@ export class GameSession {
   }
 
   apply(event: GameSessionEvent): SessionApplyResult {
-    return this.applyInternal(event, null, null, null, null);
+    return this.applyInternal(event, null, null, null, null, null);
   }
 
   /** Accepts safe-range events only when the coordinator supplies its unforgeable live proof. */
   applyTrustedSafeRangeEvent(event: GameSessionEvent, proof: SafeRangeCommitProof): SessionApplyResult {
-    return this.applyInternal(event, proof, null, null, null);
+    return this.applyInternal(event, proof, null, null, null, null);
   }
 
   /** Accepts attack qualification events only from the live semantic coordinators. */
   applyTrustedAttackQualificationEvent(event: GameSessionEvent, proof: AttackQualificationCommitProof): SessionApplyResult {
-    return this.applyInternal(event, null, proof, null, null);
+    return this.applyInternal(event, null, proof, null, null, null);
   }
 
   applyTrustedReturnFlowQualificationEvent(
     event: GameSessionEvent,
     proof: ReturnFlowQualificationCommitProof,
   ): SessionApplyResult {
-    return this.applyInternal(event, null, null, proof, null);
+    return this.applyInternal(event, null, null, proof, null, null);
   }
 
   /** Accepts P0 curriculum evidence only from the live recovery-station coordinator. */
   applyTrustedP0LearningEvent(event: GameSessionEvent, proof: P0LearningCommitProof): SessionApplyResult {
-    return this.applyInternal(event, null, null, null, proof);
+    return this.applyInternal(event, null, null, null, proof, null);
+  }
+
+  /** Accepts core-120 recovery evidence only from the live archive coordinator. */
+  applyTrustedCore120LearningEvent(event: GameSessionEvent, proof: Core120LearningCommitProof): SessionApplyResult {
+    return this.applyInternal(event, null, null, null, null, proof);
   }
 
   private applyInternal(event: GameSessionEvent, safeRangeProof: SafeRangeCommitProof | null,
     attackQualificationProof: AttackQualificationCommitProof | null,
     returnFlowQualificationProof: ReturnFlowQualificationCommitProof | null,
-    p0LearningProof: P0LearningCommitProof | null): SessionApplyResult {
+    p0LearningProof: P0LearningCommitProof | null,
+    core120LearningProof: Core120LearningCommitProof | null): SessionApplyResult {
     if (!isEventEnvelope(event)) return this.result(false, false, "invalid_event");
     const safeRangeProtected = event.type === "safe_range_runtime_frame_committed" ||
       event.type === "safe_range_transfer_passed" || event.type === "safe_range_material_table_completed";
@@ -1201,6 +1240,22 @@ export class GameSession {
       p0LearningProof.actionId === event.payload.p0CurriculumActionId &&
       p0LearningProof.batch.drafts.some((draft) => draft.eventId === event.eventId && draft.type === event.type && same(draft.payload, event.payload));
     if (p0Protected && !this.replaying && !trustedP0) return this.result(false, false, "invalid_event");
+    const core120Protected = event.type === "core120_learning_action_committed" ||
+      (event.type === "learning_evidence_committed" &&
+        event.payload.core120CurriculumActionId !== undefined);
+    const core120ActionId = event.type === "core120_learning_action_committed"
+      ? event.payload.actionId
+      : event.type === "learning_evidence_committed"
+        ? event.payload.core120CurriculumActionId
+        : undefined;
+    const trustedCore120 = core120Protected && core120LearningProof !== null &&
+      isTrustedCore120LearningCommitProof(core120LearningProof) &&
+      core120LearningProof.actionId === core120ActionId &&
+      core120LearningProof.batch.drafts.some((draft) => draft.eventId === event.eventId &&
+        draft.type === event.type && same(draft.payload, event.payload));
+    if (core120Protected && !this.replaying && !trustedCore120) {
+      return this.result(false, false, "invalid_event");
+    }
     const payloadFingerprint = eventPayloadFingerprint(event);
     const prior = this.state.processedEventPayloads[event.eventId];
     if (prior !== undefined) {
@@ -1767,7 +1822,45 @@ export class GameSession {
         let evidence: LearningEvidenceEvent;
         let qualification = false;
         let p0Curriculum = false;
-        if (event.payload.p0CurriculumActionId !== undefined) {
+        let core120Curriculum = false;
+        if (event.payload.core120CurriculumActionId !== undefined) {
+          const payload = event.payload;
+          if (this.state.world.currentSceneId !== RUNTIME_CORE120_CURRICULUM_MANIFEST.recoveryStation.sceneId ||
+              !Number.isSafeInteger(payload.core120EvidenceOrdinal) || payload.core120EvidenceOrdinal < 0 ||
+              !isRecord(payload.evidence) || payload.evidence.committedAtSessionSequence !== undefined) {
+            return { reason: "invalid_event", duplicate: false };
+          }
+          const p0Complete = RUNTIME_P0_CURRICULUM_MANIFEST.scope.wordIds.every((wordId) => {
+            const progress = this.state.learning.words[wordId];
+            return p0TargetReached(RUNTIME_P0_CURRICULUM_MANIFEST.words[wordId].targetState,
+              progress?.learningState ?? null, progress?.attunementState);
+          });
+          if (!p0Complete) return { reason: "invalid_event", duplicate: false };
+          try {
+            const campaign = createCore120CampaignState(RUNTIME_CORE120_CURRICULUM_MANIFEST,
+              this.sessionId, this.state.learning);
+            const preview = applyCore120LearningAction(RUNTIME_CORE120_CURRICULUM_MANIFEST,
+              campaign, payload.core120CurriculumActionId);
+            if (!preview.applied) return { reason: "invalid_event", duplicate: false };
+          } catch { return { reason: "invalid_event", duplicate: false }; }
+          let expected: readonly LearningEvidenceEvent[];
+          try {
+            expected = materializeCore120LearningEvidence(RUNTIME_CORE120_CURRICULUM_MANIFEST,
+              this.sessionId, payload.core120CurriculumActionId);
+          } catch { return { reason: "invalid_event", duplicate: false }; }
+          const expectedEvidence = expected[payload.core120EvidenceOrdinal];
+          if (!expectedEvidence || expected.length <= payload.core120EvidenceOrdinal ||
+              !core120EvidenceMatches(expectedEvidence, payload.evidence)) {
+            return { reason: "invalid_event", duplicate: false };
+          }
+          const observedEvidence = this.state.learning.words[expectedEvidence.wordId]?.evidence ?? [];
+          if (expected.slice(0, payload.core120EvidenceOrdinal).some((priorEvidence) =>
+            !observedEvidence.some((entry) => entry.eventId === priorEvidence.eventId))) {
+            return { reason: "invalid_event", duplicate: false };
+          }
+          evidence = { ...payload.evidence, committedAtSessionSequence: event.sequence } as LearningEvidenceEvent;
+          core120Curriculum = true;
+        } else if (event.payload.p0CurriculumActionId !== undefined) {
           const payload = event.payload;
           if (this.state.world.currentSceneId !== RUNTIME_P0_CURRICULUM_MANIFEST.recoveryStation.sceneId ||
               !Number.isSafeInteger(payload.p0EvidenceOrdinal) || payload.p0EvidenceOrdinal < 0 ||
@@ -1922,7 +2015,9 @@ export class GameSession {
         let reduced;
         try { reduced = reduceLearningEvidence(this.state.learning, evidence); }
         catch { return { reason: "invalid_event", duplicate: false }; }
-        const receiptId = `${qualification ? "attack-qualification-evidence" : p0Curriculum ? "p0-learning-evidence" : "learning-evidence"}:${evidence.idempotencyKey}`;
+        const receiptId = `${qualification ? "attack-qualification-evidence" :
+          core120Curriculum ? "core120-learning-evidence" :
+            p0Curriculum ? "p0-learning-evidence" : "learning-evidence"}:${evidence.idempotencyKey}`;
         const payloadHash = sha256Canonical(evidence as unknown as JsonValue);
         const priorReceipt = this.state.receiptIndex[receiptId];
         if (priorReceipt) return priorReceipt.payloadHash === payloadHash
@@ -1941,6 +2036,36 @@ export class GameSession {
         return { state: withAppliedEvent(this.state, event, {
           learning: clone(reduced.snapshot),
           receiptIndex: { ...this.state.receiptIndex, [receiptId]: receipt, ...interactionUse },
+        }) };
+      }
+      case "core120_learning_action_committed": {
+        const { actionId, receiptId, payloadHash } = event.payload;
+        if (this.state.world.currentSceneId !== RUNTIME_CORE120_CURRICULUM_MANIFEST.recoveryStation.sceneId ||
+            receiptId !== core120LearningActionReceiptId(this.sessionId, actionId) ||
+            payloadHash !== core120LearningActionPayloadHash(actionId)) {
+          return { reason: "invalid_event", duplicate: false };
+        }
+        let campaign;
+        try {
+          campaign = createCore120CampaignState(RUNTIME_CORE120_CURRICULUM_MANIFEST,
+            this.sessionId, this.state.learning);
+        } catch { return { reason: "invalid_event", duplicate: false }; }
+        if (!isCore120LearningActionComplete(RUNTIME_CORE120_CURRICULUM_MANIFEST, campaign, actionId)) {
+          return { reason: "invalid_event", duplicate: false };
+        }
+        const prior = this.state.receiptIndex[receiptId];
+        if (prior) return prior.payloadHash === payloadHash
+          ? { reason: "duplicate_receipt", duplicate: true }
+          : { reason: "receipt_payload_conflict", duplicate: false };
+        const receipt: SessionReceiptIndexEntry = {
+          receiptId,
+          domain: "learning",
+          payloadHash,
+          recordedByEventId: event.eventId,
+          recordedAtSequence: event.sequence,
+        };
+        return { state: withAppliedEvent(this.state, event, {
+          receiptIndex: { ...this.state.receiptIndex, [receiptId]: receipt },
         }) };
       }
       case "attack_capacity_calibrated": {

@@ -120,6 +120,39 @@ export function listCore120LearningActionIds(manifest: RuntimeCore120CurriculumM
   return Object.freeze(manifest.scope.wordIds.flatMap((wordId) => CORE120_ACTION_KINDS.map((kind) => `core120.${wordId}.${kind}` as Core120LearningActionId)));
 }
 
+/**
+ * Materializes the canonical evidence carried by one semantic campaign action.
+ * Live coordinators may choose where the action is authorized, but neither UI
+ * payloads nor callers may author or alter the resulting learning evidence.
+ */
+export function materializeCore120LearningEvidence(
+  manifest: RuntimeCore120CurriculumManifest,
+  playerSaveId: string,
+  actionId: Core120LearningActionId,
+): readonly LearningEvidenceEvent[] {
+  if (!isVerifiedRuntimeCore120CurriculumManifest(manifest) || !validPlayerSaveId(playerSaveId)) {
+    throw new Error("core120 evidence requires a verified manifest and player identity");
+  }
+  const parsed = parseAction(manifest, actionId);
+  if (parsed === null) throw new Error(`unknown core120 action ${actionId}`);
+  return deepFreeze([...materializeEvents(manifest, playerSaveId, parsed.word, parsed.kind)]);
+}
+
+export function core120EvidenceMatches(expected: LearningEvidenceEvent, actual: LearningEvidenceEvent): boolean {
+  return computeRuntimeManifestDigest(expected) === computeRuntimeManifestDigest(actual);
+}
+
+export function isCore120LearningActionComplete(
+  manifest: RuntimeCore120CurriculumManifest,
+  state: Core120CampaignState,
+  actionId: Core120LearningActionId,
+): boolean {
+  if (!isVerifiedRuntimeCore120CurriculumManifest(manifest) || !isVerifiedCore120CampaignState(state) ||
+      state.manifestDigest !== manifest.sourceDigest) return false;
+  const parsed = parseAction(manifest, actionId);
+  return parsed !== null && actionEvidencePresent(manifest, state, parsed.word.wordId, parsed.kind);
+}
+
 export function applyCore120LearningAction(
   manifest: RuntimeCore120CurriculumManifest,
   state: Core120CampaignState,
@@ -373,7 +406,16 @@ function assertCampaignEvidenceIdentity(
     for (const entry of progress.evidence) {
       if (!entry.eventId.startsWith("core120-event:")) continue;
       const expected = byEventId.get(entry.eventId);
-      if (expected === undefined || progress.wordId !== expected.wordId || computeRuntimeManifestDigest(entry) !== computeRuntimeManifestDigest(expectedLedgerEntry(expected))) throw new Error("core120 campaign evidence identity is invalid");
+      const committedAtSessionSequence = entry.committedAtSessionSequence;
+      if (
+        expected === undefined ||
+        progress.wordId !== expected.wordId ||
+        (committedAtSessionSequence !== null && !nonNegativeInteger(committedAtSessionSequence)) ||
+        computeRuntimeManifestDigest(entry) !== computeRuntimeManifestDigest({
+          ...expectedLedgerEntry(expected),
+          committedAtSessionSequence,
+        })
+      ) throw new Error("core120 campaign evidence identity is invalid");
       observedEventIds.add(entry.eventId);
       if (learning.processedEventPayloads[expected.idempotencyKey] !== canonicalEventPayload(expected)) throw new Error("core120 campaign evidence payload index is invalid");
     }
@@ -462,7 +504,16 @@ function validateWordProgress(wordId: string, candidate: unknown): void {
   if (!Array.isArray(progress.evidence)) throw new Error(`core120 word progress ${wordId}.evidence is invalid`);
   for (const evidence of progress.evidence) {
     const entry = record(evidence, `core120 evidence ${wordId}`);
-    if (typeof entry.eventId !== "string" || entry.eventId.length === 0 || typeof entry.eventType !== "string" || !EVIDENCE_TYPES.has(entry.eventType) || !stringArray(entry.canonicalAstWordIds) || !stringArray(entry.unrelatedWorldEventIds) || !stringArray(entry.semanticFacetsDemonstrated)) throw new Error(`core120 evidence ${wordId} is invalid`);
+    if (
+      typeof entry.eventId !== "string" ||
+      entry.eventId.length === 0 ||
+      typeof entry.eventType !== "string" ||
+      !EVIDENCE_TYPES.has(entry.eventType) ||
+      !stringArray(entry.canonicalAstWordIds) ||
+      !stringArray(entry.unrelatedWorldEventIds) ||
+      !stringArray(entry.semanticFacetsDemonstrated) ||
+      (entry.committedAtSessionSequence !== null && !nonNegativeInteger(entry.committedAtSessionSequence))
+    ) throw new Error(`core120 evidence ${wordId} is invalid`);
   }
 }
 

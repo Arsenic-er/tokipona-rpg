@@ -53,6 +53,11 @@ import {
 } from "./prologue-attack-qualification";
 import { PrologueP0LearningCoordinator, type PrologueP0LearningResult } from "./prologue-p0-learning";
 import type { P0LearningActionId } from "./p0-learning-contract";
+import {
+  PrologueCore120LearningCoordinator,
+  type PrologueCore120LearningResult,
+} from "./prologue-core120-learning";
+import type { Core120LearningActionId } from "../learning/core120-campaign";
 import { verifiedTradeManifest, type VerifiedSellQuote } from "./verified-trade";
 import {
   authorizedTradeEntry,
@@ -578,6 +583,18 @@ export class PrologueSettlementSession {
 
   commitP0LearningAction(actionId: P0LearningActionId, operationId: string): PrologueP0LearningResult {
     const result = new PrologueP0LearningCoordinator(this).commit(actionId, operationId);
+    if (result.accepted && !result.duplicate) {
+      this.authoritativeSession = result.session;
+      this.bridge.adoptSession(result.session);
+    }
+    return result;
+  }
+
+  commitCore120LearningAction(
+    actionId: Core120LearningActionId,
+    operationId: string,
+  ): PrologueCore120LearningResult {
+    const result = new PrologueCore120LearningCoordinator(this).commit(actionId, operationId);
     if (result.accepted && !result.duplicate) {
       this.authoritativeSession = result.session;
       this.bridge.adoptSession(result.session);

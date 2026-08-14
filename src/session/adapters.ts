@@ -18,6 +18,10 @@ import {
 } from "../game/prologue-attack-qualification";
 import { isTrustedP0LearningCommitProof, type P0LearningCommitProof } from "../game/prologue-p0-learning";
 import {
+  isTrustedCore120LearningCommitProof,
+  type Core120LearningCommitProof,
+} from "../game/prologue-core120-learning";
+import {
   WILDLIFE_ECONOMY_ID,
   ZERO_WILDLIFE_REWARD_DELTA,
   createDeterministicCorpseId,
@@ -746,6 +750,42 @@ export const commitTrustedP0LearningProposal = (
     const protectedEvent = event.type === "learning_evidence_committed" && event.payload.p0CurriculumActionId !== undefined;
     const result = protectedEvent ? working.applyTrustedP0LearningEvent(event, proof) : working.apply(event);
     if (!result.applied) return { committed: false, failedDraftId: draft.eventId, reason: result.reason, session: authoritative };
+  }
+  return { committed: true, failedDraftId: null, reason: null, session: working };
+};
+
+export const commitTrustedCore120LearningProposal = (
+  authoritative: GameSession,
+  proof: Core120LearningCommitProof,
+): SessionBatchCommitResult => {
+  if (!isTrustedCore120LearningCommitProof(proof)) {
+    return { committed: false, failedDraftId: null, reason: "invalid_event", session: authoritative };
+  }
+  const protectedDrafts = proof.batch.drafts.filter((draft) => draft.type === "learning_evidence_committed" &&
+    (draft.payload as Extract<GameSessionEvent, { type: "learning_evidence_committed" }>["payload"])
+      .core120CurriculumActionId !== undefined);
+  const receipt = proof.batch.drafts.at(-1);
+  const validReceipt = receipt?.type === "core120_learning_action_committed" &&
+    (receipt.payload as Extract<GameSessionEvent, { type: "core120_learning_action_committed" }>["payload"])
+      .actionId === proof.actionId;
+  if (protectedDrafts.length === 0 || protectedDrafts.length + 1 !== proof.batch.drafts.length ||
+      !validReceipt ||
+      protectedDrafts.some((draft) =>
+    (draft.payload as Extract<GameSessionEvent, { type: "learning_evidence_committed" }>["payload"])
+      .core120CurriculumActionId !== proof.actionId)) {
+    return { committed: false, failedDraftId: protectedDrafts[0]?.eventId ?? null,
+      reason: "invalid_event", session: authoritative };
+  }
+  const working = authoritative.forkForProposal();
+  for (const draft of proof.batch.drafts) {
+    const event = materializeDraft(draft, working.nextSequence(), working);
+    const protectedEvent = event.type === "core120_learning_action_committed" ||
+      (event.type === "learning_evidence_committed" &&
+        event.payload.core120CurriculumActionId !== undefined);
+    const result = protectedEvent ? working.applyTrustedCore120LearningEvent(event, proof) : working.apply(event);
+    if (!result.applied) {
+      return { committed: false, failedDraftId: draft.eventId, reason: result.reason, session: authoritative };
+    }
   }
   return { committed: true, failedDraftId: null, reason: null, session: working };
 };

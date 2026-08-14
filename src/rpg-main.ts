@@ -10,6 +10,7 @@ import {
   type PrologueFlowSafeRangeCompileResult,
   type PrologueFlowSafeRangeView,
   type PrologueFlowOldMineView,
+  type PrologueFlowCore120LearningView,
   type PrologueFlowP0LearningView,
   type PrologueFlowSnapshot,
 } from "./game/prologue-flow";
@@ -50,6 +51,7 @@ import {
   type SafeRangeUiCommand,
 } from "./rpg-safe-range-ui";
 import { createRpgP0LearningUi, type P0LearningUiCommand } from "./rpg-p0-learning-ui";
+import { createRpgCore120LearningUi, type Core120LearningUiCommand } from "./rpg-core120-learning-ui";
 import { createRpgOldMineUi, type OldMineUiCommand } from "./rpg-old-mine-ui";
 import { BrowserPrologueTelemetry } from "./acceptance/browser-prologue-telemetry";
 import type { PrologueActivityKind } from "./content/runtime-prologue-acceptance-manifest";
@@ -122,6 +124,10 @@ class FlowBrowserPort {
     return this.flow.p0LearningView();
   }
 
+  core120LearningView(): PrologueFlowCore120LearningView {
+    return this.flow.core120LearningView();
+  }
+
   oldMineView(): PrologueFlowOldMineView {
     return this.flow.oldMineView();
   }
@@ -135,6 +141,11 @@ class FlowBrowserPort {
   p0Learning(command: P0LearningUiCommand): UiResult {
     return flowResult(this.flow.performP0LearningAction(nextId("p0-learning"), command.actionId),
       `P0 learning action committed: ${command.actionId}`);
+  }
+
+  core120Learning(command: Core120LearningUiCommand): UiResult {
+    return flowResult(this.flow.performCore120LearningAction(nextId("core120-learning"), command.actionId),
+      `Core-120 learning action committed: ${command.actionId}`);
   }
 
   interact(): UiResult {
@@ -611,6 +622,7 @@ const settlementPanel = required<HTMLElement>(".settlement-panel");
 const taskStageLabel = required<HTMLElement>('[data-ui="task-stage"]');
 const statusLabel = required<HTMLElement>('[data-ui="status"]');
 
+let lastTelemetryAtMs = 0;
 let port = FlowBrowserPort.bootstrap();
 let telemetry = bootstrapTelemetry(port, telemetryNow());
 const infrastructureUi = createRpgInfrastructureUi((command) => run(() => port.infrastructure(command)));
@@ -620,6 +632,7 @@ const economyUi = createRpgEconomyUi((command) => run(() => port.economy(command
 const returnFlowUi = createRpgReturnFlowUi((command) => run(() => port.returnFlow(command)));
 const safeRangeUi = createRpgSafeRangeUi((command) => run(() => port.safeRange(command)));
 const p0LearningUi = createRpgP0LearningUi((command) => run(() => port.p0Learning(command)));
+const core120LearningUi = createRpgCore120LearningUi((command) => run(() => port.core120Learning(command)));
 const oldMineUi = createRpgOldMineUi((command) => run(() => port.oldMine(command)));
 let priorTime = performance.now();
 let activationStarted: number | null = null;
@@ -673,6 +686,7 @@ function render(snapshot: PrologueFlowSnapshot, now: number): void {
   returnFlowUi.render(snapshot);
   safeRangeUi.render(port.safeRangeView(), port.safeRangeCompileResult());
   p0LearningUi.render(port.p0LearningView());
+  core120LearningUi.render(port.core120LearningView());
   oldMineUi.render(port.oldMineView());
   const scene = requiredScene(snapshot.runtime.sceneId);
   drawWorld(snapshot, scene);
@@ -1046,7 +1060,7 @@ function browserActivityKind(): PrologueActivityKind {
   const focused = document.activeElement;
   if (focused instanceof Element && focused.closest(".notice, .dialogue-box")) return "long_explanation";
   if (focused instanceof Element && focused.closest(
-    ".telo-panel, .p0-learning-panel, .cistern-panel, .return-flow-panel, .safe-range-panel",
+    ".telo-panel, .p0-learning-panel, .core120-learning-panel, .cistern-panel, .return-flow-panel, .safe-range-panel",
   )) return "language";
   return "world_people_physics";
 }
@@ -1056,7 +1070,9 @@ function telemetryNow(): number {
 }
 
 function telemetryTimestamp(value: number): number {
-  return Math.max(0, Math.floor(value));
+  const normalized = Math.max(0, Math.floor(value));
+  lastTelemetryAtMs = Math.max(lastTelemetryAtMs, normalized);
+  return lastTelemetryAtMs;
 }
 
 function renderDialogue(node: SettlementDialogueNode): void {

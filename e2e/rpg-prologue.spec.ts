@@ -66,6 +66,10 @@ test("runs the real keyboard/touch route and restores companion-first without ma
   await page.reload();
   await expect(app(page)).toHaveAttribute("data-scene-id", SETTLEMENT);
   await expect(app(page)).toHaveAttribute("data-mode", "settlement");
+  await expect(page.locator("[data-core120-learning-panel]")).toBeVisible();
+  await expect(page.locator("[data-core120-learning-count]")).toHaveText("0 / 600");
+  await expect(page.locator("[data-core120-assets]")).toBeVisible();
+  await expect(page.locator("button[data-core120-word]").first()).toBeDisabled();
   const telemetry = await page.evaluate((key) => JSON.parse(localStorage.getItem(key)!), TELEMETRY_KEY);
   expect(telemetry).toMatchObject({
     schema: "tokipona.browser-prologue-telemetry.v0.1",
