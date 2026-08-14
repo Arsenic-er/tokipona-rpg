@@ -19,6 +19,10 @@ export type Core120LearningUiCommand = Readonly<{
 export interface Core120LearningUiModel {
   readonly visible: boolean;
   readonly selectedBand: Core120Band;
+  readonly searchQuery: string;
+  readonly searchValid: boolean;
+  readonly searchActive: boolean;
+  readonly searchResultCount: number;
   readonly inRange: boolean;
   readonly p0PrerequisiteComplete: boolean;
   readonly externalAssetsBlocked: boolean;
@@ -39,14 +43,22 @@ export const CORE120_LEARNING_UI_TEMPLATE = `
     <p class="core120-learning-copy">在公共档案台逐步完成发现、调谐、双情境与误解修复。界面只提交机器 action ID。</p>
     <p class="core120-learning-prerequisite" data-core120-prerequisite role="status"></p>
     <p class="core120-learning-assets" data-core120-assets role="status">发音与正式字形素材尚未通过私有资产审批；当前只开放可验证语义进度。</p>
+    <label class="core120-learning-search">拉丁词检索
+      <input type="search" data-core120-search autocomplete="off" autocapitalize="none" spellcheck="false"
+        inputmode="search" maxlength="16" aria-controls="core120-learning-grid"
+        aria-describedby="core120-search-status" aria-invalid="false">
+    </label>
+    <p class="core120-learning-search-status" id="core120-search-status" data-core120-search-status
+      role="status" aria-live="polite"></p>
     <div class="core120-band-tabs" data-core120-band-tabs role="tablist" aria-label="课程阶段"></div>
-    <div class="core120-learning-grid" data-core120-learning-grid></div>
+    <div class="core120-learning-grid" id="core120-learning-grid" data-core120-learning-grid></div>
     <p class="core120-learning-live" data-core120-learning-live role="status" aria-live="polite" aria-atomic="true"></p>
   </section>`;
 
 export function deriveCore120LearningUiModel(
   view: PrologueFlowCore120LearningView,
   selectedBand: Core120Band,
+  query = "",
 ): Core120LearningUiModel {
   const unique = new Set(view.words.map((word) => word.wordId));
   const validWords = view.words.length === 120 && unique.size === 120 &&
@@ -65,8 +77,14 @@ export function deriveCore120LearningUiModel(
     band,
     validWords ? view.words.filter((word) => word.band === band).length : 0,
   ])) as unknown as Record<Core120Band, number>);
-  const selectedWords = validWords
-    ? Object.freeze(view.words.filter((word) => word.band === selectedBand))
+  const normalizedQuery = normalizeCore120LatinQuery(query);
+  const searchValid = normalizedQuery !== null;
+  const searchActive = searchValid && normalizedQuery.length > 0;
+  const exactMatch = searchActive ? view.words.find((word) => word.wordId === normalizedQuery) : undefined;
+  const selectedWords = validWords && searchValid
+    ? Object.freeze(searchActive
+        ? exactMatch ? [exactMatch] : view.words.filter((word) => word.wordId.includes(normalizedQuery))
+        : view.words.filter((word) => word.band === selectedBand))
     : Object.freeze([]);
   const derivedCompletedWordCount = validWords ? view.words.filter((word) => word.nextActionId === null).length : 0;
   const derivedCompletedSemanticActionCount = validWords
@@ -78,6 +96,10 @@ export function deriveCore120LearningUiModel(
   return Object.freeze({
     visible: view.mode === "settlement" && validWords && countersValid,
     selectedBand,
+    searchQuery: normalizedQuery ?? "",
+    searchValid,
+    searchActive,
+    searchResultCount: selectedWords.length,
     inRange: view.station.inRange,
     p0PrerequisiteComplete: view.p0PrerequisiteComplete,
     externalAssetsBlocked: !view.externalAssets.fullAssetAcceptance ||
@@ -91,6 +113,11 @@ export function deriveCore120LearningUiModel(
     bandWordCounts,
     words: selectedWords,
   });
+}
+
+export function normalizeCore120LatinQuery(query: string): string | null {
+  const normalized = query.trim().toLowerCase();
+  return normalized.length <= 16 && /^[a-z]*$/.test(normalized) ? normalized : null;
 }
 
 export function resolveCore120LearningUiIntent(
@@ -118,6 +145,7 @@ export function createRpgCore120LearningUi(
   root.innerHTML = CORE120_LEARNING_UI_TEMPLATE;
   anchor.parentElement.insertBefore(root, anchor);
   let selectedBand: Core120Band = "P0";
+  let searchQuery = "";
   let current: Core120LearningUiModel | null = null;
   let gridRenderKey = "";
 
@@ -127,7 +155,9 @@ export function createRpgCore120LearningUi(
     const requestedBand = bandButton?.dataset.core120Band;
     if (requestedBand && CORE120_BANDS.includes(requestedBand as Core120Band)) {
       selectedBand = requestedBand as Core120Band;
-      if (current) renderModel(currentView(current), selectedBand);
+      searchQuery = "";
+      required<HTMLInputElement>(root, "[data-core120-search]").value = "";
+      if (current) renderModel(currentView(current), selectedBand, searchQuery);
       return;
     }
     const wordButton = element?.closest<HTMLButtonElement>("button[data-core120-word]");
@@ -135,15 +165,22 @@ export function createRpgCore120LearningUi(
     const command = resolveCore120LearningUiIntent(current, wordButton.dataset.core120Word ?? "");
     if (command) onCommand(command);
   });
+  root.addEventListener("input", (event) => {
+    const input = event.target instanceof HTMLInputElement && event.target.matches("[data-core120-search]")
+      ? event.target : null;
+    if (!input || !current) return;
+    searchQuery = input.value;
+    renderModel(currentView(current), selectedBand, searchQuery);
+  });
 
   let lastView: PrologueFlowCore120LearningView | null = null;
   const currentView = (_model: Core120LearningUiModel): PrologueFlowCore120LearningView => {
     if (!lastView) throw new Error("core120 learning view is unavailable");
     return lastView;
   };
-  const renderModel = (view: PrologueFlowCore120LearningView, band: Core120Band): void => {
+  const renderModel = (view: PrologueFlowCore120LearningView, band: Core120Band, query: string): void => {
     lastView = view;
-    const model = deriveCore120LearningUiModel(view, band);
+    const model = deriveCore120LearningUiModel(view, band, query);
     current = model;
     const panel = required<HTMLElement>(root, "[data-core120-learning-panel]");
     panel.hidden = !model.visible;
@@ -153,6 +190,13 @@ export function createRpgCore120LearningUi(
     required<HTMLElement>(root, "[data-core120-prerequisite]").textContent = model.p0PrerequisiteComplete
       ? `P0 前置完成 · ${model.completedWordCount} / ${model.totalWordCount} 字完成`
       : "先完成 P0 12 字目标，120 字档案才会解锁。";
+    required<HTMLElement>(root, "[data-core120-search-status]").textContent = !model.searchValid
+      ? "检索仅接受最多 16 个拉丁字母 a–z。"
+      : model.searchActive
+        ? `${model.searchResultCount} 个匹配词。`
+        : "";
+    required<HTMLInputElement>(root, "[data-core120-search]")
+      .setAttribute("aria-invalid", String(!model.searchValid));
 
     const tabs = required<HTMLElement>(root, "[data-core120-band-tabs]");
     if (tabs.children.length === 0) {
@@ -166,13 +210,15 @@ export function createRpgCore120LearningUi(
     }
     for (const button of tabs.querySelectorAll<HTMLButtonElement>("button[data-core120-band]")) {
       const candidate = button.dataset.core120Band as Core120Band;
-      button.setAttribute("aria-selected", String(candidate === model.selectedBand));
+      button.setAttribute("aria-selected", String(!model.searchActive && candidate === model.selectedBand));
       button.textContent = `${candidate} · ${model.bandWordCounts[candidate]}`;
     }
 
     const grid = required<HTMLElement>(root, "[data-core120-learning-grid]");
     const nextGridRenderKey = JSON.stringify({
       selectedBand: model.selectedBand,
+      searchQuery: model.searchQuery,
+      searchValid: model.searchValid,
       inRange: model.inRange,
       p0PrerequisiteComplete: model.p0PrerequisiteComplete,
       words: model.words,
@@ -203,12 +249,16 @@ export function createRpgCore120LearningUi(
       ? "P0 前置尚未完成。"
       : !model.inRange
         ? "靠近 settlement.p0_inscription_archive 才能提交学习动作。"
-        : model.completedSemanticActionCount === 600
-          ? "120 字、600 个语义动作已全部完成。"
-          : `${model.selectedBand} 阶段可继续训练。`;
+        : model.searchActive
+          ? `检索到 ${model.searchResultCount} 个词，可继续训练。`
+          : model.completedSemanticActionCount === 600
+            ? "120 字、600 个语义动作已全部完成。"
+            : `${model.selectedBand} 阶段可继续训练。`;
   };
 
-  return Object.freeze({ render(view: PrologueFlowCore120LearningView) { renderModel(view, selectedBand); } });
+  return Object.freeze({ render(view: PrologueFlowCore120LearningView) {
+    renderModel(view, selectedBand, searchQuery);
+  } });
 }
 
 function required<T extends Element>(root: ParentNode, selector: string): T {

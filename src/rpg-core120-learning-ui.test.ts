@@ -43,6 +43,10 @@ describe("core-120 browser UI boundary", () => {
     expect(model.words).toHaveLength(30);
     expect(model.words.every((word) => word.band === "P3")).toBe(true);
     expect(CORE120_LEARNING_UI_TEMPLATE).toContain('aria-live="polite"');
+    expect(CORE120_LEARNING_UI_TEMPLATE).toContain('type="search"');
+    expect(CORE120_LEARNING_UI_TEMPLATE).toContain('maxlength="16"');
+    expect(CORE120_LEARNING_UI_TEMPLATE).toContain('aria-controls="core120-learning-grid"');
+    expect(CORE120_LEARNING_UI_TEMPLATE).toContain('aria-describedby="core120-search-status"');
     expect(CORE120_LEARNING_UI_TEMPLATE).not.toMatch(/private[/\\]|assetPath|semanticFacets/);
   });
 
@@ -56,6 +60,31 @@ describe("core-120 browser UI boundary", () => {
     expect(resolveCore120LearningUiIntent(deriveCore120LearningUiModel(view({ p0PrerequisiteComplete: false }), "P0"), wordId)).toBeNull();
     expect(resolveCore120LearningUiIntent(deriveCore120LearningUiModel(view({ station: { ...view().station, inRange: false } }), "P0"), wordId)).toBeNull();
     expect(resolveCore120LearningUiIntent(model, "not-a-word")).toBeNull();
+  });
+
+  it("searches all 120 Latin word IDs locally without widening the command payload", () => {
+    const model = deriveCore120LearningUiModel(view(), "P0", "  ALA  ");
+    expect(model).toMatchObject({
+      visible: true,
+      selectedBand: "P0",
+      searchQuery: "ala",
+      searchValid: true,
+      searchActive: true,
+      searchResultCount: 1,
+    });
+    expect(model.words.map((word) => [word.wordId, word.band])).toEqual([["ala", "P1"]]);
+    const command = resolveCore120LearningUiIntent(model, "ala");
+    expect(command).toEqual({ kind: "perform_core120_action", actionId: "core120.ala.discover" });
+    expect(Object.keys(command!)).toEqual(["kind", "actionId"]);
+    expect(JSON.stringify(command)).not.toMatch(/query|search|raw|text/i);
+  });
+
+  it("fails closed on non-Latin or overlong search input", () => {
+    for (const query of ["ala!", "telo 水", "abcdefghijklmnopq"]) {
+      const model = deriveCore120LearningUiModel(view(), "P0", query);
+      expect(model).toMatchObject({ searchValid: false, searchActive: false, searchResultCount: 0, words: [] });
+      expect(resolveCore120LearningUiIntent(model, "ala")).toBeNull();
+    }
   });
 
   it("fails closed on incomplete, duplicate or mismatched machine projections", () => {

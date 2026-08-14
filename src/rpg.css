@@ -221,6 +221,10 @@ button:disabled { color: #625f59; cursor: not-allowed; }
   margin-top: 5px !important; color: #93aaa8; font-size: 7px; line-height: 1.5;
 }
 .core120-learning-assets { padding: 5px; border-left: 2px solid #a4775c; background: #19100d; color: #ddb99f; }
+.core120-learning-search { display: grid; gap: 2px; margin-top: 6px; color: #9ab9b4; font-size: 7px; }
+.core120-learning-search input { min-height: 28px; border: 1px solid #315b62; background: #050b0c; color: #e3fffa; font: inherit; }
+.core120-learning-search input:focus-visible { outline: 2px solid #a6eee4; outline-offset: 2px; }
+.core120-learning-search-status { min-height: 10px; color: #78938f; font-size: 6px; }
 .core120-band-tabs { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 2px; margin-top: 6px; }
 .core120-band-tabs button { min-width: 0; min-height: 26px; padding: 2px; font-size: 6px; }
 .core120-band-tabs button[aria-selected="true"] { border-color: #72c6bc; background: #163b3b; color: #e3fffa; }

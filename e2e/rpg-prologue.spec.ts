@@ -168,6 +168,8 @@ async function completeP0RecoveryCurriculum(page: Page): Promise<void> {
 
 async function completeCore120Word(page: Page, band: string, wordId: string): Promise<void> {
   await page.locator(`[data-core120-band="${band}"]`).click();
+  await page.locator("[data-core120-search]").fill(wordId);
+  await expect(page.locator("[data-core120-search-status]")).toHaveText("1 个匹配词。");
   const action = page.locator(`[data-core120-word="${wordId}"]`);
   for (const [index, label] of LEARNING_ACTION_LABELS.entries()) {
     await expect(action).toBeEnabled();
@@ -230,6 +232,8 @@ test("runs the real keyboard/touch route and restores companion-first without ma
   await expect(page.locator("[data-p0-learning-count]")).toHaveText("12 / 12");
   await expect(page.locator("[data-core120-learning-count]")).toHaveText("5 / 600");
   await page.locator('[data-core120-band="P1"]').click();
+  await page.locator("[data-core120-search]").fill("ala");
+  await expect(page.locator("[data-core120-search-status]")).toHaveText("1 个匹配词。");
   await expect(page.locator('[data-core120-word="ala"]')).toHaveText("完成");
   await expect(page.locator('[data-core120-word="ala"]')).toBeDisabled();
   expect(errors).toEqual([]);
