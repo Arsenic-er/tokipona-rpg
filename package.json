@@ -12,6 +12,7 @@
     "build": "pnpm run content:check && tsc -b && vite build && node --experimental-strip-types scripts/build/check-bundle-budget.ts",
     "verify": "pnpm run content:check && pnpm run assets:check && pnpm run typecheck && pnpm run test && pnpm run test:e2e",
     "assets:check": "node --experimental-strip-types scripts/assets/check-public-runtime-boundary.ts",
+    "assets:release": "node --experimental-strip-types scripts/assets/gate-runtime-assets.ts",
     "acceptance:cohort": "node --experimental-strip-types --experimental-transform-types scripts/acceptance/evaluate-prologue-playtest-cohort.ts",
     "acceptance:cohort:merge": "node --experimental-strip-types --experimental-transform-types scripts/acceptance/merge-prologue-playtest-cohort.ts",
     "typecheck": "tsc -b --pretty false",

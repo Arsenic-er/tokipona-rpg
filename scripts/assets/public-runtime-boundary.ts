@@ -1,0 +1,308 @@
+import { createHash } from "node:crypto";
+import { existsSync, lstatSync, readdirSync, readFileSync } from "node:fs";
+import { relative, resolve, sep } from "node:path";
+import {
+  readApprovedRuntimeCore120AssetExport,
+  readRuntimeCore120AssetReadiness,
+} from "../../src/assets/runtime-core120-assets.ts";
+import {
+  readRuntimeCore120CurriculumManifest,
+  type RuntimeCore120CurriculumManifest,
+} from "../../src/content/runtime-core120-curriculum-manifest.ts";
+
+export const PUBLIC_RUNTIME_ASSET_BOUNDARY_SCHEMA =
+  "tokipona.public-asset-boundary-check.v0.2" as const;
+
+export interface PublicRuntimeAssetBoundaryInput {
+  readonly repositoryRoot: string;
+  readonly runtimeArtifact: unknown;
+  readonly releaseContract: unknown;
+  readonly glyphCatalog: unknown;
+  readonly p0PronunciationManifest: unknown;
+  readonly privateAssetExport: unknown;
+}
+
+export interface PublicRuntimeAssetBoundaryReport {
+  readonly schemaVersion: typeof PUBLIC_RUNTIME_ASSET_BOUNDARY_SCHEMA;
+  readonly status:
+    | "safe_blocked_pending_external_approval"
+    | "approved_runtime_assets_verified";
+  readonly core120WordCount: 120;
+  readonly p0PronunciationWordCount: 12;
+  readonly publicGlyphFileCount: number;
+  readonly publicPronunciationFileCount: number;
+  readonly approvedPrivateExportPresent: boolean;
+  readonly missingExportPlaceholderPresent: boolean;
+}
+
+const P0_ENTRY_KEYS = ["audioAssetId", "publicPath", "sha256", "sourceUrl", "licenseSpdx",
+  "redistributionApproved", "languageReviewApproved", "communityReviewApproved"] as const;
+const REQUIRED_BLOCKED_GLYPH_FILES = ["public/assets/magic-glyphs/README.md"] as const;
+
+export function checkPublicRuntimeAssetBoundary(
+  input: PublicRuntimeAssetBoundaryInput,
+): PublicRuntimeAssetBoundaryReport {
+  const repositoryRoot = resolve(input.repositoryRoot);
+  const manifest = readRuntimeCore120CurriculumManifest(input.runtimeArtifact);
+  const readiness = readRuntimeCore120AssetReadiness(
+    manifest,
+    input.privateAssetExport,
+    input.releaseContract,
+  );
+  readCatalog(input.glyphCatalog, manifest);
+  const p0WordIds = manifest.scope.wordIds
+    .filter((wordId) => manifest.words[wordId]?.curriculumBand === "P0")
+    .sort(asciiCompare);
+  assert(p0WordIds.length === 12, "p0_scope_invalid");
+  const p0 = readP0Pronunciation(input.p0PronunciationManifest, p0WordIds);
+  const publicFiles = readPublicAssetFiles(repositoryRoot);
+
+  if (readiness.playableContentMayClaimFullAssetAcceptance) {
+    assert(readiness.privateAssetExport === "approved" &&
+      readiness.pronunciationAudio === "approved" &&
+      readiness.glyphVisuals === "approved" &&
+      readiness.glyphCatalog === "approved" &&
+      readiness.blockingReasons.length === 0,
+    "approved_asset_state_inconsistent");
+    assert(p0.status === "approved", "p0_pronunciation_not_approved");
+    const approved = readApprovedRuntimeCore120AssetExport(manifest, input.privateAssetExport);
+    const expectedGlyphFiles = new Set<string>([
+      ...REQUIRED_BLOCKED_GLYPH_FILES,
+      repositoryPathForPublicAsset(approved.glyphAtlas.publicPath),
+    ]);
+    const expectedPronunciationFiles = new Set<string>();
+    for (const wordId of manifest.scope.wordIds) {
+      const pronunciation = approved.entries[wordId]?.pronunciation;
+      assert(pronunciation !== undefined, "approved_export_word_missing");
+      const file = repositoryPathForPublicAsset(pronunciation.publicPath);
+      expectedPronunciationFiles.add(file);
+      assertFileHash(repositoryRoot, file, pronunciation.sha256);
+      if (p0WordIds.includes(wordId)) {
+        const p0Entry = p0.entries[wordId];
+        assert(p0Entry !== undefined &&
+          p0Entry.assetId === pronunciation.assetId &&
+          p0Entry.publicPath === pronunciation.publicPath &&
+          p0Entry.sha256 === pronunciation.sha256,
+        "p0_core120_pronunciation_mismatch");
+      }
+    }
+    assertFileHash(repositoryRoot, repositoryPathForPublicAsset(approved.glyphAtlas.publicPath),
+      approved.glyphAtlas.sha256);
+    assertSameFileSet(publicFiles.glyphFiles, expectedGlyphFiles, "public_glyph_file_set_invalid");
+    assertSameFileSet(publicFiles.pronunciationFiles, expectedPronunciationFiles,
+      "public_pronunciation_file_set_invalid");
+    return freezeReport({
+      status: "approved_runtime_assets_verified",
+      publicGlyphFileCount: publicFiles.glyphFiles.length,
+      publicPronunciationFileCount: publicFiles.pronunciationFiles.length,
+      approvedPrivateExportPresent: true,
+      missingExportPlaceholderPresent: false,
+    });
+  }
+
+  assert(readiness.privateAssetExport === "missing" &&
+    readiness.pronunciationAudio === "blocked_pending_private_assets" &&
+    readiness.glyphVisuals === "blocked_pending_private_approval" &&
+    readiness.glyphCatalog === "draft" &&
+    same(readiness.blockingReasons, [
+      "private_asset_export_missing", "glyph_release_blocked", "glyph_catalog_not_approved",
+    ]),
+  "partial_asset_approval_state_forbidden");
+  assert(p0.status === "blocked", "partial_p0_pronunciation_approval_forbidden");
+  assertSameFileSet(publicFiles.glyphFiles, new Set(REQUIRED_BLOCKED_GLYPH_FILES),
+    "unapproved_glyph_runtime_present");
+  assert(publicFiles.pronunciationFiles.length === 0,
+    "unapproved_pronunciation_runtime_present");
+  return freezeReport({
+    status: "safe_blocked_pending_external_approval",
+    publicGlyphFileCount: publicFiles.glyphFiles.length,
+    publicPronunciationFileCount: 0,
+    approvedPrivateExportPresent: false,
+    missingExportPlaceholderPresent: true,
+  });
+}
+
+function readCatalog(candidate: unknown, manifest: RuntimeCore120CurriculumManifest): void {
+  const catalog = record(candidate, "glyph_catalog_invalid");
+  assert(catalog.schemaVersion === "pu120.magic-glyph-catalog.v0.2" &&
+    catalog.contentVersion === manifest.catalogContentVersion &&
+    catalog.reviewStatus === manifest.catalogReviewStatus &&
+    catalog.runtimeReady === manifest.catalogRuntimeReady,
+  "glyph_catalog_identity_invalid");
+  const scope = record(catalog.canonicalScope, "glyph_catalog_scope_invalid");
+  assert(scope.id === "pu-120" && scope.glyphCount === 120, "glyph_catalog_scope_invalid");
+  const glyphs = array(catalog.glyphs, "glyph_catalog_entries_invalid");
+  assert(glyphs.length === 120, "glyph_catalog_count_invalid");
+  const observed = new Set<string>();
+  for (const value of glyphs) {
+    const glyph = record(value, "glyph_catalog_entry_invalid");
+    const wordId = string(glyph.canonicalWordId, "glyph_catalog_word_invalid");
+    const word = manifest.words[wordId];
+    assert(word !== undefined && !observed.has(wordId) &&
+      glyph.displayCodepoint === word.displayCodepoint &&
+      glyph.reviewStatus === manifest.catalogReviewStatus,
+    "glyph_catalog_entry_invalid");
+    observed.add(wordId);
+  }
+  assert(sameSet([...observed], manifest.scope.wordIds), "glyph_catalog_word_set_invalid");
+}
+
+function readP0Pronunciation(candidate: unknown, expectedWordIds: readonly string[]): Readonly<{
+  status: "blocked" | "approved";
+  entries: Readonly<Record<string, Readonly<{
+    assetId: string;
+    publicPath: string;
+    sha256: `sha256:${string}`;
+  }>>>;
+}> {
+  const root = record(candidate, "p0_pronunciation_invalid");
+  exactKeys(root, ["schemaVersion", "status", "wordIds", "entries"],
+    "p0_pronunciation_fields_invalid");
+  assert(root.schemaVersion === "tokipona.p0-pronunciation-assets.v0.1" &&
+    sameSet(root.wordIds, expectedWordIds), "p0_pronunciation_identity_invalid");
+  const entries = record(root.entries, "p0_pronunciation_entries_invalid");
+  assert(sameSet(Object.keys(entries), expectedWordIds), "p0_pronunciation_entries_invalid");
+  const approvedEntries: Record<string, { assetId: string; publicPath: string;
+    sha256: `sha256:${string}` }> = {};
+  let approvedCount = 0;
+  for (const wordId of expectedWordIds) {
+    const entry = record(entries[wordId], "p0_pronunciation_entry_invalid");
+    exactKeys(entry, P0_ENTRY_KEYS, "p0_pronunciation_entry_fields_invalid");
+    const isEmpty = entry.audioAssetId === null && entry.publicPath === null &&
+      entry.sha256 === null && entry.sourceUrl === null && entry.licenseSpdx === null &&
+      entry.redistributionApproved === false && entry.languageReviewApproved === false &&
+      entry.communityReviewApproved === false;
+    const assetId = `audio.pronunciation.${wordId}.v1`;
+    const publicPath = `assets/pronunciation/${wordId}.ogg`;
+    const isApproved = entry.audioAssetId === assetId && entry.publicPath === publicPath &&
+      sha256(entry.sha256) && httpsUrl(entry.sourceUrl) && spdx(entry.licenseSpdx) &&
+      entry.redistributionApproved === true && entry.languageReviewApproved === true &&
+      entry.communityReviewApproved === true;
+    assert(isEmpty || isApproved, "p0_pronunciation_partial_entry_forbidden");
+    if (isApproved) {
+      approvedCount += 1;
+      approvedEntries[wordId] = {
+        assetId,
+        publicPath,
+        sha256: entry.sha256 as `sha256:${string}`,
+      };
+    }
+  }
+  if (root.status === "approved") {
+    assert(approvedCount === expectedWordIds.length, "p0_pronunciation_status_mismatch");
+    return Object.freeze({ status: "approved", entries: Object.freeze(approvedEntries) });
+  }
+  assert(root.status === "blocked_pending_private_assets" && approvedCount === 0,
+    "p0_pronunciation_status_mismatch");
+  return Object.freeze({ status: "blocked", entries: Object.freeze({}) });
+}
+
+function readPublicAssetFiles(repositoryRoot: string): Readonly<{
+  glyphFiles: readonly string[];
+  pronunciationFiles: readonly string[];
+}> {
+  return Object.freeze({
+    glyphFiles: filesBelow(repositoryRoot, "public/assets/magic-glyphs"),
+    pronunciationFiles: filesBelow(repositoryRoot, "public/assets/pronunciation"),
+  });
+}
+
+function filesBelow(repositoryRoot: string, logicalRoot: string): readonly string[] {
+  const root = checkedPath(repositoryRoot, logicalRoot);
+  if (!existsSync(root)) return Object.freeze([]);
+  assert(!lstatSync(root).isSymbolicLink() && lstatSync(root).isDirectory(),
+    "public_asset_root_invalid");
+  const results: string[] = [];
+  const visit = (directory: string): void => {
+    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+      const absolute = resolve(directory, entry.name);
+      const logical = relative(repositoryRoot, absolute).replaceAll("\\", "/");
+      assert(!entry.isSymbolicLink(), "public_asset_symlink_forbidden");
+      if (entry.isDirectory()) visit(absolute);
+      else if (entry.isFile()) results.push(logical);
+      else throw new Error("public_asset_entry_invalid");
+    }
+  };
+  visit(root);
+  return Object.freeze(results.sort(asciiCompare));
+}
+
+function assertFileHash(repositoryRoot: string, logicalPath: string,
+  expected: `sha256:${string}`): void {
+  const absolute = checkedPath(repositoryRoot, logicalPath);
+  assert(existsSync(absolute), "approved_public_asset_missing");
+  const stat = lstatSync(absolute);
+  assert(stat.isFile() && !stat.isSymbolicLink(), "approved_public_asset_invalid");
+  const actual = `sha256:${createHash("sha256").update(readFileSync(absolute)).digest("hex")}`;
+  assert(actual === expected, "approved_public_asset_hash_mismatch");
+}
+
+function repositoryPathForPublicAsset(publicPath: string): string {
+  assert(/^assets\/[a-z0-9._/-]+$/.test(publicPath) && !publicPath.includes(".."),
+    "public_asset_path_invalid");
+  return `public/${publicPath}`;
+}
+
+function checkedPath(repositoryRoot: string, logicalPath: string): string {
+  assert(!logicalPath.includes("\\") && !logicalPath.split("/").includes(".."),
+    "public_asset_path_invalid");
+  const absolute = resolve(repositoryRoot, logicalPath);
+  const rel = relative(repositoryRoot, absolute);
+  assert(rel !== "" && rel !== ".." && !rel.startsWith(`..${sep}`),
+    "public_asset_path_escape");
+  return absolute;
+}
+
+function assertSameFileSet(actual: readonly string[], expected: ReadonlySet<string>,
+  reason: string): void {
+  assert(actual.length === expected.size && actual.every((path) => expected.has(path)), reason);
+}
+
+function freezeReport(input: Omit<PublicRuntimeAssetBoundaryReport,
+  "schemaVersion" | "core120WordCount" | "p0PronunciationWordCount">):
+  PublicRuntimeAssetBoundaryReport {
+  return Object.freeze({
+    schemaVersion: PUBLIC_RUNTIME_ASSET_BOUNDARY_SCHEMA,
+    core120WordCount: 120,
+    p0PronunciationWordCount: 12,
+    ...input,
+  });
+}
+
+function record(value: unknown, reason: string): Record<string, unknown> {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) throw new Error(reason);
+  return value as Record<string, unknown>;
+}
+function array(value: unknown, reason: string): readonly unknown[] {
+  if (!Array.isArray(value)) throw new Error(reason);
+  return value;
+}
+function string(value: unknown, reason: string): string {
+  if (typeof value !== "string" || value.length === 0) throw new Error(reason);
+  return value;
+}
+function exactKeys(value: Record<string, unknown>, expected: readonly string[], reason: string): void {
+  assert(sameSet(Object.keys(value), expected), reason);
+}
+function same(value: readonly string[], expected: readonly string[]): boolean {
+  return value.length === expected.length && value.every((entry, index) => entry === expected[index]);
+}
+function sameSet(value: unknown, expected: readonly string[]): boolean {
+  return Array.isArray(value) && value.length === expected.length &&
+    new Set(value).size === value.length && expected.every((entry) => value.includes(entry));
+}
+function sha256(value: unknown): value is `sha256:${string}` {
+  return typeof value === "string" && /^sha256:[0-9a-f]{64}$/.test(value);
+}
+function httpsUrl(value: unknown): value is string {
+  return typeof value === "string" && /^https:\/\/[^\s]+$/.test(value);
+}
+function spdx(value: unknown): value is string {
+  return typeof value === "string" && /^[A-Za-z0-9][A-Za-z0-9.+-]*$/.test(value);
+}
+function asciiCompare(left: string, right: string): number {
+  return left < right ? -1 : left > right ? 1 : 0;
+}
+function assert(condition: boolean, reason: string): asserts condition {
+  if (!condition) throw new Error(reason);
+}

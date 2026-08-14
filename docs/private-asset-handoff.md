@@ -1,0 +1,82 @@
+# Private asset handoff
+
+The public repository never treats a copied file, a local path, or a manually edited status as an
+approval. Runtime glyph and pronunciation assets have two valid states only:
+
+- `safe_blocked_pending_external_approval`: the checked-in default. No private export is present,
+  all runtime readiness flags remain blocked, and no pronunciation media is public.
+- `approved_runtime_assets_verified`: every private review is approved, public metadata is
+  internally consistent, and every declared runtime file exists with the declared SHA-256 digest.
+
+Partial approval is invalid. The runtime remains blocked until the entire handoff is verifiable.
+
+## Private repository audit
+
+Run the release gate against an explicit private asset root and manifest. These commands only emit
+public-safe reason codes and aggregate metadata; they must not print private source paths.
+
+```powershell
+pnpm assets:release audit `
+  --asset-root C:\absolute\private-asset-root `
+  --manifest manifests\pu120-release.yaml `
+  --public-root C:\absolute\toki-pona
+
+pnpm assets:release dry-run `
+  --asset-root C:\absolute\private-asset-root `
+  --manifest manifests\pu120-release.yaml `
+  --public-root C:\absolute\toki-pona
+```
+
+`--manifest` is always resolved relative to `--asset-root`; absolute manifest paths and paths that
+escape the private asset root are rejected.
+
+The audit must verify source, license, language, pixel, animation, accessibility, community, hash,
+and redistribution approvals. A denied or incomplete audit is a terminal result for that handoff;
+do not copy files manually to bypass it.
+
+## Export public runtime files
+
+After the dry run is allowed, export the allowlisted runtime files atomically:
+
+```powershell
+pnpm assets:release export `
+  --asset-root C:\absolute\private-asset-root `
+  --manifest manifests\pu120-release.yaml `
+  --public-root C:\absolute\toki-pona
+```
+
+The exporter may copy only approved runtime roles and extensions. Source fonts, review images,
+engineering files, private paths, symlinks, and unapproved licenses remain private.
+The current public core-120 contract admits exactly the declared glyph atlas and 120 pronunciation
+files. Masks, animations, palettes, or other runtime roles require an explicit public schema/version
+change before handoff; allowlisting a private role alone does not make it part of this release.
+
+The approved private pipeline must also provide the corresponding public metadata updates:
+
+- `src/assets/runtime-core120-private-export.v0.1.json`
+- `src/assets/runtime-release-contract.v0.1.json`
+- `src/assets/p0-pronunciation-manifest.v0.1.json`
+- the approved `data/language/pu-120-glyph-catalog.v0.2.json`, followed by regenerated content
+
+Those files are public attestations, not substitutes for the private review records. Do not invent
+approval values in this repository. The P0 pronunciation subset must match the same paths and hashes
+declared by the core-120 export.
+
+## Public repository verification
+
+Regenerate the runtime artifact, then run the release gates:
+
+```powershell
+pnpm run content:generate
+pnpm run assets:check
+pnpm run verify
+```
+
+`assets:check` verifies the approved catalog projection, release decision, privacy flags, exact
+public file sets, the glyph atlas hash, all 120 pronunciation hashes, and the P0/core-120 metadata
+cross-check. It emits `approved_runtime_assets_verified` only when all evidence agrees. Otherwise it
+fails closed or, for the intentional no-export state, emits
+`safe_blocked_pending_external_approval`.
+
+Remote push and release tagging remain separate approval-gated operations. Never push the private
+asset repository or its review/source material through the public code workflow.

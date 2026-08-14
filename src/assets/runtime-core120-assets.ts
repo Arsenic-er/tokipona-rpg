@@ -1,11 +1,11 @@
-import generated from "../generated/content-runtime.v0.1.json";
-import glyphReleaseContract from "./runtime-release-contract.v0.1.json";
-import privateAssetExport from "./runtime-core120-private-export.v0.1.json";
+import generated from "../generated/content-runtime.v0.1.json" with { type: "json" };
+import glyphReleaseContract from "./runtime-release-contract.v0.1.json" with { type: "json" };
+import privateAssetExport from "./runtime-core120-private-export.v0.1.json" with { type: "json" };
 import {
   isVerifiedRuntimeCore120CurriculumManifest,
   readRuntimeCore120CurriculumManifest,
   type RuntimeCore120CurriculumManifest,
-} from "../content/runtime-core120-curriculum-manifest";
+} from "../content/runtime-core120-curriculum-manifest.ts";
 
 export const CORE120_PRIVATE_ASSET_EXPORT_SCHEMA = "tokipona.pu120-private-asset-export.v0.1" as const;
 
@@ -36,7 +36,7 @@ export function readRuntimeCore120AssetReadiness(
   glyphRelease: unknown = glyphReleaseContract,
 ): RuntimeCore120AssetReadiness {
   if (!isVerifiedRuntimeCore120CurriculumManifest(manifest)) throw new Error("core120 assets require a verified curriculum manifest");
-  const glyphReleaseApproved = readGlyphReleaseApproval(glyphRelease);
+  const glyphReleaseApproved = readRuntimeGlyphReleaseApproval(glyphRelease);
   const approvedExport = readPrivateExport(manifest, privateExport);
   const catalogApproved = manifest.catalogReviewStatus === "approved" && manifest.catalogRuntimeReady;
   const audioApproved = approvedExport !== null;
@@ -66,18 +66,35 @@ export function readRuntimeCore120AssetReadiness(
   });
 }
 
-interface ApprovedPrivateExport {
-  readonly glyphAtlas: Readonly<{ readonly publicPath: string }>;
+export interface RuntimeCore120ApprovedAssetExport {
+  readonly glyphAtlas: Readonly<{
+    readonly publicPath: string;
+    readonly sha256: `sha256:${string}`;
+  }>;
   readonly entries: Readonly<Record<string, Readonly<{
-    readonly pronunciation: Readonly<{ readonly publicPath: string }>;
+    readonly pronunciation: Readonly<{
+      readonly assetId: string;
+      readonly publicPath: string;
+      readonly sha256: `sha256:${string}`;
+    }>;
     readonly glyph: Readonly<{ readonly atlasFrameId: string }>;
   }>>>;
+}
+
+export function readApprovedRuntimeCore120AssetExport(
+  manifest: RuntimeCore120CurriculumManifest,
+  candidate: unknown,
+): RuntimeCore120ApprovedAssetExport {
+  if (!isVerifiedRuntimeCore120CurriculumManifest(manifest)) {
+    throw new Error("core120 assets require a verified curriculum manifest");
+  }
+  return readApprovedPrivateExport(manifest, candidate);
 }
 
 function readPrivateExport(
   manifest: RuntimeCore120CurriculumManifest,
   candidate: unknown,
-): ApprovedPrivateExport | null {
+): RuntimeCore120ApprovedAssetExport | null {
   if (candidate === null) return null;
   const root = record(candidate, "core120 private asset export");
   if (root.status !== "missing") return readApprovedPrivateExport(manifest, candidate);
@@ -97,7 +114,7 @@ function readPrivateExport(
 function readApprovedPrivateExport(
   manifest: RuntimeCore120CurriculumManifest,
   candidate: unknown,
-): ApprovedPrivateExport {
+): RuntimeCore120ApprovedAssetExport {
   const root = record(candidate, "core120 private asset export");
   exactKeys(root, ["schemaVersion", "status", "manifestDigest", "corpusId", "wordIds", "glyphAtlas", "entries", "privacy"], "core120 private asset export");
   if (root.schemaVersion !== CORE120_PRIVATE_ASSET_EXPORT_SCHEMA || root.status !== "approved" || root.manifestDigest !== manifest.sourceDigest || root.corpusId !== "pu-120" || !same(root.wordIds, manifest.scope.wordIds)) throw new Error("core120 private asset export identity is invalid");
@@ -113,7 +130,10 @@ function readApprovedPrivateExport(
   exactKeys(entries, manifest.scope.wordIds, "core120 private asset entries");
   const audioPaths = new Set<string>();
   const frameIds = new Set<string>();
-  const resultEntries: Record<string, { pronunciation: { publicPath: string }; glyph: { atlasFrameId: string } }> = {};
+  const resultEntries: Record<string, {
+    pronunciation: { assetId: string; publicPath: string; sha256: `sha256:${string}` };
+    glyph: { atlasFrameId: string };
+  }> = {};
   for (const wordId of manifest.scope.wordIds) {
     const word = manifest.words[wordId]!;
     const entry = record(entries[wordId], `core120 private asset ${wordId}`);
@@ -129,12 +149,25 @@ function readApprovedPrivateExport(
     const atlasFrameId = `pu120.${wordId}`;
     if (glyph.assetId !== word.assetBindings.glyphAssetId || glyph.atlasFrameId !== atlasFrameId || frameIds.has(atlasFrameId) || glyph.displayCodepoint !== word.displayCodepoint) throw new Error(`core120 glyph ${wordId} binding is invalid`);
     frameIds.add(atlasFrameId);
-    resultEntries[wordId] = { pronunciation: { publicPath }, glyph: { atlasFrameId } };
+    resultEntries[wordId] = {
+      pronunciation: {
+        assetId: pronunciation.assetId as string,
+        publicPath,
+        sha256: pronunciation.sha256 as `sha256:${string}`,
+      },
+      glyph: { atlasFrameId },
+    };
   }
-  return deepFreeze({ glyphAtlas: { publicPath: atlas.publicPath as string }, entries: resultEntries });
+  return deepFreeze({
+    glyphAtlas: {
+      publicPath: atlas.publicPath as string,
+      sha256: atlas.sha256 as `sha256:${string}`,
+    },
+    entries: resultEntries,
+  });
 }
 
-function readGlyphReleaseApproval(candidate: unknown): boolean {
+export function readRuntimeGlyphReleaseApproval(candidate: unknown): boolean {
   const root = record(candidate, "glyph release contract");
   exactKeys(root, ["schemaVersion", "status", "destinationRoot", "requiredApprovals", "allowedRuntimeRoles", "currentAudits", "privacy"], "glyph release contract");
   if (root.schemaVersion !== "tokipona.asset-release-gate.v0.1" || root.destinationRoot !== "public/assets/magic-glyphs" || !same(root.requiredApprovals, REQUIRED_GLYPH_APPROVALS) || (root.status !== "blocked" && root.status !== "approved")) throw new Error("glyph release contract identity is invalid");

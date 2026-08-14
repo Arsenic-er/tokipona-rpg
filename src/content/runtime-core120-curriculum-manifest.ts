@@ -1,4 +1,4 @@
-import { computeRuntimeManifestDigest } from "./runtime-manifest-digest";
+import { computeRuntimeManifestDigest } from "./runtime-manifest-digest.ts";
 
 export const CORE120_BANDS = ["P0", "P1", "P2", "P3", "P4", "P5"] as const;
 export const CORE120_ACTION_KINDS = ["discover", "attune", "context_0", "context_1", "repair"] as const;
