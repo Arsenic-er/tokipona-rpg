@@ -530,14 +530,42 @@ function validateCorpusExpansionRegistrySource(
     policies.display_codepoint_is_identity === false &&
     policies.runtime_load_requires_admitted_status === true &&
     same(readStringArray(policies, "admission_requirements"), requirements);
-  const phasesValid = phases.length === 3 && phases.every((phase, index) =>
-    readString(phase, "phase_id") === phaseIds[index] &&
-    readNumber(phase, "sequence") === index + 1 &&
-    readString(phase, "predecessor_id") === predecessors[index] &&
-    readString(phase, "status") === "pending_review" && phase.admission_contract === null &&
-    same(readStringArray(phase, "blocked_reasons"), requirements));
+  const admittedCorpusIds: string[] = [];
+  let pendingObserved = false;
+  const phasesValid = phases.length === 3 && phases.every((phase, index) => {
+    if (readString(phase, "phase_id") !== phaseIds[index] ||
+        readNumber(phase, "sequence") !== index + 1 ||
+        readString(phase, "predecessor_id") !== predecessors[index]) return false;
+    if (readString(phase, "status") === "pending_review") {
+      pendingObserved = true;
+      return phase.admission_contract === null &&
+        same(readStringArray(phase, "blocked_reasons"), requirements);
+    }
+    if (readString(phase, "status") !== "admitted" || pendingObserved ||
+        !Array.isArray(phase.blocked_reasons) || phase.blocked_reasons.length !== 0) return false;
+    const contract = readObject(phase, "admission_contract");
+    const receipts = readObject(contract, "review_receipt_ids");
+    const corpusId = readString(contract, "corpus_id");
+    const wordIds = readStringArray(contract, "word_ids");
+    const contractValid = Object.keys(contract).length === 10 &&
+      readString(contract, "schema_version") === "tokipona.learning-corpus-admission.v0.1" &&
+      /^[a-z][a-z0-9.-]*$/.test(corpusId) && corpusId !== "pu-120" &&
+      /^[A-Za-z0-9][A-Za-z0-9._-]*\d[A-Za-z0-9._-]*$/.test(readString(contract, "content_version")) &&
+      /^[a-z][a-z0-9_]*$/.test(readString(contract, "action_namespace")) &&
+      readString(contract, "action_namespace") !== "core120" &&
+      readString(contract, "save_partition_id") === `learning.corpus.${corpusId}` &&
+      readString(contract, "save_schema_version") === "tokipona.learning-corpus-partition.v0.1" &&
+      /^sha256:[0-9a-f]{64}$/.test(readString(contract, "package_digest")) &&
+      /^sha256:[0-9a-f]{64}$/.test(readString(contract, "semantic_digest")) &&
+      wordIds.length > 0 && wordIds.every((wordId) => /^[a-z]+$/.test(wordId)) &&
+      new Set(wordIds).size === wordIds.length && Object.keys(receipts).length === 3 &&
+      ["semantic", "pronunciation", "glyph"].every((key) => readString(receipts, key).length > 0) &&
+      new Set(["semantic", "pronunciation", "glyph"].map((key) => readString(receipts, key))).size === 3;
+    if (contractValid) admittedCorpusIds.push(corpusId);
+    return contractValid;
+  });
   if (!baseValid || !policiesValid || !phasesValid ||
-      readStringArray(registry, "admitted_corpus_ids").length !== 0 ||
+      !same(readStringArray(registry, "admitted_corpus_ids"), admittedCorpusIds) ||
       !Array.isArray(registry.admitted_corpus_ids)) {
     addIssue(issues, "contract.corpus_expansion_registry", source.path,
       "runtime_curriculum.corpus_expansion_registry",

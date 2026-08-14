@@ -66,7 +66,7 @@ describe("post-pu120 corpus expansion registry", () => {
 
     const admitted = structuredClone(generated) as any;
     admitted.corpusExpansionRegistry.admittedCorpusIds = ["invented-tier1"];
-    expect(() => readRuntimeCorpusExpansionRegistry(resign(admitted))).toThrow(/cannot be admitted/);
+    expect(() => readRuntimeCorpusExpansionRegistry(resign(admitted))).toThrow(/do not match reviewed/);
 
     const partition = structuredClone(generated) as any;
     partition.corpusExpansionRegistry.baseCorpus.canonicalWordKey = "display_codepoint";

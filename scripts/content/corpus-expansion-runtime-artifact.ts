@@ -2,6 +2,7 @@ import {
   computeRuntimeCorpusExpansionRegistryDigest,
   CORPUS_EXPANSION_ADMISSION_REQUIREMENTS,
   CORPUS_EXPANSION_PHASE_IDS,
+  type RuntimeLearningCorpusAdmissionContract,
   type RuntimeCorpusExpansionPhase,
   type RuntimeCorpusExpansionRegistry,
 } from "../../src/content/runtime-corpus-expansion-registry.ts";
@@ -57,31 +58,64 @@ export function projectCorpusExpansionRegistry(manifest: ContentManifest): Runti
       !same(policies.admission_requirements, CORPUS_EXPANSION_ADMISSION_REQUIREMENTS)) {
     throw new Error("corpus expansion policies are invalid");
   }
-  if (!Array.isArray(authored.admitted_corpus_ids) || authored.admitted_corpus_ids.length !== 0) {
-    throw new Error("unreviewed corpus expansion cannot be admitted");
-  }
+  const admittedCorpusIds = strings(authored.admitted_corpus_ids, "admitted corpus IDs", true);
   const phaseSources = objects(authored.phases, "corpus expansion phases");
   if (phaseSources.length !== CORPUS_EXPANSION_PHASE_IDS.length) {
     throw new Error("corpus expansion phase count is invalid");
   }
+  const catalogSources = manifest.byKind.glyph_catalog.filter((candidate) =>
+    candidate.schemaVersion === "pu120.magic-glyph-catalog.v0.2");
+  if (catalogSources.length !== 1) throw new Error("corpus expansion registry requires the base catalog");
+  const observedWordIds = new Set(objects(catalogSources[0]!.content.glyphs, "base glyphs")
+    .map((glyph) => string(glyph.canonicalWordId, "base word ID")));
+  const observedCorpusIds = new Set<string>();
+  const observedNamespaces = new Set(["core120"]);
+  const observedPartitions = new Set(["learning.corpus.pu-120"]);
+  const observedVersions = new Set(["core-120.prologue-12"]);
+  const projectedAdmittedCorpusIds: string[] = [];
+  let pendingObserved = false;
   const phases = phaseSources.map((phase, index) => {
     exactKeys(phase, ["phase_id", "sequence", "predecessor_id", "status", "admission_contract",
       "blocked_reasons"], `corpus expansion phase ${index}`);
     if (phase.phase_id !== CORPUS_EXPANSION_PHASE_IDS[index] || phase.sequence !== index + 1 ||
-        phase.predecessor_id !== EXPECTED_PREDECESSORS[index] || phase.status !== "pending_review" ||
-        phase.admission_contract !== null ||
-        !same(phase.blocked_reasons, CORPUS_EXPANSION_ADMISSION_REQUIREMENTS)) {
-      throw new Error(`corpus expansion phase ${index} is not safely blocked`);
+        phase.predecessor_id !== EXPECTED_PREDECESSORS[index]) {
+      throw new Error(`corpus expansion phase ${index} identity is invalid`);
     }
-    return {
-      phaseId: phase.phase_id,
-      sequence: phase.sequence,
-      predecessorId: phase.predecessor_id,
-      status: "pending_review",
-      admissionContract: null,
-      blockedReasons: CORPUS_EXPANSION_ADMISSION_REQUIREMENTS,
-    } as RuntimeCorpusExpansionPhase;
+    if (phase.status === "pending_review") {
+      pendingObserved = true;
+      if (phase.admission_contract !== null ||
+          !same(phase.blocked_reasons, CORPUS_EXPANSION_ADMISSION_REQUIREMENTS)) {
+        throw new Error(`corpus expansion phase ${index} is not safely blocked`);
+      }
+      return { phaseId: phase.phase_id, sequence: phase.sequence,
+        predecessorId: phase.predecessor_id, status: "pending_review", admissionContract: null,
+        blockedReasons: CORPUS_EXPANSION_ADMISSION_REQUIREMENTS } as RuntimeCorpusExpansionPhase;
+    }
+    if (phase.status !== "admitted" || pendingObserved || !Array.isArray(phase.blocked_reasons) ||
+        phase.blocked_reasons.length !== 0) {
+      throw new Error("admitted corpus phases must form a contiguous reviewed prefix");
+    }
+    const contract = projectAdmissionContract(phase.admission_contract, `corpus expansion phase ${index}`);
+    if (observedCorpusIds.has(contract.corpusId) || observedNamespaces.has(contract.actionNamespace) ||
+        observedPartitions.has(contract.savePartitionId) || observedVersions.has(contract.contentVersion)) {
+      throw new Error(`corpus expansion phase ${index} reuses a protected identity`);
+    }
+    for (const wordId of contract.wordIds) {
+      if (observedWordIds.has(wordId)) throw new Error(`corpus expansion word ${wordId} overlaps a prior corpus`);
+      observedWordIds.add(wordId);
+    }
+    observedCorpusIds.add(contract.corpusId);
+    observedNamespaces.add(contract.actionNamespace);
+    observedPartitions.add(contract.savePartitionId);
+    observedVersions.add(contract.contentVersion);
+    projectedAdmittedCorpusIds.push(contract.corpusId);
+    return { phaseId: phase.phase_id, sequence: phase.sequence,
+      predecessorId: phase.predecessor_id, status: "admitted", admissionContract: contract,
+      blockedReasons: [] } as RuntimeCorpusExpansionPhase;
   });
+  if (!same(admittedCorpusIds, projectedAdmittedCorpusIds)) {
+    throw new Error("admitted corpus IDs do not match reviewed phase contracts");
+  }
   const body = {
     sourcePath: source.path,
     contentVersion: source.contentVersion,
@@ -106,13 +140,51 @@ export function projectCorpusExpansionRegistry(manifest: ContentManifest): Runti
       runtimeLoadRequiresAdmittedStatus: true,
       admissionRequirements: CORPUS_EXPANSION_ADMISSION_REQUIREMENTS,
     },
-    admittedCorpusIds: [] as const,
+    admittedCorpusIds,
     phases,
   } as const;
   return {
     sourceDigest: computeRuntimeCorpusExpansionRegistryDigest(body),
     ...body,
   } as RuntimeCorpusExpansionRegistry;
+}
+
+function projectAdmissionContract(value: ContentValue | undefined,
+  label: string): RuntimeLearningCorpusAdmissionContract {
+  const contract = object(value, `${label} admission contract`);
+  exactKeys(contract, ["schema_version", "corpus_id", "content_version", "action_namespace",
+    "save_partition_id", "save_schema_version", "package_digest", "semantic_digest", "word_ids",
+    "review_receipt_ids"], `${label} admission contract`);
+  const corpusId = string(contract.corpus_id, `${label}.corpus_id`);
+  const contentVersion = string(contract.content_version, `${label}.content_version`);
+  const actionNamespace = string(contract.action_namespace, `${label}.action_namespace`);
+  const savePartitionId = string(contract.save_partition_id, `${label}.save_partition_id`);
+  const packageDigest = string(contract.package_digest, `${label}.package_digest`);
+  const semanticDigest = string(contract.semantic_digest, `${label}.semantic_digest`);
+  const wordIds = strings(contract.word_ids, `${label}.word_ids`);
+  const receipts = object(contract.review_receipt_ids, `${label}.review_receipt_ids`);
+  exactKeys(receipts, ["semantic", "pronunciation", "glyph"], `${label}.review_receipt_ids`);
+  const reviewReceiptIds = {
+    semantic: string(receipts.semantic, `${label}.semantic review receipt`),
+    pronunciation: string(receipts.pronunciation, `${label}.pronunciation review receipt`),
+    glyph: string(receipts.glyph, `${label}.glyph review receipt`),
+  };
+  if (contract.schema_version !== "tokipona.learning-corpus-admission.v0.1" ||
+      !/^[a-z][a-z0-9.-]*$/.test(corpusId) || corpusId === "pu-120" ||
+      !/^[A-Za-z0-9][A-Za-z0-9._-]*\d[A-Za-z0-9._-]*$/.test(contentVersion) ||
+      !/^[a-z][a-z0-9_]*$/.test(actionNamespace) || actionNamespace === "core120" ||
+      savePartitionId !== `learning.corpus.${corpusId}` ||
+      contract.save_schema_version !== "tokipona.learning-corpus-partition.v0.1" ||
+      !/^sha256:[0-9a-f]{64}$/.test(packageDigest) ||
+      !/^sha256:[0-9a-f]{64}$/.test(semanticDigest) ||
+      !wordIds.every((wordId) => /^[a-z]+$/.test(wordId)) ||
+      new Set(Object.values(reviewReceiptIds)).size !== 3) {
+    throw new Error(`${label} admission contract is invalid`);
+  }
+  return { schemaVersion: "tokipona.learning-corpus-admission.v0.1", corpusId, contentVersion,
+    actionNamespace, savePartitionId, saveSchemaVersion: "tokipona.learning-corpus-partition.v0.1",
+    packageDigest: packageDigest as `sha256:${string}`,
+    semanticDigest: semanticDigest as `sha256:${string}`, wordIds, reviewReceiptIds };
 }
 
 function object(value: ContentValue | undefined, label: string): ContentObject {
@@ -128,6 +200,18 @@ function objects(value: ContentValue | undefined, label: string): ContentObject[
     throw new Error(`${label} must be an object array`);
   }
   return value as ContentObject[];
+}
+
+function string(value: ContentValue | undefined, label: string): string {
+  if (typeof value !== "string" || value.length === 0) throw new Error(`${label} must be non-empty`);
+  return value;
+}
+
+function strings(value: ContentValue | undefined, label: string, allowEmpty = false): string[] {
+  if (!Array.isArray(value) || (!allowEmpty && value.length === 0) ||
+      !value.every((entry) => typeof entry === "string" && entry.length > 0) ||
+      new Set(value).size !== value.length) throw new Error(`${label} must be a unique string array`);
+  return [...value] as string[];
 }
 
 function same(value: unknown, expected: readonly unknown[]): boolean {
