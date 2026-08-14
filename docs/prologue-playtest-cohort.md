@@ -4,6 +4,22 @@ This gate evaluates anonymized, observed playtest summaries against the authored
 three-hour prologue thresholds. It does not generate samples, infer human
 participation, or treat the deterministic acceptance runner as playtest data.
 
+## Run the deterministic release gate
+
+Before collecting or evaluating human observations, run the fixed release scenarios:
+
+```powershell
+pnpm run acceptance:three-hour
+```
+
+This command runs the primary and alternate non-attack routes with injected soft-lock recovery,
+plus the formal low-hint qualification route. It requires 180 content-active minutes per scenario,
+the authored exclusive activity shares and cadence, reloadable saves, the N07 return deltas, the
+old-mine peaceful exit, zero kills/harm, and qualification before the 180-minute deadline. Its JSON
+output is aggregate-only: it excludes saves, ledgers, telemetry events, receipts, raw text, and
+player/session identity. It is a deterministic software release gate, never a replacement for the
+observed cohort below.
+
 ## Collect a browser sample
 
 Open `rpg.html` and play normally. The browser stores an aggregate-only,
