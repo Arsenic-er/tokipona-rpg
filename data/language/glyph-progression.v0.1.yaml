@@ -84,6 +84,58 @@ semantic_location_groups:
   ruins: [open, pini, tenpo, sona, sitelen, nimi, awen]
   settlement: [jan, kulupu, esun, mani, pali, ilo, toki]
 
+runtime_curriculum:
+  catalog_ref: "./pu-120-glyph-catalog.v0.2.json"
+  target_state: produced
+  action_kinds: [discover, attune, context_0, context_1, repair]
+  contexts_per_word: 2
+  misconception_repairs_per_word: 1
+  all_words_recoverable: true
+  distinct_task_family_per_context: true
+  raw_string_equality_as_success_forbidden: true
+  color_only_identification_forbidden: true
+  fixed_slot_only_production_forbidden: true
+  pronunciation_audio_required: true
+  community_semantic_review_required: true
+  recovery_station:
+    scene_ref: "../scenes/valley-settlement.v0.1.yaml"
+    scene_id: scene.valley.settlement
+    target_id: settlement.p0_inscription_archive
+    interaction_id: settlement.open_p0_inscription_archive
+    interaction_point_tiles: [38, 28]
+    maximum_distance_px: 16
+  domain_routes:
+    D_SYNTAX_BINDER:
+      primary: {scene_ref: "../scenes/valley-settlement.v0.1.yaml", scene_id: scene.valley.settlement, target_id: settlement.p0_inscription_archive, interaction_point_tiles: [38, 28]}
+      reinforcement: {scene_ref: "../scenes/valley-old-mine-threshold.v0.1.yaml", scene_id: scene.valley.old_mine_threshold, target_id: old_mine.threshold_marker, interaction_point_tiles: [12, 1]}
+    D_QUANTITY_LOGIC:
+      primary: {scene_ref: "../scenes/valley-safe-range.v0.1.yaml", scene_id: scene.valley.safe_range, target_id: material_collision_table, interaction_point_tiles: [20, 1]}
+      reinforcement: {scene_ref: "../scenes/valley-return-channel.v0.1.yaml", scene_id: scene.valley.return_channel, target_id: return_flow.split_flow_gauge, interaction_point_tiles: [21, 1]}
+    D_MATTER_ENV:
+      primary: {scene_ref: "../scenes/valley-return-channel.v0.1.yaml", scene_id: scene.valley.return_channel, target_id: return_flow.return_spout, interaction_point_tiles: [25, 1]}
+      reinforcement: {scene_ref: "../scenes/valley-settlement.v0.1.yaml", scene_id: scene.valley.settlement, target_id: settlement.communal_kitchen, interaction_point_tiles: [10, 28]}
+    D_LIFE_ENTITY:
+      primary: {scene_ref: "../scenes/valley-den-bypass.v0.1.yaml", scene_id: scene.valley.den_bypass, target_id: den.staff_marker, interaction_point_tiles: [7, 1]}
+      reinforcement: {scene_ref: "../scenes/valley-settlement.v0.1.yaml", scene_id: scene.valley.settlement, target_id: settlement.p0_inscription_archive, interaction_point_tiles: [38, 28]}
+    D_CRAFT_OBJECT:
+      primary: {scene_ref: "../scenes/valley-settlement.v0.1.yaml", scene_id: scene.valley.settlement, target_id: settlement.supply_stall, interaction_point_tiles: [26, 28]}
+      reinforcement: {scene_ref: "../scenes/valley-old-mine-threshold.v0.1.yaml", scene_id: scene.valley.old_mine_threshold, target_id: old_mine.threshold_marker, interaction_point_tiles: [12, 1]}
+    D_ENERGY_FIELD:
+      primary: {scene_ref: "../scenes/valley-return-channel.v0.1.yaml", scene_id: scene.valley.return_channel, target_id: return_flow.inert_force_indicator, interaction_point_tiles: [5, 1]}
+      reinforcement: {scene_ref: "../scenes/valley-safe-range.v0.1.yaml", scene_id: scene.valley.safe_range, target_id: material_collision_table, interaction_point_tiles: [20, 1]}
+    D_PROPERTY_FORM:
+      primary: {scene_ref: "../scenes/valley-safe-range.v0.1.yaml", scene_id: scene.valley.safe_range, target_id: wood_dummy, interaction_point_tiles: [5, 1]}
+      reinforcement: {scene_ref: "../scenes/valley-old-mine-threshold.v0.1.yaml", scene_id: scene.valley.old_mine_threshold, target_id: old_mine.threshold_marker, interaction_point_tiles: [12, 1]}
+    D_ACTION_PROCESS:
+      primary: {scene_ref: "../scenes/valley-settlement.v0.1.yaml", scene_id: scene.valley.settlement, target_id: settlement.attack_calibration_table, interaction_point_tiles: [36, 28]}
+      reinforcement: {scene_ref: "../scenes/valley-return-channel.v0.1.yaml", scene_id: scene.valley.return_channel, target_id: return_flow.overflow_gate, interaction_point_tiles: [9, 1]}
+    D_SPACE_TIME:
+      primary: {scene_ref: "../scenes/valley-old-mine-threshold.v0.1.yaml", scene_id: scene.valley.old_mine_threshold, target_id: old_mine.threshold_marker, interaction_point_tiles: [12, 1]}
+      reinforcement: {scene_ref: "../scenes/valley-return-channel.v0.1.yaml", scene_id: scene.valley.return_channel, target_id: return_flow.old_channel, interaction_point_tiles: [17, 1]}
+    D_PERCEPTION_SOCIAL:
+      primary: {scene_ref: "../scenes/valley-settlement.v0.1.yaml", scene_id: scene.valley.settlement, target_id: settlement.p0_inscription_archive, interaction_point_tiles: [38, 28]}
+      reinforcement: {scene_ref: "../scenes/valley-den-bypass.v0.1.yaml", scene_id: scene.valley.den_bypass, target_id: den.staff_marker, interaction_point_tiles: [7, 1]}
+
 accessibility:
   display_modes: [glyph_only, glyph_plus_latin, glyph_plus_latin_plus_meaning]
   pronunciation_audio: required

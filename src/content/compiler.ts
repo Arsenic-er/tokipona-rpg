@@ -252,6 +252,7 @@ function validateSource(
       break;
     case "glyph_progression":
       validateArrayIds(source, "prologue_first_12", "word_id", issues);
+      validateCore120RuntimeCurriculumSource(source, issues);
       break;
     case "p0_curriculum":
       validateArrayIds(source, "words", "word_id", issues);
@@ -383,6 +384,42 @@ function validateP0CurriculumSource(source: CompiledSource, issues: ContentIssue
   if (readString(station, "scene_ref") !== "../scenes/valley-settlement.v0.1.yaml" || readString(station, "scene_id") !== "scene.valley.settlement" || readString(station, "target_id") !== "settlement.p0_inscription_archive" || readString(station, "interaction_id") !== "settlement.open_p0_inscription_archive" || !Array.isArray(stationPoint) || stationPoint.length !== 2 || stationPoint[0] !== 38 || stationPoint[1] !== 28 || readNumber(station, "maximum_distance_px") !== 16 || station.recovery_route_only_when_below_target !== true) addIssue(issues, "contract.p0_recovery_station", source.path, "runtime_recovery_station", "P0 recovery station binding is noncanonical");
   const acceptance = readObject(source.content, "content_acceptance");
   if (acceptance.all_words_recoverable !== true || acceptance.all_words_have_pronunciation_audio !== "required" || acceptance.contexts_per_word_minimum !== 2 || acceptance.misconception_counterexample_per_word_minimum !== 1 || acceptance.color_only_identification_forbidden !== true || acceptance.fixed_slot_only_production_forbidden !== true || acceptance.raw_string_equality_as_success_forbidden !== true || acceptance.community_semantic_review_required !== true) addIssue(issues, "contract.p0_acceptance", source.path, "content_acceptance", "P0 recovery, audio, context, misconception, cue, and community-review requirements are noncanonical");
+}
+
+function validateCore120RuntimeCurriculumSource(source: CompiledSource, issues: ContentIssue[]): void {
+  const runtime = readObject(source.content, "runtime_curriculum");
+  const same = (actual: readonly string[], expected: readonly string[]): boolean =>
+    actual.length === expected.length && actual.every((entry, index) => entry === expected[index]);
+  const actionKinds = ["discover", "attune", "context_0", "context_1", "repair"];
+  const domains = ["D_SYNTAX_BINDER", "D_QUANTITY_LOGIC", "D_MATTER_ENV", "D_LIFE_ENTITY", "D_CRAFT_OBJECT", "D_ENERGY_FIELD", "D_PROPERTY_FORM", "D_ACTION_PROCESS", "D_SPACE_TIME", "D_PERCEPTION_SOCIAL"];
+  if (readString(runtime, "catalog_ref") !== "./pu-120-glyph-catalog.v0.2.json" || readString(runtime, "target_state") !== "produced" || !same(readStringArray(runtime, "action_kinds"), actionKinds) || readNumber(runtime, "contexts_per_word") !== 2 || readNumber(runtime, "misconception_repairs_per_word") !== 1 || runtime.all_words_recoverable !== true || runtime.distinct_task_family_per_context !== true || runtime.raw_string_equality_as_success_forbidden !== true || runtime.color_only_identification_forbidden !== true || runtime.fixed_slot_only_production_forbidden !== true || runtime.pronunciation_audio_required !== true || runtime.community_semantic_review_required !== true) {
+    addIssue(issues, "contract.core120_policy", source.path, "runtime_curriculum", "core120 production, recovery, context, misconception, accessibility, and review policy is noncanonical");
+  }
+  const recovery = readObject(runtime, "recovery_station");
+  const recoveryPoint = recovery.interaction_point_tiles;
+  if (readString(recovery, "scene_ref") !== "../scenes/valley-settlement.v0.1.yaml" || readString(recovery, "scene_id") !== "scene.valley.settlement" || readString(recovery, "target_id") !== "settlement.p0_inscription_archive" || readString(recovery, "interaction_id") !== "settlement.open_p0_inscription_archive" || readNumber(recovery, "maximum_distance_px") !== 16 || !Array.isArray(recoveryPoint) || recoveryPoint.length !== 2 || recoveryPoint[0] !== 38 || recoveryPoint[1] !== 28) {
+    addIssue(issues, "contract.core120_recovery", source.path, "runtime_curriculum.recovery_station", "core120 recovery station is noncanonical");
+  }
+  const routes = readObject(runtime, "domain_routes");
+  if (Object.keys(routes).length !== domains.length || domains.some((domain) => !(domain in routes))) {
+    addIssue(issues, "contract.core120_routes", source.path, "runtime_curriculum.domain_routes", "core120 must route all ten visual domains");
+    return;
+  }
+  for (const domain of domains) {
+    const route = readObject(routes, domain);
+    for (const role of ["primary", "reinforcement"] as const) {
+      const location = readObject(route, role);
+      const point = location.interaction_point_tiles;
+      if (!readString(location, "scene_ref") || !readString(location, "scene_id") || !readString(location, "target_id") || !Array.isArray(point) || point.length !== 2 || !point.every((entry) => Number.isSafeInteger(entry) && (entry as number) >= 0)) {
+        addIssue(issues, "contract.core120_route", source.path, `runtime_curriculum.domain_routes.${domain}.${role}`, "core120 route location must bind a scene target and non-negative tile point");
+      }
+    }
+    const primary = readObject(route, "primary");
+    const reinforcement = readObject(route, "reinforcement");
+    if (readString(primary, "scene_id") === readString(reinforcement, "scene_id") || readString(primary, "target_id") === readString(reinforcement, "target_id")) {
+      addIssue(issues, "contract.core120_route", source.path, `runtime_curriculum.domain_routes.${domain}`, "core120 primary and reinforcement witnesses must be distinct");
+    }
+  }
 }
 
 function validateRequiredKinds(sources: readonly CompiledSource[], issues: ContentIssue[]): void {

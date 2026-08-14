@@ -59,3 +59,20 @@ export { assertVerifiedRuntimeSafeRangeManifest, isVerifiedRuntimeSafeRangeManif
 export type { RuntimeSafeRangeAstShape, RuntimeSafeRangeManifest, RuntimeSafeRangeTargetPhysics } from "./runtime-safe-range-manifest";
 export { computeRuntimeP0CurriculumDigest, isVerifiedRuntimeP0CurriculumManifest, readRuntimeP0CurriculumManifest } from "./runtime-p0-curriculum-manifest";
 export type { RuntimeP0CurriculumManifest, RuntimeP0TargetState, RuntimeP0WordManifest } from "./runtime-p0-curriculum-manifest";
+export {
+  CORE120_ACTION_KINDS,
+  CORE120_BANDS,
+  CORE120_VISUAL_DOMAINS,
+  computeRuntimeCore120CurriculumDigest,
+  isVerifiedRuntimeCore120CurriculumManifest,
+  readRuntimeCore120CurriculumManifest,
+} from "./runtime-core120-curriculum-manifest";
+export type {
+  Core120ActionKind,
+  Core120Band,
+  Core120VisualDomain,
+  RuntimeCore120Context,
+  RuntimeCore120CurriculumManifest,
+  RuntimeCore120Location,
+  RuntimeCore120WordManifest,
+} from "./runtime-core120-curriculum-manifest";
