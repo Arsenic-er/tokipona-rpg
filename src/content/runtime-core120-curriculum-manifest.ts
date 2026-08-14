@@ -14,6 +14,13 @@ export const CORE120_VISUAL_DOMAINS = [
   "D_SPACE_TIME",
   "D_PERCEPTION_SOCIAL",
 ] as const;
+const CORE120_SCENE_COORDINATE_ORIGINS = Object.freeze({
+  "scene.valley.settlement": "top_left",
+  "scene.valley.den_bypass": "bottom_left",
+  "scene.valley.return_channel": "bottom_left",
+  "scene.valley.safe_range": "bottom_left",
+  "scene.valley.old_mine_threshold": "bottom_left",
+} as const);
 
 export type Core120Band = (typeof CORE120_BANDS)[number];
 export type Core120ActionKind = (typeof CORE120_ACTION_KINDS)[number];
@@ -23,6 +30,7 @@ export interface RuntimeCore120Location {
   readonly sceneId: string;
   readonly targetId: string;
   readonly interactionPointTiles: readonly [number, number];
+  readonly interactionPointPx: Readonly<{ readonly x: number; readonly y: number }>;
 }
 
 export interface RuntimeCore120Context {
@@ -72,6 +80,11 @@ export interface RuntimeCore120CurriculumManifest {
     readonly interactionId: "settlement.open_p0_inscription_archive";
     readonly maximumDistancePx: 16;
   }>;
+  readonly worldContextAuthority: Readonly<{
+    readonly maximumDistancePx: 16;
+    readonly recoveryRequiresPriorSceneVisit: true;
+    readonly sceneCoordinateOrigins: typeof CORE120_SCENE_COORDINATE_ORIGINS;
+  }>;
   readonly domainRoutes: Readonly<Record<Core120VisualDomain, Readonly<{
     readonly primary: RuntimeCore120Location;
     readonly reinforcement: RuntimeCore120Location;
@@ -105,7 +118,7 @@ export function isVerifiedRuntimeCore120CurriculumManifest(value: unknown): valu
 export function readRuntimeCore120CurriculumManifest(candidate: unknown): RuntimeCore120CurriculumManifest {
   const root = record(candidate, "runtime content artifact");
   const raw = record(root.core120Curriculum, "artifact.core120Curriculum");
-  exactKeys(raw, ["sourceDigest", "sourcePath", "contentVersion", "catalogSourcePath", "catalogContentVersion", "catalogReviewStatus", "catalogRuntimeReady", "scope", "actionKinds", "recoveryStation", "domainRoutes", "words", "acceptance"], "core120 curriculum");
+  exactKeys(raw, ["sourceDigest", "sourcePath", "contentVersion", "catalogSourcePath", "catalogContentVersion", "catalogReviewStatus", "catalogRuntimeReady", "scope", "actionKinds", "recoveryStation", "worldContextAuthority", "domainRoutes", "words", "acceptance"], "core120 curriculum");
   const digest = string(raw.sourceDigest, "core120 sourceDigest");
   if (!/^sha256:[0-9a-f]{64}$/.test(digest)) throw new Error("core120 sourceDigest must be sha256");
   const payload = Object.fromEntries(Object.entries(raw).filter(([key]) => key !== "sourceDigest"));
@@ -124,8 +137,21 @@ export function readRuntimeCore120CurriculumManifest(candidate: unknown): Runtim
 
   const recoveryStation = readLocation(raw.recoveryStation, "core120 recovery station");
   const recoveryRaw = record(raw.recoveryStation, "core120 recovery station");
-  exactKeys(recoveryRaw, ["sceneId", "targetId", "interactionPointTiles", "interactionId", "maximumDistancePx"], "core120 recovery station");
+  exactKeys(recoveryRaw, ["sceneId", "targetId", "interactionPointTiles", "interactionPointPx", "interactionId", "maximumDistancePx"], "core120 recovery station");
   if (recoveryStation.sceneId !== "scene.valley.settlement" || recoveryStation.targetId !== "settlement.p0_inscription_archive" || recoveryRaw.interactionId !== "settlement.open_p0_inscription_archive" || recoveryRaw.maximumDistancePx !== 16) throw new Error("core120 recovery station is noncanonical");
+
+  const worldContextAuthority = record(raw.worldContextAuthority, "core120 world context authority");
+  exactKeys(worldContextAuthority, ["maximumDistancePx", "recoveryRequiresPriorSceneVisit", "sceneCoordinateOrigins"], "core120 world context authority");
+  const sceneCoordinateOrigins = record(worldContextAuthority.sceneCoordinateOrigins,
+    "core120 scene coordinate origins");
+  if (worldContextAuthority.maximumDistancePx !== 16 ||
+      worldContextAuthority.recoveryRequiresPriorSceneVisit !== true ||
+      !sameSet(Object.keys(sceneCoordinateOrigins), Object.keys(CORE120_SCENE_COORDINATE_ORIGINS)) ||
+      Object.entries(CORE120_SCENE_COORDINATE_ORIGINS).some(([sceneId, origin]) =>
+        sceneCoordinateOrigins[sceneId] !== origin) ||
+      !runtimePointMatchesScene(root, recoveryStation, "top_left")) {
+    throw new Error("core120 world context authority is noncanonical");
+  }
 
   const routesRaw = record(raw.domainRoutes, "core120 domain routes");
   exactKeys(routesRaw, CORE120_VISUAL_DOMAINS, "core120 domain routes");
@@ -135,7 +161,11 @@ export function readRuntimeCore120CurriculumManifest(candidate: unknown): Runtim
     exactKeys(route, ["primary", "reinforcement"], `core120 route ${domain}`);
     const primary = readLocation(route.primary, `${domain}.primary`);
     const reinforcement = readLocation(route.reinforcement, `${domain}.reinforcement`);
-    if (primary.sceneId === reinforcement.sceneId || primary.targetId === reinforcement.targetId) throw new Error(`${domain} contexts must use distinct world witnesses`);
+    if (primary.sceneId === reinforcement.sceneId || primary.targetId === reinforcement.targetId ||
+        !runtimePointMatchesScene(root, primary, sceneCoordinateOrigins[primary.sceneId]) ||
+        !runtimePointMatchesScene(root, reinforcement, sceneCoordinateOrigins[reinforcement.sceneId])) {
+      throw new Error(`${domain} contexts must use valid distinct world witnesses`);
+    }
     domainRoutes[domain] = { primary, reinforcement };
   }
 
@@ -186,16 +216,37 @@ function readContext(value: unknown, wordId: string, index: number, expectedLoca
 
 function readLocation(value: unknown, label: string): RuntimeCore120Location {
   const location = record(value, label);
-  const allowed = label === "core120 recovery station" ? ["sceneId", "targetId", "interactionPointTiles", "interactionId", "maximumDistancePx"] : ["sceneId", "targetId", "interactionPointTiles"];
+  const allowed = label === "core120 recovery station" ? ["sceneId", "targetId", "interactionPointTiles", "interactionPointPx", "interactionId", "maximumDistancePx"] : ["sceneId", "targetId", "interactionPointTiles", "interactionPointPx"];
   exactKeys(location, allowed, label);
   const point = location.interactionPointTiles;
-  if (typeof location.sceneId !== "string" || !/^scene\.[a-z0-9_.]+$/.test(location.sceneId) || typeof location.targetId !== "string" || !/^[a-z0-9_.]+$/.test(location.targetId) || !Array.isArray(point) || point.length !== 2 || !point.every((entry) => Number.isSafeInteger(entry) && entry >= 0)) throw new Error(`${label} is invalid`);
+  const runtimePoint = record(location.interactionPointPx, `${label}.interactionPointPx`);
+  exactKeys(runtimePoint, ["x", "y"], `${label}.interactionPointPx`);
+  if (typeof location.sceneId !== "string" || !/^scene\.[a-z0-9_.]+$/.test(location.sceneId) || typeof location.targetId !== "string" || !/^[a-z0-9_.]+$/.test(location.targetId) || !Array.isArray(point) || point.length !== 2 || !point.every((entry) => Number.isSafeInteger(entry) && entry >= 0) || !Number.isSafeInteger(runtimePoint.x) || !Number.isSafeInteger(runtimePoint.y) || (runtimePoint.x as number) < 0 || (runtimePoint.y as number) < 0) throw new Error(`${label} is invalid`);
   const interactionPointTiles: readonly [number, number] = [point[0] as number, point[1] as number];
-  return Object.freeze({ sceneId: location.sceneId, targetId: location.targetId, interactionPointTiles });
+  return Object.freeze({ sceneId: location.sceneId, targetId: location.targetId, interactionPointTiles,
+    interactionPointPx: Object.freeze({ x: runtimePoint.x as number, y: runtimePoint.y as number }) });
 }
 
 function sameLocation(left: RuntimeCore120Location, right: RuntimeCore120Location): boolean {
-  return left.sceneId === right.sceneId && left.targetId === right.targetId && left.interactionPointTiles[0] === right.interactionPointTiles[0] && left.interactionPointTiles[1] === right.interactionPointTiles[1];
+  return left.sceneId === right.sceneId && left.targetId === right.targetId && left.interactionPointTiles[0] === right.interactionPointTiles[0] && left.interactionPointTiles[1] === right.interactionPointTiles[1] && left.interactionPointPx.x === right.interactionPointPx.x && left.interactionPointPx.y === right.interactionPointPx.y;
+}
+
+function runtimePointMatchesScene(root: Record<string, unknown>, location: RuntimeCore120Location,
+  origin: unknown): boolean {
+  try {
+    const scenes = record(root.scenes, "runtime scenes");
+    const byId = record(scenes.byId, "runtime scenes byId");
+    const scene = record(byId[location.sceneId], `runtime scene ${location.sceneId}`);
+    const size = record(scene.sizeTiles, `runtime scene ${location.sceneId} size`);
+    const tileSizePx = scene.tileSizePx;
+    const expectedY = origin === "top_left" ? location.interactionPointTiles[1] * (tileSizePx as number) :
+      origin === "bottom_left" ? ((size.height as number) - 1 - location.interactionPointTiles[1]) *
+        (tileSizePx as number) : -1;
+    return Number.isSafeInteger(tileSizePx) && Number.isSafeInteger(size.height) &&
+      location.interactionPointPx.x === location.interactionPointTiles[0] * (tileSizePx as number) &&
+      location.interactionPointPx.y === expectedY &&
+      location.interactionPointTiles[1] < (size.height as number);
+  } catch { return false; }
 }
 
 function record(value: unknown, label: string): Record<string, unknown> { if (typeof value !== "object" || value === null || Array.isArray(value)) throw new Error(`${label} must be an object`); return value as Record<string, unknown>; }

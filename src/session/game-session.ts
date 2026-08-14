@@ -19,7 +19,9 @@ import { isTrustedP0LearningCommitProof, type P0LearningCommitProof } from "../g
 import {
   core120LearningActionPayloadHash,
   core120LearningActionReceiptId,
+  core120LearningAuthorityMatchesAction,
   isTrustedCore120LearningCommitProof,
+  type Core120LearningAuthority,
   type Core120LearningCommitProof,
 } from "../game/prologue-core120-learning";
 import {
@@ -358,6 +360,7 @@ export type GameSessionEvent =
       readonly actionId: Core120LearningActionId;
       readonly receiptId: string;
       readonly payloadHash: `sha256:${string}`;
+      readonly authority?: Core120LearningAuthority;
     }>
   | SessionEventBase<"attack_capacity_calibrated", {
       readonly transactionId: string;
@@ -2044,10 +2047,19 @@ export class GameSession {
         }) };
       }
       case "core120_learning_action_committed": {
-        const { actionId, receiptId, payloadHash } = event.payload;
-        if (this.state.world.currentSceneId !== RUNTIME_CORE120_CURRICULUM_MANIFEST.recoveryStation.sceneId ||
-            receiptId !== core120LearningActionReceiptId(this.sessionId, actionId) ||
-            payloadHash !== core120LearningActionPayloadHash(actionId)) {
+        const { actionId, receiptId, payloadHash, authority } = event.payload;
+        const legacy = authority === undefined;
+        const authorityValid = legacy
+          ? this.state.world.currentSceneId === RUNTIME_CORE120_CURRICULUM_MANIFEST.recoveryStation.sceneId &&
+            payloadHash === core120LearningActionPayloadHash(actionId)
+          : core120LearningAuthorityMatchesAction(actionId, authority) &&
+            authority.sceneId === this.state.world.currentSceneId &&
+            authority.expectedWorldRevision === this.state.world.revision &&
+            payloadHash === core120LearningActionPayloadHash(actionId, authority) &&
+            (authority.mode !== "recovery_archive" ||
+              this.ledger.some((candidate) => candidate.type === "scene_entered" &&
+                candidate.payload.sceneId === authority.recoveredSceneId));
+        if (!authorityValid || receiptId !== core120LearningActionReceiptId(this.sessionId, actionId)) {
           return { reason: "invalid_event", duplicate: false };
         }
         const prior = this.state.receiptIndex[receiptId];
@@ -2071,8 +2083,10 @@ export class GameSession {
           for (const evidenceDraft of canonicalEvidence) {
             const evidence = { ...evidenceDraft, committedAtSessionSequence: event.sequence } as LearningEvidenceEvent;
             const reduced = reduceLearningEvidence(learning, evidence);
-            if (!reduced.applied) return { reason: "invalid_event", duplicate: false };
-            learning = reduced.snapshot;
+            if (reduced.applied) learning = reduced.snapshot;
+            else if (!(reduced.duplicate && reduced.reason === "duplicate_event")) {
+              return { reason: "invalid_event", duplicate: false };
+            }
           }
           if (!core120LearningActionEvidencePresent(
             RUNTIME_CORE120_CURRICULUM_MANIFEST, learning, this.sessionId, actionId,

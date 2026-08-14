@@ -104,6 +104,15 @@ runtime_curriculum:
     interaction_id: settlement.open_p0_inscription_archive
     interaction_point_tiles: [38, 28]
     maximum_distance_px: 16
+  world_context_authority:
+    maximum_distance_px: 16
+    recovery_requires_prior_scene_visit: true
+    scene_coordinate_origins:
+      scene.valley.settlement: top_left
+      scene.valley.den_bypass: bottom_left
+      scene.valley.return_channel: bottom_left
+      scene.valley.safe_range: bottom_left
+      scene.valley.old_mine_threshold: bottom_left
   domain_routes:
     D_SYNTAX_BINDER:
       primary: {scene_ref: "../scenes/valley-settlement.v0.1.yaml", scene_id: scene.valley.settlement, target_id: settlement.p0_inscription_archive, interaction_point_tiles: [38, 28]}

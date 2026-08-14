@@ -12,6 +12,7 @@ import { type P0LearningActionId } from "./p0-learning-contract";
 import {
   core120LearningActionPayloadHash,
   core120LearningActionReceiptId,
+  PrologueCore120LearningCoordinator,
   PROLOGUE_CORE120_LEARNING_ACTION_IDS,
 } from "./prologue-core120-learning";
 import { PrologueFlowSession } from "./prologue-flow";
@@ -20,8 +21,18 @@ import { PrologueSettlementSession, createPrologueSettlementInitialSession } fro
 const manifest = readRuntimeCore120CurriculumManifest(generated);
 const p0Manifest = readRuntimeP0CurriculumManifest(generated);
 
-function atArchive(sessionId: string): PrologueSettlementSession {
-  const target = new PrologueSettlementSession(createPrologueSettlementInitialSession({ sessionId }));
+function atArchive(sessionId: string, visitedSceneIds: readonly string[] = []): PrologueSettlementSession {
+  let session = createPrologueSettlementInitialSession({ sessionId });
+  for (const [index, sceneId] of visitedSceneIds.entries()) {
+    const visit = commitSessionProposal(session, { transactionId: `core120.visit.${index}`, drafts: [
+      { eventId: `core120.visit.${index}.${sceneId}`, type: "scene_entered", payload: { sceneId } },
+      { eventId: `core120.visit.${index}.return`, type: "scene_entered",
+        payload: { sceneId: manifest.recoveryStation.sceneId } },
+    ] });
+    if (!visit.committed) throw new Error(`failed to author prior visit ${sceneId}`);
+    session = visit.session;
+  }
+  const target = new PrologueSettlementSession(session);
   for (let tick = 0; tick < 760 && target.snapshot().runtime.player.position.x < 608; tick += 1) {
     target.advanceTicks(1, { moveX: 1 });
   }
@@ -87,7 +98,8 @@ describe("PrologueCore120LearningCoordinator", () => {
   });
 
   it("commits a five-stage word atomically and survives reset, save, load and duplicate replay", () => {
-    const target = atArchive("core120.lifecycle");
+    const visitedScenes = manifest.words.akesi!.contexts.map((context) => context.location.sceneId);
+    const target = atArchive("core120.lifecycle", visitedScenes);
     completeP0(target, "p0.lifecycle");
     performWord(target, "akesi", "core120.akesi");
 
@@ -109,6 +121,34 @@ describe("PrologueCore120LearningCoordinator", () => {
     expect(loaded.snapshot().receiptIndex[receiptId]).toBeDefined();
   });
 
+  it("allows either world context first and permits archive recovery only after a prior scene visit", () => {
+    const target = atArchive("core120.context-order");
+    completeP0(target, "p0.context-order");
+    expect(target.commitCore120LearningAction("core120.akesi.discover", "context.discover").accepted).toBe(true);
+    expect(target.commitCore120LearningAction("core120.akesi.attune", "context.attune").accepted).toBe(true);
+    expect(target.commitCore120LearningAction("core120.akesi.context_1", "context.second-first"))
+      .toMatchObject({ accepted: true, reason: "committed" });
+    expect(target.commitCore120LearningAction("core120.akesi.context_0", "context.unvisited"))
+      .toMatchObject({ accepted: false, reason: "recovery_scene_not_visited" });
+
+    const missingScene = manifest.words.akesi!.contexts[0].location.sceneId;
+    const visit = commitSessionProposal(target.session, { transactionId: "context.visit", drafts: [
+      { eventId: "context.visit.out", type: "scene_entered", payload: { sceneId: missingScene } },
+      { eventId: "context.visit.return", type: "scene_entered",
+        payload: { sceneId: manifest.recoveryStation.sceneId } },
+    ] });
+    expect(visit.committed).toBe(true);
+    if (!visit.committed) throw new Error("context visit failed");
+    const authority = { runtimeSceneId: manifest.recoveryStation.sceneId,
+      playerPositionPx: { x: 38 * 16, y: 28 * 16 } } as const;
+    const recovered = new PrologueCore120LearningCoordinator({ session: visit.session, ...authority })
+      .commit("core120.akesi.context_0", "context.recovered");
+    expect(recovered).toMatchObject({ accepted: true, reason: "committed" });
+    const repaired = new PrologueCore120LearningCoordinator({ session: recovered.session, ...authority })
+      .commit("core120.akesi.repair", "context.repair");
+    expect(repaired).toMatchObject({ accepted: true, reason: "committed" });
+  });
+
   it("fails replay closed when an evidence ordinal or action receipt chain is forged", () => {
     const target = atArchive("core120.replay");
     completeP0(target, "p0.replay");
@@ -118,6 +158,15 @@ describe("PrologueCore120LearningCoordinator", () => {
       event.type === "core120_learning_action_committed" && event.payload.actionId === "core120.akesi.discover");
     committed.payload.payloadHash = `sha256:${"0".repeat(64)}`;
     expect(replayGameSession(save.sessionId, save.origin, save.eventLedger)).toMatchObject({ ok: false, reason: "invalid_event" });
+
+    const stale = structuredClone(target.toSave()) as any;
+    const staleEvent = stale.eventLedger.find((event: GameSessionEvent) =>
+      event.type === "core120_learning_action_committed" && event.payload.actionId === "core120.akesi.discover");
+    staleEvent.payload.authority.expectedWorldRevision += 1;
+    staleEvent.payload.payloadHash = core120LearningActionPayloadHash(staleEvent.payload.actionId,
+      staleEvent.payload.authority);
+    expect(replayGameSession(stale.sessionId, stale.origin, stale.eventLedger))
+      .toMatchObject({ ok: false, reason: "invalid_event" });
 
     const p0Only = atArchive("core120.receipt-chain");
     completeP0(p0Only, "p0.receipt-chain");

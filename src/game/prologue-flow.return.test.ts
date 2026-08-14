@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import generatedRuntimeArtifact from "../generated/content-runtime.v0.1.json";
 import { readRuntimeInfrastructureTaskManifestIndex } from "../content/runtime-task-manifest";
+import { readRuntimeP0CurriculumManifest } from "../content/runtime-p0-curriculum-manifest";
 import { commitSessionProposal, type SessionBatchCommitResult, type SessionProposalBatch } from "../session/adapters";
 import type { GameSession, GameSessionSave } from "../session/game-session";
 import type { CrossSaveWalRecovery, CrossSaveWalRecord } from "../persistence/cross-save-wal";
@@ -21,8 +22,10 @@ import {
 } from "./prologue-waterwheel";
 import type { CrossSaveTransactionCoordinator } from "./cross-save-transaction-coordinator";
 import { PrologueFlowSession } from "./prologue-flow";
+import type { P0LearningActionId } from "./p0-learning-contract";
 
 const tasks = readRuntimeInfrastructureTaskManifestIndex(generatedRuntimeArtifact);
+const p0 = readRuntimeP0CurriculumManifest(generatedRuntimeArtifact);
 const requiredActions = (taskId: string, solutionId: string): readonly string[] =>
   tasks.byId[taskId]!.solutions.find((solution) => solution.id === solutionId)!.requiredActions;
 
@@ -33,11 +36,13 @@ const goRightUntil = (target: PrologueFlowSession, sceneId: string, maximumTicks
   expect(target.snapshot().runtime.sceneId).toBe(sceneId);
 };
 
-const reachCompletedCistern = (sessionId: string): PrologueFlowSession => {
+const reachCompletedCistern = (sessionId: string,
+  beforeSettlementDeparture?: (target: PrologueFlowSession) => void): PrologueFlowSession => {
   const target = PrologueFlowSession.fresh({ sessionId });
   goRightUntil(target, PROLOGUE_STREAM_SCENE_ID);
   expect(target.pushLooseStone(`${sessionId}.stone`).accepted).toBe(true);
   goRightUntil(target, PROLOGUE_SETTLEMENT_SCENE_ID);
+  beforeSettlementDeparture?.(target);
   expect(target.enterWaterwheel(`${sessionId}.waterwheel.entry`).accepted).toBe(true);
   expect(target.snapshot().runtime.sceneId).toBe(PROLOGUE_WATERWHEEL_SCENE_ID);
   expect(target.observeWaterwheelPhysics(`${sessionId}.physics`, {
@@ -64,6 +69,19 @@ const reachCompletedCistern = (sessionId: string): PrologueFlowSession => {
   expect(target.completeCisternFamilyWithTools(`${sessionId}.family-b`, "cistern.family_b.transfer").accepted).toBe(true);
   expect(target.snapshot()).toMatchObject({ mode: "cistern", cistern: { completed: true, returnChannelAvailable: true }, killCount: 0 });
   return target;
+};
+
+const completeP0AndPrepareTelo = (target: PrologueFlowSession, prefix: string): void => {
+  for (let tick = 0; tick < 760 && target.snapshot().runtime.player.position.x < 608; tick += 1) {
+    target.advanceTicks(1, { moveX: 1 });
+  }
+  for (const wordId of p0.scope.wordIds) for (const [index, kind] of
+    (["discover", "attune", "context_0", "context_1", "repair"] as const).entries()) {
+    const actionId = `p0.${wordId}.${kind}` as P0LearningActionId;
+    expect(target.performP0LearningAction(`${prefix}.p0.${wordId}.${index}`, actionId).accepted, actionId).toBe(true);
+  }
+  expect(target.performCore120LearningAction(`${prefix}.telo.discover`, "core120.telo.discover").accepted).toBe(true);
+  expect(target.performCore120LearningAction(`${prefix}.telo.attune`, "core120.telo.attune").accepted).toBe(true);
 };
 
 const globalTrue = (target: PrologueFlowSession, flagId: string): boolean =>
@@ -242,6 +260,32 @@ describe("PrologueFlowSession N07 return-flow integration", () => {
       returnFlow: { sceneId: PROLOGUE_RETURN_FLOW_SCENE_ID },
     });
     expect(globalTrue(target, PROLOGUE_RETURN_FLOW_FLAGS.prologueReturnObserved)).toBe(false);
+  });
+
+  it("commits a Core120 world-context witness at the authored N07 target and reloads it", () => {
+    const target = reachCompletedCistern("flow.return.core120", (flow) =>
+      completeP0AndPrepareTelo(flow, "flow.return.core120"));
+    expect(target.enterReturnFlow("flow.return.core120.entry").accepted).toBe(true);
+    const word = () => target.core120LearningView().words.find((candidate) => candidate.wordId === "telo");
+    for (let tick = 0; tick < 600 && word()?.availableActionId !== "core120.telo.context_0"; tick += 1) {
+      target.advanceTicks(1, { moveX: 1 });
+    }
+    expect(Math.hypot(target.snapshot().runtime.player.position.x - 25 * 16,
+      target.snapshot().runtime.player.position.y - 24 * 16)).toBeLessThanOrEqual(16);
+    expect({ runtime: target.snapshot().runtime, view: target.core120LearningView(), word: word() }).toMatchObject({
+      runtime: { sceneId: PROLOGUE_RETURN_FLOW_SCENE_ID },
+      view: { mode: "world_context", authorityInRange: true, station: { inRange: false } },
+      word: { nextActionId: "core120.telo.context_0", availableActionId: "core120.telo.context_0" },
+    });
+    expect(target.performCore120LearningAction("flow.return.core120.context", "core120.telo.context_0"))
+      .toMatchObject({ accepted: true, result: { accepted: true, reason: "committed" } });
+    expect(word()?.completedActionIds).toContain("core120.telo.context_0");
+    const loaded = PrologueFlowSession.fromSave(JSON.parse(JSON.stringify(target.toSave())));
+    expect(loaded.snapshot().mode).toBe("return_flow");
+    expect(loaded.core120LearningView().words.find((candidate) => candidate.wordId === "telo")?.completedActionIds)
+      .toContain("core120.telo.context_0");
+    expect(loaded.performCore120LearningAction("flow.return.core120.duplicate", "core120.telo.context_0"))
+      .toMatchObject({ accepted: true, result: { accepted: true, duplicate: true } });
   });
 
   it("delegates inert wawa learning without exposing provenance or world facts", () => {

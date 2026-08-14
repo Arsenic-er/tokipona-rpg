@@ -252,6 +252,15 @@ export class PrologueWildlifeSession {
     this.evidence = blankEvidence(this.visitId(), this.foxDenIntact());
   }
 
+  /** Adopts a same-scene authoritative Session update without resetting local encounter state. */
+  adoptSession(session: GameSession): void {
+    if (session.sessionId !== this.authoritativeSession.sessionId ||
+        session.snapshot().world.currentSceneId !== DEN_SCENE.sceneId) {
+      throw new Error("wildlife session adoption requires the same N06 session");
+    }
+    this.authoritativeSession = session;
+  }
+
   static enterFromService(session: GameSession, transactionId: string): PrologueWildlifeEntryResult {
     if (!regionTrue(session.snapshot(), "service_channel_reached")) return this.entryResult(false, false, "entry_guard_failed", null, null);
     return this.enter(session, transactionId, "service", SERVICE_SCENE, DEN_FROM_SERVICE);

@@ -381,6 +381,15 @@ export class PrologueSafeRangeSession {
     this.authoritativeSession = session;
   }
 
+  /** Adopts a same-scene authoritative Session update while preserving target and runtime state. */
+  public adoptSession(session: GameSession): void {
+    if (session.sessionId !== this.authoritativeSession.sessionId ||
+        session.snapshot().world.currentSceneId !== MANIFEST.scene.sceneId) {
+      throw new Error("safe-range session adoption requires the same N08 session");
+    }
+    this.authoritativeSession = session;
+  }
+
   public static enterFromSettlement(session: GameSession, transactionId: string,
     runtimeWorld = new SafeRangeRuntimeWorld()): PrologueSafeRangeEntryResult {
     return this.commitEntry(session, transactionId, runtimeWorld, "direct_transition");

@@ -18,6 +18,7 @@ export type Core120LearningUiCommand = Readonly<{
 
 export interface Core120LearningUiModel {
   readonly visible: boolean;
+  readonly contextMode: PrologueFlowCore120LearningView["mode"];
   readonly selectedBand: Core120Band;
   readonly searchQuery: string;
   readonly searchValid: boolean;
@@ -64,14 +65,29 @@ export function deriveCore120LearningUiModel(
   const validWords = view.words.length === 120 && unique.size === 120 &&
     MANIFEST.scope.wordIds.every((wordId) => {
       const word = view.words.find((candidate) => candidate.wordId === wordId);
-      const expectedActions = MANIFEST.actionKinds.map((kind) => `core120.${wordId}.${kind}`);
+      const expectedActions = MANIFEST.actionKinds.map((kind) =>
+        `core120.${wordId}.${kind}` as Core120LearningActionId);
       const completed = word?.completedActionIds ?? [];
-      const completedPrefixValid = completed.length <= expectedActions.length && completed.every((actionId, index) =>
-        actionId === expectedActions[index]);
-      const expectedNext = completedPrefixValid ? expectedActions[completed.length] ?? null : null;
+      const completedIndexes = completed.map((actionId) => expectedActions.indexOf(actionId));
+      const completedSubsetValid = completed.length <= expectedActions.length &&
+        new Set(completed).size === completed.length && completedIndexes.every((index, ordinal) =>
+          index >= 0 && (ordinal === 0 || index > completedIndexes[ordinal - 1]!));
+      const has = (kind: string): boolean => completed.includes(
+        `core120.${wordId}.${kind}` as Core120LearningActionId);
+      const dependencyValid = (!has("attune") || has("discover")) &&
+        (!(has("context_0") || has("context_1")) || has("attune")) &&
+        (!has("repair") || (has("context_0") && has("context_1")));
+      const expectedNext = completedSubsetValid && dependencyValid
+        ? expectedActions.find((actionId) => !completed.includes(actionId)) ?? null : null;
+      const available = word?.availableActionId ?? null;
+      const availableValid = available === null || (expectedActions.includes(available) && !completed.includes(available) &&
+        (available.endsWith(".discover") ||
+          (available.endsWith(".attune") && has("discover")) ||
+          ((available.endsWith(".context_0") || available.endsWith(".context_1")) && has("attune")) ||
+          (available.endsWith(".repair") && has("context_0") && has("context_1"))));
       return word?.band === MANIFEST.words[wordId]?.curriculumBand &&
         word.visualDomainId === MANIFEST.words[wordId]?.visualDomainId &&
-        completedPrefixValid && word.nextActionId === expectedNext;
+        completedSubsetValid && dependencyValid && availableValid && word.nextActionId === expectedNext;
     });
   const bandWordCounts = Object.freeze(Object.fromEntries(CORE120_BANDS.map((band) => [
     band,
@@ -94,13 +110,14 @@ export function deriveCore120LearningUiModel(
     view.completedWordCount === derivedCompletedWordCount &&
     view.completedSemanticActionCount === derivedCompletedSemanticActionCount;
   return Object.freeze({
-    visible: view.mode === "settlement" && validWords && countersValid,
+    visible: (view.mode === "settlement" || view.mode === "world_context") && validWords && countersValid,
+    contextMode: view.mode,
     selectedBand,
     searchQuery: normalizedQuery ?? "",
     searchValid,
     searchActive,
     searchResultCount: selectedWords.length,
-    inRange: view.station.inRange,
+    inRange: view.authorityInRange,
     p0PrerequisiteComplete: view.p0PrerequisiteComplete,
     externalAssetsBlocked: !view.externalAssets.fullAssetAcceptance ||
       view.externalAssets.pronunciationAudio !== "approved" ||
@@ -125,7 +142,7 @@ export function resolveCore120LearningUiIntent(
   wordId: string,
 ): Core120LearningUiCommand | null {
   if (!model.visible || !model.inRange || !model.p0PrerequisiteComplete) return null;
-  const actionId = model.words.find((word) => word.wordId === wordId)?.nextActionId;
+  const actionId = model.words.find((word) => word.wordId === wordId)?.availableActionId;
   return actionId && ACTION_IDS.has(actionId)
     ? Object.freeze({ kind: "perform_core120_action", actionId })
     : null;
@@ -238,8 +255,9 @@ export function createRpgCore120LearningUi(
         const button = document.createElement("button");
         button.type = "button";
         button.dataset.core120Word = word.wordId;
-        button.textContent = word.nextActionId?.split(".").at(-1)?.replaceAll("_", " ") ?? "完成";
-        button.disabled = !model.inRange || !model.p0PrerequisiteComplete || word.nextActionId === null;
+        button.textContent = word.availableActionId?.split(".").at(-1)?.replaceAll("_", " ") ??
+          (word.nextActionId === null ? "完成" : "待现场见证");
+        button.disabled = !model.inRange || !model.p0PrerequisiteComplete || word.availableActionId === null;
         button.setAttribute("aria-label", `${word.wordId}: ${button.textContent}`);
         row.append(label, button);
         grid.append(row);

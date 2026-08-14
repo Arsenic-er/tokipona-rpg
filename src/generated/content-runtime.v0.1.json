@@ -6207,7 +6207,7 @@
     }
   },
   "core120Curriculum": {
-    "sourceDigest": "sha256:65f72d7fa493bacca7f54bf5e9045252922995ad8474ceb96cec22041eff62e6",
+    "sourceDigest": "sha256:5d6d824a0c0397b109e5f3934f7f7ec92bdebef912368c5c7ea680b5f3721f2c",
     "sourcePath": "data/language/glyph-progression.v0.1.yaml",
     "contentVersion": "core-120.prologue-12",
     "catalogSourcePath": "data/language/pu-120-glyph-catalog.v0.2.json",
@@ -6362,8 +6362,23 @@
         38,
         28
       ],
+      "interactionPointPx": {
+        "x": 608,
+        "y": 448
+      },
       "interactionId": "settlement.open_p0_inscription_archive",
       "maximumDistancePx": 16
+    },
+    "worldContextAuthority": {
+      "maximumDistancePx": 16,
+      "recoveryRequiresPriorSceneVisit": true,
+      "sceneCoordinateOrigins": {
+        "scene.valley.settlement": "top_left",
+        "scene.valley.den_bypass": "bottom_left",
+        "scene.valley.return_channel": "bottom_left",
+        "scene.valley.safe_range": "bottom_left",
+        "scene.valley.old_mine_threshold": "bottom_left"
+      }
     },
     "domainRoutes": {
       "D_SYNTAX_BINDER": {
@@ -6373,7 +6388,11 @@
           "interactionPointTiles": [
             38,
             28
-          ]
+          ],
+          "interactionPointPx": {
+            "x": 608,
+            "y": 448
+          }
         },
         "reinforcement": {
           "sceneId": "scene.valley.old_mine_threshold",
@@ -6381,7 +6400,11 @@
           "interactionPointTiles": [
             12,
             1
-          ]
+          ],
+          "interactionPointPx": {
+            "x": 192,
+            "y": 288
+          }
         }
       },
       "D_QUANTITY_LOGIC": {
@@ -6391,7 +6414,11 @@
           "interactionPointTiles": [
             20,
             1
-          ]
+          ],
+          "interactionPointPx": {
+            "x": 320,
+            "y": 256
+          }
         },
         "reinforcement": {
           "sceneId": "scene.valley.return_channel",
@@ -6399,7 +6426,11 @@
           "interactionPointTiles": [
             21,
             1
-          ]
+          ],
+          "interactionPointPx": {
+            "x": 336,
+            "y": 384
+          }
         }
       },
       "D_MATTER_ENV": {
@@ -6409,7 +6440,11 @@
           "interactionPointTiles": [
             25,
             1
-          ]
+          ],
+          "interactionPointPx": {
+            "x": 400,
+            "y": 384
+          }
         },
         "reinforcement": {
           "sceneId": "scene.valley.settlement",
@@ -6417,7 +6452,11 @@
           "interactionPointTiles": [
             10,
             28
-          ]
+          ],
+          "interactionPointPx": {
+            "x": 160,
+            "y": 448
+          }
         }
       },
       "D_LIFE_ENTITY": {
@@ -6427,7 +6466,11 @@
           "interactionPointTiles": [
             7,
             1
-          ]
+          ],
+          "interactionPointPx": {
+            "x": 112,
+            "y": 416
+          }
         },
         "reinforcement": {
           "sceneId": "scene.valley.settlement",
@@ -6435,7 +6478,11 @@
           "interactionPointTiles": [
             38,
             28
-          ]
+          ],
+          "interactionPointPx": {
+            "x": 608,
+            "y": 448
+          }
         }
       },
       "D_CRAFT_OBJECT": {
@@ -6445,7 +6492,11 @@
           "interactionPointTiles": [
             26,
             28
-          ]
+          ],
+          "interactionPointPx": {
+            "x": 416,
+            "y": 448
+          }
         },
         "reinforcement": {
           "sceneId": "scene.valley.old_mine_threshold",
@@ -6453,7 +6504,11 @@
           "interactionPointTiles": [
             12,
             1
-          ]
+          ],
+          "interactionPointPx": {
+            "x": 192,
+            "y": 288
+          }
         }
       },
       "D_ENERGY_FIELD": {
@@ -6463,7 +6518,11 @@
           "interactionPointTiles": [
             5,
             1
-          ]
+          ],
+          "interactionPointPx": {
+            "x": 80,
+            "y": 384
+          }
         },
         "reinforcement": {
           "sceneId": "scene.valley.safe_range",
@@ -6471,7 +6530,11 @@
           "interactionPointTiles": [
             20,
             1
-          ]
+          ],
+          "interactionPointPx": {
+            "x": 320,
+            "y": 256
+          }
         }
       },
       "D_PROPERTY_FORM": {
@@ -6481,7 +6544,11 @@
           "interactionPointTiles": [
             5,
             1
-          ]
+          ],
+          "interactionPointPx": {
+            "x": 80,
+            "y": 256
+          }
         },
         "reinforcement": {
           "sceneId": "scene.valley.old_mine_threshold",
@@ -6489,7 +6556,11 @@
           "interactionPointTiles": [
             12,
             1
-          ]
+          ],
+          "interactionPointPx": {
+            "x": 192,
+            "y": 288
+          }
         }
       },
       "D_ACTION_PROCESS": {
@@ -6499,7 +6570,11 @@
           "interactionPointTiles": [
             36,
             28
-          ]
+          ],
+          "interactionPointPx": {
+            "x": 576,
+            "y": 448
+          }
         },
         "reinforcement": {
           "sceneId": "scene.valley.return_channel",
@@ -6507,7 +6582,11 @@
           "interactionPointTiles": [
             9,
             1
-          ]
+          ],
+          "interactionPointPx": {
+            "x": 144,
+            "y": 384
+          }
         }
       },
       "D_SPACE_TIME": {
@@ -6517,7 +6596,11 @@
           "interactionPointTiles": [
             12,
             1
-          ]
+          ],
+          "interactionPointPx": {
+            "x": 192,
+            "y": 288
+          }
         },
         "reinforcement": {
           "sceneId": "scene.valley.return_channel",
@@ -6525,7 +6608,11 @@
           "interactionPointTiles": [
             17,
             1
-          ]
+          ],
+          "interactionPointPx": {
+            "x": 272,
+            "y": 384
+          }
         }
       },
       "D_PERCEPTION_SOCIAL": {
@@ -6535,7 +6622,11 @@
           "interactionPointTiles": [
             38,
             28
-          ]
+          ],
+          "interactionPointPx": {
+            "x": 608,
+            "y": 448
+          }
         },
         "reinforcement": {
           "sceneId": "scene.valley.den_bypass",
@@ -6543,7 +6634,11 @@
           "interactionPointTiles": [
             7,
             1
-          ]
+          ],
+          "interactionPointPx": {
+            "x": 112,
+            "y": 416
+          }
         }
       }
     },
@@ -6576,7 +6671,11 @@
               "interactionPointTiles": [
                 38,
                 28
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 608,
+                "y": 448
+              }
             }
           },
           {
@@ -6590,7 +6689,11 @@
               "interactionPointTiles": [
                 12,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 192,
+                "y": 288
+              }
             }
           }
         ],
@@ -6636,7 +6739,11 @@
               "interactionPointTiles": [
                 7,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 112,
+                "y": 416
+              }
             }
           },
           {
@@ -6650,7 +6757,11 @@
               "interactionPointTiles": [
                 38,
                 28
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 608,
+                "y": 448
+              }
             }
           }
         ],
@@ -6696,7 +6807,11 @@
               "interactionPointTiles": [
                 20,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 320,
+                "y": 256
+              }
             }
           },
           {
@@ -6710,7 +6825,11 @@
               "interactionPointTiles": [
                 21,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 336,
+                "y": 384
+              }
             }
           }
         ],
@@ -6756,7 +6875,11 @@
               "interactionPointTiles": [
                 36,
                 28
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 576,
+                "y": 448
+              }
             }
           },
           {
@@ -6770,7 +6893,11 @@
               "interactionPointTiles": [
                 9,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 144,
+                "y": 384
+              }
             }
           }
         ],
@@ -6816,7 +6943,11 @@
               "interactionPointTiles": [
                 20,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 320,
+                "y": 256
+              }
             }
           },
           {
@@ -6830,7 +6961,11 @@
               "interactionPointTiles": [
                 21,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 336,
+                "y": 384
+              }
             }
           }
         ],
@@ -6876,7 +7011,11 @@
               "interactionPointTiles": [
                 12,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 192,
+                "y": 288
+              }
             }
           },
           {
@@ -6890,7 +7029,11 @@
               "interactionPointTiles": [
                 17,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 272,
+                "y": 384
+              }
             }
           }
         ],
@@ -6936,7 +7079,11 @@
               "interactionPointTiles": [
                 20,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 320,
+                "y": 256
+              }
             }
           },
           {
@@ -6950,7 +7097,11 @@
               "interactionPointTiles": [
                 21,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 336,
+                "y": 384
+              }
             }
           }
         ],
@@ -6995,7 +7146,11 @@
               "interactionPointTiles": [
                 20,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 320,
+                "y": 256
+              }
             }
           },
           {
@@ -7009,7 +7164,11 @@
               "interactionPointTiles": [
                 21,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 336,
+                "y": 384
+              }
             }
           }
         ],
@@ -7054,7 +7213,11 @@
               "interactionPointTiles": [
                 36,
                 28
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 576,
+                "y": 448
+              }
             }
           },
           {
@@ -7068,7 +7231,11 @@
               "interactionPointTiles": [
                 9,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 144,
+                "y": 384
+              }
             }
           }
         ],
@@ -7109,7 +7276,11 @@
               "interactionPointTiles": [
                 38,
                 28
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 608,
+                "y": 448
+              }
             }
           },
           {
@@ -7123,7 +7294,11 @@
               "interactionPointTiles": [
                 12,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 192,
+                "y": 288
+              }
             }
           }
         ],
@@ -7165,7 +7340,11 @@
               "interactionPointTiles": [
                 38,
                 28
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 608,
+                "y": 448
+              }
             }
           },
           {
@@ -7179,7 +7358,11 @@
               "interactionPointTiles": [
                 12,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 192,
+                "y": 288
+              }
             }
           }
         ],
@@ -7225,7 +7408,11 @@
               "interactionPointTiles": [
                 38,
                 28
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 608,
+                "y": 448
+              }
             }
           },
           {
@@ -7239,7 +7426,11 @@
               "interactionPointTiles": [
                 7,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 112,
+                "y": 416
+              }
             }
           }
         ],
@@ -7285,7 +7476,11 @@
               "interactionPointTiles": [
                 38,
                 28
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 608,
+                "y": 448
+              }
             }
           },
           {
@@ -7299,7 +7494,11 @@
               "interactionPointTiles": [
                 12,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 192,
+                "y": 288
+              }
             }
           }
         ],
@@ -7345,7 +7544,11 @@
               "interactionPointTiles": [
                 5,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 80,
+                "y": 256
+              }
             }
           },
           {
@@ -7359,7 +7562,11 @@
               "interactionPointTiles": [
                 12,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 192,
+                "y": 288
+              }
             }
           }
         ],
@@ -7405,7 +7612,11 @@
               "interactionPointTiles": [
                 26,
                 28
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 416,
+                "y": 448
+              }
             }
           },
           {
@@ -7419,7 +7630,11 @@
               "interactionPointTiles": [
                 12,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 192,
+                "y": 288
+              }
             }
           }
         ],
@@ -7465,7 +7680,11 @@
               "interactionPointTiles": [
                 12,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 192,
+                "y": 288
+              }
             }
           },
           {
@@ -7479,7 +7698,11 @@
               "interactionPointTiles": [
                 17,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 272,
+                "y": 384
+              }
             }
           }
         ],
@@ -7525,7 +7748,11 @@
               "interactionPointTiles": [
                 5,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 80,
+                "y": 256
+              }
             }
           },
           {
@@ -7539,7 +7766,11 @@
               "interactionPointTiles": [
                 12,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 192,
+                "y": 288
+              }
             }
           }
         ],
@@ -7585,7 +7816,11 @@
               "interactionPointTiles": [
                 38,
                 28
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 608,
+                "y": 448
+              }
             }
           },
           {
@@ -7599,7 +7834,11 @@
               "interactionPointTiles": [
                 7,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 112,
+                "y": 416
+              }
             }
           }
         ],
@@ -7645,7 +7884,11 @@
               "interactionPointTiles": [
                 5,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 80,
+                "y": 256
+              }
             }
           },
           {
@@ -7659,7 +7902,11 @@
               "interactionPointTiles": [
                 12,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 192,
+                "y": 288
+              }
             }
           }
         ],
@@ -7704,7 +7951,11 @@
               "interactionPointTiles": [
                 36,
                 28
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 576,
+                "y": 448
+              }
             }
           },
           {
@@ -7718,7 +7969,11 @@
               "interactionPointTiles": [
                 9,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 144,
+                "y": 384
+              }
             }
           }
         ],
@@ -7764,7 +8019,11 @@
               "interactionPointTiles": [
                 7,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 112,
+                "y": 416
+              }
             }
           },
           {
@@ -7778,7 +8037,11 @@
               "interactionPointTiles": [
                 38,
                 28
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 608,
+                "y": 448
+              }
             }
           }
         ],
@@ -7824,7 +8087,11 @@
               "interactionPointTiles": [
                 5,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 80,
+                "y": 384
+              }
             }
           },
           {
@@ -7838,7 +8105,11 @@
               "interactionPointTiles": [
                 20,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 320,
+                "y": 256
+              }
             }
           }
         ],
@@ -7884,7 +8155,11 @@
               "interactionPointTiles": [
                 36,
                 28
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 576,
+                "y": 448
+              }
             }
           },
           {
@@ -7898,7 +8173,11 @@
               "interactionPointTiles": [
                 9,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 144,
+                "y": 384
+              }
             }
           }
         ],
@@ -7944,7 +8223,11 @@
               "interactionPointTiles": [
                 7,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 112,
+                "y": 416
+              }
             }
           },
           {
@@ -7958,7 +8241,11 @@
               "interactionPointTiles": [
                 38,
                 28
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 608,
+                "y": 448
+              }
             }
           }
         ],
@@ -8004,7 +8291,11 @@
               "interactionPointTiles": [
                 20,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 320,
+                "y": 256
+              }
             }
           },
           {
@@ -8018,7 +8309,11 @@
               "interactionPointTiles": [
                 21,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 336,
+                "y": 384
+              }
             }
           }
         ],
@@ -8064,7 +8359,11 @@
               "interactionPointTiles": [
                 36,
                 28
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 576,
+                "y": 448
+              }
             }
           },
           {
@@ -8078,7 +8377,11 @@
               "interactionPointTiles": [
                 9,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 144,
+                "y": 384
+              }
             }
           }
         ],
@@ -8124,7 +8427,11 @@
               "interactionPointTiles": [
                 7,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 112,
+                "y": 416
+              }
             }
           },
           {
@@ -8138,7 +8445,11 @@
               "interactionPointTiles": [
                 38,
                 28
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 608,
+                "y": 448
+              }
             }
           }
         ],
@@ -8184,7 +8495,11 @@
               "interactionPointTiles": [
                 25,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 400,
+                "y": 384
+              }
             }
           },
           {
@@ -8198,7 +8513,11 @@
               "interactionPointTiles": [
                 10,
                 28
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 160,
+                "y": 448
+              }
             }
           }
         ],
@@ -8244,7 +8563,11 @@
               "interactionPointTiles": [
                 25,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 400,
+                "y": 384
+              }
             }
           },
           {
@@ -8258,7 +8581,11 @@
               "interactionPointTiles": [
                 10,
                 28
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 160,
+                "y": 448
+              }
             }
           }
         ],
@@ -8304,7 +8631,11 @@
               "interactionPointTiles": [
                 25,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 400,
+                "y": 384
+              }
             }
           },
           {
@@ -8318,7 +8649,11 @@
               "interactionPointTiles": [
                 10,
                 28
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 160,
+                "y": 448
+              }
             }
           }
         ],
@@ -8364,7 +8699,11 @@
               "interactionPointTiles": [
                 5,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 80,
+                "y": 256
+              }
             }
           },
           {
@@ -8378,7 +8717,11 @@
               "interactionPointTiles": [
                 12,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 192,
+                "y": 288
+              }
             }
           }
         ],
@@ -8424,7 +8767,11 @@
               "interactionPointTiles": [
                 38,
                 28
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 608,
+                "y": 448
+              }
             }
           },
           {
@@ -8438,7 +8785,11 @@
               "interactionPointTiles": [
                 7,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 112,
+                "y": 416
+              }
             }
           }
         ],
@@ -8484,7 +8835,11 @@
               "interactionPointTiles": [
                 38,
                 28
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 608,
+                "y": 448
+              }
             }
           },
           {
@@ -8498,7 +8853,11 @@
               "interactionPointTiles": [
                 7,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 112,
+                "y": 416
+              }
             }
           }
         ],
@@ -8540,7 +8899,11 @@
               "interactionPointTiles": [
                 38,
                 28
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 608,
+                "y": 448
+              }
             }
           },
           {
@@ -8554,7 +8917,11 @@
               "interactionPointTiles": [
                 12,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 192,
+                "y": 288
+              }
             }
           }
         ],
@@ -8600,7 +8967,11 @@
               "interactionPointTiles": [
                 5,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 80,
+                "y": 256
+              }
             }
           },
           {
@@ -8614,7 +8985,11 @@
               "interactionPointTiles": [
                 12,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 192,
+                "y": 288
+              }
             }
           }
         ],
@@ -8660,7 +9035,11 @@
               "interactionPointTiles": [
                 5,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 80,
+                "y": 256
+              }
             }
           },
           {
@@ -8674,7 +9053,11 @@
               "interactionPointTiles": [
                 12,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 192,
+                "y": 288
+              }
             }
           }
         ],
@@ -8720,7 +9103,11 @@
               "interactionPointTiles": [
                 38,
                 28
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 608,
+                "y": 448
+              }
             }
           },
           {
@@ -8734,7 +9121,11 @@
               "interactionPointTiles": [
                 7,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 112,
+                "y": 416
+              }
             }
           }
         ],
@@ -8780,7 +9171,11 @@
               "interactionPointTiles": [
                 26,
                 28
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 416,
+                "y": 448
+              }
             }
           },
           {
@@ -8794,7 +9189,11 @@
               "interactionPointTiles": [
                 12,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 192,
+                "y": 288
+              }
             }
           }
         ],
@@ -8840,7 +9239,11 @@
               "interactionPointTiles": [
                 5,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 80,
+                "y": 384
+              }
             }
           },
           {
@@ -8854,7 +9257,11 @@
               "interactionPointTiles": [
                 20,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 320,
+                "y": 256
+              }
             }
           }
         ],
@@ -8895,7 +9302,11 @@
               "interactionPointTiles": [
                 38,
                 28
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 608,
+                "y": 448
+              }
             }
           },
           {
@@ -8909,7 +9320,11 @@
               "interactionPointTiles": [
                 12,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 192,
+                "y": 288
+              }
             }
           }
         ],
@@ -8956,7 +9371,11 @@
               "interactionPointTiles": [
                 5,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 80,
+                "y": 256
+              }
             }
           },
           {
@@ -8970,7 +9389,11 @@
               "interactionPointTiles": [
                 12,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 192,
+                "y": 288
+              }
             }
           }
         ],
@@ -9016,7 +9439,11 @@
               "interactionPointTiles": [
                 26,
                 28
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 416,
+                "y": 448
+              }
             }
           },
           {
@@ -9030,7 +9457,11 @@
               "interactionPointTiles": [
                 12,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 192,
+                "y": 288
+              }
             }
           }
         ],
@@ -9076,7 +9507,11 @@
               "interactionPointTiles": [
                 26,
                 28
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 416,
+                "y": 448
+              }
             }
           },
           {
@@ -9090,7 +9525,11 @@
               "interactionPointTiles": [
                 12,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 192,
+                "y": 288
+              }
             }
           }
         ],
@@ -9136,7 +9575,11 @@
               "interactionPointTiles": [
                 5,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 80,
+                "y": 256
+              }
             }
           },
           {
@@ -9150,7 +9593,11 @@
               "interactionPointTiles": [
                 12,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 192,
+                "y": 288
+              }
             }
           }
         ],
@@ -9196,7 +9643,11 @@
               "interactionPointTiles": [
                 12,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 192,
+                "y": 288
+              }
             }
           },
           {
@@ -9210,7 +9661,11 @@
               "interactionPointTiles": [
                 17,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 272,
+                "y": 384
+              }
             }
           }
         ],
@@ -9256,7 +9711,11 @@
               "interactionPointTiles": [
                 7,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 112,
+                "y": 416
+              }
             }
           },
           {
@@ -9270,7 +9729,11 @@
               "interactionPointTiles": [
                 38,
                 28
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 608,
+                "y": 448
+              }
             }
           }
         ],
@@ -9316,7 +9779,11 @@
               "interactionPointTiles": [
                 38,
                 28
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 608,
+                "y": 448
+              }
             }
           },
           {
@@ -9330,7 +9797,11 @@
               "interactionPointTiles": [
                 7,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 112,
+                "y": 416
+              }
             }
           }
         ],
@@ -9376,7 +9847,11 @@
               "interactionPointTiles": [
                 26,
                 28
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 416,
+                "y": 448
+              }
             }
           },
           {
@@ -9390,7 +9865,11 @@
               "interactionPointTiles": [
                 12,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 192,
+                "y": 288
+              }
             }
           }
         ],
@@ -9436,7 +9915,11 @@
               "interactionPointTiles": [
                 25,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 400,
+                "y": 384
+              }
             }
           },
           {
@@ -9450,7 +9933,11 @@
               "interactionPointTiles": [
                 10,
                 28
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 160,
+                "y": 448
+              }
             }
           }
         ],
@@ -9496,7 +9983,11 @@
               "interactionPointTiles": [
                 7,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 112,
+                "y": 416
+              }
             }
           },
           {
@@ -9510,7 +10001,11 @@
               "interactionPointTiles": [
                 38,
                 28
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 608,
+                "y": 448
+              }
             }
           }
         ],
@@ -9556,7 +10051,11 @@
               "interactionPointTiles": [
                 26,
                 28
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 416,
+                "y": 448
+              }
             }
           },
           {
@@ -9570,7 +10069,11 @@
               "interactionPointTiles": [
                 12,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 192,
+                "y": 288
+              }
             }
           }
         ],
@@ -9616,7 +10119,11 @@
               "interactionPointTiles": [
                 7,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 112,
+                "y": 416
+              }
             }
           },
           {
@@ -9630,7 +10137,11 @@
               "interactionPointTiles": [
                 38,
                 28
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 608,
+                "y": 448
+              }
             }
           }
         ],
@@ -9674,7 +10185,11 @@
               "interactionPointTiles": [
                 38,
                 28
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 608,
+                "y": 448
+              }
             }
           },
           {
@@ -9688,7 +10203,11 @@
               "interactionPointTiles": [
                 12,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 192,
+                "y": 288
+              }
             }
           }
         ],
@@ -9734,7 +10253,11 @@
               "interactionPointTiles": [
                 7,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 112,
+                "y": 416
+              }
             }
           },
           {
@@ -9748,7 +10271,11 @@
               "interactionPointTiles": [
                 38,
                 28
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 608,
+                "y": 448
+              }
             }
           }
         ],
@@ -9793,7 +10320,11 @@
               "interactionPointTiles": [
                 36,
                 28
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 576,
+                "y": 448
+              }
             }
           },
           {
@@ -9807,7 +10338,11 @@
               "interactionPointTiles": [
                 9,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 144,
+                "y": 384
+              }
             }
           }
         ],
@@ -9853,7 +10388,11 @@
               "interactionPointTiles": [
                 7,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 112,
+                "y": 416
+              }
             }
           },
           {
@@ -9867,7 +10406,11 @@
               "interactionPointTiles": [
                 38,
                 28
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 608,
+                "y": 448
+              }
             }
           }
         ],
@@ -9913,7 +10456,11 @@
               "interactionPointTiles": [
                 12,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 192,
+                "y": 288
+              }
             }
           },
           {
@@ -9927,7 +10474,11 @@
               "interactionPointTiles": [
                 17,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 272,
+                "y": 384
+              }
             }
           }
         ],
@@ -9973,7 +10524,11 @@
               "interactionPointTiles": [
                 38,
                 28
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 608,
+                "y": 448
+              }
             }
           },
           {
@@ -9987,7 +10542,11 @@
               "interactionPointTiles": [
                 7,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 112,
+                "y": 416
+              }
             }
           }
         ],
@@ -10033,7 +10592,11 @@
               "interactionPointTiles": [
                 5,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 80,
+                "y": 384
+              }
             }
           },
           {
@@ -10047,7 +10610,11 @@
               "interactionPointTiles": [
                 20,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 320,
+                "y": 256
+              }
             }
           }
         ],
@@ -10093,7 +10660,11 @@
               "interactionPointTiles": [
                 38,
                 28
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 608,
+                "y": 448
+              }
             }
           },
           {
@@ -10107,7 +10678,11 @@
               "interactionPointTiles": [
                 7,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 112,
+                "y": 416
+              }
             }
           }
         ],
@@ -10153,7 +10728,11 @@
               "interactionPointTiles": [
                 20,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 320,
+                "y": 256
+              }
             }
           },
           {
@@ -10167,7 +10746,11 @@
               "interactionPointTiles": [
                 21,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 336,
+                "y": 384
+              }
             }
           }
         ],
@@ -10212,7 +10795,11 @@
               "interactionPointTiles": [
                 20,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 320,
+                "y": 256
+              }
             }
           },
           {
@@ -10226,7 +10813,11 @@
               "interactionPointTiles": [
                 21,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 336,
+                "y": 384
+              }
             }
           }
         ],
@@ -10272,7 +10863,11 @@
               "interactionPointTiles": [
                 5,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 80,
+                "y": 256
+              }
             }
           },
           {
@@ -10286,7 +10881,11 @@
               "interactionPointTiles": [
                 12,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 192,
+                "y": 288
+              }
             }
           }
         ],
@@ -10332,7 +10931,11 @@
               "interactionPointTiles": [
                 12,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 192,
+                "y": 288
+              }
             }
           },
           {
@@ -10346,7 +10949,11 @@
               "interactionPointTiles": [
                 17,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 272,
+                "y": 384
+              }
             }
           }
         ],
@@ -10392,7 +10999,11 @@
               "interactionPointTiles": [
                 5,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 80,
+                "y": 256
+              }
             }
           },
           {
@@ -10406,7 +11017,11 @@
               "interactionPointTiles": [
                 12,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 192,
+                "y": 288
+              }
             }
           }
         ],
@@ -10451,7 +11066,11 @@
               "interactionPointTiles": [
                 38,
                 28
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 608,
+                "y": 448
+              }
             }
           },
           {
@@ -10465,7 +11084,11 @@
               "interactionPointTiles": [
                 12,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 192,
+                "y": 288
+              }
             }
           }
         ],
@@ -10511,7 +11134,11 @@
               "interactionPointTiles": [
                 38,
                 28
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 608,
+                "y": 448
+              }
             }
           },
           {
@@ -10525,7 +11152,11 @@
               "interactionPointTiles": [
                 12,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 192,
+                "y": 288
+              }
             }
           }
         ],
@@ -10571,7 +11202,11 @@
               "interactionPointTiles": [
                 7,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 112,
+                "y": 416
+              }
             }
           },
           {
@@ -10585,7 +11220,11 @@
               "interactionPointTiles": [
                 38,
                 28
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 608,
+                "y": 448
+              }
             }
           }
         ],
@@ -10628,7 +11267,11 @@
               "interactionPointTiles": [
                 38,
                 28
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 608,
+                "y": 448
+              }
             }
           },
           {
@@ -10642,7 +11285,11 @@
               "interactionPointTiles": [
                 12,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 192,
+                "y": 288
+              }
             }
           }
         ],
@@ -10688,7 +11335,11 @@
               "interactionPointTiles": [
                 38,
                 28
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 608,
+                "y": 448
+              }
             }
           },
           {
@@ -10702,7 +11353,11 @@
               "interactionPointTiles": [
                 7,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 112,
+                "y": 416
+              }
             }
           }
         ],
@@ -10746,7 +11401,11 @@
               "interactionPointTiles": [
                 38,
                 28
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 608,
+                "y": 448
+              }
             }
           },
           {
@@ -10760,7 +11419,11 @@
               "interactionPointTiles": [
                 12,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 192,
+                "y": 288
+              }
             }
           }
         ],
@@ -10805,7 +11468,11 @@
               "interactionPointTiles": [
                 36,
                 28
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 576,
+                "y": 448
+              }
             }
           },
           {
@@ -10819,7 +11486,11 @@
               "interactionPointTiles": [
                 9,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 144,
+                "y": 384
+              }
             }
           }
         ],
@@ -10865,7 +11536,11 @@
               "interactionPointTiles": [
                 36,
                 28
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 576,
+                "y": 448
+              }
             }
           },
           {
@@ -10879,7 +11554,11 @@
               "interactionPointTiles": [
                 9,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 144,
+                "y": 384
+              }
             }
           }
         ],
@@ -10924,7 +11603,11 @@
               "interactionPointTiles": [
                 36,
                 28
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 576,
+                "y": 448
+              }
             }
           },
           {
@@ -10938,7 +11621,11 @@
               "interactionPointTiles": [
                 9,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 144,
+                "y": 384
+              }
             }
           }
         ],
@@ -10984,7 +11671,11 @@
               "interactionPointTiles": [
                 26,
                 28
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 416,
+                "y": 448
+              }
             }
           },
           {
@@ -10998,7 +11689,11 @@
               "interactionPointTiles": [
                 12,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 192,
+                "y": 288
+              }
             }
           }
         ],
@@ -11044,7 +11739,11 @@
               "interactionPointTiles": [
                 25,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 400,
+                "y": 384
+              }
             }
           },
           {
@@ -11058,7 +11757,11 @@
               "interactionPointTiles": [
                 10,
                 28
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 160,
+                "y": 448
+              }
             }
           }
         ],
@@ -11104,7 +11807,11 @@
               "interactionPointTiles": [
                 36,
                 28
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 576,
+                "y": 448
+              }
             }
           },
           {
@@ -11118,7 +11825,11 @@
               "interactionPointTiles": [
                 9,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 144,
+                "y": 384
+              }
             }
           }
         ],
@@ -11160,7 +11871,11 @@
               "interactionPointTiles": [
                 38,
                 28
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 608,
+                "y": 448
+              }
             }
           },
           {
@@ -11174,7 +11889,11 @@
               "interactionPointTiles": [
                 12,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 192,
+                "y": 288
+              }
             }
           }
         ],
@@ -11220,7 +11939,11 @@
               "interactionPointTiles": [
                 38,
                 28
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 608,
+                "y": 448
+              }
             }
           },
           {
@@ -11234,7 +11957,11 @@
               "interactionPointTiles": [
                 7,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 112,
+                "y": 416
+              }
             }
           }
         ],
@@ -11280,7 +12007,11 @@
               "interactionPointTiles": [
                 5,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 80,
+                "y": 384
+              }
             }
           },
           {
@@ -11294,7 +12025,11 @@
               "interactionPointTiles": [
                 20,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 320,
+                "y": 256
+              }
             }
           }
         ],
@@ -11339,7 +12074,11 @@
               "interactionPointTiles": [
                 36,
                 28
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 576,
+                "y": 448
+              }
             }
           },
           {
@@ -11353,7 +12092,11 @@
               "interactionPointTiles": [
                 9,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 144,
+                "y": 384
+              }
             }
           }
         ],
@@ -11399,7 +12142,11 @@
               "interactionPointTiles": [
                 7,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 112,
+                "y": 416
+              }
             }
           },
           {
@@ -11413,7 +12160,11 @@
               "interactionPointTiles": [
                 38,
                 28
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 608,
+                "y": 448
+              }
             }
           }
         ],
@@ -11459,7 +12210,11 @@
               "interactionPointTiles": [
                 12,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 192,
+                "y": 288
+              }
             }
           },
           {
@@ -11473,7 +12228,11 @@
               "interactionPointTiles": [
                 17,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 272,
+                "y": 384
+              }
             }
           }
         ],
@@ -11519,7 +12278,11 @@
               "interactionPointTiles": [
                 26,
                 28
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 416,
+                "y": 448
+              }
             }
           },
           {
@@ -11533,7 +12296,11 @@
               "interactionPointTiles": [
                 12,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 192,
+                "y": 288
+              }
             }
           }
         ],
@@ -11579,7 +12346,11 @@
               "interactionPointTiles": [
                 5,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 80,
+                "y": 256
+              }
             }
           },
           {
@@ -11593,7 +12364,11 @@
               "interactionPointTiles": [
                 12,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 192,
+                "y": 288
+              }
             }
           }
         ],
@@ -11638,7 +12413,11 @@
               "interactionPointTiles": [
                 38,
                 28
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 608,
+                "y": 448
+              }
             }
           },
           {
@@ -11652,7 +12431,11 @@
               "interactionPointTiles": [
                 12,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 192,
+                "y": 288
+              }
             }
           }
         ],
@@ -11698,7 +12481,11 @@
               "interactionPointTiles": [
                 20,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 320,
+                "y": 256
+              }
             }
           },
           {
@@ -11712,7 +12499,11 @@
               "interactionPointTiles": [
                 21,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 336,
+                "y": 384
+              }
             }
           }
         ],
@@ -11758,7 +12549,11 @@
               "interactionPointTiles": [
                 5,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 80,
+                "y": 384
+              }
             }
           },
           {
@@ -11772,7 +12567,11 @@
               "interactionPointTiles": [
                 20,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 320,
+                "y": 256
+              }
             }
           }
         ],
@@ -11818,7 +12617,11 @@
               "interactionPointTiles": [
                 5,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 80,
+                "y": 256
+              }
             }
           },
           {
@@ -11832,7 +12635,11 @@
               "interactionPointTiles": [
                 12,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 192,
+                "y": 288
+              }
             }
           }
         ],
@@ -11877,7 +12684,11 @@
               "interactionPointTiles": [
                 38,
                 28
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 608,
+                "y": 448
+              }
             }
           },
           {
@@ -11891,7 +12702,11 @@
               "interactionPointTiles": [
                 12,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 192,
+                "y": 288
+              }
             }
           }
         ],
@@ -11937,7 +12752,11 @@
               "interactionPointTiles": [
                 12,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 192,
+                "y": 288
+              }
             }
           },
           {
@@ -11951,7 +12770,11 @@
               "interactionPointTiles": [
                 17,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 272,
+                "y": 384
+              }
             }
           }
         ],
@@ -11997,7 +12820,11 @@
               "interactionPointTiles": [
                 7,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 112,
+                "y": 416
+              }
             }
           },
           {
@@ -12011,7 +12838,11 @@
               "interactionPointTiles": [
                 38,
                 28
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 608,
+                "y": 448
+              }
             }
           }
         ],
@@ -12057,7 +12888,11 @@
               "interactionPointTiles": [
                 5,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 80,
+                "y": 256
+              }
             }
           },
           {
@@ -12071,7 +12906,11 @@
               "interactionPointTiles": [
                 12,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 192,
+                "y": 288
+              }
             }
           }
         ],
@@ -12117,7 +12956,11 @@
               "interactionPointTiles": [
                 5,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 80,
+                "y": 256
+              }
             }
           },
           {
@@ -12131,7 +12974,11 @@
               "interactionPointTiles": [
                 12,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 192,
+                "y": 288
+              }
             }
           }
         ],
@@ -12175,7 +13022,11 @@
               "interactionPointTiles": [
                 38,
                 28
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 608,
+                "y": 448
+              }
             }
           },
           {
@@ -12189,7 +13040,11 @@
               "interactionPointTiles": [
                 12,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 192,
+                "y": 288
+              }
             }
           }
         ],
@@ -12235,7 +13090,11 @@
               "interactionPointTiles": [
                 12,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 192,
+                "y": 288
+              }
             }
           },
           {
@@ -12249,7 +13108,11 @@
               "interactionPointTiles": [
                 17,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 272,
+                "y": 384
+              }
             }
           }
         ],
@@ -12295,7 +13158,11 @@
               "interactionPointTiles": [
                 26,
                 28
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 416,
+                "y": 448
+              }
             }
           },
           {
@@ -12309,7 +13176,11 @@
               "interactionPointTiles": [
                 12,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 192,
+                "y": 288
+              }
             }
           }
         ],
@@ -12355,7 +13226,11 @@
               "interactionPointTiles": [
                 38,
                 28
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 608,
+                "y": 448
+              }
             }
           },
           {
@@ -12369,7 +13244,11 @@
               "interactionPointTiles": [
                 7,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 112,
+                "y": 416
+              }
             }
           }
         ],
@@ -12415,7 +13294,11 @@
               "interactionPointTiles": [
                 7,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 112,
+                "y": 416
+              }
             }
           },
           {
@@ -12429,7 +13312,11 @@
               "interactionPointTiles": [
                 38,
                 28
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 608,
+                "y": 448
+              }
             }
           }
         ],
@@ -12476,7 +13363,11 @@
               "interactionPointTiles": [
                 5,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 80,
+                "y": 256
+              }
             }
           },
           {
@@ -12490,7 +13381,11 @@
               "interactionPointTiles": [
                 12,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 192,
+                "y": 288
+              }
             }
           }
         ],
@@ -12536,7 +13431,11 @@
               "interactionPointTiles": [
                 5,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 80,
+                "y": 384
+              }
             }
           },
           {
@@ -12550,7 +13449,11 @@
               "interactionPointTiles": [
                 20,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 320,
+                "y": 256
+              }
             }
           }
         ],
@@ -12596,7 +13499,11 @@
               "interactionPointTiles": [
                 26,
                 28
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 416,
+                "y": 448
+              }
             }
           },
           {
@@ -12610,7 +13517,11 @@
               "interactionPointTiles": [
                 12,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 192,
+                "y": 288
+              }
             }
           }
         ],
@@ -12656,7 +13567,11 @@
               "interactionPointTiles": [
                 5,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 80,
+                "y": 256
+              }
             }
           },
           {
@@ -12670,7 +13585,11 @@
               "interactionPointTiles": [
                 12,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 192,
+                "y": 288
+              }
             }
           }
         ],
@@ -12716,7 +13635,11 @@
               "interactionPointTiles": [
                 12,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 192,
+                "y": 288
+              }
             }
           },
           {
@@ -12730,7 +13653,11 @@
               "interactionPointTiles": [
                 17,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 272,
+                "y": 384
+              }
             }
           }
         ],
@@ -12776,7 +13703,11 @@
               "interactionPointTiles": [
                 20,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 320,
+                "y": 256
+              }
             }
           },
           {
@@ -12790,7 +13721,11 @@
               "interactionPointTiles": [
                 21,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 336,
+                "y": 384
+              }
             }
           }
         ],
@@ -12836,7 +13771,11 @@
               "interactionPointTiles": [
                 36,
                 28
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 576,
+                "y": 448
+              }
             }
           },
           {
@@ -12850,7 +13789,11 @@
               "interactionPointTiles": [
                 9,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 144,
+                "y": 384
+              }
             }
           }
         ],
@@ -12896,7 +13839,11 @@
               "interactionPointTiles": [
                 25,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 400,
+                "y": 384
+              }
             }
           },
           {
@@ -12910,7 +13857,11 @@
               "interactionPointTiles": [
                 10,
                 28
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 160,
+                "y": 448
+              }
             }
           }
         ],
@@ -12956,7 +13907,11 @@
               "interactionPointTiles": [
                 12,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 192,
+                "y": 288
+              }
             }
           },
           {
@@ -12970,7 +13925,11 @@
               "interactionPointTiles": [
                 17,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 272,
+                "y": 384
+              }
             }
           }
         ],
@@ -13016,7 +13975,11 @@
               "interactionPointTiles": [
                 38,
                 28
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 608,
+                "y": 448
+              }
             }
           },
           {
@@ -13030,7 +13993,11 @@
               "interactionPointTiles": [
                 7,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 112,
+                "y": 416
+              }
             }
           }
         ],
@@ -13076,7 +14043,11 @@
               "interactionPointTiles": [
                 26,
                 28
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 416,
+                "y": 448
+              }
             }
           },
           {
@@ -13090,7 +14061,11 @@
               "interactionPointTiles": [
                 12,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 192,
+                "y": 288
+              }
             }
           }
         ],
@@ -13136,7 +14111,11 @@
               "interactionPointTiles": [
                 20,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 320,
+                "y": 256
+              }
             }
           },
           {
@@ -13150,7 +14129,11 @@
               "interactionPointTiles": [
                 21,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 336,
+                "y": 384
+              }
             }
           }
         ],
@@ -13196,7 +14179,11 @@
               "interactionPointTiles": [
                 7,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 112,
+                "y": 416
+              }
             }
           },
           {
@@ -13210,7 +14197,11 @@
               "interactionPointTiles": [
                 38,
                 28
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 608,
+                "y": 448
+              }
             }
           }
         ],
@@ -13256,7 +14247,11 @@
               "interactionPointTiles": [
                 7,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 112,
+                "y": 416
+              }
             }
           },
           {
@@ -13270,7 +14265,11 @@
               "interactionPointTiles": [
                 38,
                 28
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 608,
+                "y": 448
+              }
             }
           }
         ],
@@ -13316,7 +14315,11 @@
               "interactionPointTiles": [
                 36,
                 28
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 576,
+                "y": 448
+              }
             }
           },
           {
@@ -13330,7 +14333,11 @@
               "interactionPointTiles": [
                 9,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 144,
+                "y": 384
+              }
             }
           }
         ],
@@ -13376,7 +14383,11 @@
               "interactionPointTiles": [
                 5,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 80,
+                "y": 256
+              }
             }
           },
           {
@@ -13390,7 +14401,11 @@
               "interactionPointTiles": [
                 12,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 192,
+                "y": 288
+              }
             }
           }
         ],
@@ -13436,7 +14451,11 @@
               "interactionPointTiles": [
                 20,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 320,
+                "y": 256
+              }
             }
           },
           {
@@ -13450,7 +14469,11 @@
               "interactionPointTiles": [
                 21,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 336,
+                "y": 384
+              }
             }
           }
         ],
@@ -13496,7 +14519,11 @@
               "interactionPointTiles": [
                 7,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 112,
+                "y": 416
+              }
             }
           },
           {
@@ -13510,7 +14537,11 @@
               "interactionPointTiles": [
                 38,
                 28
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 608,
+                "y": 448
+              }
             }
           }
         ],
@@ -13556,7 +14587,11 @@
               "interactionPointTiles": [
                 5,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 80,
+                "y": 384
+              }
             }
           },
           {
@@ -13570,7 +14605,11 @@
               "interactionPointTiles": [
                 20,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 320,
+                "y": 256
+              }
             }
           }
         ],
@@ -13616,7 +14655,11 @@
               "interactionPointTiles": [
                 12,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 192,
+                "y": 288
+              }
             }
           },
           {
@@ -13630,7 +14673,11 @@
               "interactionPointTiles": [
                 17,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 272,
+                "y": 384
+              }
             }
           }
         ],
@@ -13676,7 +14723,11 @@
               "interactionPointTiles": [
                 20,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 320,
+                "y": 256
+              }
             }
           },
           {
@@ -13690,7 +14741,11 @@
               "interactionPointTiles": [
                 21,
                 1
-              ]
+              ],
+              "interactionPointPx": {
+                "x": 336,
+                "y": 384
+              }
             }
           }
         ],

@@ -30,20 +30,41 @@ export function projectCore120Curriculum(manifest: ContentManifest): RuntimeCore
   exact(runtime.target_state, "produced", "runtime_curriculum.target_state");
   sameExact(strings(runtime.action_kinds, "runtime_curriculum.action_kinds"), CORE120_ACTION_KINDS, "core120 action kinds");
 
+  const worldContextAuthoritySource = object(runtime.world_context_authority,
+    "runtime_curriculum.world_context_authority");
+  const sceneCoordinateOrigins = object(worldContextAuthoritySource.scene_coordinate_origins,
+    "runtime_curriculum.world_context_authority.scene_coordinate_origins");
+  const expectedSceneCoordinateOrigins = {
+    "scene.valley.settlement": "top_left", "scene.valley.den_bypass": "bottom_left",
+    "scene.valley.return_channel": "bottom_left", "scene.valley.safe_range": "bottom_left",
+    "scene.valley.old_mine_threshold": "bottom_left",
+  } as const;
+  if (!sameSet(Object.keys(worldContextAuthoritySource),
+    ["maximum_distance_px", "recovery_requires_prior_scene_visit", "scene_coordinate_origins"]) ||
+      worldContextAuthoritySource.maximum_distance_px !== 16 ||
+      worldContextAuthoritySource.recovery_requires_prior_scene_visit !== true ||
+      !sameSet(Object.keys(sceneCoordinateOrigins), Object.keys(expectedSceneCoordinateOrigins)) ||
+      Object.entries(expectedSceneCoordinateOrigins).some(([sceneId, origin]) =>
+        sceneCoordinateOrigins[sceneId] !== origin)) {
+    throw new Error("core120 world context authority is invalid");
+  }
+
   const recovery = object(runtime.recovery_station, "runtime_curriculum.recovery_station");
-  const recoveryLocation = projectLocation(manifest, progression.path, recovery, "core120 recovery station");
+  const recoveryLocation = projectLocation(manifest, progression.path, recovery, "core120 recovery station",
+    sceneCoordinateOrigins);
   const recoveryScene = manifest.sources[resolve(progression.path, string(recovery.scene_ref, "recovery.scene_ref"))]!;
   const recoveryInteraction = objects(recoveryScene.content.interactions, "recovery scene interactions").find((entry) => entry.interaction_id === recovery.interaction_id);
   if (recoveryLocation.sceneId !== "scene.valley.settlement" || recoveryLocation.targetId !== "settlement.p0_inscription_archive" || recovery.interaction_id !== "settlement.open_p0_inscription_archive" || recovery.maximum_distance_px !== 16 || !recoveryInteraction || recoveryInteraction.target_id !== recoveryLocation.targetId || recoveryInteraction.verb !== "open_p0_learning_recovery" || recoveryInteraction.tool_or_magic_required !== false) throw new Error("core120 recovery station is invalid");
-
   const routesSource = object(runtime.domain_routes, "runtime_curriculum.domain_routes");
   if (!sameSet(Object.keys(routesSource), CORE120_VISUAL_DOMAINS)) throw new Error("core120 domain route set is invalid");
   const domainRoutes = {} as Record<Core120VisualDomain, { primary: RuntimeCore120Location; reinforcement: RuntimeCore120Location }>;
   for (const domain of CORE120_VISUAL_DOMAINS) {
     const route = object(routesSource[domain], `domain_routes.${domain}`);
     if (!sameSet(Object.keys(route), ["primary", "reinforcement"])) throw new Error(`${domain} route fields are invalid`);
-    const primary = projectLocation(manifest, progression.path, object(route.primary, `${domain}.primary`), `${domain}.primary`);
-    const reinforcement = projectLocation(manifest, progression.path, object(route.reinforcement, `${domain}.reinforcement`), `${domain}.reinforcement`);
+    const primary = projectLocation(manifest, progression.path, object(route.primary, `${domain}.primary`),
+      `${domain}.primary`, sceneCoordinateOrigins);
+    const reinforcement = projectLocation(manifest, progression.path,
+      object(route.reinforcement, `${domain}.reinforcement`), `${domain}.reinforcement`, sceneCoordinateOrigins);
     if (primary.sceneId === reinforcement.sceneId || primary.targetId === reinforcement.targetId) throw new Error(`${domain} must use distinct context witnesses`);
     domainRoutes[domain] = { primary, reinforcement };
   }
@@ -126,6 +147,8 @@ export function projectCore120Curriculum(manifest: ContentManifest): RuntimeCore
     scope: { corpusId: "pu-120", uniqueWordCount: 120, wordIds, bandCounts: EXPECTED_BAND_COUNTS },
     actionKinds: CORE120_ACTION_KINDS,
     recoveryStation: { ...recoveryLocation, interactionId: "settlement.open_p0_inscription_archive", maximumDistancePx: 16 },
+    worldContextAuthority: { maximumDistancePx: 16, recoveryRequiresPriorSceneVisit: true,
+      sceneCoordinateOrigins: expectedSceneCoordinateOrigins },
     domainRoutes,
     words,
     acceptance,
@@ -134,7 +157,8 @@ export function projectCore120Curriculum(manifest: ContentManifest): RuntimeCore
   return { sourceDigest: `sha256:${createHash("sha256").update(stable(body)).digest("hex")}`, ...body } as RuntimeCore120CurriculumManifest;
 }
 
-function projectLocation(manifest: ContentManifest, sourcePath: string, value: ContentObject, label: string): RuntimeCore120Location {
+function projectLocation(manifest: ContentManifest, sourcePath: string, value: ContentObject, label: string,
+  sceneCoordinateOrigins: ContentObject): RuntimeCore120Location {
   const scenePath = resolve(sourcePath, string(value.scene_ref, `${label}.scene_ref`));
   const scene = manifest.sources[scenePath];
   const sceneId = string(value.scene_id, `${label}.scene_id`);
@@ -143,7 +167,19 @@ function projectLocation(manifest: ContentManifest, sourcePath: string, value: C
   if (!scene || scene.kind !== "scene" || scene.content.scene_id !== sceneId) throw new Error(`${label} scene_ref is invalid`);
   const target = objects(scene.content.targets, `${label}.targets`).find((entry) => entry.target_id === targetId);
   if (!target || !same(target.interaction_point_tiles, point)) throw new Error(`${label} target binding is invalid`);
-  return { sceneId, targetId, interactionPointTiles: point };
+  const tileSizePx = scene.content.tile_size_px;
+  const sceneSize = object(scene.content.size_tiles, `${label}.scene.size_tiles`);
+  if (!Number.isSafeInteger(tileSizePx) || (tileSizePx as number) <= 0 ||
+      !Number.isSafeInteger(sceneSize.height) || (sceneSize.height as number) <= point[1]) {
+    throw new Error(`${label} scene geometry is invalid`);
+  }
+  const origin = sceneCoordinateOrigins[sceneId];
+  if (origin !== "top_left" && origin !== "bottom_left") throw new Error(`${label} coordinate origin is invalid`);
+  return { sceneId, targetId, interactionPointTiles: point, interactionPointPx: {
+    x: point[0] * (tileSizePx as number),
+    y: origin === "top_left" ? point[1] * (tileSizePx as number) :
+      ((sceneSize.height as number) - 1 - point[1]) * (tileSizePx as number),
+  } };
 }
 
 function resolve(from: string, ref: string): string { return posix.normalize(posix.join(posix.dirname(from), ref)); }

@@ -176,11 +176,9 @@ export function core120LearningActionPrerequisitesSatisfied(
   if (!present("discover")) return false;
   if (parsed.kind === "attune") return true;
   if (!present("attune")) return false;
-  if (parsed.kind === "context_0") return true;
-  if (!present("context_0")) return false;
-  if (parsed.kind === "context_1") return true;
+  if (parsed.kind === "context_0" || parsed.kind === "context_1") return true;
   const progress = learning.words[parsed.word.wordId];
-  return present("context_1") &&
+  return present("context_0") && present("context_1") &&
     (progress?.learningState === "produced" || progress?.learningState === "stabilized");
 }
 
@@ -304,10 +302,9 @@ function prerequisitesSatisfied(
   if (!actionEvidencePresent(manifest, state, word.wordId, "discover")) return false;
   if (kind === "attune") return true;
   if (!actionEvidencePresent(manifest, state, word.wordId, "attune")) return false;
-  if (kind === "context_0") return true;
-  if (!actionEvidencePresent(manifest, state, word.wordId, "context_0")) return false;
-  if (kind === "context_1") return true;
-  return actionEvidencePresent(manifest, state, word.wordId, "context_1") &&
+  if (kind === "context_0" || kind === "context_1") return true;
+  return actionEvidencePresent(manifest, state, word.wordId, "context_0") &&
+    actionEvidencePresent(manifest, state, word.wordId, "context_1") &&
     (state.learning.words[word.wordId]?.learningState === "produced" || state.learning.words[word.wordId]?.learningState === "stabilized");
 }
 
@@ -368,7 +365,13 @@ function materializeEvents(
     ];
   }
   if (kind === "context_1") {
-    return [contextualEvent(word, word.contexts[1], playerSaveId, identity("active_retrieval_submitted", 0), "active_retrieval_submitted", 1)];
+    const context = word.contexts[1];
+    return [
+      contextualEvent(word, context, playerSaveId, identity("grounding_trial_resolved", 1),
+        "grounding_trial_resolved", 1),
+      contextualEvent(word, context, playerSaveId, identity("active_retrieval_submitted", 0),
+        "active_retrieval_submitted", 1),
+    ];
   }
   const context = word.contexts[1];
   return [{

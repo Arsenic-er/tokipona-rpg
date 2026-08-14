@@ -52,7 +52,13 @@ describe("core-120 runtime curriculum contract", () => {
       expect(word.misconceptionRepair.cueVariants).toEqual(word.contexts.map((context) => context.cueId));
       expect(word.assetBindings).toEqual({ pronunciationAssetId: `audio.pronunciation.${word.wordId}.v1`, glyphAssetId: `glyph.pu120.${word.wordId}.v2` });
     }
-    expect(value.recoveryStation).toEqual({ sceneId: "scene.valley.settlement", targetId: "settlement.p0_inscription_archive", interactionPointTiles: [38, 28], interactionId: "settlement.open_p0_inscription_archive", maximumDistancePx: 16 });
+    expect(value.recoveryStation).toEqual({ sceneId: "scene.valley.settlement", targetId: "settlement.p0_inscription_archive", interactionPointTiles: [38, 28], interactionPointPx: { x: 608, y: 448 }, interactionId: "settlement.open_p0_inscription_archive", maximumDistancePx: 16 });
+    expect(value.worldContextAuthority).toEqual({ maximumDistancePx: 16,
+      recoveryRequiresPriorSceneVisit: true, sceneCoordinateOrigins: {
+        "scene.valley.settlement": "top_left", "scene.valley.den_bypass": "bottom_left",
+        "scene.valley.return_channel": "bottom_left", "scene.valley.safe_range": "bottom_left",
+        "scene.valley.old_mine_threshold": "bottom_left",
+      } });
     expect(value.catalogReviewStatus).toBe("draft");
     expect(value.catalogRuntimeReady).toBe(false);
     expect(value.acceptance).toMatchObject({ allWordsRecoverable: true, contextsPerWord: 2, misconceptionRepairsPerWord: 1, pronunciationAudioRequired: true, communitySemanticReviewRequired: true });
@@ -86,6 +92,15 @@ describe("core-120 runtime curriculum contract", () => {
     const premature = structuredClone(generated) as any;
     premature.core120Curriculum.catalogRuntimeReady = true;
     expect(() => readRuntimeCore120CurriculumManifest(resign(premature))).toThrow(/release status/);
+
+    const authority = structuredClone(generated) as any;
+    authority.core120Curriculum.worldContextAuthority.recoveryRequiresPriorSceneVisit = false;
+    expect(() => readRuntimeCore120CurriculumManifest(resign(authority))).toThrow(/world context authority/);
+
+    const point = structuredClone(generated) as any;
+    point.core120Curriculum.domainRoutes.D_MATTER_ENV.primary.interactionPointPx.y = 16;
+    point.core120Curriculum.words.telo.contexts[0].location.interactionPointPx.y = 16;
+    expect(() => readRuntimeCore120CurriculumManifest(resign(point))).toThrow(/valid distinct world witnesses/);
   });
 
   it("rejects source policy, recovery, and route drift before projection", () => {
@@ -96,6 +111,11 @@ describe("core-120 runtime curriculum contract", () => {
     const recoveryDrift = sources();
     ((progression(recoveryDrift).runtime_curriculum as Record<string, unknown>).recovery_station as Record<string, unknown>).maximum_distance_px = 99;
     expectCompilerIssue(recoveryDrift, "contract.core120_recovery");
+
+    const authorityDrift = sources();
+    ((progression(authorityDrift).runtime_curriculum as Record<string, unknown>)
+      .world_context_authority as Record<string, unknown>).recovery_requires_prior_scene_visit = false;
+    expectCompilerIssue(authorityDrift, "contract.core120_world_context_authority");
 
     const missingRoute = sources();
     delete ((progression(missingRoute).runtime_curriculum as Record<string, unknown>).domain_routes as Record<string, unknown>).D_SPACE_TIME;

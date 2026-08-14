@@ -96,6 +96,7 @@ import type {
 } from "./prologue-attack-qualification";
 import type { PrologueP0LearningResult } from "./prologue-p0-learning";
 import {
+  PrologueCore120LearningCoordinator,
   core120LearningActionReceiptId,
   type PrologueCore120LearningResult,
 } from "./prologue-core120-learning";
@@ -266,8 +267,9 @@ export interface PrologueFlowP0LearningView {
 }
 
 export interface PrologueFlowCore120LearningView {
-  readonly mode: "settlement" | "other";
+  readonly mode: "settlement" | "world_context" | "other";
   readonly p0PrerequisiteComplete: boolean;
+  readonly authorityInRange: boolean;
   readonly station: Readonly<{ sceneId: string; targetId: string; interactionId: string; inRange: boolean }>;
   readonly externalAssets: Readonly<{
     pronunciationAudio: "blocked_pending_private_assets" | "approved";
@@ -282,6 +284,7 @@ export interface PrologueFlowCore120LearningView {
     currentState: "unknown" | "discovered" | "attuned" | "grounded" | "produced" | "stabilized";
     completedActionIds: readonly Core120LearningActionId[];
     nextActionId: Core120LearningActionId | null;
+    availableActionId: Core120LearningActionId | null;
     audioReady: boolean;
     glyphReady: boolean;
   }>[];
@@ -775,13 +778,17 @@ export class PrologueFlowSession {
   core120LearningView(): PrologueFlowCore120LearningView {
     const state = this.session.snapshot();
     const runtime = this.snapshot().runtime;
-    const point = CORE120_CURRICULUM_MANIFEST.recoveryStation.interactionPointTiles;
-    const inRange = this.settlement !== null &&
+    const point = CORE120_CURRICULUM_MANIFEST.recoveryStation.interactionPointPx;
+    const archiveInRange = this.settlement !== null &&
       runtime.sceneId === CORE120_CURRICULUM_MANIFEST.recoveryStation.sceneId &&
       Number.isFinite(runtime.player.position.x) && Number.isFinite(runtime.player.position.y) &&
-      Math.hypot(runtime.player.position.x - point[0] * 16,
-        runtime.player.position.y - point[1] * 16) <=
+      Math.hypot(runtime.player.position.x - point.x,
+        runtime.player.position.y - point.y) <=
         CORE120_CURRICULUM_MANIFEST.recoveryStation.maximumDistancePx;
+    const contextMode = this.settlement ? "settlement" as const :
+      this.wildlife || this.returnFlow || this.safeRange || this.oldMineBridge ? "world_context" as const : "other" as const;
+    const visitedScenes = new Set(this.session.events().filter((event) => event.type === "scene_entered")
+      .map((event) => event.payload.sceneId));
     const p0PrerequisiteComplete = P0_CURRICULUM_MANIFEST.scope.wordIds.every((wordId) => {
       const progress = state.learning.words[wordId];
       return p0TargetReached(P0_CURRICULUM_MANIFEST.words[wordId].targetState,
@@ -800,6 +807,23 @@ export class PrologueFlowSession {
         (progress.learningState === null || progress.learningState === "discovered")
         ? "attuned" as const : progress?.learningState ?? "unknown";
       const assets = runtimeCore120AssetReadiness.wordAssets[wordId];
+      const present = (kind: (typeof CORE120_ACTION_KINDS)[number]): boolean =>
+        completedActionIds.includes(`core120.${wordId}.${kind}` as Core120LearningActionId);
+      const nearContext = (contextIndex: 0 | 1): boolean => {
+        const location = authored.contexts[contextIndex].location;
+        return runtime.sceneId === location.sceneId && Number.isFinite(runtime.player.position.x) &&
+          Number.isFinite(runtime.player.position.y) &&
+          Math.hypot(runtime.player.position.x - location.interactionPointPx.x,
+            runtime.player.position.y - location.interactionPointPx.y) <=
+            CORE120_CURRICULUM_MANIFEST.worldContextAuthority.maximumDistancePx;
+      };
+      const contextAvailable = (contextIndex: 0 | 1): boolean => nearContext(contextIndex) ||
+        (archiveInRange && visitedScenes.has(authored.contexts[contextIndex].location.sceneId));
+      const availableActionId = !present("discover") ? archiveInRange ? actions[0]! : null :
+        !present("attune") ? archiveInRange ? actions[1]! : null :
+        !present("context_0") && contextAvailable(0) ? actions[2]! :
+        !present("context_1") && contextAvailable(1) ? actions[3]! :
+        !present("repair") && present("context_0") && present("context_1") && archiveInRange ? actions[4]! : null;
       return Object.freeze({
         wordId,
         band: authored.curriculumBand,
@@ -807,18 +831,20 @@ export class PrologueFlowSession {
         currentState,
         completedActionIds,
         nextActionId: actions.find((actionId) => !completedActionIds.includes(actionId)) ?? null,
+        availableActionId,
         audioReady: assets.audioReady,
         glyphReady: assets.glyphReady,
       });
     }));
     return Object.freeze({
-      mode: this.settlement ? "settlement" as const : "other" as const,
+      mode: contextMode,
       p0PrerequisiteComplete,
+      authorityInRange: words.some((word) => word.availableActionId !== null),
       station: Object.freeze({
         sceneId: CORE120_CURRICULUM_MANIFEST.recoveryStation.sceneId,
         targetId: CORE120_CURRICULUM_MANIFEST.recoveryStation.targetId,
         interactionId: CORE120_CURRICULUM_MANIFEST.recoveryStation.interactionId,
-        inRange,
+        inRange: archiveInRange,
       }),
       externalAssets: Object.freeze({
         pronunciationAudio: runtimeCore120AssetReadiness.pronunciationAudio,
@@ -895,8 +921,33 @@ export class PrologueFlowSession {
     operationId: string,
     actionId: Core120LearningActionId,
   ): PrologueFlowAction<PrologueCore120LearningResult> {
-    return this.delegateSettlementQualification((settlement) =>
+    if (this.settlement) return this.delegateSettlementQualification((settlement) =>
       settlement.commitCore120LearningAction(actionId, operationId));
+    if (!this.wildlife && !this.returnFlow && !this.safeRange && !this.oldMineBridge) {
+      return this.rejectedMode();
+    }
+    try {
+      const runtime = this.snapshot().runtime;
+      const result = new PrologueCore120LearningCoordinator({
+        session: this.session,
+        runtimeSceneId: runtime.sceneId,
+        playerPositionPx: runtime.player.position,
+      }).commit(actionId, operationId);
+      if (result.accepted && !result.duplicate) {
+        if (this.wildlife) this.wildlife.adoptSession(result.session);
+        if (this.returnFlow) {
+          this.returnFlow.adoptSession(result.session);
+          this.returnFlowBridge?.adoptSession(result.session);
+        }
+        if (this.safeRange) {
+          this.safeRange.adoptSession(result.session);
+          this.safeRangeBridge?.adoptSession(result.session);
+        }
+        this.oldMineBridge?.adoptSession(result.session);
+        this.crossSaveCoordinator?.synchronizeOrdinarySession(result.session);
+      }
+      return this.delegated(result, result.accepted);
+    } catch { return this.rejectedDelegate(); }
   }
   usePublicRelief(transactionId: string) { return this.delegateSettlement((x) => x.usePublicRelief(transactionId)); }
   meditate(transactionId: string, answerAccepted: boolean) {

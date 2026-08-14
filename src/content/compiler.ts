@@ -400,6 +400,21 @@ function validateCore120RuntimeCurriculumSource(source: CompiledSource, issues: 
   if (readString(recovery, "scene_ref") !== "../scenes/valley-settlement.v0.1.yaml" || readString(recovery, "scene_id") !== "scene.valley.settlement" || readString(recovery, "target_id") !== "settlement.p0_inscription_archive" || readString(recovery, "interaction_id") !== "settlement.open_p0_inscription_archive" || readNumber(recovery, "maximum_distance_px") !== 16 || !Array.isArray(recoveryPoint) || recoveryPoint.length !== 2 || recoveryPoint[0] !== 38 || recoveryPoint[1] !== 28) {
     addIssue(issues, "contract.core120_recovery", source.path, "runtime_curriculum.recovery_station", "core120 recovery station is noncanonical");
   }
+  const worldContextAuthority = readObject(runtime, "world_context_authority");
+  const coordinateOrigins = readObject(worldContextAuthority, "scene_coordinate_origins");
+  const expectedCoordinateOrigins = {
+    "scene.valley.settlement": "top_left", "scene.valley.den_bypass": "bottom_left",
+    "scene.valley.return_channel": "bottom_left", "scene.valley.safe_range": "bottom_left",
+    "scene.valley.old_mine_threshold": "bottom_left",
+  } as const;
+  if (readNumber(worldContextAuthority, "maximum_distance_px") !== 16 ||
+      worldContextAuthority.recovery_requires_prior_scene_visit !== true ||
+      Object.keys(coordinateOrigins).length !== Object.keys(expectedCoordinateOrigins).length ||
+      Object.entries(expectedCoordinateOrigins).some(([sceneId, origin]) => coordinateOrigins[sceneId] !== origin)) {
+    addIssue(issues, "contract.core120_world_context_authority", source.path,
+      "runtime_curriculum.world_context_authority",
+      "core120 world contexts require 16px proximity and prior-scene recovery authority");
+  }
   const routes = readObject(runtime, "domain_routes");
   if (Object.keys(routes).length !== domains.length || domains.some((domain) => !(domain in routes))) {
     addIssue(issues, "contract.core120_routes", source.path, "runtime_curriculum.domain_routes", "core120 must route all ten visual domains");

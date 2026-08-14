@@ -594,7 +594,12 @@ export class PrologueSettlementSession {
     actionId: Core120LearningActionId,
     operationId: string,
   ): PrologueCore120LearningResult {
-    const result = new PrologueCore120LearningCoordinator(this).commit(actionId, operationId);
+    const runtime = this.bridge.runtime.snapshot();
+    const result = new PrologueCore120LearningCoordinator({
+      session: this.authoritativeSession,
+      runtimeSceneId: runtime.sceneId,
+      playerPositionPx: runtime.player.position,
+    }).commit(actionId, operationId);
     if (result.accepted && !result.duplicate) {
       this.authoritativeSession = result.session;
       this.bridge.adoptSession(result.session);

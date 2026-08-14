@@ -14,6 +14,7 @@ const manifest = readRuntimeCore120CurriculumManifest(generated);
 const view = (overrides: Partial<PrologueFlowCore120LearningView> = {}): PrologueFlowCore120LearningView => ({
   mode: "settlement",
   p0PrerequisiteComplete: true,
+  authorityInRange: true,
   station: { sceneId: manifest.recoveryStation.sceneId, targetId: manifest.recoveryStation.targetId,
     interactionId: manifest.recoveryStation.interactionId, inRange: true },
   externalAssets: { pronunciationAudio: "blocked_pending_private_assets",
@@ -25,6 +26,7 @@ const view = (overrides: Partial<PrologueFlowCore120LearningView> = {}): Prologu
     currentState: "unknown",
     completedActionIds: [],
     nextActionId: `core120.${wordId}.discover`,
+    availableActionId: `core120.${wordId}.discover`,
     audioReady: false,
     glyphReady: false,
   })),
@@ -58,8 +60,24 @@ describe("core-120 browser UI boundary", () => {
       actionId: `core120.${wordId}.discover`,
     });
     expect(resolveCore120LearningUiIntent(deriveCore120LearningUiModel(view({ p0PrerequisiteComplete: false }), "P0"), wordId)).toBeNull();
-    expect(resolveCore120LearningUiIntent(deriveCore120LearningUiModel(view({ station: { ...view().station, inRange: false } }), "P0"), wordId)).toBeNull();
+    expect(resolveCore120LearningUiIntent(deriveCore120LearningUiModel(view({ authorityInRange: false }), "P0"), wordId)).toBeNull();
     expect(resolveCore120LearningUiIntent(model, "not-a-word")).toBeNull();
+  });
+
+  it("accepts an independently completed second context and executes the available first context", () => {
+    const projected = structuredClone(view({ mode: "world_context" })) as any;
+    const word = projected.words.find((candidate: { wordId: string }) => candidate.wordId === "akesi");
+    word.completedActionIds = ["core120.akesi.discover", "core120.akesi.attune", "core120.akesi.context_1"];
+    word.nextActionId = "core120.akesi.context_0";
+    word.availableActionId = "core120.akesi.context_0";
+    word.currentState = "produced";
+    projected.completedSemanticActionCount = 3;
+    const model = deriveCore120LearningUiModel(projected, word.band);
+    expect(model.visible).toBe(true);
+    expect(resolveCore120LearningUiIntent(model, "akesi")).toEqual({
+      kind: "perform_core120_action",
+      actionId: "core120.akesi.context_0",
+    });
   });
 
   it("searches all 120 Latin word IDs locally without widening the command payload", () => {

@@ -48,12 +48,12 @@ describe("core-120 learning campaign", () => {
   it("advances all 120 words through two contexts and repair to produced", () => {
     let state = createCore120CampaignState(manifest, PLAYER_SAVE_ID);
     for (const wordId of manifest.scope.wordIds) state = applySequence(state, wordId);
-    expect(state.learning.revision).toBe(720);
+    expect(state.learning.revision).toBe(840);
     expect(Object.keys(state.learning.words)).toHaveLength(120);
     for (const wordId of manifest.scope.wordIds) {
       const progress = state.learning.words[wordId]!;
       expect(progress.learningState).toBe("produced");
-      expect(progress.evidence).toHaveLength(6);
+      expect(progress.evidence).toHaveLength(7);
       expect(progress.productionTaskFamilies).toEqual([`core120.${wordId}.family_0`, `core120.${wordId}.family_1`]);
       expect(progress.evidence.filter((entry) => entry.eventType === "repair_completed")).toHaveLength(1);
       expect(isCore120WordComplete(manifest, state, wordId)).toBe(true);
@@ -102,7 +102,7 @@ describe("core-120 learning campaign", () => {
     expect(loaded).toEqual(state);
     const continued = applySequence(loaded, "a", ["context_1", "repair"]);
     expect(isCore120WordComplete(manifest, continued, "a")).toBe(true);
-    expect(continued.learning.revision).toBe(6);
+    expect(continued.learning.revision).toBe(7);
   });
 
   it("forward-repairs a valid action interrupted between its two evidence writes", () => {
