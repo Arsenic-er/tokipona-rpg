@@ -30,6 +30,15 @@ activation_medium:
   consumed_on_failed_or_interrupted_activation: false
   word_specific_component: "环境见证，不是背包中的一词一材料配方。"
 
+runtime_recovery_station:
+  scene_ref: "../scenes/valley-settlement.v0.1.yaml"
+  scene_id: scene.valley.settlement
+  target_id: settlement.p0_inscription_archive
+  interaction_id: settlement.open_p0_inscription_archive
+  interaction_point_tiles: [38, 28]
+  maximum_distance_px: 16
+  recovery_route_only_when_below_target: true
+
 words:
   - word_id: telo
     first_location: forest_spring

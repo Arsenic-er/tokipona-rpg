@@ -33,7 +33,7 @@
     }
   },
   "scenes": {
-    "sourceDigest": "sha256:0abf801814c2e6448130fbdba7c11bd780febf2cc713b2ebaa5f8d101031d300",
+    "sourceDigest": "sha256:4360c30f3decfdd55cd135681108ad3bc19461c948f20a0817840c2e3385afad",
     "byId": {
       "scene.valley.arrival_shelf": {
         "sceneId": "scene.valley.arrival_shelf",
@@ -2727,6 +2727,15 @@
               36,
               28
             ]
+          },
+          {
+            "id": "settlement.p0_inscription_archive",
+            "kind": "learning_recovery_station",
+            "material": "wood_and_common_inscription_slates",
+            "interactionPointTiles": [
+              38,
+              28
+            ]
           }
         ],
         "interactions": [
@@ -2934,6 +2943,16 @@
             "id": "settlement.open_attack_calibration",
             "targetId": "settlement.attack_calibration_table",
             "verb": "open_parallel_attack_calibration",
+            "toolOrMagicRequired": false,
+            "optionalWordId": null,
+            "npcId": null,
+            "facilityId": null,
+            "taskId": null
+          },
+          {
+            "id": "settlement.open_p0_inscription_archive",
+            "targetId": "settlement.p0_inscription_archive",
+            "verb": "open_p0_learning_recovery",
             "toolOrMagicRequired": false,
             "optionalWordId": null,
             "npcId": null,
@@ -5611,6 +5630,369 @@
           }
         }
       ]
+    }
+  },
+  "p0Curriculum": {
+    "sourceDigest": "sha256:5b0899b667a9d5093081f6f8399b2092a6ee580578ca77c841356ca5e72f14ee",
+    "sourcePath": "data/language/p0-curriculum.v0.1.yaml",
+    "contentVersion": "prologue-12.vertical-slice.1",
+    "progressionSourcePath": "data/language/learning-progression.v0.2.yaml",
+    "glyphCatalogSourcePath": "data/language/pu-120-glyph-catalog.v0.2.json",
+    "scope": {
+      "band": "P0",
+      "uniqueWordCount": 12,
+      "wordIds": [
+        "awen",
+        "kasi",
+        "kiwen",
+        "kon",
+        "lili",
+        "lukin",
+        "seli",
+        "soweli",
+        "suli",
+        "tawa",
+        "telo",
+        "weka"
+      ],
+      "firstThreeHoursIsContentBudgetNotRealTimeGate": true
+    },
+    "targetStateCeiling": {
+      "produced": [
+        "telo",
+        "tawa",
+        "lili",
+        "suli"
+      ],
+      "grounded": [
+        "seli",
+        "kiwen",
+        "awen"
+      ],
+      "attuned": [
+        "kon",
+        "kasi",
+        "lukin",
+        "weka",
+        "soweli"
+      ]
+    },
+    "activationMedium": {
+      "itemId": "learning.common_inscription_medium",
+      "scarcity": "common",
+      "tradeable": false,
+      "randomDropRequired": false,
+      "consumedOnFailedOrInterruptedActivation": false
+    },
+    "recoveryStation": {
+      "sceneId": "scene.valley.settlement",
+      "targetId": "settlement.p0_inscription_archive",
+      "interactionId": "settlement.open_p0_inscription_archive",
+      "interactionPointTiles": [
+        38,
+        28
+      ],
+      "maximumDistancePx": 16,
+      "recoveryRouteOnlyWhenBelowTarget": true
+    },
+    "words": {
+      "telo": {
+        "wordId": "telo",
+        "firstLocation": "forest_spring",
+        "witness": "flowing_or_contained_water",
+        "groundingTask": "repair_water_channel",
+        "targetState": "produced",
+        "semanticFacets": [
+          "water_or_liquid",
+          "drinking_washing_or_containment"
+        ],
+        "misconceptionToRepair": "telo 只等于水弹。",
+        "productionTaskFamilies": [
+          "channel_routing",
+          "washing_or_filling"
+        ],
+        "meditation": {
+          "recognitionDistractors": [
+            "kon",
+            "kiwen"
+          ],
+          "contextContrast": [
+            "falling_water",
+            "liquid_used_without_attack"
+          ]
+        }
+      },
+      "tawa": {
+        "wordId": "tawa",
+        "firstLocation": "waterwheel_marker",
+        "witness": "existing_motion",
+        "groundingTask": "restore_waterwheel_motion",
+        "targetState": "produced",
+        "semanticFacets": [
+          "physical_motion",
+          "toward_or_perspective_relation"
+        ],
+        "misconceptionToRepair": "tawa 永远只是向前移动。",
+        "productionTaskFamilies": [
+          "waterwheel_motion",
+          "cart_or_object_motion"
+        ],
+        "meditation": {
+          "recognitionDistractors": [
+            "awen",
+            "weka"
+          ],
+          "contextContrast": [
+            "object_moves",
+            "relation_toward_reference"
+          ]
+        }
+      },
+      "lili": {
+        "wordId": "lili",
+        "firstLocation": "narrow_root_hollow",
+        "witness": "narrow_gap",
+        "groundingTask": "cistern_short_length",
+        "targetState": "produced",
+        "semanticFacets": [
+          "small_or_short",
+          "few_or_young"
+        ],
+        "misconceptionToRepair": "lili 永远把整个对象等比缩小。",
+        "productionTaskFamilies": [
+          "cistern_precision_window",
+          "narrow_gap_transfer"
+        ],
+        "meditation": {
+          "recognitionDistractors": [
+            "suli"
+          ],
+          "contextContrast": [
+            "short_length",
+            "small_or_few_nonspell_context"
+          ]
+        }
+      },
+      "suli": {
+        "wordId": "suli",
+        "firstLocation": "old_cistern",
+        "witness": "long_span",
+        "groundingTask": "cistern_long_length",
+        "targetState": "produced",
+        "semanticFacets": [
+          "large_long_or_tall",
+          "important_or_adult"
+        ],
+        "misconceptionToRepair": "suli 永远增加伤害或整体尺寸。",
+        "productionTaskFamilies": [
+          "cistern_long_span",
+          "cross_material_length"
+        ],
+        "meditation": {
+          "recognitionDistractors": [
+            "lili"
+          ],
+          "contextContrast": [
+            "long_length",
+            "important_or_adult_nonspell_context"
+          ]
+        }
+      },
+      "seli": {
+        "wordId": "seli",
+        "firstLocation": "charcoal_cave",
+        "witness": "safe_hearth_or_warm_surface",
+        "groundingTask": "relight_safe_hearth",
+        "targetState": "grounded",
+        "semanticFacets": [
+          "fire_or_heat",
+          "cooking_or_chemical_change"
+        ],
+        "misconceptionToRepair": "seli 必然生成远程火焰攻击。",
+        "productionTaskFamilies": [],
+        "meditation": {
+          "recognitionDistractors": [
+            "suno",
+            "lete"
+          ],
+          "contextContrast": [
+            "local_heat",
+            "cooking_or_warmth"
+          ]
+        }
+      },
+      "kiwen": {
+        "wordId": "kiwen",
+        "firstLocation": "old_quarry_wall",
+        "witness": "hard_solid_material",
+        "groundingTask": "brace_fallen_path",
+        "targetState": "grounded",
+        "semanticFacets": [
+          "hardness",
+          "stone_metal_or_solid_object"
+        ],
+        "misconceptionToRepair": "kiwen 只表示石弹。",
+        "productionTaskFamilies": [],
+        "meditation": {
+          "recognitionDistractors": [
+            "ko",
+            "ma"
+          ],
+          "contextContrast": [
+            "falling_hard_chunk",
+            "hardness_or_material_identity"
+          ]
+        }
+      },
+      "awen": {
+        "wordId": "awen",
+        "firstLocation": "ruin_support_pillar",
+        "witness": "maintained_structure",
+        "groundingTask": "hold_dissipating_state",
+        "targetState": "grounded",
+        "semanticFacets": [
+          "remain_or_wait",
+          "keep_protect_or_continue"
+        ],
+        "misconceptionToRepair": "awen 只是一种冻结或静止魔法。",
+        "productionTaskFamilies": [],
+        "meditation": {
+          "recognitionDistractors": [
+            "tawa",
+            "pini"
+          ],
+          "contextContrast": [
+            "remain_in_state",
+            "protect_or_keep"
+          ]
+        }
+      },
+      "kon": {
+        "wordId": "kon",
+        "firstLocation": "cave_airshaft",
+        "witness": "visible_draft_trace",
+        "groundingTask": "reveal_draft_path",
+        "targetState": "attuned",
+        "semanticFacets": [
+          "air_or_gas",
+          "breath_or_unseen_essence"
+        ],
+        "misconceptionToRepair": "kon 单字必然让其他物质悬浮。",
+        "productionTaskFamilies": [],
+        "meditation": {
+          "recognitionDistractors": [
+            "telo",
+            "sewi"
+          ],
+          "contextContrast": [
+            "air_pulse",
+            "breath_or_unseen_presence"
+          ]
+        }
+      },
+      "kasi": {
+        "wordId": "kasi",
+        "firstLocation": "herb_grove",
+        "witness": "living_plant",
+        "groundingTask": "identify_usable_plant",
+        "targetState": "attuned",
+        "semanticFacets": [
+          "plant_or_vegetation",
+          "plant_without_medicine_assumption"
+        ],
+        "misconceptionToRepair": "kasi 必然是药草或治疗。",
+        "productionTaskFamilies": [],
+        "meditation": {
+          "recognitionDistractors": [
+            "kili",
+            "soweli"
+          ],
+          "contextContrast": [
+            "useful_plant",
+            "nonmedicinal_plant"
+          ]
+        }
+      },
+      "lukin": {
+        "wordId": "lukin",
+        "firstLocation": "lookout_stone",
+        "witness": "distant_visible_clue",
+        "groundingTask": "observe_without_collecting",
+        "targetState": "attuned",
+        "semanticFacets": [
+          "see_look_or_watch",
+          "examine_or_read_visual_information"
+        ],
+        "misconceptionToRepair": "lukin 等于已经知道，或可以读心。",
+        "productionTaskFamilies": [],
+        "meditation": {
+          "recognitionDistractors": [
+            "sona",
+            "oko"
+          ],
+          "contextContrast": [
+            "look_at_clue",
+            "inspect_visual_mark"
+          ]
+        }
+      },
+      "weka": {
+        "wordId": "weka",
+        "firstLocation": "collapsed_side_cave",
+        "witness": "displaced_obstacle",
+        "groundingTask": "move_blockage_without_destroying",
+        "targetState": "attuned",
+        "semanticFacets": [
+          "away_or_distant",
+          "absent_removed_or_ignored"
+        ],
+        "misconceptionToRepair": "weka 是永久删除对象的魔法。",
+        "productionTaskFamilies": [],
+        "meditation": {
+          "recognitionDistractors": [
+            "lon",
+            "tawa"
+          ],
+          "contextContrast": [
+            "spatial_distance",
+            "absence_or_removal"
+          ]
+        }
+      },
+      "soweli": {
+        "wordId": "soweli",
+        "firstLocation": "animal_trail",
+        "witness": "tracks_and_distant_animal",
+        "groundingTask": "track_without_hunting",
+        "targetState": "attuned",
+        "semanticFacets": [
+          "land_animal",
+          "animal_identity_without_all_life_assumption"
+        ],
+        "misconceptionToRepair": "soweli 泛指所有生命，或发现后必须狩猎。",
+        "productionTaskFamilies": [],
+        "meditation": {
+          "recognitionDistractors": [
+            "waso",
+            "kala",
+            "kasi"
+          ],
+          "contextContrast": [
+            "animal_tracks",
+            "peaceful_land_animal"
+          ]
+        }
+      }
+    },
+    "acceptance": {
+      "allWordsRecoverable": true,
+      "pronunciationAudio": "required",
+      "contextsPerWordMinimum": 2,
+      "misconceptionCounterexamplePerWordMinimum": 1,
+      "colorOnlyIdentificationForbidden": true,
+      "fixedSlotOnlyProductionForbidden": true,
+      "rawStringEqualityAsSuccessForbidden": true,
+      "communitySemanticReviewRequired": true
     }
   },
   "capabilityProgression": {

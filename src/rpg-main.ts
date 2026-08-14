@@ -9,6 +9,7 @@ import {
   type PrologueFlowAction,
   type PrologueFlowSafeRangeCompileResult,
   type PrologueFlowSafeRangeView,
+  type PrologueFlowP0LearningView,
   type PrologueFlowSnapshot,
 } from "./game/prologue-flow";
 import {
@@ -47,6 +48,7 @@ import {
   createRpgSafeRangeUi,
   type SafeRangeUiCommand,
 } from "./rpg-safe-range-ui";
+import { createRpgP0LearningUi, type P0LearningUiCommand } from "./rpg-p0-learning-ui";
 
 type GlyphPhase = "undiscovered" | "discovered" | "activated";
 type Tone = "neutral" | "success" | "warning" | "danger";
@@ -102,6 +104,15 @@ class FlowBrowserPort {
 
   safeRangeView(): PrologueFlowSafeRangeView {
     return this.flow.safeRangeView();
+  }
+
+  p0LearningView(): PrologueFlowP0LearningView {
+    return this.flow.p0LearningView();
+  }
+
+  p0Learning(command: P0LearningUiCommand): UiResult {
+    return flowResult(this.flow.performP0LearningAction(nextId("p0-learning"), command.actionId),
+      `P0 learning action committed: ${command.actionId}`);
   }
 
   interact(): UiResult {
@@ -574,6 +585,7 @@ const wildlifeUi = createRpgWildlifeUi((command) => run(() => port.wildlife(comm
 const economyUi = createRpgEconomyUi((command) => run(() => port.economy(command)));
 const returnFlowUi = createRpgReturnFlowUi((command) => run(() => port.returnFlow(command)));
 const safeRangeUi = createRpgSafeRangeUi((command) => run(() => port.safeRange(command)));
+const p0LearningUi = createRpgP0LearningUi((command) => run(() => port.p0Learning(command)));
 let priorTime = performance.now();
 let activationStarted: number | null = null;
 let jumpQueued = false;
@@ -610,6 +622,7 @@ function render(snapshot: PrologueFlowSnapshot, now: number): void {
   economyUi.render(snapshot);
   returnFlowUi.render(snapshot);
   safeRangeUi.render(port.safeRangeView(), port.safeRangeCompileResult());
+  p0LearningUi.render(port.p0LearningView());
   const scene = requiredScene(snapshot.runtime.sceneId);
   drawWorld(snapshot, scene);
   sceneLabel.textContent = sceneTitle(snapshot.runtime.sceneId);

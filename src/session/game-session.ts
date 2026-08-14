@@ -1,5 +1,6 @@
 ﻿import generatedRuntimeArtifact from "../generated/content-runtime.v0.1.json";
 import { readRuntimeSafeRangeManifest } from "../content/runtime-safe-range-manifest";
+import { readRuntimeP0CurriculumManifest } from "../content/runtime-p0-curriculum-manifest";
 import {
   validSafeRangeRuntimeFramePayload,
   type SafeRangeRuntimeFramePayload,
@@ -13,6 +14,8 @@ import {
   isTrustedAttackQualificationCommitProof,
   type AttackQualificationCommitProof,
 } from "../game/prologue-attack-qualification";
+import { isTrustedP0LearningCommitProof, type P0LearningCommitProof } from "../game/prologue-p0-learning";
+import { materializeP0LearningEvidence, p0EvidenceMatches, type P0LearningActionId } from "../game/p0-learning-contract";
 import { createCrossSaveReceiptId, sha256Canonical, type JsonValue } from "../persistence/cross-save-wal";
 import {
   LEARNING_SAVE_SCHEMA,
@@ -93,6 +96,7 @@ import {
 } from "../game/wildlife-processing";
 
 const RUNTIME_SAFE_RANGE_MANIFEST = readRuntimeSafeRangeManifest(generatedRuntimeArtifact);
+const RUNTIME_P0_CURRICULUM_MANIFEST = readRuntimeP0CurriculumManifest(generatedRuntimeArtifact);
 
 export const GAME_SESSION_SAVE_SCHEMA = "tokipona.game-session.v0.2" as const;
 export const LEGACY_GAME_SESSION_SAVE_SCHEMA = "tokipona.game-session.v0.1" as const;
@@ -318,10 +322,12 @@ export type GameSessionEvent =
       readonly playerPositionPx: Readonly<{ readonly x: number; readonly y: number }>;
       readonly expectedWorldRevision: number;
     }>  | SessionEventBase<"learning_evidence_committed",
-      | { readonly evidence: LearningEvidenceEvent; readonly qualificationActionId?: never }
+      | { readonly evidence: LearningEvidenceEvent; readonly qualificationActionId?: never; readonly p0CurriculumActionId?: never }
+      | { readonly evidence: LearningEvidenceEvent; readonly p0CurriculumActionId: P0LearningActionId;
+          readonly p0EvidenceOrdinal: number; readonly qualificationActionId?: never }
       | { readonly qualificationActionId: AttackQualificationEvidenceActionId; readonly transactionId: string;
           readonly unrelatedWorldEventIds?: readonly string[]; readonly interactionReceiptId?: string;
-          readonly sourceEvidenceEventId?: string; readonly evidence?: never }>
+          readonly sourceEvidenceEventId?: string; readonly evidence?: never; readonly p0CurriculumActionId?: never }>
   | SessionEventBase<"attack_capacity_calibrated", {
       readonly transactionId: string;
       readonly writerEvent: typeof ATTACK_CALIBRATION_WRITER_EVENT;
@@ -1123,29 +1129,35 @@ export class GameSession {
   }
 
   apply(event: GameSessionEvent): SessionApplyResult {
-    return this.applyInternal(event, null, null, null);
+    return this.applyInternal(event, null, null, null, null);
   }
 
   /** Accepts safe-range events only when the coordinator supplies its unforgeable live proof. */
   applyTrustedSafeRangeEvent(event: GameSessionEvent, proof: SafeRangeCommitProof): SessionApplyResult {
-    return this.applyInternal(event, proof, null, null);
+    return this.applyInternal(event, proof, null, null, null);
   }
 
   /** Accepts attack qualification events only from the live semantic coordinators. */
   applyTrustedAttackQualificationEvent(event: GameSessionEvent, proof: AttackQualificationCommitProof): SessionApplyResult {
-    return this.applyInternal(event, null, proof, null);
+    return this.applyInternal(event, null, proof, null, null);
   }
 
   applyTrustedReturnFlowQualificationEvent(
     event: GameSessionEvent,
     proof: ReturnFlowQualificationCommitProof,
   ): SessionApplyResult {
-    return this.applyInternal(event, null, null, proof);
+    return this.applyInternal(event, null, null, proof, null);
+  }
+
+  /** Accepts P0 curriculum evidence only from the live recovery-station coordinator. */
+  applyTrustedP0LearningEvent(event: GameSessionEvent, proof: P0LearningCommitProof): SessionApplyResult {
+    return this.applyInternal(event, null, null, null, proof);
   }
 
   private applyInternal(event: GameSessionEvent, safeRangeProof: SafeRangeCommitProof | null,
     attackQualificationProof: AttackQualificationCommitProof | null,
-    returnFlowQualificationProof: ReturnFlowQualificationCommitProof | null): SessionApplyResult {
+    returnFlowQualificationProof: ReturnFlowQualificationCommitProof | null,
+    p0LearningProof: P0LearningCommitProof | null): SessionApplyResult {
     if (!isEventEnvelope(event)) return this.result(false, false, "invalid_event");
     const safeRangeProtected = event.type === "safe_range_runtime_frame_committed" ||
       event.type === "safe_range_transfer_passed" || event.type === "safe_range_material_table_completed";
@@ -1184,6 +1196,11 @@ export class GameSession {
     if (attackProtectedEvent && !this.replaying && !trustedAttack && !trustedReturnFlow) {
       return this.result(false, false, "invalid_event");
     }
+    const p0Protected = event.type === "learning_evidence_committed" && event.payload.p0CurriculumActionId !== undefined;
+    const trustedP0 = p0Protected && p0LearningProof !== null && isTrustedP0LearningCommitProof(p0LearningProof) &&
+      p0LearningProof.actionId === event.payload.p0CurriculumActionId &&
+      p0LearningProof.batch.drafts.some((draft) => draft.eventId === event.eventId && draft.type === event.type && same(draft.payload, event.payload));
+    if (p0Protected && !this.replaying && !trustedP0) return this.result(false, false, "invalid_event");
     const payloadFingerprint = eventPayloadFingerprint(event);
     const prior = this.state.processedEventPayloads[event.eventId];
     if (prior !== undefined) {
@@ -1749,7 +1766,23 @@ export class GameSession {
       case "learning_evidence_committed": {
         let evidence: LearningEvidenceEvent;
         let qualification = false;
-        if (event.payload.qualificationActionId !== undefined) {
+        let p0Curriculum = false;
+        if (event.payload.p0CurriculumActionId !== undefined) {
+          const payload = event.payload;
+          if (this.state.world.currentSceneId !== RUNTIME_P0_CURRICULUM_MANIFEST.recoveryStation.sceneId ||
+              !Number.isSafeInteger(payload.p0EvidenceOrdinal) || payload.p0EvidenceOrdinal < 0 ||
+              !isRecord(payload.evidence) || payload.evidence.committedAtSessionSequence !== undefined) {
+            return { reason: "invalid_event", duplicate: false };
+          }
+          let expected: readonly LearningEvidenceEvent[];
+          try { expected = materializeP0LearningEvidence(RUNTIME_P0_CURRICULUM_MANIFEST, this.sessionId, payload.p0CurriculumActionId); }
+          catch { return { reason: "invalid_event", duplicate: false }; }
+          const expectedEvidence = expected[payload.p0EvidenceOrdinal];
+          if (!expectedEvidence || expected.length <= payload.p0EvidenceOrdinal ||
+              !p0EvidenceMatches(expectedEvidence, payload.evidence)) return { reason: "invalid_event", duplicate: false };
+          evidence = { ...payload.evidence, committedAtSessionSequence: event.sequence } as LearningEvidenceEvent;
+          p0Curriculum = true;
+        } else if (event.payload.qualificationActionId !== undefined) {
           const payload = event.payload;
           if (!isNonEmptyString(payload.transactionId)) return { reason: "invalid_event", duplicate: false };
           const action = RUNTIME_SAFE_RANGE_MANIFEST.parallelCalibration.actions.find((candidate) =>
@@ -1889,7 +1922,7 @@ export class GameSession {
         let reduced;
         try { reduced = reduceLearningEvidence(this.state.learning, evidence); }
         catch { return { reason: "invalid_event", duplicate: false }; }
-        const receiptId = `${qualification ? "attack-qualification-evidence" : "learning-evidence"}:${evidence.idempotencyKey}`;
+        const receiptId = `${qualification ? "attack-qualification-evidence" : p0Curriculum ? "p0-learning-evidence" : "learning-evidence"}:${evidence.idempotencyKey}`;
         const payloadHash = sha256Canonical(evidence as unknown as JsonValue);
         const priorReceipt = this.state.receiptIndex[receiptId];
         if (priorReceipt) return priorReceipt.payloadHash === payloadHash

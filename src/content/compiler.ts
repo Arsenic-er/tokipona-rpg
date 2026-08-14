@@ -255,6 +255,7 @@ function validateSource(
     case "p0_curriculum":
       validateArrayIds(source, "words", "word_id", issues);
       validateArrayIds(source, "meditation_families", "id", issues);
+      validateP0CurriculumSource(source, issues);
       break;
     case "task":
       validateArrayIds(source, "learning_state_event_contracts", "event_id", issues, false);
@@ -284,6 +285,52 @@ function validateSource(
       validateLearningProgression(source, issues);
       break;
   }
+}
+
+function validateP0CurriculumSource(source: CompiledSource, issues: ContentIssue[]): void {
+  const expectedTargets = {
+    produced: ["telo", "tawa", "lili", "suli"],
+    grounded: ["seli", "kiwen", "awen"],
+    attuned: ["kon", "kasi", "lukin", "weka", "soweli"],
+  } as const;
+  const expectedWords = [...expectedTargets.produced, ...expectedTargets.grounded, ...expectedTargets.attuned];
+  const words = readObjectArray(source.content, "words");
+  const wordIds = words.map((word) => readString(word, "word_id"));
+  if (wordIds.length !== 12 || new Set(wordIds).size !== 12 || expectedWords.some((word) => !wordIds.includes(word))) {
+    addIssue(issues, "contract.p0_words", source.path, "words", "P0 curriculum must contain the exact 12 canonical words");
+  }
+  const scope = readObject(source.content, "scope");
+  if (readString(scope, "band") !== "P0" || readNumber(scope, "unique_word_count") !== 12 || scope.first_three_hours_is_content_budget_not_real_time_gate !== true) {
+    addIssue(issues, "contract.p0_scope", source.path, "scope", "P0 scope and 12-word content budget are noncanonical");
+  }
+  const target = readObject(source.content, "target_state_ceiling_first_three_hours");
+  const targetByWord = new Map<string, string>();
+  for (const [state, expected] of Object.entries(expectedTargets)) {
+    const actual = readStringArray(target, state);
+    if (actual.join("|") !== expected.join("|")) addIssue(issues, "contract.p0_target", source.path, `target_state_ceiling_first_three_hours.${state}`, `${state} target list is noncanonical`);
+    for (const word of expected) targetByWord.set(word, state);
+  }
+  for (const [index, word] of words.entries()) {
+    const wordId = readString(word, "word_id");
+    if (readString(word, "target_state") !== targetByWord.get(wordId)) addIssue(issues, "contract.p0_target", source.path, `words[${index}].target_state`, `${wordId} target state does not match the ceiling`);
+    for (const key of ["first_location", "witness", "grounding_task", "misconception_to_repair"] as const) if (!readString(word, key)) addIssue(issues, "contract.p0_field", source.path, `words[${index}].${key}`, `${wordId}.${key} must be authored`);
+    const facets = readStringArray(word, "semantic_facets");
+    const meditation = readObject(word, "meditation");
+    const contexts = readStringArray(meditation, "context_contrast");
+    const distractors = readStringArray(meditation, "recognition_distractors");
+    if (facets.length !== 2 || new Set(facets).size !== 2) addIssue(issues, "contract.p0_context", source.path, `words[${index}].semantic_facets`, `${wordId} must author two semantic facets`);
+    if (contexts.length !== 2 || new Set(contexts).size !== 2) addIssue(issues, "contract.p0_context", source.path, `words[${index}].meditation.context_contrast`, `${wordId} must author two distinct contexts`);
+    if (distractors.length === 0 || new Set(distractors).size !== distractors.length) addIssue(issues, "contract.p0_distractors", source.path, `words[${index}].meditation.recognition_distractors`, `${wordId} distractors must be non-empty and unique`);
+    const families = readStringArray(word, "production_task_families");
+    if ((targetByWord.get(wordId) === "produced" && (families.length !== 2 || new Set(families).size !== 2)) || (targetByWord.get(wordId) !== "produced" && families.length !== 0)) addIssue(issues, "contract.p0_production", source.path, `words[${index}].production_task_families`, `${wordId} production families do not match its target state`);
+  }
+  const medium = readObject(source.content, "activation_medium");
+  if (readString(medium, "item_id") !== "learning.common_inscription_medium" || readString(medium, "scarcity") !== "common" || medium.tradeable !== false || medium.random_drop_required !== false || medium.consumed_on_failed_or_interrupted_activation !== false) addIssue(issues, "contract.p0_medium", source.path, "activation_medium", "P0 activation medium must remain common, nontradeable, and non-consuming on failure");
+  const station = readObject(source.content, "runtime_recovery_station");
+  const stationPoint = station.interaction_point_tiles;
+  if (readString(station, "scene_ref") !== "../scenes/valley-settlement.v0.1.yaml" || readString(station, "scene_id") !== "scene.valley.settlement" || readString(station, "target_id") !== "settlement.p0_inscription_archive" || readString(station, "interaction_id") !== "settlement.open_p0_inscription_archive" || !Array.isArray(stationPoint) || stationPoint.length !== 2 || stationPoint[0] !== 38 || stationPoint[1] !== 28 || readNumber(station, "maximum_distance_px") !== 16 || station.recovery_route_only_when_below_target !== true) addIssue(issues, "contract.p0_recovery_station", source.path, "runtime_recovery_station", "P0 recovery station binding is noncanonical");
+  const acceptance = readObject(source.content, "content_acceptance");
+  if (acceptance.all_words_recoverable !== true || acceptance.all_words_have_pronunciation_audio !== "required" || acceptance.contexts_per_word_minimum !== 2 || acceptance.misconception_counterexample_per_word_minimum !== 1 || acceptance.color_only_identification_forbidden !== true || acceptance.fixed_slot_only_production_forbidden !== true || acceptance.raw_string_equality_as_success_forbidden !== true || acceptance.community_semantic_review_required !== true) addIssue(issues, "contract.p0_acceptance", source.path, "content_acceptance", "P0 recovery, audio, context, misconception, cue, and community-review requirements are noncanonical");
 }
 
 function validateRequiredKinds(sources: readonly CompiledSource[], issues: ContentIssue[]): void {

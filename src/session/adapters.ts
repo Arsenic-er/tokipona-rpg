@@ -16,6 +16,7 @@ import {
   isTrustedAttackQualificationCommitProof,
   type AttackQualificationCommitProof,
 } from "../game/prologue-attack-qualification";
+import { isTrustedP0LearningCommitProof, type P0LearningCommitProof } from "../game/prologue-p0-learning";
 import {
   WILDLIFE_ECONOMY_ID,
   ZERO_WILDLIFE_REWARD_DELTA,
@@ -703,7 +704,9 @@ export const commitSessionProposal = (
 ): SessionBatchCommitResult => {
   if (batch.drafts.some((draft) => draft.type === "safe_range_runtime_frame_committed" ||
       draft.type === "safe_range_transfer_passed" ||
-      draft.type === "safe_range_material_table_completed")) {
+      draft.type === "safe_range_material_table_completed" ||
+      (draft.type === "learning_evidence_committed" &&
+        (draft.payload as Extract<GameSessionEvent, { type: "learning_evidence_committed" }>["payload"]).p0CurriculumActionId !== undefined))) {
     return { committed: false, failedDraftId: batch.drafts[0]?.eventId ?? null,
       reason: "invalid_event", session: authoritative };
   }
@@ -721,6 +724,28 @@ export const commitSessionProposal = (
     if (!result.applied) {
       return { committed: false, failedDraftId: draft.eventId, reason: result.reason, session: authoritative };
     }
+  }
+  return { committed: true, failedDraftId: null, reason: null, session: working };
+};
+
+export const commitTrustedP0LearningProposal = (
+  authoritative: GameSession,
+  proof: P0LearningCommitProof,
+): SessionBatchCommitResult => {
+  if (!isTrustedP0LearningCommitProof(proof)) return { committed: false, failedDraftId: null, reason: "invalid_event", session: authoritative };
+  const p0Drafts = proof.batch.drafts.filter((draft) => draft.type === "learning_evidence_committed" &&
+    (draft.payload as Extract<GameSessionEvent, { type: "learning_evidence_committed" }>["payload"]).p0CurriculumActionId !== undefined);
+  const receipt = proof.batch.drafts.at(-1);
+  if (p0Drafts.length === 0 || receipt?.type !== "receipt_recorded" || p0Drafts.some((draft) =>
+    (draft.payload as Extract<GameSessionEvent, { type: "learning_evidence_committed" }>["payload"]).p0CurriculumActionId !== proof.actionId)) {
+    return { committed: false, failedDraftId: p0Drafts[0]?.eventId ?? null, reason: "invalid_event", session: authoritative };
+  }
+  const working = authoritative.forkForProposal();
+  for (const draft of proof.batch.drafts) {
+    const event = materializeDraft(draft, working.nextSequence(), working);
+    const protectedEvent = event.type === "learning_evidence_committed" && event.payload.p0CurriculumActionId !== undefined;
+    const result = protectedEvent ? working.applyTrustedP0LearningEvent(event, proof) : working.apply(event);
+    if (!result.applied) return { committed: false, failedDraftId: draft.eventId, reason: result.reason, session: authoritative };
   }
   return { committed: true, failedDraftId: null, reason: null, session: working };
 };

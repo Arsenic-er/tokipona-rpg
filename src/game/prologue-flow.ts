@@ -1,6 +1,8 @@
 import generatedRuntimeArtifact from "../generated/content-runtime.v0.1.json";
+import { runtimeP0AssetReadiness } from "../assets/runtime-p0-assets";
 import { readRuntimeCisternTaskManifest } from "../content/runtime-task-manifest";
 import { readRuntimeSafeRangeManifest } from "../content/runtime-safe-range-manifest";
+import { readRuntimeP0CurriculumManifest, type RuntimeP0TargetState } from "../content/runtime-p0-curriculum-manifest";
 import {
   DEFAULT_PLAYER_BODY,
   GameSessionRuntimeBridge,
@@ -79,6 +81,9 @@ import type {
   PrologueAttackQualificationResult,
   SettlementAttackQualificationSemanticActionId,
 } from "./prologue-attack-qualification";
+import type { PrologueP0LearningResult } from "./prologue-p0-learning";
+import type { P0LearningActionId } from "./p0-learning-contract";
+import { p0TargetReached } from "./p0-learning-contract";
 import {
   PROLOGUE_SAFE_RANGE_SCENE_ID,
   PrologueSafeRangeSession,
@@ -186,6 +191,25 @@ export interface PrologueFlowSafeRangeView {
   }> | null;
 }
 
+export interface PrologueFlowP0LearningView {
+  readonly mode: "settlement" | "other";
+  readonly station: Readonly<{ sceneId: string; targetId: string; interactionId: string; inRange: boolean }>;
+  readonly externalAssets: Readonly<{
+    pronunciationAudio: "blocked_pending_private_assets" | "approved";
+    approvedGlyphRelease: "blocked_pending_private_approval" | "approved";
+  }>;
+  readonly words: readonly Readonly<{
+    wordId: string;
+    targetState: RuntimeP0TargetState;
+    currentState: "unknown" | "discovered" | "attuned" | "grounded" | "produced" | "stabilized";
+    targetReached: boolean;
+    completedActionIds: readonly P0LearningActionId[];
+    nextActionId: P0LearningActionId | null;
+  }>[];
+  readonly targetWordCount: 12;
+  readonly reachedWordCount: number;
+}
+
 export const PROLOGUE_FLOW_SETTLEMENT_ENTRY_TRANSACTION_PREFIX = "prologue.flow.settlement.entry";
 export const PROLOGUE_FLOW_WATERWHEEL_ENTRY_TRANSACTION_PREFIX = "prologue.flow.waterwheel.entry";
 export const PROLOGUE_FLOW_CISTERN_ENTRY_TRANSACTION_PREFIX = "prologue.flow.cistern.entry";
@@ -211,6 +235,7 @@ const CISTERN_CAPACITY_CONTRACT = readVerifiedCapabilityMilestoneContract(
   readRuntimeCisternTaskManifest(generatedRuntimeArtifact).capacityMilestoneRef,
 );
 const SAFE_RANGE_MANIFEST = readRuntimeSafeRangeManifest(generatedRuntimeArtifact);
+const P0_CURRICULUM_MANIFEST = readRuntimeP0CurriculumManifest(generatedRuntimeArtifact);
 const SAFE_RANGE_RUNTIME_SCENE = Object.freeze({
   ...PROLOGUE_SAFE_RANGE_RUNTIME_SCENE,
   exits: Object.freeze([]),
@@ -515,6 +540,35 @@ export class PrologueFlowSession {
     });
   }
 
+  p0LearningView(): PrologueFlowP0LearningView {
+    const state = this.session.snapshot();
+    const point = P0_CURRICULUM_MANIFEST.recoveryStation.interactionPointTiles;
+    const runtime = this.snapshot().runtime;
+    const inRange = this.settlement !== null && runtime.sceneId === P0_CURRICULUM_MANIFEST.recoveryStation.sceneId &&
+      Number.isFinite(runtime.player.position.x) && Number.isFinite(runtime.player.position.y) &&
+      Math.hypot(runtime.player.position.x - point[0] * 16, runtime.player.position.y - point[1] * 16) <= P0_CURRICULUM_MANIFEST.recoveryStation.maximumDistancePx;
+    const words = Object.freeze(P0_CURRICULUM_MANIFEST.scope.wordIds.map((wordId) => {
+      const authored = P0_CURRICULUM_MANIFEST.words[wordId];
+      const progress = state.learning.words[wordId];
+      const actions = (["discover", "attune", "context_0", "context_1", "repair"] as const)
+        .map((kind) => `p0.${wordId}.${kind}` as P0LearningActionId);
+      const completedActionIds = Object.freeze(actions.filter((actionId) =>
+        state.receiptIndex[`learning:${this.session.sessionId}:p0-action:${actionId}`] !== undefined));
+      const reached = p0TargetReached(authored.targetState, progress?.learningState ?? null, progress?.attunementState);
+      const currentState = progress?.attunementState === "attuned" && (progress.learningState === null || progress.learningState === "discovered")
+        ? "attuned" as const : progress?.learningState ?? "unknown";
+      return Object.freeze({ wordId, targetState: authored.targetState, currentState, targetReached: reached,
+        completedActionIds, nextActionId: actions.find((actionId) => !completedActionIds.includes(actionId)) ?? null });
+    }));
+    return Object.freeze({ mode: this.settlement ? "settlement" : "other",
+      station: Object.freeze({ sceneId: P0_CURRICULUM_MANIFEST.recoveryStation.sceneId,
+        targetId: P0_CURRICULUM_MANIFEST.recoveryStation.targetId,
+        interactionId: P0_CURRICULUM_MANIFEST.recoveryStation.interactionId, inRange }),
+      externalAssets: Object.freeze({ pronunciationAudio: runtimeP0AssetReadiness.pronunciationAudio,
+        approvedGlyphRelease: runtimeP0AssetReadiness.approvedGlyphRelease }),
+      words, targetWordCount: 12, reachedWordCount: words.filter((word) => word.targetReached).length });
+  }
+
   advanceTicks(ticks: number, input: RuntimeInput = {}): PrologueFlowSnapshot {
     if (!Number.isSafeInteger(ticks) || ticks < 0) throw new RangeError("ticks must be a non-negative safe integer");
     for (let index = 0; index < ticks; index += 1) {
@@ -564,6 +618,9 @@ export class PrologueFlowSession {
   grantRangeTrialPermission(operationId: string): PrologueFlowAction<PrologueAttackQualificationResult> {
     return this.delegateSettlementQualification((settlement) =>
       settlement.grantAttackRangeTrialPermission(operationId));
+  }
+  performP0LearningAction(operationId: string, actionId: P0LearningActionId): PrologueFlowAction<PrologueP0LearningResult> {
+    return this.delegateSettlementQualification((settlement) => settlement.commitP0LearningAction(actionId, operationId));
   }
   usePublicRelief(transactionId: string) { return this.delegateSettlement((x) => x.usePublicRelief(transactionId)); }
   meditate(transactionId: string, answerAccepted: boolean) {
@@ -1156,10 +1213,10 @@ export class PrologueFlowSession {
     try { const result = action(this.settlement); this.reconcileMode(); return this.delegated(result, result.accepted); }
     catch { return this.rejectedDelegate<T>(); }
   }
-  private delegateSettlementQualification(
-    action: (settlement: PrologueSettlementSession) => PrologueAttackQualificationResult,
-  ): PrologueFlowAction<PrologueAttackQualificationResult> {
-    if (!this.settlement) return this.rejectedMode();
+  private delegateSettlementQualification<T extends { readonly accepted: boolean }>(
+    action: (settlement: PrologueSettlementSession) => T,
+  ): PrologueFlowAction<T> {
+    if (!this.settlement) return this.rejectedMode<T>();
     try {
       const result = action(this.settlement);
       if (result.accepted && this.crossSaveCoordinator) {
@@ -1170,7 +1227,7 @@ export class PrologueFlowSession {
         );
       }
       return this.delegated(result, result.accepted);
-    } catch { return this.rejectedDelegate(); }
+    } catch { return this.rejectedDelegate<T>(); }
   }
   private delegateInfrastructure<T extends InfrastructureAcceptedResult>(
     action: (x: PrologueWaterwheelSession) => T,

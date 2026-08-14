@@ -51,6 +51,8 @@ import {
   type PrologueAttackQualificationResult,
   type SettlementAttackQualificationSemanticActionId,
 } from "./prologue-attack-qualification";
+import { PrologueP0LearningCoordinator, type PrologueP0LearningResult } from "./prologue-p0-learning";
+import type { P0LearningActionId } from "./p0-learning-contract";
 import { verifiedTradeManifest, type VerifiedSellQuote } from "./verified-trade";
 import {
   authorizedTradeEntry,
@@ -567,6 +569,15 @@ export class PrologueSettlementSession {
   grantAttackRangeTrialPermission(operationId: string): PrologueAttackQualificationResult {
     const coordinator = new PrologueAttackQualificationCoordinator(this);
     const result = coordinator.grantRangeTrialPermission(operationId);
+    if (result.accepted && !result.duplicate) {
+      this.authoritativeSession = result.session;
+      this.bridge.adoptSession(result.session);
+    }
+    return result;
+  }
+
+  commitP0LearningAction(actionId: P0LearningActionId, operationId: string): PrologueP0LearningResult {
+    const result = new PrologueP0LearningCoordinator(this).commit(actionId, operationId);
     if (result.accepted && !result.duplicate) {
       this.authoritativeSession = result.session;
       this.bridge.adoptSession(result.session);

@@ -133,6 +133,7 @@ targets:
   - {target_id: "settlement.butcher_counter", target_kind: "trade_counter", material: "wood_and_iron", interaction_point_tiles: [30, 28]}
   - {target_id: "settlement.tanner_counter", target_kind: "trade_counter", material: "wood_and_leather", interaction_point_tiles: [34, 28]}
   - {target_id: "settlement.attack_calibration_table", target_kind: "inert_learning_station", material: "wood_slate_and_copper", interaction_point_tiles: [36, 28], collision_bounds_tiles: {x: 36, y: 28, width: 1, height: 1}}
+  - {target_id: "settlement.p0_inscription_archive", target_kind: "learning_recovery_station", material: "wood_and_common_inscription_slates", interaction_point_tiles: [38, 28], collision_bounds_tiles: {x: 38, y: 28, width: 1, height: 1}}
 
 npcs:
   - npc_id: "settlement.npc.facility_manager"
@@ -252,6 +253,7 @@ interactions:
   - {interaction_id: "settlement.open_butcher_trade", target_id: "settlement.butcher_counter", verb: "trade", npc_id: "settlement.npc.butcher", facility_id: "settlement.facility.butcher_counter", tool_or_magic_required: false}
   - {interaction_id: "settlement.open_tanner_trade", target_id: "settlement.tanner_counter", verb: "trade", npc_id: "settlement.npc.tanner", facility_id: "settlement.facility.tanner_counter", tool_or_magic_required: false}
   - {interaction_id: "settlement.open_attack_calibration", target_id: "settlement.attack_calibration_table", verb: "open_parallel_attack_calibration", tool_or_magic_required: false}
+  - {interaction_id: "settlement.open_p0_inscription_archive", target_id: "settlement.p0_inscription_archive", verb: "open_p0_learning_recovery", tool_or_magic_required: false}
 
 tasks:
   - task_id: "ch01_settlement_orientation"

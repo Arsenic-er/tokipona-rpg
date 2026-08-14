@@ -57,3 +57,5 @@ export type {
 } from "./runtime-task-manifest";
 export { assertVerifiedRuntimeSafeRangeManifest, isVerifiedRuntimeSafeRangeManifest, readRuntimeSafeRangeManifest } from "./runtime-safe-range-manifest";
 export type { RuntimeSafeRangeAstShape, RuntimeSafeRangeManifest, RuntimeSafeRangeTargetPhysics } from "./runtime-safe-range-manifest";
+export { computeRuntimeP0CurriculumDigest, isVerifiedRuntimeP0CurriculumManifest, readRuntimeP0CurriculumManifest } from "./runtime-p0-curriculum-manifest";
+export type { RuntimeP0CurriculumManifest, RuntimeP0TargetState, RuntimeP0WordManifest } from "./runtime-p0-curriculum-manifest";

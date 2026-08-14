@@ -1,6 +1,8 @@
 import { createHash } from "node:crypto";
 import { projectSafeRangeQualification } from "./safe-range-runtime-artifact.ts";
+import { projectP0Curriculum } from "./p0-runtime-artifact.ts";
 import type { RuntimeSafeRangeManifest } from "../../src/content/runtime-safe-range-manifest.ts";
+import type { RuntimeP0CurriculumManifest } from "../../src/content/runtime-p0-curriculum-manifest.ts";
 import { posix } from "node:path";
 import type { ContentManifest, ContentObject, ContentValue } from "../../src/content/types.ts";
 import type { CapabilityMilestoneMachineProjection } from "../../src/session/capability-contract.ts";
@@ -64,6 +66,7 @@ export interface RuntimeContentArtifact {
   readonly scenes: RuntimeSceneManifestIndex;
   readonly infrastructureTasks: RuntimeInfrastructureTaskManifestIndex;
   readonly safeRangeQualification: RuntimeSafeRangeManifest;
+  readonly p0Curriculum: RuntimeP0CurriculumManifest;
   readonly capabilityProgression: CapabilityMilestoneMachineProjection;
   readonly ecology: RuntimeEcologyManifest;
   readonly wildlifeProcessing: RuntimeWildlifeProcessingManifest;
@@ -357,6 +360,7 @@ export function buildRuntimeContentArtifact(manifest: ContentManifest): RuntimeC
     return [sceneId, result];
   }));
   const safeRangeQualification = projectSafeRangeQualification(manifest);
+  const p0Curriculum = projectP0Curriculum(manifest);
   const infrastructureTaskSources = [...manifest.byKind.task]
     .filter((taskSource) => taskSource.content.task_type === "infrastructure_world_predicate")
     .sort((left, right) => left.path.localeCompare(right.path));
@@ -586,6 +590,7 @@ export function buildRuntimeContentArtifact(manifest: ContentManifest): RuntimeC
       byId: infrastructureTasks,
     },
     safeRangeQualification,
+    p0Curriculum,
     capabilityProgression,
     ecology,
     wildlifeProcessing,

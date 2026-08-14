@@ -1,0 +1,19 @@
+{
+  "schemaVersion": "tokipona.p0-pronunciation-assets.v0.1",
+  "status": "blocked_pending_private_assets",
+  "wordIds": ["awen", "kasi", "kiwen", "kon", "lili", "lukin", "seli", "soweli", "suli", "tawa", "telo", "weka"],
+  "entries": {
+    "awen": { "audioAssetId": null, "publicPath": null, "sha256": null, "sourceUrl": null, "licenseSpdx": null, "redistributionApproved": false, "languageReviewApproved": false, "communityReviewApproved": false },
+    "kasi": { "audioAssetId": null, "publicPath": null, "sha256": null, "sourceUrl": null, "licenseSpdx": null, "redistributionApproved": false, "languageReviewApproved": false, "communityReviewApproved": false },
+    "kiwen": { "audioAssetId": null, "publicPath": null, "sha256": null, "sourceUrl": null, "licenseSpdx": null, "redistributionApproved": false, "languageReviewApproved": false, "communityReviewApproved": false },
+    "kon": { "audioAssetId": null, "publicPath": null, "sha256": null, "sourceUrl": null, "licenseSpdx": null, "redistributionApproved": false, "languageReviewApproved": false, "communityReviewApproved": false },
+    "lili": { "audioAssetId": null, "publicPath": null, "sha256": null, "sourceUrl": null, "licenseSpdx": null, "redistributionApproved": false, "languageReviewApproved": false, "communityReviewApproved": false },
+    "lukin": { "audioAssetId": null, "publicPath": null, "sha256": null, "sourceUrl": null, "licenseSpdx": null, "redistributionApproved": false, "languageReviewApproved": false, "communityReviewApproved": false },
+    "seli": { "audioAssetId": null, "publicPath": null, "sha256": null, "sourceUrl": null, "licenseSpdx": null, "redistributionApproved": false, "languageReviewApproved": false, "communityReviewApproved": false },
+    "soweli": { "audioAssetId": null, "publicPath": null, "sha256": null, "sourceUrl": null, "licenseSpdx": null, "redistributionApproved": false, "languageReviewApproved": false, "communityReviewApproved": false },
+    "suli": { "audioAssetId": null, "publicPath": null, "sha256": null, "sourceUrl": null, "licenseSpdx": null, "redistributionApproved": false, "languageReviewApproved": false, "communityReviewApproved": false },
+    "tawa": { "audioAssetId": null, "publicPath": null, "sha256": null, "sourceUrl": null, "licenseSpdx": null, "redistributionApproved": false, "languageReviewApproved": false, "communityReviewApproved": false },
+    "telo": { "audioAssetId": null, "publicPath": null, "sha256": null, "sourceUrl": null, "licenseSpdx": null, "redistributionApproved": false, "languageReviewApproved": false, "communityReviewApproved": false },
+    "weka": { "audioAssetId": null, "publicPath": null, "sha256": null, "sourceUrl": null, "licenseSpdx": null, "redistributionApproved": false, "languageReviewApproved": false, "communityReviewApproved": false }
+  }
+}
