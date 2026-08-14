@@ -14792,7 +14792,7 @@
     "sourceDigest": "sha256:33b53f953c5771d7fbf7e10e89ce2b86b8d825c8cc090d9f61d42384f90ccda0"
   },
   "prologueAcceptance": {
-    "sourceDigest": "sha256:5c8e2c2cdb1cf155e3bf7b26f5ab119943de9ece99a20f42c1e44bbd5435820b",
+    "sourceDigest": "sha256:09558dfa615aa6c1b93443e6dbad1d9f94175139273103b4144cdb15fe74f6f3",
     "sourcePath": "data/chapters/ch01-world-literacy-prologue.v0.1.yaml",
     "contentVersion": "chapter-01.prologue.1",
     "telemetry": {
@@ -14921,7 +14921,73 @@
         "shareAggregation": "ratio_of_aggregate_active_time",
         "rateAggregation": "ratio_of_aggregate_coin_per_active_minute",
         "countAggregation": "sum"
-      }
+      },
+      "segmentFocus": [
+        {
+          "segmentId": "arrival",
+          "mapNodeIds": [
+            "valley.arrival_shelf",
+            "valley.stream_section"
+          ],
+          "activeNewWordIds": [
+            "telo"
+          ]
+        },
+        {
+          "segmentId": "settlement_orientation",
+          "mapNodeIds": [
+            "valley.settlement"
+          ],
+          "activeNewWordIds": []
+        },
+        {
+          "segmentId": "waterwheel",
+          "mapNodeIds": [
+            "valley.waterwheel"
+          ],
+          "activeNewWordIds": [
+            "tawa"
+          ]
+        },
+        {
+          "segmentId": "service_channel",
+          "mapNodeIds": [
+            "valley.service_channel"
+          ],
+          "activeNewWordIds": [
+            "o"
+          ]
+        },
+        {
+          "segmentId": "high_cistern",
+          "mapNodeIds": [
+            "valley.high_cistern"
+          ],
+          "activeNewWordIds": [
+            "lili",
+            "suli"
+          ]
+        },
+        {
+          "segmentId": "den_and_return_flow",
+          "mapNodeIds": [
+            "valley.den_bypass",
+            "valley.return_channel"
+          ],
+          "activeNewWordIds": [
+            "wawa"
+          ]
+        },
+        {
+          "segmentId": "return_and_safe_range",
+          "mapNodeIds": [
+            "valley.settlement",
+            "valley.safe_range",
+            "valley.old_mine_threshold"
+          ],
+          "activeNewWordIds": []
+        }
+      ]
     },
     "acceptance": {
       "required": {

@@ -314,6 +314,23 @@ function validatePrologueAcceptanceSource(source: CompiledSource, issues: Conten
     "schema_version", "minimum_observed_content_minutes", "required_fields", "forbidden_fields",
     "percentile_method", "share_aggregation", "rate_aggregation", "count_aggregation",
   ].sort();
+  const expectedSegmentFocus = [
+    ["arrival", ["valley.arrival_shelf", "valley.stream_section"], ["telo"]],
+    ["settlement_orientation", ["valley.settlement"], []],
+    ["waterwheel", ["valley.waterwheel"], ["tawa"]],
+    ["service_channel", ["valley.service_channel"], ["o"]],
+    ["high_cistern", ["valley.high_cistern"], ["lili", "suli"]],
+    ["den_and_return_flow", ["valley.den_bypass", "valley.return_channel"], ["wawa"]],
+    ["return_and_safe_range", ["valley.settlement", "valley.safe_range", "valley.old_mine_threshold"], []],
+  ] as const;
+  const focusSegments = readObjectArray(source.content, "segments");
+  const segmentFocusCanonical = focusSegments.length === expectedSegmentFocus.length &&
+    expectedSegmentFocus.every(([segmentId, mapNodeIds, activeNewWordIds], index) => {
+      const segment = focusSegments[index];
+      return segment !== undefined && readString(segment, "segment_id") === segmentId &&
+        sameStringArray(readStringArray(segment, "map_nodes"), mapNodeIds) &&
+        sameStringArray(readStringArray(segment, "focus_active_new_words"), activeNewWordIds);
+    });
   const activeRetrievalInterval = cadence.active_retrieval_interval_minutes;
   if (readString(contract, "schema_version") !== "prologue.telemetry.v0.1" ||
       !same(readStringArray(taxonomy, "included"), ["world_people_physics", "language", "long_explanation"]) ||
@@ -329,6 +346,7 @@ function validatePrologueAcceptanceSource(source: CompiledSource, issues: Conten
       activeRetrievalInterval[0] !== 30 || activeRetrievalInterval[1] !== 40 ||
       readString(cadence, "active_retrieval_practice_family_semantic_field") !== "practiceFamilyId" ||
       readNumber(cadence, "maximum_consecutive_same_practice_family") !== 2 ||
+      !segmentFocusCanonical ||
       !same(Object.keys(playtestSession).sort(), playtestSessionKeys) ||
       readString(playtestSession, "schema_version") !== "prologue.playtest-session.v0.1" ||
       readNumber(playtestSession, "minimum_observed_content_minutes") !== 180 ||

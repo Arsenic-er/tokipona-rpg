@@ -29,6 +29,15 @@ const PROLOGUE_PLAYTEST_SESSION_FIELDS = [
 const PROLOGUE_PLAYTEST_SESSION_FORBIDDEN_FIELDS = [
   "rawUtterance", "rawText", "inventoryLotIds", "savePayload", "playerIdentifier", "damageOverride", "worldFlagOverride",
 ] as const;
+const PROLOGUE_SEGMENT_FOCUS = [
+  { segmentId: "arrival", mapNodeIds: ["valley.arrival_shelf", "valley.stream_section"], activeNewWordIds: ["telo"] },
+  { segmentId: "settlement_orientation", mapNodeIds: ["valley.settlement"], activeNewWordIds: [] },
+  { segmentId: "waterwheel", mapNodeIds: ["valley.waterwheel"], activeNewWordIds: ["tawa"] },
+  { segmentId: "service_channel", mapNodeIds: ["valley.service_channel"], activeNewWordIds: ["o"] },
+  { segmentId: "high_cistern", mapNodeIds: ["valley.high_cistern"], activeNewWordIds: ["lili", "suli"] },
+  { segmentId: "den_and_return_flow", mapNodeIds: ["valley.den_bypass", "valley.return_channel"], activeNewWordIds: ["wawa"] },
+  { segmentId: "return_and_safe_range", mapNodeIds: ["valley.settlement", "valley.safe_range", "valley.old_mine_threshold"], activeNewWordIds: [] },
+] as const;
 
 export function projectPrologueAcceptance(manifest: ContentManifest): RuntimePrologueAcceptanceManifest {
   const source = manifest.byKind.chapter[0];
@@ -50,6 +59,18 @@ export function projectPrologueAcceptance(manifest: ContentManifest): RuntimePro
   exactStrings(payload.forbidden_fields, PROLOGUE_TELEMETRY_FORBIDDEN_FIELDS, "telemetry forbidden fields");
   exactStrings(playtestSession.required_fields, PROLOGUE_PLAYTEST_SESSION_FIELDS, "playtest session fields");
   exactStrings(playtestSession.forbidden_fields, PROLOGUE_PLAYTEST_SESSION_FORBIDDEN_FIELDS, "playtest forbidden fields");
+  const segments = array(source.content.segments, "chapter segments");
+  const segmentFocus = PROLOGUE_SEGMENT_FOCUS.map((expected, index) => {
+    const segment = object(segments[index], `chapter segment ${expected.segmentId}`);
+    exact(segment.segment_id, expected.segmentId, `chapter segment ${expected.segmentId} identity`);
+    return {
+      segmentId: expected.segmentId,
+      mapNodeIds: exactStrings(segment.map_nodes, expected.mapNodeIds, `${expected.segmentId} map nodes`),
+      activeNewWordIds: exactStrings(segment.focus_active_new_words, expected.activeNewWordIds,
+        `${expected.segmentId} active word focus`),
+    };
+  });
+  if (segments.length !== PROLOGUE_SEGMENT_FOCUS.length) throw new Error("chapter segment focus is noncanonical");
   const acceptance = object(source.content.acceptance, "acceptance");
   const required = object(acceptance.required, "acceptance.required");
   const playtest = object(acceptance.playtest_targets, "acceptance.playtest_targets");
@@ -96,6 +117,7 @@ export function projectPrologueAcceptance(manifest: ContentManifest): RuntimePro
           "ratio_of_aggregate_coin_per_active_minute", "playtest rate aggregation"),
         countAggregation: exact(playtestSession.count_aggregation, "sum", "playtest count aggregation"),
       },
+      segmentFocus,
     },
     acceptance: {
       required: {
@@ -135,6 +157,7 @@ export function projectPrologueAcceptance(manifest: ContentManifest): RuntimePro
 }
 
 function object(value: ContentValue | undefined, label: string): ContentObject { if (typeof value !== "object" || value === null || Array.isArray(value)) throw new Error(`${label} must be an object`); return value; }
+function array(value: ContentValue | undefined, label: string): readonly ContentValue[] { if (!Array.isArray(value)) throw new Error(`${label} must be an array`); return value; }
 function exact<T extends string | number | boolean>(value: ContentValue | undefined, expected: T, label: string): T { if (value !== expected) throw new Error(`${label} must equal ${String(expected)}`); return expected; }
 function exactStrings<T extends readonly string[]>(value: ContentValue | undefined, expected: T, label: string): T { if (!Array.isArray(value) || value.length !== expected.length || value.some((entry, index) => entry !== expected[index])) throw new Error(`${label} is noncanonical`); return [...expected] as unknown as T; }
 function exactNumberPair(value: ContentValue | undefined, first: number, second: number, label: string): readonly [number, number] { if (!Array.isArray(value) || value.length !== 2 || value[0] !== first || value[1] !== second) throw new Error(`${label} is noncanonical`); return [first, second]; }

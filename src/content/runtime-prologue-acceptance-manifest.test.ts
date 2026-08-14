@@ -55,6 +55,15 @@ describe("prologue acceptance runtime contract", () => {
       },
     });
     expect(value.telemetry.eventIds).toHaveLength(24);
+    expect(value.telemetry.segmentFocus).toEqual([
+      { segmentId: "arrival", mapNodeIds: ["valley.arrival_shelf", "valley.stream_section"], activeNewWordIds: ["telo"] },
+      { segmentId: "settlement_orientation", mapNodeIds: ["valley.settlement"], activeNewWordIds: [] },
+      { segmentId: "waterwheel", mapNodeIds: ["valley.waterwheel"], activeNewWordIds: ["tawa"] },
+      { segmentId: "service_channel", mapNodeIds: ["valley.service_channel"], activeNewWordIds: ["o"] },
+      { segmentId: "high_cistern", mapNodeIds: ["valley.high_cistern"], activeNewWordIds: ["lili", "suli"] },
+      { segmentId: "den_and_return_flow", mapNodeIds: ["valley.den_bypass", "valley.return_channel"], activeNewWordIds: ["wawa"] },
+      { segmentId: "return_and_safe_range", mapNodeIds: ["valley.settlement", "valley.safe_range", "valley.old_mine_threshold"], activeNewWordIds: [] },
+    ]);
     expect(value.acceptance.required).toMatchObject({ mandatoryKills: 0, safeRangeUsesLivingTargets: false, meaningfulWorldDeltasOnReturnMinimum: 3 });
     expect(value.acceptance.playtest).toMatchObject({ worldPeoplePhysicsTimeShareMinimum: 0.65, languageActivityTimeShareRange: [0.15, 0.25], longExplanationPanelTimeShareMaximum: 0.10, rangeTrialPermissionContentMinutesP90Maximum: 180 });
   });
@@ -75,6 +84,9 @@ describe("prologue acceptance runtime contract", () => {
     const playtestSession = structuredClone(generated) as any;
     playtestSession.prologueAcceptance.telemetry.playtestSessionSummary.requiredFields.push("rawText");
     expect(() => readRuntimePrologueAcceptanceManifest(resign(playtestSession))).toThrow(/playtest session summary/);
+    const focus = structuredClone(generated) as any;
+    focus.prologueAcceptance.telemetry.segmentFocus[4].activeNewWordIds = ["lili", "suli", "mute"];
+    expect(() => readRuntimePrologueAcceptanceManifest(resign(focus))).toThrow(/active-word focus/);
     const threshold = structuredClone(generated) as any;
     threshold.prologueAcceptance.acceptance.playtest.worldPeoplePhysicsTimeShareMinimum = 0.5;
     expect(() => readRuntimePrologueAcceptanceManifest(resign(threshold))).toThrow(/playtest acceptance/);
@@ -100,6 +112,10 @@ describe("prologue acceptance runtime contract", () => {
     const playtestUnknownContract = (chapter(playtestUnknown).telemetry_contract as Record<string, unknown>).playtest_session_summary as Record<string, unknown>;
     playtestUnknownContract.raw_text_export = true;
     expectIssue(playtestUnknown, "chapter.telemetry_contract");
+    const focusDrift = sources();
+    const focusSegments = chapter(focusDrift).segments as Array<Record<string, unknown>>;
+    focusSegments[4]!.focus_active_new_words = ["lili", "suli", "mute"];
+    expectIssue(focusDrift, "chapter.telemetry_contract");
     const acceptanceDrift = sources();
     const acceptance = chapter(acceptanceDrift).acceptance as Record<string, unknown>;
     (acceptance.playtest_targets as Record<string, unknown>).world_people_physics_time_share_minimum = 0.5;

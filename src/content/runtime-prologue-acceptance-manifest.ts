@@ -52,6 +52,16 @@ export const PROLOGUE_PLAYTEST_SESSION_FORBIDDEN_FIELDS = Object.freeze([
   "rawUtterance", "rawText", "inventoryLotIds", "savePayload", "playerIdentifier", "damageOverride", "worldFlagOverride",
 ] as const);
 
+export const PROLOGUE_SEGMENT_FOCUS = Object.freeze([
+  Object.freeze({ segmentId: "arrival", mapNodeIds: Object.freeze(["valley.arrival_shelf", "valley.stream_section"]), activeNewWordIds: Object.freeze(["telo"]) }),
+  Object.freeze({ segmentId: "settlement_orientation", mapNodeIds: Object.freeze(["valley.settlement"]), activeNewWordIds: Object.freeze([]) }),
+  Object.freeze({ segmentId: "waterwheel", mapNodeIds: Object.freeze(["valley.waterwheel"]), activeNewWordIds: Object.freeze(["tawa"]) }),
+  Object.freeze({ segmentId: "service_channel", mapNodeIds: Object.freeze(["valley.service_channel"]), activeNewWordIds: Object.freeze(["o"]) }),
+  Object.freeze({ segmentId: "high_cistern", mapNodeIds: Object.freeze(["valley.high_cistern"]), activeNewWordIds: Object.freeze(["lili", "suli"]) }),
+  Object.freeze({ segmentId: "den_and_return_flow", mapNodeIds: Object.freeze(["valley.den_bypass", "valley.return_channel"]), activeNewWordIds: Object.freeze(["wawa"]) }),
+  Object.freeze({ segmentId: "return_and_safe_range", mapNodeIds: Object.freeze(["valley.settlement", "valley.safe_range", "valley.old_mine_threshold"]), activeNewWordIds: Object.freeze([]) }),
+] as const);
+
 export type PrologueTelemetryEventId = typeof PROLOGUE_TELEMETRY_EVENT_IDS[number];
 export type PrologueIncludedActivityKind = typeof PROLOGUE_INCLUDED_ACTIVITY_KINDS[number];
 export type PrologueExcludedActivityKind = typeof PROLOGUE_EXCLUDED_ACTIVITY_KINDS[number];
@@ -90,6 +100,11 @@ export interface RuntimePrologueAcceptanceManifest {
       rateAggregation: "ratio_of_aggregate_coin_per_active_minute";
       countAggregation: "sum";
     }>;
+    segmentFocus: readonly Readonly<{
+      segmentId: string;
+      mapNodeIds: readonly string[];
+      activeNewWordIds: readonly string[];
+    }>[];
   }>;
   readonly acceptance: Readonly<{
     required: Readonly<{
@@ -149,7 +164,7 @@ export function readRuntimePrologueAcceptanceManifest(candidate: unknown): Runti
   if (raw.sourcePath !== "data/chapters/ch01-world-literacy-prologue.v0.1.yaml" || raw.contentVersion !== "chapter-01.prologue.1") throw new Error("prologue acceptance source identity is invalid");
 
   const telemetry = record(raw.telemetry, "prologue telemetry");
-  exactKeys(telemetry, ["schemaVersion", "eventIds", "includedPrimaryActivities", "excludedActivities", "exclusivePrimaryActivity", "payload", "cadence", "playtestSessionSummary"], "prologue telemetry");
+  exactKeys(telemetry, ["schemaVersion", "eventIds", "includedPrimaryActivities", "excludedActivities", "exclusivePrimaryActivity", "payload", "cadence", "playtestSessionSummary", "segmentFocus"], "prologue telemetry");
   if (telemetry.schemaVersion !== "prologue.telemetry.v0.1" || telemetry.exclusivePrimaryActivity !== true ||
       !same(telemetry.eventIds, PROLOGUE_TELEMETRY_EVENT_IDS) ||
       !same(telemetry.includedPrimaryActivities, PROLOGUE_INCLUDED_ACTIVITY_KINDS) ||
@@ -185,6 +200,9 @@ export function readRuntimePrologueAcceptanceManifest(candidate: unknown): Runti
       playtestSession.countAggregation !== "sum") {
     throw new Error("prologue playtest session summary contract is noncanonical");
   }
+  if (!sameSegmentFocus(telemetry.segmentFocus)) {
+    throw new Error("prologue segment active-word focus is noncanonical");
+  }
 
   const acceptance = record(raw.acceptance, "prologue acceptance thresholds");
   exactKeys(acceptance, ["required", "playtest"], "prologue acceptance thresholds");
@@ -203,6 +221,16 @@ export function readRuntimePrologueAcceptanceManifest(candidate: unknown): Runti
 function record(value: unknown, label: string): Record<string, unknown> { if (typeof value !== "object" || value === null || Array.isArray(value)) throw new Error(`${label} must be an object`); return value as Record<string, unknown>; }
 function string(value: unknown, label: string): string { if (typeof value !== "string" || value.length === 0) throw new Error(`${label} must be a non-empty string`); return value; }
 function same(value: unknown, expected: readonly string[]): boolean { return Array.isArray(value) && value.length === expected.length && value.every((entry, index) => entry === expected[index]); }
+function sameSegmentFocus(value: unknown): boolean {
+  if (!Array.isArray(value) || value.length !== PROLOGUE_SEGMENT_FOCUS.length) return false;
+  return value.every((candidate, index) => {
+    if (typeof candidate !== "object" || candidate === null || Array.isArray(candidate)) return false;
+    const entry = candidate as Record<string, unknown>;
+    const expected = PROLOGUE_SEGMENT_FOCUS[index]!;
+    return Object.keys(entry).length === 3 && entry.segmentId === expected.segmentId &&
+      same(entry.mapNodeIds, expected.mapNodeIds) && same(entry.activeNewWordIds, expected.activeNewWordIds);
+  });
+}
 function numberPair(value: unknown, first: number, second: number): boolean { return Array.isArray(value) && value.length === 2 && value[0] === first && value[1] === second; }
 function exactKeys(value: Record<string, unknown>, expected: readonly string[], label: string): void { if (Object.keys(value).length !== expected.length || expected.some((key) => !(key in value))) throw new Error(`${label} contains unknown or missing fields`); }
 function deepFreeze<T>(value: T): T { if (typeof value !== "object" || value === null || Object.isFrozen(value)) return value; for (const child of Object.values(value as Record<string, unknown>)) deepFreeze(child); return Object.freeze(value); }

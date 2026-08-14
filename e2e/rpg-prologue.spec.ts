@@ -3,6 +3,7 @@ import { expect, test, type Page } from "@playwright/test";
 const PRIMARY_KEY = "tokipona.rpg.prologue.v0.3";
 const COMPANION_KEY = `${PRIMARY_KEY}.cross-save-wal`;
 const TELEMETRY_KEY = `${PRIMARY_KEY}.telemetry`;
+const PLAYTEST_KEY = `${TELEMETRY_KEY}.playtest`;
 const ARRIVAL = "scene.valley.arrival_shelf";
 const STREAM = "scene.valley.stream_section";
 const SETTLEMENT = "scene.valley.settlement";
@@ -238,6 +239,21 @@ test("runs the real keyboard/touch route and restores companion-first without ma
     ["prologue_segment_started", SETTLEMENT],
   ]);
   expect(JSON.stringify(telemetry)).not.toMatch(/rawUtterance|rawText|inventoryLotId|damageOverride|worldFlagOverride/);
+  const [primarySave, playtestRaw] = await page.evaluate(([primaryKey, playtestKey]) => [
+    JSON.parse(localStorage.getItem(primaryKey)!),
+    localStorage.getItem(playtestKey),
+  ], [PRIMARY_KEY, PLAYTEST_KEY] as const);
+  expect(playtestRaw).not.toBeNull();
+  const playtest = JSON.parse(playtestRaw!);
+  expect(playtest).toMatchObject({
+    schema: "tokipona.browser-prologue-playtest.v0.1",
+    observationComplete: true,
+  });
+  expect(playtest.sessionId).toMatch(/^session\.sha256\.[0-9a-f]{64}$/);
+  expect(playtest.sessionId).not.toBe(primarySave.session.sessionId);
+  expect(playtest.processedEventSequence).toBeGreaterThan(0);
+  expect(playtestRaw).not.toContain(primarySave.session.sessionId);
+  expect(playtestRaw).not.toMatch(/rawUtterance|rawText|inventoryLotId|lotId|savePayload|playerIdentifier/);
 
   await completeP0RecoveryCurriculum(page);
   await prepareCore120WordAtArchive(page, "P1", "ala");

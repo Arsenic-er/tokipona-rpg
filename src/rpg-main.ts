@@ -56,7 +56,17 @@ import { createRpgP0LearningUi, type P0LearningUiCommand } from "./rpg-p0-learni
 import { createRpgCore120LearningUi, type Core120LearningUiCommand } from "./rpg-core120-learning-ui";
 import { createRpgOldMineUi, type OldMineUiCommand } from "./rpg-old-mine-ui";
 import { BrowserPrologueTelemetry } from "./acceptance/browser-prologue-telemetry";
+import {
+  BrowserProloguePlaytest,
+  anonymizedProloguePlaytestSessionId,
+} from "./acceptance/browser-prologue-playtest";
+import {
+  PROLOGUE_PLAYTEST_COHORT_FILE_SCHEMA,
+  PROLOGUE_PLAYTEST_COLLECTION_MODE,
+  readProloguePlaytestCohortFile,
+} from "./acceptance/prologue-playtest-cohort-file";
 import type { PrologueActivityKind } from "./content/runtime-prologue-acceptance-manifest";
+import type { GameSessionEvent } from "./session/game-session";
 
 type GlyphPhase = "undiscovered" | "discovered" | "activated";
 type Tone = "neutral" | "success" | "warning" | "danger";
@@ -75,6 +85,7 @@ const HEIGHT = CAMERA_PROFILE.viewportPx.height;
 const STORAGE_KEY = "tokipona.rpg.prologue.v0.3";
 const COMPANION_STORAGE_KEY = `${STORAGE_KEY}.cross-save-wal`;
 const TELEMETRY_STORAGE_KEY = `${STORAGE_KEY}.telemetry`;
+const PLAYTEST_STORAGE_KEY = `${TELEMETRY_STORAGE_KEY}.playtest`;
 const STORAGE_KEYS = Object.freeze({
   checkpointKey: STORAGE_KEY,
   companionKey: COMPANION_STORAGE_KEY,
@@ -116,6 +127,10 @@ class FlowBrowserPort {
 
   sessionId(): string {
     return this.flow.session.sessionId;
+  }
+
+  sessionEvents(): readonly GameSessionEvent[] {
+    return this.flow.session.events();
   }
 
   safeRangeView(): PrologueFlowSafeRangeView {
@@ -598,6 +613,7 @@ app.innerHTML = `
       <button type="button" data-action="reset">回检查点 [R]</button>
       <button type="button" data-action="save">保存</button>
       <button type="button" data-action="load">读取</button>
+      <button type="button" data-action="export-playtest">导出实测样本</button>
       <button type="button" data-action="area-reset">重置区域</button>
     </section>
     <section class="touch-controls" aria-label="触屏操作">
@@ -626,7 +642,9 @@ const statusLabel = required<HTMLElement>('[data-ui="status"]');
 
 let lastTelemetryAtMs = 0;
 let port = FlowBrowserPort.bootstrap();
-let telemetry = bootstrapTelemetry(port, telemetryNow());
+const initialTelemetryAtMs = telemetryNow();
+let telemetry = bootstrapTelemetry(port, initialTelemetryAtMs);
+let playtest = bootstrapPlaytest(port, telemetry, initialTelemetryAtMs);
 const infrastructureUi = createRpgInfrastructureUi((command) => run(() => port.infrastructure(command)));
 const cisternUi = createRpgCisternUi((command) => run(() => port.cistern(command)));
 const wildlifeUi = createRpgWildlifeUi((command) => run(() => port.wildlife(command)));
@@ -668,12 +686,7 @@ function frame(now: number): void {
   }
   jumpQueued = false;
   const snapshot = port.snapshot();
-  telemetry.observe({
-    sceneId: snapshot.runtime.sceneId,
-    worldTick: snapshot.runtime.tick,
-    active: browserActivityKind(),
-    atMs: telemetryTimestamp(monotonicNow),
-  });
+  observeBrowserMeasurements(snapshot, telemetryTimestamp(monotonicNow));
   render(snapshot, monotonicNow);
   requestAnimationFrame(frame);
 }
@@ -1002,13 +1015,17 @@ function bindInputs(): void {
   required<HTMLButtonElement>("[data-trade-open]").addEventListener("click", () => run(() => port.openTrade()));
   required<HTMLButtonElement>('[data-action="save"]').addEventListener("click", save);
   required<HTMLButtonElement>('[data-action="load"]').addEventListener("click", load);
+  required<HTMLButtonElement>('[data-action="export-playtest"]').addEventListener("click", exportPlaytest);
 }
 
 function bindPersistenceLifecycle(): void {
   const flush = (): void => {
     try {
       port.toSave();
-      telemetry.suspend(telemetryNow());
+      const now = telemetryNow();
+      observeBrowserMeasurements(port.snapshot(), now);
+      telemetry.suspend(now);
+      playtest.flush();
     } catch (error: unknown) {
       setStatus(errorMessage(error, "自动保存失败。"), "danger");
     }
@@ -1023,6 +1040,9 @@ function save(): void {
   try {
     const save = port.toSave();
     void save; // persistBrowserPrologueCheckpoint already wrote the checked envelope.
+    const now = telemetryNow();
+    observeBrowserMeasurements(port.snapshot(), now);
+    playtest.flush();
     setStatus("存档已写入此浏览器。", "success");
   } catch (error: unknown) {
     setStatus(errorMessage(error, "保存失败。"), "danger");
@@ -1038,9 +1058,13 @@ function load(): void {
       return;
     }
     const now = telemetryNow();
+    observeBrowserMeasurements(port.snapshot(), now);
     telemetry.suspend(now);
+    playtest.flush();
     port = FlowBrowserPort.bootstrap();
-    telemetry = bootstrapTelemetry(port, now);
+    const loadedAtMs = telemetryNow();
+    telemetry = bootstrapTelemetry(port, loadedAtMs);
+    playtest = bootstrapPlaytest(port, telemetry, loadedAtMs);
     economyUi.clearQuote();
     clearHeld();
     activationStarted = null;
@@ -1050,17 +1074,83 @@ function load(): void {
   }
 }
 
+function exportPlaytest(): void {
+  try {
+    const now = telemetryNow();
+    observeBrowserMeasurements(port.snapshot(), now);
+    const sample = playtest.toSample(telemetry.snapshot(now).activity);
+    const cohort = readProloguePlaytestCohortFile({
+      schemaVersion: PROLOGUE_PLAYTEST_COHORT_FILE_SCHEMA,
+      collectionMode: PROLOGUE_PLAYTEST_COLLECTION_MODE,
+      cohortId: `cohort.local.${sample.sessionId.slice("session.sha256.".length, "session.sha256.".length + 12)}`,
+      samples: [sample],
+    });
+    const blob = new Blob([`${JSON.stringify(cohort, null, 2)}\n`], { type: "application/json" });
+    const href = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = href;
+    link.download = `${cohort.cohortId}.json`;
+    link.click();
+    URL.revokeObjectURL(href);
+    setStatus("匿名实测样本已导出；可与其他样本合并后运行 acceptance:cohort。", "success");
+  } catch (error: unknown) {
+    setStatus(errorMessage(error, "样本尚未满足完整的 180 分钟观测合同。"), "warning");
+  }
+}
+
 function bootstrapTelemetry(target: FlowBrowserPort, atMs: number): BrowserPrologueTelemetry {
   const snapshot = target.snapshot();
   return BrowserPrologueTelemetry.bootstrap({
     storage: localStorage,
     key: TELEMETRY_STORAGE_KEY,
-    sessionId: target.sessionId(),
+    sessionId: anonymizedProloguePlaytestSessionId(target.sessionId()),
     sceneId: snapshot.runtime.sceneId,
     worldTick: snapshot.runtime.tick,
     active: browserActivityKind(),
     atMs,
   });
+}
+
+function bootstrapPlaytest(
+  target: FlowBrowserPort,
+  targetTelemetry: BrowserPrologueTelemetry,
+  atMs: number,
+): BrowserProloguePlaytest {
+  const snapshot = target.snapshot();
+  return BrowserProloguePlaytest.bootstrap({
+    storage: localStorage,
+    key: PLAYTEST_STORAGE_KEY,
+    sessionId: anonymizedProloguePlaytestSessionId(target.sessionId()),
+    frame: {
+      activity: targetTelemetry.snapshot(atMs).activity,
+      survivalUiActive: survivalUiActive(),
+      session: snapshot.session,
+      events: target.sessionEvents(),
+      sceneId: snapshot.runtime.sceneId,
+    },
+  });
+}
+
+function observeBrowserMeasurements(snapshot: PrologueFlowSnapshot, atMs: number): void {
+  telemetry.observe({
+    sceneId: snapshot.runtime.sceneId,
+    worldTick: snapshot.runtime.tick,
+    active: browserActivityKind(),
+    atMs,
+  });
+  playtest.observeFrame({
+    activity: telemetry.snapshot(atMs).activity,
+    survivalUiActive: survivalUiActive(),
+    session: snapshot.session,
+    events: port.sessionEvents(),
+    sceneId: snapshot.runtime.sceneId,
+  });
+}
+
+function survivalUiActive(): boolean {
+  if (document.hidden || !document.hasFocus()) return false;
+  const focused = document.activeElement;
+  return focused instanceof Element && focused.closest('[data-ui="economy-root"]') !== null;
 }
 
 function browserActivityKind(): PrologueActivityKind {
@@ -1302,6 +1392,7 @@ function run(action: () => UiResult): void {
   try {
     show(action());
   } catch (error: unknown) {
+    playtest.beginSoftFailure(telemetry.snapshot(telemetryNow()).activity);
     setStatus(errorMessage(error, "操作失败。"), "danger");
   }
 }
@@ -1310,10 +1401,15 @@ function show(result: UiResult): void {
   if (result.accepted) {
     try {
       port.persistIfChanged();
+      const now = telemetryNow();
+      observeBrowserMeasurements(port.snapshot(), now);
+      playtest.completeSoftFailure(telemetry.snapshot(now).activity);
     } catch (error: unknown) {
       setStatus(errorMessage(error, "操作已完成，但自动保存失败。"), "danger");
       return;
     }
+  } else {
+    playtest.beginSoftFailure(telemetry.snapshot(telemetryNow()).activity);
   }
   setStatus(result.message, result.tone);
 }
