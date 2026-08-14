@@ -1,4 +1,4 @@
-import generatedRuntimeArtifact from "../generated/content-runtime.v0.1.json";
+﻿import generatedRuntimeArtifact from "../generated/content-runtime.v0.1.json";
 import {
   readRuntimeSceneManifestIndex,
   type RuntimeSceneExitManifest,
@@ -46,6 +46,11 @@ import {
   createGiftedRabbitLife,
 } from "./gifted-carcass";
 import type { WildlifeProcessingAction, WildlifeProcessingWorkOrder } from "./wildlife-processing";
+import {
+  PrologueAttackQualificationCoordinator,
+  type PrologueAttackQualificationResult,
+  type SettlementAttackQualificationSemanticActionId,
+} from "./prologue-attack-qualification";
 import { verifiedTradeManifest, type VerifiedSellQuote } from "./verified-trade";
 import {
   authorizedTradeEntry,
@@ -535,6 +540,39 @@ export class PrologueSettlementSession {
     });
   }
 
+  /** Commits one generated N02 qualification action through the live runtime authority boundary. */
+  commitAttackQualificationAction(
+    actionId: SettlementAttackQualificationSemanticActionId,
+    operationId: string,
+  ): PrologueAttackQualificationResult {
+    const coordinator = new PrologueAttackQualificationCoordinator(this);
+    const result = coordinator.commitSettlementAction(actionId, operationId);
+    if (result.accepted && !result.duplicate) {
+      this.authoritativeSession = result.session;
+      this.bridge.adoptSession(result.session);
+    }
+    return result;
+  }
+
+  calibrateAttackCapacity(operationId: string): PrologueAttackQualificationResult {
+    const coordinator = new PrologueAttackQualificationCoordinator(this);
+    const result = coordinator.calibrate(operationId);
+    if (result.accepted && !result.duplicate) {
+      this.authoritativeSession = result.session;
+      this.bridge.adoptSession(result.session);
+    }
+    return result;
+  }
+
+  grantAttackRangeTrialPermission(operationId: string): PrologueAttackQualificationResult {
+    const coordinator = new PrologueAttackQualificationCoordinator(this);
+    const result = coordinator.grantRangeTrialPermission(operationId);
+    if (result.accepted && !result.duplicate) {
+      this.authoritativeSession = result.session;
+      this.bridge.adoptSession(result.session);
+    }
+    return result;
+  }
   authorizeWildlifeProcessingStation(stationId: string, operationId: string): SettlementActionResult {
     if (!this.inSettlement()) return this.result(false, false, "wrong_scene");
     const runtime = this.bridge.runtime.snapshot();

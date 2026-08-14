@@ -112,6 +112,17 @@ signatures:
       target_classes: [wood_dummy, sandbag, minecart, hanging_stone]
       material_table_completion_target: "material_collision_table"
       same_normalized_variant_award_maximum: 1
+    safe_range_target_physics:
+      authority: "authored_per_target_class"
+      balance_status: "provisional_authored_values"
+      runtime_target_physics_guessing_forbidden: true
+      transferred_kinetic_eu_formula: "min(paid_kinetic_budget_eu, paid_kinetic_budget_eu * kinetic_coupling_ratio)"
+      damage_formula_id: "physics.impact.transfer.v0.1"
+      profiles:
+        - {target_class: "wood_dummy", material_class: "wood", target_absorption_eu: 1.5, kinetic_coupling_ratio: 0.80, initial_hp: 6, initial_state_band: "anchored_at_rest"}
+        - {target_class: "sandbag", material_class: "fiber_and_sand", target_absorption_eu: 2.5, kinetic_coupling_ratio: 0.55, initial_hp: 8, initial_state_band: "settled_at_rest"}
+        - {target_class: "minecart", material_class: "metal", target_absorption_eu: 1.0, kinetic_coupling_ratio: 0.70, initial_hp: 10, initial_state_band: "braked_on_rail"}
+        - {target_class: "hanging_stone", material_class: "stone", target_absorption_eu: 2.0, kinetic_coupling_ratio: 0.90, initial_hp: 8, initial_state_band: "suspended_at_rest"}
     golden_tests:
       - {id: "attack.no_permission_no_commit", expect: {world_mutation: false, mp_charge: 0}}
       - {id: "attack.max_mp_30_manifest_quote", expect: {can_quote: true, required_mp: 18}}

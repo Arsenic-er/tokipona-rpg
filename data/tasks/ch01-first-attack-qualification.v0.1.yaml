@@ -1,0 +1,187 @@
+schema_version: "g01.task.safe-range.v0.1"
+content_version: "chapter-01.first-attack-qualification.1"
+task_type: "safe_range_attack_qualification"
+task_id: "ch01_first_attack_qualification"
+task_family_id: "safe_range_unseen_transfer"
+chapter_flow_id: "ch01_world_literacy_prologue"
+chapter_segment_id: "return_and_safe_range"
+region_id: "valley_prologue"
+region_node_id: "valley.safe_range"
+scene_ref: "../scenes/valley-safe-range.v0.1.yaml"
+attack_signature_ref: "../spells/attack-signatures.v0.1.yaml"
+attack_signature_id: "attack.water.forceful_motion.v0.1"
+status: "machine_contract_ready"
+optional: true
+implementation_boundary: "authored_safe_range_semantics_not_raw_utterance_or_guessed_target_physics"
+
+entry_guard: {state_id: "range_trial_permission", expected: true}
+exit_guard: {state_id: "range_trial_permission", expected: true}
+living_targets_forbidden: true
+target_ids: [wood_dummy, sandbag, minecart, hanging_stone, material_collision_table]
+interaction_ids: [safe_range.test_wood_dummy, safe_range.test_sandbag, safe_range.test_minecart, safe_range.test_hanging_stone, safe_range.inspect_material_collision_table]
+
+canonical_ast:
+  subject_head: "word.telo"
+  command_particle: "o"
+  action: "word.tawa"
+  manner: "word.wawa"
+raw_utterance_string_matching_forbidden: true
+
+ordered_state_progression:
+  - stage_id: "calibration"
+    prerequisite_state_id: "attack_capacity_calibration_complete"
+    expected: true
+    writer_event: "attack_capacity_calibrated"
+  - stage_id: "permission"
+    prerequisite_state_id: "range_trial_permission"
+    expected: true
+    writer_event: "attack_prerequisites_verified"
+  - stage_id: "first_eligible_unseen_transfer"
+    evidence_type: "safe_range_unseen_transfer"
+    eligible_prompt_levels: [H0, H1]
+    target_class: "inert"
+    living_overlap_rejected_before_commit: true
+    result_state_id: "first_attack_signature_available"
+    writer_event: "safe_range_transfer_passed"
+  - stage_id: "complete_material_table"
+    required_target_classes: [wood_dummy, sandbag, minecart, hanging_stone]
+    table_target_id: "material_collision_table"
+    result_state_id: "first_attack_signature_completed"
+    writer_event: "safe_range_material_table_completed"
+
+execution_contract:
+  output_phase: "liquid"
+  output_mass_mu: 2
+  paid_kinetic_budget_eu: 8
+  bound_existing_water_mp: 13
+  manifested_water_mp: 18
+  swept_volume_collision_check: true
+  living_overlap_rejected_before_commit: true
+  target_physics_authority: "attack_signature.safe_range_target_physics"
+  runtime_target_physics_guessing_forbidden: true
+  target_state_initialization_source: "attack_signature.safe_range_target_physics.profiles.initial_hp"
+  collision_geometry_source: "scene.targets.collision_bounds_tiles"
+  living_overlap_source: "runtime_actor_aabb_vs_authored_target_and_swept_volume"
+  mp_charged_only_after_valid_commit: true
+
+completion:
+  first_transfer_event: "safe_range_transfer_passed"
+  first_transfer_state_id: "first_attack_signature_available"
+  material_table_event: "safe_range_material_table_completed"
+  material_table_state_id: "first_attack_signature_completed"
+  requires_all_target_classes_and_table: true
+  raw_expression_never_read_for_success: true
+  living_target_never_required: true
+
+recovery:
+  maximum_softlock_recovery_seconds: 60
+  actions: [discard_preview_without_mp_charge, reject_before_commit_and_reposition_trial_volume, restore_task_local_inert_targets, expose_peaceful_return]
+  preserves: [learning_evidence, global_progress, completed_target_classes, attack_qualification_state]
+  duplicate_evidence_forbidden: true
+
+parallel_calibration_station:
+  authority_scene_id: "scene.valley.settlement"
+  target_id: "settlement.attack_calibration_table"
+  interaction_id: "settlement.open_attack_calibration"
+  interaction_point_tiles: [36, 28]
+  receipt_contract:
+    receipt_required: true
+    idempotency_key_fields: [player_save_id, action_id, normalized_variant_hash]
+    duplicate_evidence_award_forbidden: true
+  actions:
+    - action_id: "settlement.telo.h0"
+      authority_scene_id: "scene.valley.settlement"
+      authority_task_id: "calibration.telo.delivery"
+      task_family_id: "settlement_water_delivery"
+      evidence_type: "active_retrieval"
+      prerequisite_node_id: "retrieve.telo.two_families"
+      concept: "word.telo"
+      prompt_level: 0
+      canonical_ast: null
+      outcome: "retrieved_water_concept"
+      existing_domain_event_mapping_only: false
+    - action_id: "settlement.telo.h1"
+      authority_scene_id: "scene.valley.settlement"
+      authority_task_id: "calibration.telo.irrigation"
+      task_family_id: "settlement_irrigation_review"
+      evidence_type: "active_retrieval"
+      prerequisite_node_id: "retrieve.telo.two_families"
+      concept: "word.telo"
+      prompt_level: 1
+      canonical_ast: null
+      outcome: "retrieved_water_concept"
+      existing_domain_event_mapping_only: false
+    - action_id: "settlement.tawa.h0"
+      authority_scene_id: "scene.valley.settlement"
+      authority_task_id: "calibration.tawa.courier"
+      task_family_id: "settlement_courier_motion"
+      evidence_type: "noncombat_action"
+      prerequisite_node_id: "use.motion.noncombat"
+      prompt_level: 0
+      canonical_ast: {subject_head: "word.jan", command_particle: "o", action: "word.tawa"}
+      canonical_ast_shape: "subject_o_predicate"
+      outcome: "noncombat_movement"
+      existing_domain_event_mapping_only: false
+    - action_id: "settlement.tawa.h1"
+      authority_scene_id: "scene.valley.settlement"
+      authority_task_id: "calibration.tawa.channel"
+      task_family_id: "settlement_channel_navigation"
+      evidence_type: "noncombat_action"
+      prerequisite_node_id: "use.motion.noncombat"
+      prompt_level: 1
+      canonical_ast: {subject_head: "word.jan", command_particle: "o", action: "word.tawa"}
+      canonical_ast_shape: "subject_o_predicate"
+      outcome: "noncombat_movement"
+      existing_domain_event_mapping_only: false
+    - action_id: "return_flow.wawa.inert_h0"
+      authority_scene_id: "scene.valley.return_channel"
+      authority_task_id: "ch01_return_flow"
+      task_family_id: "ecology_and_return_flow"
+      evidence_type: "noncombat_intensity"
+      prerequisite_node_id: "use.intensity.inert"
+      concept: "word.wawa"
+      prompt_level: 0
+      canonical_ast: null
+      outcome: "grounded_inert_intensity"
+      existing_domain_event_mapping_only: true
+    - action_id: "return_flow.wawa.inert_h1"
+      authority_scene_id: "scene.valley.return_channel"
+      authority_task_id: "ch01_return_flow"
+      task_family_id: "ecology_and_return_flow"
+      evidence_type: "noncombat_intensity"
+      prerequisite_node_id: "use.intensity.inert"
+      concept: "word.wawa"
+      prompt_level: 1
+      canonical_ast: null
+      outcome: "grounded_inert_intensity"
+      existing_domain_event_mapping_only: true
+    - action_id: "settlement.repair.motion_h0"
+      authority_scene_id: "scene.valley.settlement"
+      authority_task_id: "calibration.repair.motion"
+      task_family_id: "settlement_calibration_repair"
+      evidence_type: "repair"
+      prerequisite_node_id: "repair.related_graph"
+      prompt_level: 0
+      canonical_ast: null
+      outcome: "repaired_motion_graph"
+      eligible_target_node_ids: [use.motion.noncombat, use.intensity.inert]
+      existing_domain_event_mapping_only: false
+    - action_id: "settlement.delayed_retrieval_h0"
+      authority_scene_id: "scene.valley.settlement"
+      authority_task_id: "calibration.delayed.ast"
+      task_family_id: "settlement_delayed_retrieval"
+      evidence_type: "delayed_retrieval"
+      prerequisite_node_id: "retrieve.delayed"
+      prompt_level: 0
+      canonical_ast: {subject_head: "word.telo", command_particle: "o", action: "word.tawa", manner: "word.wawa"}
+      outcome: "retrieved_canonical_ast_after_two_events"
+      required_unrelated_action_ids: [settlement.calibration.unrelated_delivery_commit, settlement.calibration.unrelated_route_commit]
+      existing_domain_event_mapping_only: false
+  unrelated_semantic_world_actions:
+    - {action_id: "settlement.calibration.unrelated_delivery_commit", authority_scene_id: "scene.valley.settlement", authority_task_id: "calibration.unrelated.delivery", task_family_id: "settlement_calibration_context", outcome: "delivery_committed", qualification_evidence: false}
+    - {action_id: "settlement.calibration.unrelated_route_commit", authority_scene_id: "scene.valley.settlement", authority_task_id: "calibration.unrelated.route", task_family_id: "settlement_calibration_context", outcome: "route_committed", qualification_evidence: false}
+golden_tests:
+  - {id: "safe_range.permission_required", expect: {range_trial_permission: true, world_mutation_without_permission: false, mp_charge_without_permission: 0}}
+  - {id: "safe_range.first_h0_h1_transfer_unlocks", expect: {eligible_prompt_levels: [H0, H1], first_attack_signature_available: true}}
+  - {id: "safe_range.all_inert_classes_and_table_complete", expect: {required_target_classes: [wood_dummy, sandbag, minecart, hanging_stone], table_target_id: "material_collision_table", first_attack_signature_completed: true}}
+  - {id: "safe_range.living_overlap_rejected", expect: {commit: false, mp_charge: 0, living_target_required: false}}

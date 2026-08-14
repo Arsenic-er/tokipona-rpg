@@ -53,6 +53,10 @@ entrances:
     spawn_tile: [2, 1]
     recovery_entry: true
     checkpoint_policy: "return_flow_completion_route"
+  - entrance_id: "settlement.from_safe_range"
+    spawn_tile: [37, 1]
+    recovery_entry: true
+    checkpoint_policy: "safe_range_return_route"
 
 inbound_route_refs:
   - inbound_ref_id: "settlement.inbound_from_stream"
@@ -63,6 +67,10 @@ inbound_route_refs:
     source_scene_id: "scene.valley.return_channel"
     source_exit_id: "return.to_settlement"
     entrance_id: "settlement.from_return"
+  - inbound_ref_id: "settlement.inbound_from_safe_range"
+    source_scene_id: "scene.valley.safe_range"
+    source_exit_id: "safe_range.to_settlement"
+    entrance_id: "settlement.from_safe_range"
 
 exits:
   - exit_id: "settlement.to_stream"
@@ -72,6 +80,11 @@ exits:
   - exit_id: "settlement.to_waterwheel"
     trigger_rect_tiles: {x: 38, y: 0, width: 2, height: 7}
     target_region_node_id: "valley.waterwheel"
+  - exit_id: "settlement.to_safe_range"
+    trigger_rect_tiles: {x: 38, y: 8, width: 2, height: 7}
+    target_scene_id: "scene.valley.safe_range"
+    target_entrance_id: "safe_range.from_settlement"
+    traversal_guard: {predicate: "range_trial_permission == true"}
 
 route_objectives:
   - objective_id: "settlement.use_public_relief"
@@ -119,6 +132,7 @@ targets:
   - {target_id: "settlement.supply_stall", target_kind: "trade_counter", material: "wood", interaction_point_tiles: [26, 28]}
   - {target_id: "settlement.butcher_counter", target_kind: "trade_counter", material: "wood_and_iron", interaction_point_tiles: [30, 28]}
   - {target_id: "settlement.tanner_counter", target_kind: "trade_counter", material: "wood_and_leather", interaction_point_tiles: [34, 28]}
+  - {target_id: "settlement.attack_calibration_table", target_kind: "inert_learning_station", material: "wood_slate_and_copper", interaction_point_tiles: [36, 28], collision_bounds_tiles: {x: 36, y: 28, width: 1, height: 1}}
 
 npcs:
   - npc_id: "settlement.npc.facility_manager"
@@ -237,6 +251,7 @@ interactions:
   - {interaction_id: "settlement.open_supply_trade", target_id: "settlement.supply_stall", verb: "trade", npc_id: "settlement.npc.supply_trader", facility_id: "settlement.facility.supply_stall", tool_or_magic_required: false}
   - {interaction_id: "settlement.open_butcher_trade", target_id: "settlement.butcher_counter", verb: "trade", npc_id: "settlement.npc.butcher", facility_id: "settlement.facility.butcher_counter", tool_or_magic_required: false}
   - {interaction_id: "settlement.open_tanner_trade", target_id: "settlement.tanner_counter", verb: "trade", npc_id: "settlement.npc.tanner", facility_id: "settlement.facility.tanner_counter", tool_or_magic_required: false}
+  - {interaction_id: "settlement.open_attack_calibration", target_id: "settlement.attack_calibration_table", verb: "open_parallel_attack_calibration", tool_or_magic_required: false}
 
 tasks:
   - task_id: "ch01_settlement_orientation"

@@ -55,3 +55,5 @@ export type {
   RuntimeInfrastructureTaskPredicateMode,
   RuntimeInfrastructureTaskSolutionManifest,
 } from "./runtime-task-manifest";
+export { assertVerifiedRuntimeSafeRangeManifest, isVerifiedRuntimeSafeRangeManifest, readRuntimeSafeRangeManifest } from "./runtime-safe-range-manifest";
+export type { RuntimeSafeRangeAstShape, RuntimeSafeRangeManifest, RuntimeSafeRangeTargetPhysics } from "./runtime-safe-range-manifest";

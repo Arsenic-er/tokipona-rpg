@@ -1,4 +1,4 @@
-import { canonicalInventoryConsumptionKey, inventoryConsumptionTransactionId, materializeInventoryConsumptionAction } from "../game/inventory-consumption";
+﻿import { canonicalInventoryConsumptionKey, inventoryConsumptionTransactionId, materializeInventoryConsumptionAction } from "../game/inventory-consumption";
 import type { CisternConfirmResult, CisternMpRecoveryResult } from "../game/cistern-demo";
 import type { DemoActionResult, SettlementDemoSave } from "../game/settlement-demo";
 import type { SurvivalSave, SurvivalTransactionResult } from "../game/survival";
@@ -7,6 +7,15 @@ import { createVerifiedSellQuote, createVerifiedSellTransactionId, verifiedTrade
 import { adaptTradeSaveToSessionEconomy } from "../game/economy-state";
 import type { EvidenceProposalResult } from "../learning/cistern-session";
 import type { LearningProgressionSnapshot } from "../learning/progression";
+import { isTrustedSafeRangeCommitProof, type SafeRangeCommitProof } from "../game/prologue-safe-range";
+import {
+  isTrustedReturnFlowQualificationCommitProof,
+  type ReturnFlowQualificationCommitProof,
+} from "../game/prologue-return-flow";
+import {
+  isTrustedAttackQualificationCommitProof,
+  type AttackQualificationCommitProof,
+} from "../game/prologue-attack-qualification";
 import {
   WILDLIFE_ECONOMY_ID,
   ZERO_WILDLIFE_REWARD_DELTA,
@@ -32,9 +41,12 @@ import {
   assertVerifiedCapabilityMilestoneContract,
   type VerifiedCapabilityMilestoneContract,
 } from "./capability-contract";
+import { ATTACK_PERMISSION_WRITER_EVENT, ATTACK_CALIBRATION_WRITER_EVENT,
+  RUNTIME_ATTACK_QUALIFICATION_CONTRACT } from "../game/attack-qualification";
 import {
   GameSession,
   adaptSurvivalSave,
+  type AttackQualificationEvidenceActionId,
   type GameSessionEvent,
   type SessionApplyResult,
   type SessionCheckpointState,
@@ -87,13 +99,6 @@ const finiteNonNegative = (value: number, name: string): void => {
 const requiredId = (value: string, name: string): void => {
   if (value.trim().length === 0) throw new Error(`${name} is required`);
 };
-
-const uniqueReceiptDrafts = (
-  receiptIds: readonly string[],
-  domain: SessionReceiptDomain,
-  prefix: string,
-): readonly SessionEventDraft[] => [...new Set(receiptIds)].map((receiptId) =>
-  receiptDraft(receiptId, domain, `${prefix}:${receiptId}`));
 
 export const proposeCastExecution = (
   result: CastExecutionResult,
@@ -169,50 +174,22 @@ export const proposeCisternRecovery = (result: CisternMpRecoveryResult): Session
     ? proposeMpRecovery(result.receipt)
     : { accepted: false, reason: "executor_missing_receipt" };
 
+/** @deprecated Whole-learning replacement is forbidden for live production writes. */
 export const proposeLearningReplacement = (
-  transactionId: string,
-  proposal: EvidenceProposalResult,
-): SessionProposalResult => {
-  requiredId(transactionId, "learning transactionId");
-  if (proposal.reason !== "proposed") return { accepted: false, reason: "executor_rejected" };
-  const eligibleEvents = proposal.reductions.filter((reduction) => reduction.applied);
-  if (eligibleEvents.length === 0) return { accepted: false, reason: "executor_duplicate" };
-  return {
-    accepted: true,
-    batch: {
-      transactionId,
-      drafts: [
-        {
-          eventId: `session.learning.state.${transactionId}`,
-          type: "learning_replaced",
-          payload: { learning: proposal.learning },
-        },
-        ...proposal.proposedEvents.map((event) => receiptDraft(
-          event.idempotencyKey,
-          "learning",
-          `learning:${event.eventType}:${event.eventId}`,
-        )),
-      ],
-    },
-  };
+  _transactionId: string,
+  _proposal: EvidenceProposalResult,
+): never => {
+  throw new Error("proposeLearningReplacement is disabled; commit learning evidence domain events");
 };
 
+/** @deprecated Whole-learning replacement is accepted only when replaying a legacy ledger prefix. */
 export const proposeLearningSnapshot = (
-  transactionId: string,
-  learning: LearningProgressionSnapshot,
-  evidenceReceiptIds: readonly string[],
-): SessionProposalBatch => ({
-  transactionId,
-  drafts: [
-    {
-      eventId: `session.learning.state.${transactionId}`,
-      type: "learning_replaced",
-      payload: { learning },
-    },
-    ...uniqueReceiptDrafts(evidenceReceiptIds, "learning", "learning-evidence"),
-  ],
-});
-
+  _transactionId: string,
+  _learning: LearningProgressionSnapshot,
+  _evidenceReceiptIds: readonly string[],
+): never => {
+  throw new Error("proposeLearningSnapshot is disabled; commit learning evidence domain events");
+};
 export const proposeSurvivalTransaction = (
   transactionId: string,
   result: SurvivalTransactionResult,
@@ -724,6 +701,19 @@ export const commitSessionProposal = (
   authoritative: GameSession,
   batch: SessionProposalBatch,
 ): SessionBatchCommitResult => {
+  if (batch.drafts.some((draft) => draft.type === "safe_range_runtime_frame_committed" ||
+      draft.type === "safe_range_transfer_passed" ||
+      draft.type === "safe_range_material_table_completed")) {
+    return { committed: false, failedDraftId: batch.drafts[0]?.eventId ?? null,
+      reason: "invalid_event", session: authoritative };
+  }
+  const types = new Set(batch.drafts.map((draft) => draft.type));
+  const invalidCycle =
+    (types.has("attack_capacity_calibrated") && types.has("learning_evidence_committed")) ||
+    (types.has("attack_prerequisites_verified") &&
+      (types.has("attack_capacity_calibrated") || types.has("prologue_return_observation_committed")));
+  if (invalidCycle) return { committed: false, failedDraftId: batch.drafts[0]?.eventId ?? null,
+    reason: "invalid_event", session: authoritative };
   const working = authoritative.forkForProposal();
   for (const draft of batch.drafts) {
     const event = materializeDraft(draft, working.nextSequence(), working);
@@ -733,4 +723,190 @@ export const commitSessionProposal = (
     }
   }
   return { committed: true, failedDraftId: null, reason: null, session: working };
+};
+
+export const commitTrustedReturnFlowQualificationProposal = (
+  authoritative: GameSession,
+  proof: ReturnFlowQualificationCommitProof,
+): SessionBatchCommitResult => {
+  if (!isTrustedReturnFlowQualificationCommitProof(proof)) {
+    return { committed: false, failedDraftId: null, reason: "invalid_event", session: authoritative };
+  }
+  const protectedDrafts = proof.batch.drafts.filter((draft) =>
+    draft.type === "prologue_return_observation_committed" ||
+    (draft.type === "learning_evidence_committed" &&
+      (draft.payload as Extract<GameSessionEvent, { type: "learning_evidence_committed" }>["payload"])
+        .qualificationActionId !== undefined));
+  const valid = proof.kind === "grounding"
+    ? protectedDrafts.length === 1 && protectedDrafts[0]?.type === "learning_evidence_committed" &&
+      proof.batch.drafts.some((draft) => draft.type === "learning_evidence_committed" &&
+        (draft.payload as Extract<GameSessionEvent, { type: "learning_evidence_committed" }>["payload"]).evidence !== undefined)
+    : protectedDrafts.length === 1 && protectedDrafts[0]?.type === "prologue_return_observation_committed" &&
+      proof.batch.drafts.some((draft) => draft.type === "scene_entered" &&
+        (draft.payload as { sceneId: string }).sceneId === "scene.valley.settlement");
+  if (!valid) return { committed: false, failedDraftId: protectedDrafts[0]?.eventId ?? null,
+    reason: "invalid_event", session: authoritative };
+  const working = authoritative.forkForProposal();
+  for (const draft of proof.batch.drafts) {
+    const event = materializeDraft(draft, working.nextSequence(), working);
+    const protectedEvent = event.type === "prologue_return_observation_committed" ||
+      (event.type === "learning_evidence_committed" && event.payload.qualificationActionId !== undefined);
+    const result = protectedEvent ? working.applyTrustedReturnFlowQualificationEvent(event, proof) : working.apply(event);
+    if (!result.applied) return { committed: false, failedDraftId: draft.eventId,
+      reason: result.reason, session: authoritative };
+  }
+  return { committed: true, failedDraftId: null, reason: null, session: working };
+};
+export const commitTrustedAttackQualificationProposal = (
+  authoritative: GameSession,
+  proof: AttackQualificationCommitProof,
+): SessionBatchCommitResult => {
+  if (!isTrustedAttackQualificationCommitProof(proof)) {
+    return { committed: false, failedDraftId: null, reason: "invalid_event", session: authoritative };
+  }
+  const batch = proof.batch;
+  const protectedDrafts = batch.drafts.filter((draft) => draft.type === "attack_qualification_interaction_committed" ||
+    draft.type === "attack_capacity_calibrated" || draft.type === "prologue_return_observation_committed" ||
+    draft.type === "attack_prerequisites_verified" ||
+    (draft.type === "learning_evidence_committed" &&
+      (draft.payload as Extract<GameSessionEvent, { type: "learning_evidence_committed" }>["payload"]).qualificationActionId !== undefined));
+  const allowed = proof.kind === "settlement_action"
+    ? protectedDrafts.length === 2 && protectedDrafts[0]?.type === "attack_qualification_interaction_committed" &&
+      protectedDrafts[1]?.type === "learning_evidence_committed"
+    : proof.kind === "return_flow_grounding"
+      ? protectedDrafts.length === 1 && protectedDrafts[0]?.type === "learning_evidence_committed"
+      : proof.kind === "calibration"
+        ? protectedDrafts.length === 1 && protectedDrafts[0]?.type === "attack_capacity_calibrated"
+        : proof.kind === "return_observation"
+          ? protectedDrafts.length === 1 && protectedDrafts[0]?.type === "prologue_return_observation_committed"
+          : proof.kind === "permission"
+            ? protectedDrafts.length === 1 && protectedDrafts[0]?.type === "attack_prerequisites_verified"
+            : false;
+  if (!allowed) return { committed: false, failedDraftId: protectedDrafts[0]?.eventId ?? null,
+    reason: "invalid_event", session: authoritative };
+  const working = authoritative.forkForProposal();
+  for (const draft of batch.drafts) {
+    const event = materializeDraft(draft, working.nextSequence(), working);
+    const qualificationForm = event.type === "learning_evidence_committed" &&
+      event.payload.qualificationActionId !== undefined;
+    const protectedEvent = event.type === "attack_qualification_interaction_committed" || qualificationForm ||
+      event.type === "attack_capacity_calibrated" || event.type === "prologue_return_observation_committed" ||
+      event.type === "attack_prerequisites_verified";
+    const result = protectedEvent ? working.applyTrustedAttackQualificationEvent(event, proof) : working.apply(event);
+    if (!result.applied) return { committed: false, failedDraftId: draft.eventId,
+      reason: result.reason, session: authoritative };
+  }
+  return { committed: true, failedDraftId: null, reason: null, session: working };
+};
+export const commitTrustedSafeRangeProposal = (
+  authoritative: GameSession,
+  proof: SafeRangeCommitProof,
+): SessionBatchCommitResult => {
+  if (!isTrustedSafeRangeCommitProof(proof)) {
+    return { committed: false, failedDraftId: null, reason: "invalid_event", session: authoritative };
+  }
+  const batch = proof.batch;
+  const safeDrafts = batch.drafts.filter((draft) => draft.type === "safe_range_runtime_frame_committed" ||
+    draft.type === "safe_range_transfer_passed" ||
+    draft.type === "safe_range_material_table_completed");
+  const expectedType = proof.kind === "transfer" ? "safe_range_transfer_passed" : "safe_range_material_table_completed";
+  if (batch.drafts.length !== 3 || safeDrafts.length !== 2 ||
+      safeDrafts[0]!.type !== "safe_range_runtime_frame_committed" || safeDrafts[1]!.type !== expectedType ||
+      batch.drafts[2]!.type !== "receipt_recorded") {
+    return { committed: false, failedDraftId: safeDrafts[0]?.eventId ?? null,
+      reason: "invalid_event", session: authoritative };
+  }
+  const working = authoritative.forkForProposal();
+  for (const draft of batch.drafts) {
+    const event = materializeDraft(draft, working.nextSequence(), working);
+    const result = event.type === "safe_range_runtime_frame_committed" ||
+      event.type === "safe_range_transfer_passed" || event.type === "safe_range_material_table_completed"
+      ? working.applyTrustedSafeRangeEvent(event, proof) : working.apply(event);
+    if (!result.applied) return { committed: false, failedDraftId: draft.eventId,
+      reason: result.reason, session: authoritative };
+  }
+  return { committed: true, failedDraftId: null, reason: null, session: working };
+};
+export const proposeLearningEvidence = (
+  transactionId: string,
+  evidence: import("../learning/progression").LearningEvidenceEvent,
+): SessionProposalBatch => {
+  requiredId(transactionId, "learning evidence transactionId");
+  return { transactionId, drafts: [{ eventId: `session.learning.evidence.${transactionId}`,
+    type: "learning_evidence_committed", payload: { evidence } }] };
+};
+
+export const proposeAttackQualificationInteraction = (
+  operationId: string,
+  playerPositionPx: Readonly<{ readonly x: number; readonly y: number }>,
+  expectedWorldRevision: number,
+): SessionProposalBatch => ({
+  transactionId: operationId,
+  drafts: [{ eventId: `session.attack.interaction.${operationId}`,
+    type: "attack_qualification_interaction_committed",
+    payload: { operationId, sceneId: "scene.valley.settlement",
+      targetId: "settlement.attack_calibration_table", interactionId: "settlement.open_attack_calibration",
+      playerPositionPx, expectedWorldRevision } }],
+});
+export const proposeAttackQualificationEvidence = (
+  transactionId: string,
+  qualificationActionId: AttackQualificationEvidenceActionId,
+  unrelatedWorldEventIds?: readonly string[],
+  interactionReceiptId?: string,
+  sourceEvidenceEventId?: string,
+): SessionProposalBatch => {
+  requiredId(transactionId, "attack qualification evidence transactionId");
+  return { transactionId, drafts: [{ eventId: `session.attack.evidence.${transactionId}`,
+    type: "learning_evidence_committed",
+    payload: { qualificationActionId, transactionId,
+      ...(unrelatedWorldEventIds === undefined ? {} : { unrelatedWorldEventIds }),
+      ...(interactionReceiptId === undefined ? {} : { interactionReceiptId }),
+      ...(sourceEvidenceEventId === undefined ? {} : { sourceEvidenceEventId }) } }] };
+};
+
+export const proposeAttackCapacityCalibration = (transactionId: string): SessionProposalBatch => {
+  requiredId(transactionId, "attack calibration transactionId");
+  return { transactionId, drafts: [{ eventId: `session.attack.calibration.${transactionId}`,
+    type: "attack_capacity_calibrated", payload: { transactionId,
+      writerEvent: ATTACK_CALIBRATION_WRITER_EVENT, contract: RUNTIME_ATTACK_QUALIFICATION_CONTRACT } }] };
+};
+
+export const proposeReturnObservation = (transactionId: string): SessionProposalBatch => {
+  requiredId(transactionId, "return observation transactionId");
+  return { transactionId, drafts: [{ eventId: `session.return.observation.${transactionId}`,
+    type: "prologue_return_observation_committed",
+    payload: { transactionId, writerEvent: "return_observation_committed" } }] };
+};
+
+export const proposeAttackPermission = (transactionId: string): SessionProposalBatch => {
+  requiredId(transactionId, "attack permission transactionId");
+  return { transactionId, drafts: [{ eventId: `session.attack.permission.${transactionId}`,
+    type: "attack_prerequisites_verified", payload: { transactionId,
+      writerEvent: ATTACK_PERMISSION_WRITER_EVENT,
+      contractId: RUNTIME_ATTACK_QUALIFICATION_CONTRACT.contractId } }] };
+};
+
+export type SafeRangeTransferPayload = Extract<GameSessionEvent,
+  { type: "safe_range_transfer_passed" }>["payload"];
+export type SafeRangeRuntimeFrameCommitPayload = Extract<GameSessionEvent,
+  { type: "safe_range_runtime_frame_committed" }>["payload"];
+export const proposeSafeRangeRuntimeFrame = (payload: SafeRangeRuntimeFrameCommitPayload): SessionProposalBatch => ({
+  transactionId: payload.transactionId,
+  drafts: [{ eventId: `session.safe-range.frame.${payload.transactionId}`,
+    type: "safe_range_runtime_frame_committed", payload }],
+});
+export const proposeSafeRangeTransfer = (payload: SafeRangeTransferPayload): SessionProposalBatch => ({
+  transactionId: payload.transactionId,
+  drafts: [{ eventId: `session.safe-range.transfer.${payload.transactionId}`,
+    type: "safe_range_transfer_passed", payload }],
+});
+
+export const proposeSafeRangeMaterialTableCompletion = (
+  transactionId: string,
+  authorityProof: Extract<GameSessionEvent, { type: "safe_range_material_table_completed" }>["payload"]["authorityProof"],
+): SessionProposalBatch => {
+  requiredId(transactionId, "safe range table transactionId");
+  return { transactionId, drafts: [{ eventId: `session.safe-range.table.${transactionId}`,
+    type: "safe_range_material_table_completed",
+    payload: { transactionId, writerEvent: "safe_range_material_table_completed", authorityProof } }] };
 };

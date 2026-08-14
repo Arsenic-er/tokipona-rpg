@@ -35,6 +35,7 @@ export type LearningEvidenceType =
   | "glyph_attunement_completed"
   | "grounding_trial_resolved"
   | "active_retrieval_submitted"
+  | "noncombat_action_completed"
   | "repair_completed"
   | "unseen_transfer_completed"
   | "delayed_retrieval_completed";
@@ -76,6 +77,15 @@ interface ContextualEvidenceBase extends EvidenceBase {
   readonly colorOnlyCue: boolean;
   readonly semanticFacetsDemonstrated: readonly string[];
   readonly canonicalAstWordIds: readonly string[];
+  /** Canonical parser shape. Optional only for evidence written before qualification v0.1. */
+  readonly canonicalAstShape?: string;
+  /** Semantic outcome class, never a free-form player utterance. */
+  readonly worldOutcomeKind?: string;
+  readonly targetGraphId?: string;
+  readonly repairedNodeId?: string;
+  readonly retrievalTarget?: string;
+  /** Set by GameSession; callers cannot choose the authoritative ordering. */
+  readonly committedAtSessionSequence?: number;
 }
 
 export interface GroundingTrialResolvedEvent extends ContextualEvidenceBase {
@@ -84,6 +94,10 @@ export interface GroundingTrialResolvedEvent extends ContextualEvidenceBase {
 
 export interface ActiveRetrievalSubmittedEvent extends ContextualEvidenceBase {
   readonly eventType: "active_retrieval_submitted";
+}
+
+export interface NoncombatActionCompletedEvent extends ContextualEvidenceBase {
+  readonly eventType: "noncombat_action_completed";
 }
 
 export interface RepairCompletedEvent extends ContextualEvidenceBase {
@@ -105,6 +119,7 @@ export type LearningEvidenceEvent =
   | GlyphAttunementCompletedEvent
   | GroundingTrialResolvedEvent
   | ActiveRetrievalSubmittedEvent
+  | NoncombatActionCompletedEvent
   | RepairCompletedEvent
   | UnseenTransferCompletedEvent
   | DelayedRetrievalCompletedEvent;
@@ -114,10 +129,27 @@ export interface EvidenceLedgerEntry {
   readonly eventType: LearningEvidenceType;
   /** Normalized to null for legacy evidence without provenance. */
   readonly sourceObjectClass: string | null;
+  /** Null denotes legacy evidence that cannot satisfy strict qualification nodes. */
+  readonly taskId: string | null;
   readonly taskFamilyId: string | null;
   readonly variantHash: string | null;
   readonly environmentFingerprint: string | null;
   readonly promptLevel: PromptLevel | null;
+  readonly canonicalAstWordIds: readonly string[];
+  readonly canonicalAstShape: string | null;
+  readonly interpretationStatus: InterpretationStatus | null;
+  readonly worldOutcomeContribution: boolean | null;
+  readonly worldOutcomeKind: string | null;
+  readonly toolBypass: boolean | null;
+  readonly answerVisible: boolean | null;
+  readonly fixedSlotOnly: boolean | null;
+  readonly colorOnlyCue: boolean | null;
+  readonly promptLevelAfterRepair: PromptLevel | null;
+  readonly unrelatedWorldEventIds: readonly string[];
+  readonly targetGraphId: string | null;
+  readonly repairedNodeId: string | null;
+  readonly retrievalTarget: string | null;
+  readonly committedAtSessionSequence: number | null;
   readonly semanticFacetsDemonstrated: readonly string[];
 }
 
@@ -220,7 +252,11 @@ const canonicalize = (value: unknown): unknown => {
   return value;
 };
 
-const eventPayloadHash = (event: LearningEvidenceEvent): string => JSON.stringify(canonicalize(event));
+const eventPayloadHash = (event: LearningEvidenceEvent): string => {
+  const { committedAtSessionSequence: _sessionSequence, ...semanticEvent } = event as LearningEvidenceEvent &
+    { readonly committedAtSessionSequence?: number };
+  return JSON.stringify(canonicalize(semanticEvent));
+};
 
 const unique = (values: readonly string[]): readonly string[] => [...new Set(values)].sort();
 
@@ -242,11 +278,13 @@ const isContextual = (
 ): event is
   | GroundingTrialResolvedEvent
   | ActiveRetrievalSubmittedEvent
+  | NoncombatActionCompletedEvent
   | RepairCompletedEvent
   | UnseenTransferCompletedEvent
   | DelayedRetrievalCompletedEvent =>
   event.eventType === "grounding_trial_resolved" ||
   event.eventType === "active_retrieval_submitted" ||
+  event.eventType === "noncombat_action_completed" ||
   event.eventType === "repair_completed" ||
   event.eventType === "unseen_transfer_completed" ||
   event.eventType === "delayed_retrieval_completed";
@@ -274,10 +312,26 @@ const toLedgerEntry = (event: LearningEvidenceEvent): EvidenceLedgerEntry => {
       eventId: event.eventId,
       eventType: event.eventType,
       sourceObjectClass: event.sourceObjectClass ?? null,
+      taskId: null,
       taskFamilyId: null,
       variantHash: null,
       environmentFingerprint: null,
       promptLevel: null,
+      canonicalAstWordIds: [],
+      canonicalAstShape: null,
+      interpretationStatus: null,
+      worldOutcomeContribution: null,
+      worldOutcomeKind: null,
+      toolBypass: null,
+      answerVisible: null,
+      fixedSlotOnly: null,
+      colorOnlyCue: null,
+      promptLevelAfterRepair: null,
+      unrelatedWorldEventIds: [],
+      targetGraphId: null,
+      repairedNodeId: null,
+      retrievalTarget: null,
+      committedAtSessionSequence: null,
       semanticFacetsDemonstrated: [],
     };
   }
@@ -285,10 +339,28 @@ const toLedgerEntry = (event: LearningEvidenceEvent): EvidenceLedgerEntry => {
     eventId: event.eventId,
     eventType: event.eventType,
     sourceObjectClass: event.sourceObjectClass ?? null,
+    taskId: event.taskId,
     taskFamilyId: event.taskFamilyId,
     variantHash: event.variantHash,
     environmentFingerprint: event.normalizedEnvironmentFingerprint,
     promptLevel: event.promptLevel,
+    canonicalAstWordIds: [...event.canonicalAstWordIds],
+    canonicalAstShape: event.canonicalAstShape ?? null,
+    interpretationStatus: event.interpretationStatus,
+    worldOutcomeContribution: event.worldOutcomeContribution,
+    worldOutcomeKind: event.worldOutcomeKind ?? null,
+    toolBypass: event.toolBypass,
+    answerVisible: event.answerVisible,
+    fixedSlotOnly: event.fixedSlotOnly,
+    colorOnlyCue: event.colorOnlyCue,
+    promptLevelAfterRepair: event.eventType === "repair_completed" ? event.promptLevelAfterRepair : null,
+    unrelatedWorldEventIds: event.eventType === "delayed_retrieval_completed"
+      ? unique(event.unrelatedWorldEventIds)
+      : [],
+    targetGraphId: event.targetGraphId ?? null,
+    repairedNodeId: event.repairedNodeId ?? null,
+    retrievalTarget: event.retrievalTarget ?? null,
+    committedAtSessionSequence: event.committedAtSessionSequence ?? null,
     semanticFacetsDemonstrated: unique(event.semanticFacetsDemonstrated),
   };
 };
@@ -483,6 +555,19 @@ export const reduceLearningEvidence = (
           producedBaselineEnvironmentFingerprints: productionEnvironmentFingerprints,
         };
       }
+      break;
+    }
+    case "noncombat_action_completed": {
+      if (!isAtLeast(progress.learningState, "grounded")) {
+        return result(recordProcessedEvent(snapshot, event, payloadHash), false, false, "prerequisite_missing");
+      }
+      if (!isLowHintGroundedAction(event)) {
+        return result(recordProcessedEvent(snapshot, event, payloadHash), false, false, "ineligible_evidence");
+      }
+      if (hasEvidenceVariant(progress, event)) {
+        return result(recordProcessedEvent(snapshot, event, payloadHash), false, true, "duplicate_variant");
+      }
+      progress = withEvidence(progress, event);
       break;
     }
     case "repair_completed": {

@@ -257,7 +257,7 @@ describe("production prologue return-flow coordinator", () => {
     expect(returned.session?.snapshot().checkpoint.id).toBe(PROLOGUE_RETURN_FLOW_RETURN_CHECKPOINT_ID);
     expect(flow.snapshot().prologueReturnObserved).toBe(true);
     expect(flow.session.events().slice(before).map((event) => event.type)).toEqual([
-      "scene_entered", "world_flag_set", "checkpoint_set", "receipt_recorded",
+      "scene_entered", "prologue_return_observation_committed", "checkpoint_set", "receipt_recorded",
     ]);
     const observation = Object.values(returned.session!.snapshot().world.flags).find((flag) =>
       flag.scope === "global" && flag.flagId === PROLOGUE_RETURN_FLOW_FLAGS.prologueReturnObserved);

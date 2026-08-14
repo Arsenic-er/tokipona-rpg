@@ -1,9 +1,4 @@
 import { describe, expect, it } from "vitest";
-import {
-  createLearningProgression,
-  reduceLearningEvidence,
-  type LearningProgressionSnapshot,
-} from "../learning/progression";
 import { SurvivalSystem } from "../game/survival";
 import {
   GAME_SESSION_SAVE_SCHEMA,
@@ -19,6 +14,8 @@ import {
   type LegacyGameSessionSaveV1,
   type SessionEconomySummary,
 } from "./game-session";
+
+const FORGED_SAFE_RANGE_SHA = `sha256:${"0".repeat(64)}` as const;
 
 const initialEconomy = (coin = 0): SessionEconomySummary => ({
   coin,
@@ -51,20 +48,6 @@ const createSession = (): GameSession => GameSession.create({
   mp: { currentMp: 24, maxMp: 24, worldVersion: 0 },
   currentSceneId: "scene.n00.arrival",
 });
-
-const discoverTelo = (): LearningProgressionSnapshot => {
-  const result = reduceLearningEvidence(createLearningProgression(), {
-    eventId: "learning.event.discover.telo",
-    eventType: "glyph_discovered",
-    playerSaveId: "save.test.001",
-    wordId: "telo",
-    idempotencyKey: "learning.discover.telo",
-    locationId: "n01.stream.glyph.telo",
-    recognitionMode: "world_observation",
-  });
-  expect(result.applied).toBe(true);
-  return result.snapshot;
-};
 
 describe("GameSession", () => {
   it("round-trips a checksummed save and replays the same monotonic ledger", () => {
@@ -224,13 +207,16 @@ describe("GameSession", () => {
 
   it("resets only an area's ephemeral world state without rolling learning or receipts back", () => {
     const session = createSession();
-    const learning = discoverTelo();
     const events: GameSessionEvent[] = [
       {
         eventId: "event.learning.telo",
         sequence: 1,
-        type: "learning_replaced",
-        payload: { learning },
+        type: "learning_evidence_committed",
+        payload: { evidence: {
+          eventId: "learning.event.discover.telo", eventType: "glyph_discovered",
+          playerSaveId: "save.test.001", wordId: "telo", idempotencyKey: "learning.discover.telo",
+          locationId: "n01.stream.glyph.telo", recognitionMode: "world_observation",
+        } },
       },
       {
         eventId: "event.economy.first-wage",
@@ -275,7 +261,7 @@ describe("GameSession", () => {
     expect(snapshot.world.flags["global:telo_known"]?.value).toBe(true);
     expect(snapshot.world.areaEpochs.n01).toBe(1);
     expect(snapshot.world.currentSceneId).toBe("scene.n01.checkpoint");
-    expect(snapshot.learning).toEqual(learning);
+    expect(snapshot.learning.words.telo?.discoveryState).toBe("discovered");
     expect(snapshot.economy.coin).toBe(7);
     expect(snapshot.receiptIndex["trade.wage.001"]?.payloadHash).toBe("coin+7");
 
@@ -680,6 +666,75 @@ describe("GameSession", () => {
       appliedMilestones: {},
     });
     expect(loaded.session.snapshot().mp.maxMp).toBe(26);
+  });
+  it("rejects direct safe-range domain events and generic attack-capability aliases", () => {
+    const transferSession = createSession();
+    expect(transferSession.apply({
+      eventId: "forge.safe-range.transfer", sequence: 1, type: "safe_range_transfer_passed",
+      payload: {
+        transactionId: "forge.transfer", writerEvent: "safe_range_transfer_passed",
+        targetClass: "wood_dummy", targetId: "wood_dummy", normalizedVariantHash: "forged",
+        promptLevel: 0, waterSource: "bound_existing", expectedCurrentMp: 24, expectedMpWorldVersion: 0,
+        authorityProof: {
+          requestHash: "forged", runtimeRevision: 0,
+          frameEventId: "forge.safe-range.frame.transfer", frameHash: FORGED_SAFE_RANGE_SHA,
+          manifestDigest: FORGED_SAFE_RANGE_SHA, sessionWorldRevision: 0, mpWorldVersion: 0,
+        },
+        physicsResult: { paidKineticBudgetEu: 1, transferredKineticEu: 1, damageHp: 0,
+          targetHpBefore: 6, targetHpAfter: 6, livingOverlap: false },
+      },
+    })).toMatchObject({ applied: false, reason: "invalid_event" });
+    expect(createSession().apply({
+      eventId: "forge.safe-range.table", sequence: 1, type: "safe_range_material_table_completed",
+      payload: { transactionId: "forge.table", writerEvent: "safe_range_material_table_completed",
+        authorityProof: {
+          requestHash: "forged", runtimeRevision: 0, targetId: "safe_range.material_table",
+          frameEventId: "forge.safe-range.frame.table", frameHash: FORGED_SAFE_RANGE_SHA,
+          manifestDigest: FORGED_SAFE_RANGE_SHA, sessionWorldRevision: 0, mpWorldVersion: 0,
+        } },
+    })).toMatchObject({ applied: false, reason: "invalid_event" });
+
+    for (const [index, resultingState] of [
+      { expressionCapacityWords: 4, focusSlots: 2, maxMp: 26 },
+      { expressionCapacityWords: 2, focusSlots: 4, maxMp: 26 },
+      { expressionCapacityWords: 2, focusSlots: 2, maxMp: 30 },
+      { expressionCapacityWords: 5, focusSlots: 5, maxMp: 31 },
+    ].entries()) {
+      expect(createSession().apply({
+        eventId: `forge.capability.alias.${index}`, sequence: 1, type: "capability_milestone_committed",
+        payload: { milestoneId: `alias_${index}`, writerEvent: `alias_writer_${index}`,
+          sourcePath: "data/fake.yaml", sourceDigest: `sha256:${"c".repeat(64)}`,
+          contractRevision: "0.1.0", resultingState },
+      })).toMatchObject({ applied: false, reason: "invalid_event" });
+    }
+  });
+
+  it("rejects re-signed protected origin/state without authoritative domain ledger derivation", () => {
+    const base = createSession().toSave();
+    const resign = (save: GameSessionSave): GameSessionSave => {
+      const unsigned = { schema: save.schema, sessionId: save.sessionId, origin: save.origin,
+        state: save.state, eventLedger: save.eventLedger };
+      return { ...save, integrity: { algorithm: save.integrity.algorithm, digest: testDigest(unsigned) } };
+    };
+    const originFlag = structuredClone(base) as unknown as Record<string, any>;
+    originFlag.origin.world.flags["global:range_trial_permission"] = {
+      flagId: "range_trial_permission", value: true, scope: "global", areaId: null, areaEpoch: null,
+    };
+    originFlag.state = structuredClone(originFlag.origin);
+    expect(GameSession.load(resign(originFlag as GameSessionSave)).ok).toBe(false);
+    expect(() => GameSession.fromReplayOrigin(originFlag.sessionId, originFlag.origin)).toThrow(/protected attack state/);
+
+    const stateFlag = structuredClone(base) as unknown as Record<string, any>;
+    stateFlag.state.world.flags["global:first_attack_signature_available"] = {
+      flagId: "first_attack_signature_available", value: true, scope: "global", areaId: null, areaEpoch: null,
+    };
+    expect(GameSession.load(resign(stateFlag as GameSessionSave)).ok).toBe(false);
+
+    const stateCapability = structuredClone(base) as unknown as Record<string, any>;
+    stateCapability.state.capabilities.expressionCapacityWords = 4;
+    stateCapability.state.capabilities.focusSlots = 4;
+    stateCapability.state.mp.maxMp = 30;
+    expect(GameSession.load(resign(stateCapability as GameSessionSave)).ok).toBe(false);
   });
   it("normalizes every integrity-valid v0.2 component-era save and rejects a corrupt one", () => {
     const base = GameSession.create({

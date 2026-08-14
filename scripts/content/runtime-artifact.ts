@@ -1,4 +1,6 @@
-﻿import { createHash } from "node:crypto";
+import { createHash } from "node:crypto";
+import { projectSafeRangeQualification } from "./safe-range-runtime-artifact.ts";
+import type { RuntimeSafeRangeManifest } from "../../src/content/runtime-safe-range-manifest.ts";
 import { posix } from "node:path";
 import type { ContentManifest, ContentObject, ContentValue } from "../../src/content/types.ts";
 import type { CapabilityMilestoneMachineProjection } from "../../src/session/capability-contract.ts";
@@ -61,6 +63,7 @@ export interface RuntimeContentArtifact {
   };
   readonly scenes: RuntimeSceneManifestIndex;
   readonly infrastructureTasks: RuntimeInfrastructureTaskManifestIndex;
+  readonly safeRangeQualification: RuntimeSafeRangeManifest;
   readonly capabilityProgression: CapabilityMilestoneMachineProjection;
   readonly ecology: RuntimeEcologyManifest;
   readonly wildlifeProcessing: RuntimeWildlifeProcessingManifest;
@@ -322,7 +325,8 @@ export function buildRuntimeContentArtifact(manifest: ContentManifest): RuntimeC
       id: requireString(entry, ["task_id"]),
       authoritativeTaskSourcePath: resolveRepositoryContentPath(sceneSource.path, requireString(entry, ["task_ref"])),
       objectiveIds: requireStringArray(entry, ["objective_ids"]),
-    }));    const tradeEntries: RuntimeSceneTradeEntryManifest[] = optionalObjectArray(scene, ["trade_entries"]).map((entry) => ({
+    }));
+    const tradeEntries: RuntimeSceneTradeEntryManifest[] = optionalObjectArray(scene, ["trade_entries"]).map((entry) => ({
       id: requireString(entry, ["trade_entry_id"]), npcId: requireString(entry, ["npc_id"]),
       interactionId: requireString(entry, ["interaction_id"]),
       authoritativeEconomySourcePath: resolveRepositoryContentPath(sceneSource.path, requireString(entry, ["authoritative_economy_ref"])),
@@ -352,6 +356,7 @@ export function buildRuntimeContentArtifact(manifest: ContentManifest): RuntimeC
     };
     return [sceneId, result];
   }));
+  const safeRangeQualification = projectSafeRangeQualification(manifest);
   const infrastructureTaskSources = [...manifest.byKind.task]
     .filter((taskSource) => taskSource.content.task_type === "infrastructure_world_predicate")
     .sort((left, right) => left.path.localeCompare(right.path));
@@ -580,6 +585,7 @@ export function buildRuntimeContentArtifact(manifest: ContentManifest): RuntimeC
       sourceDigest: `sha256:${createHash("sha256").update(stableStringify(infrastructureTaskSources.map((item) => item.content))).digest("hex")}`,
       byId: infrastructureTasks,
     },
+    safeRangeQualification,
     capabilityProgression,
     ecology,
     wildlifeProcessing,

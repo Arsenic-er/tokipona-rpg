@@ -7,6 +7,7 @@ import {
   PROLOGUE_ARRIVAL_SCENE_ID,
   PROLOGUE_AREA_ID,
   PROLOGUE_ROUTE_FLAGS,
+  PROLOGUE_SAFE_RANGE_RUNTIME_SCENE,
   PROLOGUE_SOFT_LOCK_RECOVERY_TICKS,
   PROLOGUE_STREAM_SCENE,
   PROLOGUE_STREAM_SCENE_ID,
@@ -58,6 +59,12 @@ describe("canonical prologue arrival/stream coordinator", () => {
       id: streamManifest.sceneId,
       collisionRows: streamManifest.collisionRows,
       entrances: streamManifest.entrances.map((entry) => ({ id: entry.id, position: entry.spawnPx })),
+    });
+    const safeRange = canonical.byId["scene.valley.safe_range"]!;
+    expect(PROLOGUE_SAFE_RANGE_RUNTIME_SCENE).toMatchObject({
+      id: safeRange.sceneId,
+      collisionRows: safeRange.collisionRows,
+      entrances: safeRange.entrances.map((entry) => ({ id: entry.id, position: entry.spawnPx })),
     });
     expect(PROLOGUE_STREAM_SCENE.exits).toEqual(streamManifest.exits
       .filter((exit) => exit.target.kind === "scene")

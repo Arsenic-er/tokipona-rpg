@@ -1222,15 +1222,9 @@ export class PrologueWaterwheelSession {
       drafts: [
         {
           eventId: `session.infrastructure.learning.${transactionId}`,
-          type: "learning_replaced",
-          payload: { learning: reduction.snapshot },
+          type: "learning_evidence_committed",
+          payload: { evidence: event },
         },
-        receiptDraft(
-          `session.infrastructure.learning.receipt.${transactionId}`,
-          event.idempotencyKey,
-          "learning",
-          `learning:${event.eventType}:${event.eventId}`,
-        ),
         operationReceiptDraft(this.authoritativeSession.sessionId, transactionId, fingerprint),
       ],
     });

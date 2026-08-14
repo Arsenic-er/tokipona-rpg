@@ -238,3 +238,45 @@ button:disabled { color: #625f59; cursor: not-allowed; }
 .return-flow-panel button:focus-visible { outline: 2px solid #b8e3df; outline-offset: 2px; }
 @media (max-width: 440px) { .return-flow-routes { grid-template-columns: 1fr; } .return-flow-sequence { grid-template-columns: repeat(3, 1fr); } }
 @media (max-width: 370px) { .return-flow-flags, .return-flow-actions, .return-flow-learning > div { grid-template-columns: 1fr; } }
+
+.safe-range-panel { margin-top: 6px; padding: 8px; border: 1px solid #42564f; background: #0b1110; }
+.safe-range-panel h2, .safe-range-panel h3, .safe-range-panel p { margin: 0; }
+.safe-range-panel h2 { margin-top: 2px; color: #a7d4be; font-size: 13px; }
+.safe-range-panel h3 { color: #aabeb5; font-size: 8px; }
+.safe-range-gateway { border-color: #587368; background: #0d1713; }
+.safe-range-gateway p { color: #92a098; font-size: 7px; line-height: 1.55; }
+.safe-range-gateway button { width: 100%; min-height: 32px; margin-top: 6px; }
+.safe-range-policy { margin-top: 6px !important; padding: 5px; color: #bdd0aa; border-left: 2px solid #73865e; background: #0d150b; font-size: 7px; line-height: 1.5; }
+.safe-range-calibration { margin-top: 7px; padding-top: 7px; border-top: 1px solid #395048; }
+.safe-range-calibration-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; margin-top: 5px; }
+.safe-range-calibration-actions button { min-height: 36px; padding: 5px; overflow-wrap: anywhere; font-size: 6px; line-height: 1.4; text-align: left; }
+.safe-range-calibration-actions button:disabled { color: #7e9188; border-color: #40554c; background: #101a16; }
+.safe-range-calibration-copy { min-height: 1.5em; margin-top: 6px !important; color: #a8c3b6; font-size: 7px; line-height: 1.5; }
+.safe-range-calibration-commits { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; margin-top: 5px; }
+.safe-range-calibration-commits button { min-height: 32px; padding: 4px; font-size: 7px; }.safe-range-state { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; margin-top: 7px; }
+.safe-range-state span { min-width: 0; padding: 5px; color: #82928a; border: 1px solid #314039; background: #090d0c; font-size: 7px; }
+.safe-range-state strong { display: block; overflow-wrap: anywhere; margin-top: 2px; color: #c1dbce; font-size: 8px; }
+.safe-range-panel > section { margin-top: 7px; padding-top: 7px; border-top: 1px solid #2d3934; }
+[data-safe-range-targets] { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; margin-top: 5px; }
+[data-safe-range-targets] button { min-height: 36px; padding: 5px; font-size: 7px; line-height: 1.4; text-align: left; }
+.safe-range-options, .safe-range-expression-actions, .safe-range-actions { display: grid; gap: 4px; margin-top: 5px; }
+.safe-range-options, .safe-range-expression-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.safe-range-actions { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.safe-range-options button, .safe-range-expression-actions button, .safe-range-actions button { min-height: 31px; padding: 4px; font-size: 7px; }
+.safe-range-panel [role="radio"][aria-checked="true"] { color: #d9f3e7; border-color: #76a58e; background: #173027; box-shadow: inset 0 0 0 1px #294d3e; }
+.safe-range-panel button:focus-visible { outline: 2px solid #b8ead3; outline-offset: 2px; }
+.safe-range-expression code { display: block; overflow-wrap: anywhere; margin-top: 5px; padding: 6px; color: #aaddec; border: 1px solid #31515a; background: #091317; font-size: 8px; line-height: 1.5; }
+.safe-range-expression > p { margin-top: 4px; color: #879994; font-size: 7px; line-height: 1.5; }
+.safe-range-preview { min-height: 1.5em; color: #bdd8cd !important; }
+[data-safe-range-live] { min-height: 1.5em; margin-top: 6px !important; color: #b9ded0; font-size: 7px; line-height: 1.5; }
+@media (max-width: 440px) {
+  .safe-range-actions, .safe-range-calibration-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 370px) {
+  .safe-range-state, [data-safe-range-targets], .safe-range-options,
+  .safe-range-expression-actions, .safe-range-actions, .safe-range-calibration-actions,
+  .safe-range-calibration-commits { grid-template-columns: 1fr; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .safe-range-panel *, .safe-range-panel *::before, .safe-range-panel *::after { scroll-behavior: auto !important; transition: none !important; }
+}

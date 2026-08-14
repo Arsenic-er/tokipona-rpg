@@ -7,6 +7,8 @@ import {
 import {
   PrologueFlowSession,
   type PrologueFlowAction,
+  type PrologueFlowSafeRangeCompileResult,
+  type PrologueFlowSafeRangeView,
   type PrologueFlowSnapshot,
 } from "./game/prologue-flow";
 import {
@@ -41,6 +43,10 @@ import {
   createRpgWildlifeUi,
   type WildlifeUiCommand,
 } from "./rpg-wildlife-ui";
+import {
+  createRpgSafeRangeUi,
+  type SafeRangeUiCommand,
+} from "./rpg-safe-range-ui";
 
 type GlyphPhase = "undiscovered" | "discovered" | "activated";
 type Tone = "neutral" | "success" | "warning" | "danger";
@@ -70,6 +76,7 @@ const SETTLEMENT_SCENE = requiredScene(PROLOGUE_SETTLEMENT_SCENE_ID);
 
 class FlowBrowserPort {
   private remainderTicks = 0;
+  private safeRangeCompileResultValue: PrologueFlowSafeRangeCompileResult | null = null;
 
   private constructor(private readonly flow: PrologueFlowSession, private readonly coordinator: BrowserGameSessionWalCoordinator) {
     this.flow.attachCrossSaveTransactionCoordinator(coordinator);
@@ -91,6 +98,10 @@ class FlowBrowserPort {
 
   snapshot(): PrologueFlowSnapshot {
     return this.flow.snapshot();
+  }
+
+  safeRangeView(): PrologueFlowSafeRangeView {
+    return this.flow.safeRangeView();
   }
 
   interact(): UiResult {
@@ -349,6 +360,61 @@ class FlowBrowserPort {
     }
   }
 
+  safeRangeCompileResult(): PrologueFlowSafeRangeCompileResult | null {
+    return this.safeRangeCompileResultValue;
+  }
+
+  safeRange(command: SafeRangeUiCommand): UiResult {
+    switch (command.kind) {
+      case "perform_qualification_action":
+        return flowResult(this.flow.performAttackQualificationAction(
+          nextId(`attack-qualification-${command.actionId}`), command.actionId),
+        "N02 校准动作已由语义 ID 提交。", "neutral");
+      case "calibrate_attack_capacity":
+        return flowResult(this.flow.calibrateAttackCapacity(nextId("attack-capacity-calibration")),
+          "攻击表达容量校准已提交。", "success");
+      case "grant_range_trial_permission":
+        return flowResult(this.flow.grantRangeTrialPermission(nextId("range-trial-permission")),
+          "N08 靶场许可已核发。", "success");
+      case "enter_safe_range": {
+        this.safeRangeCompileResultValue = null;
+        return flowResult(this.flow.enterSafeRange(nextId("safe-range-enter")),
+          "进入 N08 惰性材料靶场。", "neutral");
+      }
+      case "compile": {
+        const result = this.flow.compileSafeRange({
+          targetClass: command.targetClass,
+          promptLevel: command.promptLevel,
+          waterSource: command.waterSource,
+        });
+        this.safeRangeCompileResultValue = result.result;
+        return flowResult(result, "结构化表达已编译；预览只包含显示报价与 previewId。", "neutral");
+      }
+      case "execute": {
+        const result = this.flow.executeSafeRange(nextId("safe-range-execute"), command.previewId);
+        this.safeRangeCompileResultValue = null;
+        return flowResult(result, "受控水力已作用于所选惰性靶具。", "success");
+      }
+      case "inspect_material_table":
+        return flowResult(this.flow.inspectSafeRangeMaterialTable(nextId("safe-range-table")),
+          "四种惰性材料的碰撞记录已检查。", "success");
+      case "return_settlement": {
+        const result = this.flow.safeRangeToSettlement(nextId("safe-range-return"));
+        if (result.accepted) this.safeRangeCompileResultValue = null;
+        return flowResult(result, "返回 N02 聚落。", "neutral");
+      }
+      case "recover_softlock": {
+        this.safeRangeCompileResultValue = null;
+        return flowResult(this.flow.recoverSafeRangeSoftLock(nextId("safe-range-recover")),
+          "N08 局部靶场已恢复；学习与完成记录保持不变。", "neutral");
+      }
+      case "reset_checkpoint": {
+        this.safeRangeCompileResultValue = null;
+        return flowResult(this.flow.resetSafeRangeCheckpoint(nextId("safe-range-reset")),
+          "已返回 N08 权威检查点。", "neutral");
+      }
+    }
+  }
   returnFlow(command: ReturnFlowUiCommand): UiResult {
     switch (command.kind) {
       case "perform_action":
@@ -507,6 +573,7 @@ const cisternUi = createRpgCisternUi((command) => run(() => port.cistern(command
 const wildlifeUi = createRpgWildlifeUi((command) => run(() => port.wildlife(command)));
 const economyUi = createRpgEconomyUi((command) => run(() => port.economy(command)));
 const returnFlowUi = createRpgReturnFlowUi((command) => run(() => port.returnFlow(command)));
+const safeRangeUi = createRpgSafeRangeUi((command) => run(() => port.safeRange(command)));
 let priorTime = performance.now();
 let activationStarted: number | null = null;
 let jumpQueued = false;
@@ -542,6 +609,7 @@ function render(snapshot: PrologueFlowSnapshot, now: number): void {
   wildlifeUi.render(snapshot);
   economyUi.render(snapshot);
   returnFlowUi.render(snapshot);
+  safeRangeUi.render(port.safeRangeView(), port.safeRangeCompileResult());
   const scene = requiredScene(snapshot.runtime.sceneId);
   drawWorld(snapshot, scene);
   sceneLabel.textContent = sceneTitle(snapshot.runtime.sceneId);
@@ -551,7 +619,8 @@ function render(snapshot: PrologueFlowSnapshot, now: number): void {
   coinLabel.textContent = String(snapshot.session.economy.coin);
   objectiveLabel.textContent = objective(snapshot);
   required<HTMLButtonElement>('[data-action="checkpoint"]').disabled =
-    snapshot.mode === "cistern" || snapshot.mode === "wildlife" || snapshot.mode === "return_flow";
+    snapshot.mode === "cistern" || snapshot.mode === "wildlife" || snapshot.mode === "return_flow" ||
+    snapshot.mode === "safe_range";
 
   const inSettlement = snapshot.mode === "settlement";
   settlementPanel.hidden = !inSettlement;
@@ -573,6 +642,11 @@ function render(snapshot: PrologueFlowSnapshot, now: number): void {
 
   if (snapshot.mode === "return_flow") {
     hintLabel.textContent = "使用 N07 面板：观察指示器、学习 wawa、修复水路并返回聚落。";
+    hintLabel.dataset.active = "true";
+    return;
+  }
+  if (snapshot.mode === "safe_range") {
+    hintLabel.textContent = "使用 N08 面板选择惰性靶具，检查结构化预览后执行。";
     hintLabel.dataset.active = "true";
     return;
   }
@@ -902,6 +976,11 @@ function topicsForNpc(npc: RuntimeSceneNpcManifest): readonly SettlementDialogue
 }
 
 function objective(snapshot: PrologueFlowSnapshot): string {
+  if (snapshot.mode === "safe_range") {
+    return snapshot.safeRange?.firstAttackSignatureCompleted
+      ? "N08 四种惰性材料对照已完成；可返回 N02。"
+      : "在四个惰性靶具上验证结构化水力，并检查材料碰撞表。";
+  }
   if (snapshot.mode === "return_flow") {
     if (snapshot.returnFlow?.taskCompleted) {
       return snapshot.returnFlow.wawa.learningState === "grounded"
@@ -1056,6 +1135,7 @@ function factLabel(fact: string): string {
 }
 
 function sceneTitle(sceneId: string): string {
+  if (sceneId === "scene.valley.safe_range") return "N08 · 惰性材料靶场";
   if (sceneId === "scene.valley.return_channel") return "N07 · 回流水路";
   if (sceneId === PROLOGUE_WILDLIFE_SCENE_ID) return "N06 · 兽穴绕道";
   const names: Readonly<Record<string, string>> = {

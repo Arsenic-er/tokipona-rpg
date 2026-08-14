@@ -168,7 +168,7 @@ segments:
     required_task_ids: [ch01_return_observation]
     optional_task_ids: [ch01_first_attack_qualification]
     task_family_id: "delayed_return_and_safe_transfer"
-    implementation_status: "planned"
+    implementation_status: "machine_contract_ready"
     primary_world_facts: [world.actions_have_persistent_social_and_ecological_effects, world.damage_is_physical_result]
     focus_active_new_words: []
     previously_available_words: [telo, tawa, o, wawa, lili, suli]

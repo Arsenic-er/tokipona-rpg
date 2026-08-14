@@ -1,4 +1,4 @@
-import {
+﻿import {
   adaptRuntimeCheckpoint,
   commitSessionProposal,
   proposeCheckpoint,
@@ -121,6 +121,19 @@ export class GameSessionRuntimeBridge {
 
   sessionSnapshot(): GameSessionState {
     return this.session.snapshot();
+  }
+
+  /** Installs a newer aggregate while preserving the live in-scene simulation. */
+  adoptSession(session: GameSession): void {
+    if (session.sessionId !== this.authoritativeSession.sessionId) {
+      throw new Error("runtime bridge cannot adopt a different session");
+    }
+    this.authoritativeSession = session;
+    if (session.snapshot().world.currentSceneId !== this.activeRuntime.snapshot().sceneId) {
+      this.activeRuntime = this.rebuildFromSession();
+      return;
+    }
+    this.hydratePersistentDiffs(session.snapshot());
   }
 
   advanceTicks(ticks: number, input: RuntimeInput = {}): readonly RuntimeBridgeCommitResult[] {

@@ -1,10 +1,42 @@
+﻿import generatedRuntimeArtifact from "../generated/content-runtime.v0.1.json";
+import { readRuntimeSafeRangeManifest } from "../content/runtime-safe-range-manifest";
+import {
+  validSafeRangeRuntimeFramePayload,
+  type SafeRangeRuntimeFramePayload,
+} from "../game/safe-range-authority";
+import { isTrustedSafeRangeCommitProof, type SafeRangeCommitProof } from "../game/prologue-safe-range";
+import {
+  isTrustedReturnFlowQualificationCommitProof,
+  type ReturnFlowQualificationCommitProof,
+} from "../game/prologue-return-flow";
+import {
+  isTrustedAttackQualificationCommitProof,
+  type AttackQualificationCommitProof,
+} from "../game/prologue-attack-qualification";
 import { createCrossSaveReceiptId, sha256Canonical, type JsonValue } from "../persistence/cross-save-wal";
 import {
   LEARNING_SAVE_SCHEMA,
   createLearningProgression,
+  reduceLearningEvidence,
+  type LearningEvidenceEvent,
   type LearningProgressionSnapshot,
   type WordLearningProgress,
 } from "../learning/progression";
+import {
+  ATTACK_CALIBRATION_MILESTONE_ID,
+  ATTACK_CALIBRATION_WRITER_EVENT,
+  ATTACK_CAPACITY_CALIBRATION_FLAG_ID,
+  ATTACK_PERMISSION_WRITER_EVENT,
+  FIRST_ATTACK_SIGNATURE_AVAILABLE_FLAG_ID,
+  PROLOGUE_RETURN_OBSERVED_FLAG_ID,
+  PROTECTED_ATTACK_WORLD_FLAGS,
+  RANGE_TRIAL_PERMISSION_FLAG_ID,
+  RUNTIME_ATTACK_QUALIFICATION_CONTRACT,
+  evaluateAttackQualification,
+  type AttackQualificationContract,
+  type CommittedLearningEvidenceReference,
+  type CommittedWorldEventReference,
+} from "../game/attack-qualification";
 import {
   SURVIVAL_RULES,
   SURVIVAL_SAVE_SCHEMA,
@@ -59,6 +91,8 @@ import {
   type WildlifeProcessingApplyContext,
   type WildlifeProcessingWorkOrder,
 } from "../game/wildlife-processing";
+
+const RUNTIME_SAFE_RANGE_MANIFEST = readRuntimeSafeRangeManifest(generatedRuntimeArtifact);
 
 export const GAME_SESSION_SAVE_SCHEMA = "tokipona.game-session.v0.2" as const;
 export const LEGACY_GAME_SESSION_SAVE_SCHEMA = "tokipona.game-session.v0.1" as const;
@@ -214,6 +248,14 @@ interface SessionEventBase<TType extends string, TPayload> {
   readonly payload: TPayload;
 }
 
+export type AttackQualificationEvidenceActionId =
+  | "settlement.telo.h0" | "settlement.telo.h1"
+  | "settlement.tawa.h0" | "settlement.tawa.h1"
+  | "return_flow.wawa.inert_h0" | "return_flow.wawa.inert_h1"
+  | "settlement.repair.motion_h0"
+  | "settlement.delayed_retrieval_h0"
+  | "settlement.calibration.unrelated_delivery_commit"
+  | "settlement.calibration.unrelated_route_commit";
 export type GameSessionEvent =
   | SessionEventBase<"mp_replaced", { readonly mp: SessionMpState }>
   | SessionEventBase<"capability_milestone_committed", CapabilityMilestoneCommitPayload>
@@ -267,6 +309,69 @@ export type GameSessionEvent =
       readonly interactionId: string;
       readonly playerPositionPx: Readonly<{ readonly x: number; readonly y: number }>;
       readonly runtimeSceneRevision: number;
+    }>
+  | SessionEventBase<"attack_qualification_interaction_committed", {
+      readonly operationId: string;
+      readonly sceneId: "scene.valley.settlement";
+      readonly targetId: "settlement.attack_calibration_table";
+      readonly interactionId: "settlement.open_attack_calibration";
+      readonly playerPositionPx: Readonly<{ readonly x: number; readonly y: number }>;
+      readonly expectedWorldRevision: number;
+    }>  | SessionEventBase<"learning_evidence_committed",
+      | { readonly evidence: LearningEvidenceEvent; readonly qualificationActionId?: never }
+      | { readonly qualificationActionId: AttackQualificationEvidenceActionId; readonly transactionId: string;
+          readonly unrelatedWorldEventIds?: readonly string[]; readonly interactionReceiptId?: string;
+          readonly sourceEvidenceEventId?: string; readonly evidence?: never }>
+  | SessionEventBase<"attack_capacity_calibrated", {
+      readonly transactionId: string;
+      readonly writerEvent: typeof ATTACK_CALIBRATION_WRITER_EVENT;
+      readonly contract: AttackQualificationContract;
+    }>
+  | SessionEventBase<"prologue_return_observation_committed", {
+      readonly transactionId: string;
+      readonly writerEvent: "return_observation_committed";
+    }>
+  | SessionEventBase<"attack_prerequisites_verified", {
+      readonly transactionId: string;
+      readonly writerEvent: typeof ATTACK_PERMISSION_WRITER_EVENT;
+      readonly contractId: AttackQualificationContract["contractId"];
+    }>
+  | SessionEventBase<"safe_range_runtime_frame_committed", SafeRangeRuntimeFramePayload>
+  | SessionEventBase<"safe_range_transfer_passed", {
+      readonly transactionId: string;
+      readonly writerEvent: "safe_range_transfer_passed";
+      readonly targetClass: "wood_dummy" | "sandbag" | "minecart" | "hanging_stone";
+      readonly targetId: string;
+      readonly normalizedVariantHash: string;
+      readonly promptLevel: 0 | 1;
+      readonly waterSource: "bound_existing" | "manifest_default";
+      readonly expectedCurrentMp: number;
+      readonly expectedMpWorldVersion: number;
+      readonly authorityProof: Readonly<{
+        readonly requestHash: string;
+        readonly runtimeRevision: number;
+        readonly frameEventId: string;
+        readonly frameHash: `sha256:${string}`;
+        readonly manifestDigest: `sha256:${string}`;
+        readonly sessionWorldRevision: number;
+        readonly mpWorldVersion: number;
+      }>;
+      readonly physicsResult: Readonly<{ paidKineticBudgetEu: number; transferredKineticEu: number;
+        damageHp: number; targetHpBefore: number; targetHpAfter: number; livingOverlap: false }>;
+    }>
+  | SessionEventBase<"safe_range_material_table_completed", {
+      readonly transactionId: string;
+      readonly writerEvent: "safe_range_material_table_completed";
+      readonly authorityProof: Readonly<{
+        readonly requestHash: string;
+        readonly runtimeRevision: number;
+        readonly targetId: string;
+        readonly frameEventId: string;
+        readonly frameHash: `sha256:${string}`;
+        readonly manifestDigest: `sha256:${string}`;
+        readonly sessionWorldRevision: number;
+        readonly mpWorldVersion: number;
+      }>;
     }>
   | SessionEventBase<"scene_entered", { readonly sceneId: string }>
   | SessionEventBase<"checkpoint_set", { readonly checkpoint: SessionCheckpointState }>
@@ -625,6 +730,43 @@ const isSessionState = (value: unknown): value is GameSessionState => {
     milestone.maxMp <= maxMp);
 };
 
+const stateFlags = (state: unknown): readonly Record<string, unknown>[] => {
+  if (!isRecord(state) || !isRecord(state.world) || !isRecord(state.world.flags)) return [];
+  return Object.values(state.world.flags).filter(isRecord);
+};
+const hasStateFlag = (state: unknown, flagId: string): boolean =>
+  stateFlags(state).some((flag) => flag.flagId === flagId);
+const reachesAttackCapabilityThreshold = (state: unknown): boolean => {
+  if (!isRecord(state)) return false;
+  const capabilities = isRecord(state.capabilities) ? state.capabilities : null;
+  const mp = isRecord(state.mp) ? state.mp : null;
+  return (typeof capabilities?.expressionCapacityWords === "number" && capabilities.expressionCapacityWords >= 4) ||
+    (typeof capabilities?.focusSlots === "number" && capabilities.focusSlots >= 4) ||
+    (typeof mp?.maxMp === "number" && mp.maxMp >= 30);
+};
+const hasProtectedAttackState = (state: unknown): boolean => {
+  const capabilities = isRecord(state) && isRecord(state.capabilities) ? state.capabilities : null;
+  const milestones = capabilities && isRecord(capabilities.appliedMilestones) ? capabilities.appliedMilestones : null;
+  return stateFlags(state).some((flag) => typeof flag.flagId === "string" &&
+    PROTECTED_ATTACK_WORLD_FLAGS.has(flag.flagId)) ||
+    milestones?.[ATTACK_CALIBRATION_MILESTONE_ID] !== undefined || reachesAttackCapabilityThreshold(state);
+};
+const protectedAttackStateHasLedgerAuthority = (
+  state: unknown,
+  events: readonly GameSessionEvent[],
+): boolean => {
+  const has = (type: GameSessionEvent["type"]): boolean => events.some((event) => event.type === type);
+  const capabilities = isRecord(state) && isRecord(state.capabilities) ? state.capabilities : null;
+  const milestones = capabilities && isRecord(capabilities.appliedMilestones) ? capabilities.appliedMilestones : null;
+  if ((hasStateFlag(state, ATTACK_CAPACITY_CALIBRATION_FLAG_ID) ||
+      milestones?.[ATTACK_CALIBRATION_MILESTONE_ID] !== undefined || reachesAttackCapabilityThreshold(state)) &&
+      !has("attack_capacity_calibrated")) return false;
+  if (hasStateFlag(state, RANGE_TRIAL_PERMISSION_FLAG_ID) && !has("attack_prerequisites_verified")) return false;
+  if (hasStateFlag(state, PROLOGUE_RETURN_OBSERVED_FLAG_ID) && !has("prologue_return_observation_committed")) return false;
+  if (hasStateFlag(state, FIRST_ATTACK_SIGNATURE_AVAILABLE_FLAG_ID) && !has("safe_range_transfer_passed")) return false;
+  if (hasStateFlag(state, "first_attack_signature_completed") && !has("safe_range_material_table_completed")) return false;
+  return true;
+};
 type MigratableEconomy = SessionEconomyState | SessionEconomySummary;
 type PreEconomyState = Omit<GameSessionState, "economy"> & { readonly economy: SessionEconomySummary };
 type PreLifeLedgerState = Omit<GameSessionState, "lifeCorpseLedger" | "economy"> & { readonly economy: MigratableEconomy };
@@ -668,6 +810,14 @@ const isEventEnvelope = (value: unknown): value is GameSessionEvent => {
     "inventory_consumption_committed",
     "verified_trade_quote_issued",
     "verified_trade_sale_committed",
+    "attack_qualification_interaction_committed",
+    "learning_evidence_committed",
+    "attack_capacity_calibrated",
+    "prologue_return_observation_committed",
+    "attack_prerequisites_verified",
+    "safe_range_runtime_frame_committed",
+    "safe_range_transfer_passed",
+    "safe_range_material_table_completed",
     "scene_entered",
     "checkpoint_set",
     "world_flag_set",
@@ -795,6 +945,8 @@ export class GameSession {
   private readonly origin: GameSessionState;
   private readonly ledger: GameSessionEvent[];
   private readonly legacyEconomyReplacementSequences: ReadonlySet<number>;
+  private readonly legacyLearningReplacementSequences: ReadonlySet<number>;
+  private readonly legacyProtectedWorldFlagSequences: ReadonlySet<number>;
   private readonly liveVerifiedTradeQuotes: Map<string, string>;
   private replaying = false;
 
@@ -804,12 +956,16 @@ export class GameSession {
     state = origin,
     ledger: readonly GameSessionEvent[] = [],
     legacyEconomyReplacementSequences: readonly number[] = [],
+    legacyLearningReplacementSequences: readonly number[] = [],
+    legacyProtectedWorldFlagSequences: readonly number[] = [],
     liveVerifiedTradeQuotes: readonly (readonly [string, string])[] = [],
   ) {
     this.origin = clone(origin);
     this.state = clone(state);
     this.ledger = clone([...ledger]);
     this.legacyEconomyReplacementSequences = new Set(legacyEconomyReplacementSequences);
+    this.legacyLearningReplacementSequences = new Set(legacyLearningReplacementSequences);
+    this.legacyProtectedWorldFlagSequences = new Set(legacyProtectedWorldFlagSequences);
     this.liveVerifiedTradeQuotes = new Map(liveVerifiedTradeQuotes);
   }
 
@@ -819,6 +975,9 @@ export class GameSession {
   }
 
   static fromReplayOrigin(sessionId: string, origin: GameSessionState): GameSession {
+    if (!isNonEmptyString(sessionId) || !isSessionState(origin) || hasProtectedAttackState(origin)) {
+      throw new Error("GameSession replay origin rejected: protected attack state must be ledger-derived");
+    }
     return new GameSession(sessionId, origin);
   }
 
@@ -828,7 +987,8 @@ export class GameSession {
     events: readonly GameSessionEvent[],
   ): ReplayResult {
     if (!isNonEmptyString(sessionId) || !isSessionState(origin) || origin.revision !== 0 ||
-        origin.lastEventSequence !== 0 || Object.keys(origin.processedEventPayloads).length !== 0) {
+        origin.lastEventSequence !== 0 || Object.keys(origin.processedEventPayloads).length !== 0 ||
+        hasProtectedAttackState(origin)) {
       return { ok: false, failedEventId: null, reason: "invalid_origin" };
     }
     const economyDomainTypes = new Set<GameSessionEvent["type"]>([
@@ -839,8 +999,67 @@ export class GameSession {
     if (legacyEconomyEvents.length > 0 && events.some((event) => economyDomainTypes.has(event.type))) {
       return { ok: false, failedEventId: legacyEconomyEvents[0]!.eventId, reason: "invalid_event" };
     }
+    const invalidSafeRangeAuthority = events.find((event, index) => {
+      if (event.type === "safe_range_runtime_frame_committed") {
+        const action = events[index + 1];
+        const receipt = events[index + 2];
+        const expectedActionType = event.payload.actionKind === "transfer"
+          ? "safe_range_transfer_passed" : "safe_range_material_table_completed";
+        const authorityProof = action?.type === "safe_range_transfer_passed" ||
+          action?.type === "safe_range_material_table_completed"
+          ? action.payload.authorityProof : null;
+        if (!validSafeRangeRuntimeFramePayload(event.payload) || action?.type !== expectedActionType ||
+            !isRecord(authorityProof) ||
+            action.sequence !== event.sequence + 1 || action.payload.transactionId !== event.payload.transactionId ||
+            authorityProof.frameEventId !== event.eventId ||
+            authorityProof.frameHash !== event.payload.frameHash ||
+            authorityProof.requestHash !== event.payload.requestHash ||
+            authorityProof.manifestDigest !== event.payload.manifestDigest ||
+            authorityProof.runtimeRevision !== event.payload.runtimeRevision ||
+            authorityProof.sessionWorldRevision !== event.payload.sessionWorldRevision ||
+            authorityProof.mpWorldVersion !== event.payload.mpWorldVersion) return true;
+        return receipt?.type !== "receipt_recorded" || receipt.sequence !== action.sequence + 1 ||
+          receipt.eventId !== `session.safe-range.operation.${event.payload.transactionId}` ||
+          receipt.payload.receiptId !== `world:${sessionId}:safe-range-operation:${event.payload.transactionId}` ||
+          receipt.payload.domain !== "world" || receipt.payload.payloadHash !== event.payload.requestHash;
+      }
+      if (event.type !== "safe_range_transfer_passed" && event.type !== "safe_range_material_table_completed") return false;
+      if (!isRecord(event.payload.authorityProof)) return true;
+      const frame = events[index - 1];
+      return frame?.type !== "safe_range_runtime_frame_committed" || frame.sequence + 1 !== event.sequence ||
+        frame.payload.transactionId !== event.payload.transactionId ||
+        frame.eventId !== event.payload.authorityProof.frameEventId ||
+        frame.payload.frameHash !== event.payload.authorityProof.frameHash;
+    });
+    if (invalidSafeRangeAuthority) {
+      return { ok: false, failedEventId: invalidSafeRangeAuthority.eventId, reason: "invalid_event" };
+    }
+    const learningDomainTypes = new Set<GameSessionEvent["type"]>([
+      "attack_qualification_interaction_committed",
+    "learning_evidence_committed", "attack_capacity_calibrated", "attack_prerequisites_verified",
+      "safe_range_runtime_frame_committed", "safe_range_transfer_passed", "safe_range_material_table_completed",
+    ]);
+    const firstLearningDomainSequence = events.find((event) => learningDomainTypes.has(event.type))?.sequence ?? Infinity;
+    const invalidLateReplacement = events.find((event) =>
+      event.type === "learning_replaced" && event.sequence >= firstLearningDomainSequence);
+    if (invalidLateReplacement) {
+      return { ok: false, failedEventId: invalidLateReplacement.eventId, reason: "invalid_event" };
+    }
+    const legacyLearningEvents = events.filter((event) =>
+      event.type === "learning_replaced" && event.sequence < firstLearningDomainSequence);
+    const legacyProtectedWorldFlagSequences = events.flatMap((event, index) => {
+      if (event.type !== "world_flag_set" || event.payload.flagId !== PROLOGUE_RETURN_OBSERVED_FLAG_ID ||
+          event.payload.value !== true || event.payload.scope !== "global" ||
+          event.sequence >= firstLearningDomainSequence) return [];
+      const priorScene = events.slice(0, index).reverse().find((candidate) => candidate.type === "scene_entered");
+      const priorQuest = events.slice(0, index).reverse().find((candidate) => candidate.type === "quest_stage_set" &&
+        candidate.payload.questId === "ch01_return_flow");
+      return priorScene?.type === "scene_entered" && priorScene.payload.sceneId === "scene.valley.settlement" &&
+        priorQuest?.type === "quest_stage_set" && priorQuest.payload.stageId === "completed" ? [event.sequence] : [];
+    });
     const session = new GameSession(
       sessionId, origin, origin, [], legacyEconomyEvents.map((event) => event.sequence),
+      legacyLearningEvents.map((event) => event.sequence), legacyProtectedWorldFlagSequences,
     );
     session.replaying = true;
     try {
@@ -879,7 +1098,8 @@ export class GameSession {
   /** Internal transaction clone that preserves non-serialized live command capabilities. */
   forkForProposal(): GameSession {
     return new GameSession(this.sessionId, this.origin, this.state, this.ledger,
-      [...this.legacyEconomyReplacementSequences], [...this.liveVerifiedTradeQuotes.entries()]);
+      [...this.legacyEconomyReplacementSequences], [...this.legacyLearningReplacementSequences],
+      [...this.legacyProtectedWorldFlagSequences], [...this.liveVerifiedTradeQuotes.entries()]);
   }
 
   snapshot(): GameSessionState {
@@ -903,7 +1123,67 @@ export class GameSession {
   }
 
   apply(event: GameSessionEvent): SessionApplyResult {
+    return this.applyInternal(event, null, null, null);
+  }
+
+  /** Accepts safe-range events only when the coordinator supplies its unforgeable live proof. */
+  applyTrustedSafeRangeEvent(event: GameSessionEvent, proof: SafeRangeCommitProof): SessionApplyResult {
+    return this.applyInternal(event, proof, null, null);
+  }
+
+  /** Accepts attack qualification events only from the live semantic coordinators. */
+  applyTrustedAttackQualificationEvent(event: GameSessionEvent, proof: AttackQualificationCommitProof): SessionApplyResult {
+    return this.applyInternal(event, null, proof, null);
+  }
+
+  applyTrustedReturnFlowQualificationEvent(
+    event: GameSessionEvent,
+    proof: ReturnFlowQualificationCommitProof,
+  ): SessionApplyResult {
+    return this.applyInternal(event, null, null, proof);
+  }
+
+  private applyInternal(event: GameSessionEvent, safeRangeProof: SafeRangeCommitProof | null,
+    attackQualificationProof: AttackQualificationCommitProof | null,
+    returnFlowQualificationProof: ReturnFlowQualificationCommitProof | null): SessionApplyResult {
     if (!isEventEnvelope(event)) return this.result(false, false, "invalid_event");
+    const safeRangeProtected = event.type === "safe_range_runtime_frame_committed" ||
+      event.type === "safe_range_transfer_passed" || event.type === "safe_range_material_table_completed";
+    if (safeRangeProtected && !this.replaying) {
+      const proofMatches = safeRangeProof !== null && isTrustedSafeRangeCommitProof(safeRangeProof) &&
+        safeRangeProof.batch.drafts.some((draft) => draft.eventId === event.eventId && draft.type === event.type &&
+          same(draft.payload, event.payload));
+      const authorityMatches = event.type === "safe_range_runtime_frame_committed"
+        ? proofMatches && safeRangeProof.requestHash === event.payload.requestHash &&
+          safeRangeProof.runtimeRevision === event.payload.runtimeRevision
+        : proofMatches && safeRangeProof.requestHash === event.payload.authorityProof.requestHash &&
+          safeRangeProof.runtimeRevision === event.payload.authorityProof.runtimeRevision;
+      if (!authorityMatches) return this.result(false, false, "invalid_event");
+    }
+    const qualificationFormEvidence = event.type === "learning_evidence_committed" && event.payload.qualificationActionId !== undefined;
+    const attackProtectedEvent = event.type === "attack_qualification_interaction_committed" || qualificationFormEvidence ||
+      event.type === "attack_capacity_calibrated" || event.type === "prologue_return_observation_committed" ||
+      event.type === "attack_prerequisites_verified";
+    const returnFlowProtected = event.type === "prologue_return_observation_committed" ||
+      (qualificationFormEvidence && event.payload.qualificationActionId?.startsWith("return_flow.wawa.") === true);
+    const expectedAttackKind = event.type === "attack_qualification_interaction_committed" ||
+      (qualificationFormEvidence && !returnFlowProtected) ? "settlement_action" :
+      event.type === "attack_capacity_calibrated" ? "calibration" :
+      event.type === "attack_prerequisites_verified" ? "permission" : null;
+    const expectedReturnFlowKind = event.type === "prologue_return_observation_committed" ? "observation" :
+      returnFlowProtected ? "grounding" : null;
+    const trustedAttack = expectedAttackKind !== null && attackQualificationProof !== null &&
+      isTrustedAttackQualificationCommitProof(attackQualificationProof) && attackQualificationProof.kind === expectedAttackKind &&
+      attackQualificationProof.batch.drafts.some((draft) => draft.eventId === event.eventId && draft.type === event.type &&
+        same(draft.payload, event.payload));
+    const trustedReturnFlow = expectedReturnFlowKind !== null && returnFlowQualificationProof !== null &&
+      isTrustedReturnFlowQualificationCommitProof(returnFlowQualificationProof) &&
+      returnFlowQualificationProof.kind === expectedReturnFlowKind &&
+      returnFlowQualificationProof.batch.drafts.some((draft) => draft.eventId === event.eventId && draft.type === event.type &&
+        same(draft.payload, event.payload));
+    if (attackProtectedEvent && !this.replaying && !trustedAttack && !trustedReturnFlow) {
+      return this.result(false, false, "invalid_event");
+    }
     const payloadFingerprint = eventPayloadFingerprint(event);
     const prior = this.state.processedEventPayloads[event.eventId];
     if (prior !== undefined) {
@@ -957,12 +1237,18 @@ export class GameSession {
       }
       case "capability_milestone_committed": {
         const payload = event.payload;
+        if (payload.milestoneId === ATTACK_CALIBRATION_MILESTONE_ID ||
+            payload.writerEvent === ATTACK_CALIBRATION_WRITER_EVENT) {
+          return { reason: "invalid_event", duplicate: false };
+        }
         if (!isNonEmptyString(payload.milestoneId) || !isNonEmptyString(payload.writerEvent) ||
             !isNonEmptyString(payload.sourcePath) || !isNonEmptyString(payload.contractRevision) ||
             typeof payload.sourceDigest !== "string" || !/^sha256:[0-9a-f]{64}$/.test(payload.sourceDigest) ||
             !isCapabilityMilestoneResult(payload.resultingState)) {
           return { reason: "invalid_event", duplicate: false };
         }
+        if (payload.resultingState.expressionCapacityWords >= 4 || payload.resultingState.focusSlots >= 4 ||
+            payload.resultingState.maxMp >= 30) return { reason: "invalid_event", duplicate: false };
         const prior = this.state.capabilities.appliedMilestones[payload.milestoneId];
         const comparable = {
           milestoneId: payload.milestoneId,
@@ -1210,7 +1496,8 @@ export class GameSession {
           recordedByEventId: event.eventId, recordedAtSequence: event.sequence,
         };
         return { state: withAppliedEvent(this.state, event, { receiptIndex: { ...this.state.receiptIndex, [receiptId]: receipt } }) };
-      }      case "wildlife_processing_work_advanced": {
+      }
+      case "wildlife_processing_work_advanced": {
         const payload = event.payload;
         if (!isNonEmptyString(payload.transactionId) || !isNonEmptyString(payload.canonicalIdempotencyKey) ||
             !isNonEmptyString(payload.workOrderId) || !isNonNegativeSafeInteger(payload.expectedWorkOrderRevision) ||
@@ -1242,7 +1529,8 @@ export class GameSession {
             interactionReceipt.domain !== "wildlife" || !interactionReceipt.payloadHash.startsWith(`interaction:${order.stationId}:${binding.sceneId}:${binding.targetId}:${binding.interactionId}:${this.state.world.revision}:`) ||
             this.state.receiptIndex[interactionUseId]) {
           return { reason: "invalid_event", duplicate: false };
-        }        const recipe = wildlifeProcessingManifest().processingRecipes[order.recipeId];
+        }
+        const recipe = wildlifeProcessingManifest().processingRecipes[order.recipeId];
         if (!recipe || recipe.recipeVersion !== order.recipeVersion || recipe.transactionKind === "harvest" ||
             recipe.genericProcessOutputPathForbidden) return { reason: "invalid_event", duplicate: false };
         const seconds = recipe.interactionWorkUnits * wildlifeProcessingManifest().workUnitActiveSeconds;
@@ -1433,7 +1721,492 @@ export class GameSession {
         } catch {
           return { reason: "invalid_event", duplicate: false };
         }
-      }      case "scene_entered": {
+      }
+      case "attack_qualification_interaction_committed": {
+        const payload = event.payload;
+        const point = RUNTIME_SAFE_RANGE_MANIFEST.parallelCalibration.interactionPointTiles;
+        const expectedPx = { x: point[0] * 16, y: point[1] * 16 };
+        const distance = Math.hypot(payload.playerPositionPx.x - expectedPx.x, payload.playerPositionPx.y - expectedPx.y);
+        if (!isNonEmptyString(payload.operationId) ||
+            payload.sceneId !== RUNTIME_SAFE_RANGE_MANIFEST.parallelCalibration.authoritySceneId ||
+            payload.targetId !== RUNTIME_SAFE_RANGE_MANIFEST.parallelCalibration.targetId ||
+            payload.interactionId !== RUNTIME_SAFE_RANGE_MANIFEST.parallelCalibration.interactionId ||
+            this.state.world.currentSceneId !== payload.sceneId || payload.expectedWorldRevision !== this.state.world.revision ||
+            !Number.isFinite(payload.playerPositionPx.x) || !Number.isFinite(payload.playerPositionPx.y) || distance > 16) {
+          return { reason: "invalid_event", duplicate: false };
+        }
+        const receiptId = `attack-qualification-interaction:${payload.operationId}`;
+        const payloadHash = sha256Canonical(payload as unknown as JsonValue);
+        const prior = this.state.receiptIndex[receiptId];
+        if (prior) return prior.payloadHash === payloadHash ? { reason: "duplicate_receipt", duplicate: true }
+          : { reason: "receipt_payload_conflict", duplicate: false };
+        const receipt: SessionReceiptIndexEntry = { receiptId, domain: "learning", payloadHash,
+          recordedByEventId: event.eventId, recordedAtSequence: event.sequence };
+        return { state: withAppliedEvent(this.state, event, {
+          receiptIndex: { ...this.state.receiptIndex, [receiptId]: receipt },
+        }) };
+      }
+      case "learning_evidence_committed": {
+        let evidence: LearningEvidenceEvent;
+        let qualification = false;
+        if (event.payload.qualificationActionId !== undefined) {
+          const payload = event.payload;
+          if (!isNonEmptyString(payload.transactionId)) return { reason: "invalid_event", duplicate: false };
+          const action = RUNTIME_SAFE_RANGE_MANIFEST.parallelCalibration.actions.find((candidate) =>
+            candidate.actionId === payload.qualificationActionId);
+          const unrelatedAction = RUNTIME_SAFE_RANGE_MANIFEST.parallelCalibration.unrelatedSemanticWorldActions.find(
+            (candidate) => candidate.actionId === payload.qualificationActionId);
+          if (unrelatedAction) {
+            if (this.state.world.currentSceneId !== unrelatedAction.authoritySceneId ||
+                payload.unrelatedWorldEventIds !== undefined) return { reason: "invalid_event", duplicate: false };
+            const interactionReceipt = payload.interactionReceiptId === undefined ? undefined :
+              this.state.receiptIndex[payload.interactionReceiptId];
+            const interactionEvent = interactionReceipt === undefined ? undefined :
+              this.ledger.find((candidate) => candidate.eventId === interactionReceipt.recordedByEventId);
+            if (!interactionReceipt || interactionEvent?.type !== "attack_qualification_interaction_committed" ||
+                interactionReceipt.recordedAtSequence !== interactionEvent.sequence ||
+                this.state.receiptIndex[`attack-qualification-interaction-use:${payload.interactionReceiptId}`]) {
+              return { reason: "invalid_event", duplicate: false };
+            }
+            const receiptId = `attack-qualification-world:${unrelatedAction.actionId}`;
+            const payloadHash = sha256Canonical({ actionId: unrelatedAction.actionId,
+              taskId: unrelatedAction.authorityTaskId, outcome: unrelatedAction.outcome } as JsonValue);
+            const priorReceipt = this.state.receiptIndex[receiptId];
+            if (priorReceipt) return priorReceipt.payloadHash === payloadHash
+              ? { reason: "duplicate_receipt", duplicate: true }
+              : { reason: "receipt_payload_conflict", duplicate: false };
+            const receipt: SessionReceiptIndexEntry = { receiptId, domain: "world", payloadHash,
+              recordedByEventId: event.eventId, recordedAtSequence: event.sequence };
+            const useId = `attack-qualification-interaction-use:${payload.interactionReceiptId}`;
+            return { state: withAppliedEvent(this.state, event, {
+              receiptIndex: { ...this.state.receiptIndex, [receiptId]: receipt,
+                [useId]: { receiptId: useId, domain: "learning", payloadHash: `interaction-use:${unrelatedAction.actionId}`,
+                  recordedByEventId: event.eventId, recordedAtSequence: event.sequence } },
+            }) };
+          }
+          if (!action || this.state.world.currentSceneId !== action.authoritySceneId) {
+            return { reason: "invalid_event", duplicate: false };
+          }
+           if (action.authoritySceneId === RUNTIME_SAFE_RANGE_MANIFEST.parallelCalibration.authoritySceneId) {
+            const interactionReceipt = payload.interactionReceiptId === undefined ? undefined :
+              this.state.receiptIndex[payload.interactionReceiptId];
+            const interactionEvent = interactionReceipt === undefined ? undefined :
+              this.ledger.find((candidate) => candidate.eventId === interactionReceipt.recordedByEventId);
+            if (!interactionReceipt || interactionEvent?.type !== "attack_qualification_interaction_committed" ||
+                interactionReceipt.recordedAtSequence !== interactionEvent.sequence ||
+                this.state.receiptIndex[`attack-qualification-interaction-use:${payload.interactionReceiptId}`]) {
+              return { reason: "invalid_event", duplicate: false };
+            }
+          }
+          if (action.existingDomainEventMappingOnly) {
+            if (!action.actionId.startsWith("return_flow.wawa.inert_h") ||
+                this.state.quests.ch01_return_flow?.stageId !== "completed" ||
+                !isNonEmptyString(payload.sourceEvidenceEventId)) return { reason: "invalid_event", duplicate: false };
+            const source = this.ledger.find((candidate) => candidate.eventId === payload.sourceEvidenceEventId);
+            if (source?.type !== "learning_evidence_committed" || source.payload.evidence === undefined ||
+                source.payload.evidence.eventType !== "grounding_trial_resolved" || source.payload.evidence.wordId !== "wawa" ||
+                source.payload.evidence.sourceObjectClass !== "inert_return_flow_mechanism" ||
+                source.payload.evidence.promptLevel !== (action.actionId.endsWith("_h0") ? 0 : 1)) {
+              return { reason: "invalid_event", duplicate: false };
+            }
+            const sourceReceipt = this.state.receiptIndex[`learning-evidence:${source.payload.evidence.idempotencyKey}`];
+            if (sourceReceipt?.recordedByEventId !== source.eventId || sourceReceipt.recordedAtSequence !== source.sequence) {
+              return { reason: "invalid_event", duplicate: false };
+            }
+            const receiptId = `attack-qualification-evidence-binding:${action.actionId}:${source.eventId}`;
+            const payloadHash = sha256Canonical({ actionId: action.actionId, sourceEventId: source.eventId,
+              sourceReceiptId: sourceReceipt.receiptId } as JsonValue);
+            const prior = this.state.receiptIndex[receiptId];
+            if (prior) return prior.payloadHash === payloadHash ? { reason: "duplicate_receipt", duplicate: true }
+              : { reason: "receipt_payload_conflict", duplicate: false };
+            const receipt: SessionReceiptIndexEntry = { receiptId, domain: "learning", payloadHash,
+              recordedByEventId: event.eventId, recordedAtSequence: event.sequence };
+            return { state: withAppliedEvent(this.state, event, {
+              receiptIndex: { ...this.state.receiptIndex, [receiptId]: receipt },
+            }) };
+          }
+          const canonicalAstWordIds = action.canonicalAst === null
+            ? action.concept === null ? [] : [action.concept]
+            : Object.values(action.canonicalAst).map((token) => token === "o" ? "word.o" : token);
+          const wordId = action.concept?.replace(/^word\./, "") ??
+            (action.evidenceType === "noncombat_action" || action.evidenceType === "repair" ? "tawa" : "telo");
+          const variantHash = sha256Canonical({ sourceDigest: RUNTIME_SAFE_RANGE_MANIFEST.sourceDigest,
+            actionId: action.actionId, sceneId: action.authoritySceneId, taskId: action.authorityTaskId,
+            taskFamilyId: action.taskFamilyId, canonicalAstWordIds, outcome: action.outcome } as JsonValue);
+          let unrelatedWorldEventIds: readonly string[] = [];
+          if (action.evidenceType === "delayed_retrieval") {
+            const ids = payload.unrelatedWorldEventIds ?? [];
+            if (ids.length !== action.requiredUnrelatedActionIds.length) return { reason: "invalid_event", duplicate: false };
+            const subjects = ids.map((id) => this.ledger.find((candidate) => candidate.eventId === id));
+            if (subjects.some((subject) => subject?.type !== "learning_evidence_committed" ||
+                subject.payload.qualificationActionId === undefined)) return { reason: "invalid_event", duplicate: false };
+            const subjectActions = subjects.map((subject) =>
+              (subject as Extract<GameSessionEvent, { type: "learning_evidence_committed" }>).payload.qualificationActionId);
+            if (!same(subjectActions, action.requiredUnrelatedActionIds)) return { reason: "invalid_event", duplicate: false };
+            const receiptsValid = subjects.every((subject, index) => {
+              const expectedActionId = action.requiredUnrelatedActionIds[index]!;
+              const receipt = this.state.receiptIndex[`attack-qualification-world:${expectedActionId}`];
+              return receipt?.recordedByEventId === subject!.eventId && receipt.recordedAtSequence === subject!.sequence;
+            });
+            if (!receiptsValid) return { reason: "invalid_event", duplicate: false };
+            unrelatedWorldEventIds = ids;
+          } else if (payload.unrelatedWorldEventIds !== undefined) return { reason: "invalid_event", duplicate: false };
+          const base = {
+            eventId: `attack-qualification.evidence.${action.actionId}.${variantHash}`,
+            playerSaveId: this.sessionId, wordId,
+            idempotencyKey: `attack-qualification:${this.sessionId}:${action.actionId}:${variantHash}`,
+            taskId: action.authorityTaskId, taskFamilyId: action.taskFamilyId, variantHash,
+            normalizedEnvironmentFingerprint: `${action.authoritySceneId}:${action.outcome}`,
+            promptLevel: action.promptLevel, interpretationStatus: "executed_legal" as const,
+            worldOutcomeContribution: true, worldOutcomeKind: action.actionId.startsWith("return_flow.wawa.inert_h")
+              ? "inert_force_observation" : action.outcome,
+            toolBypass: false, answerVisible: false, fixedSlotOnly: false, colorOnlyCue: false,
+            semanticFacetsDemonstrated: [action.prerequisiteNodeId], canonicalAstWordIds,
+            ...(action.canonicalAstShape === null ? {} : { canonicalAstShape: action.canonicalAstShape }),
+            committedAtSessionSequence: event.sequence,
+          };
+          evidence = action.evidenceType === "active_retrieval"
+            ? { ...base, eventType: "active_retrieval_submitted" }
+            : action.evidenceType === "noncombat_action"
+              ? { ...base, eventType: "noncombat_action_completed" }
+              : action.evidenceType === "noncombat_intensity"
+                ? { ...base, wordId: "wawa", eventType: "grounding_trial_resolved",
+                    sourceObjectClass: "inert_return_flow_mechanism", canonicalAstWordIds: ["word.wawa"] }
+                : action.evidenceType === "repair"
+                  ? { ...base, eventType: "repair_completed", promptLevelAfterRepair: action.promptLevel,
+                      targetGraphId: RUNTIME_SAFE_RANGE_MANIFEST.prerequisiteGraph.graphId,
+                      repairedNodeId: action.eligibleTargetNodeIds[0], canonicalAstWordIds: ["word.tawa"] }
+                  : { ...base, eventType: "delayed_retrieval_completed", unrelatedWorldEventIds,
+                      targetGraphId: RUNTIME_SAFE_RANGE_MANIFEST.prerequisiteGraph.graphId,
+                      retrievalTarget: RUNTIME_SAFE_RANGE_MANIFEST.prerequisiteGraph.nodes.delayed.retrievalTarget };
+          qualification = true;
+        } else {
+          if (!isRecord(event.payload.evidence) || event.payload.evidence.committedAtSessionSequence !== undefined) {
+            return { reason: "invalid_event", duplicate: false };
+          }
+          evidence = { ...event.payload.evidence, committedAtSessionSequence: event.sequence } as LearningEvidenceEvent;
+        }
+        let reduced;
+        try { reduced = reduceLearningEvidence(this.state.learning, evidence); }
+        catch { return { reason: "invalid_event", duplicate: false }; }
+        const receiptId = `${qualification ? "attack-qualification-evidence" : "learning-evidence"}:${evidence.idempotencyKey}`;
+        const payloadHash = sha256Canonical(evidence as unknown as JsonValue);
+        const priorReceipt = this.state.receiptIndex[receiptId];
+        if (priorReceipt) return priorReceipt.payloadHash === payloadHash
+          ? { reason: "duplicate_receipt", duplicate: true }
+          : { reason: "receipt_payload_conflict", duplicate: false };
+        if (!reduced.applied) return { reason: reduced.duplicate ? "duplicate_receipt" : "invalid_event",
+          duplicate: reduced.duplicate };
+        const receipt: SessionReceiptIndexEntry = { receiptId, domain: "learning", payloadHash,
+          recordedByEventId: event.eventId, recordedAtSequence: event.sequence };
+        const interactionUse = qualification && event.payload.qualificationActionId !== undefined &&
+          event.payload.interactionReceiptId !== undefined
+          ? { [`attack-qualification-interaction-use:${event.payload.interactionReceiptId}`]: {
+              receiptId: `attack-qualification-interaction-use:${event.payload.interactionReceiptId}`,
+              domain: "learning" as const, payloadHash: `interaction-use:${event.payload.qualificationActionId}`,
+              recordedByEventId: event.eventId, recordedAtSequence: event.sequence } } : {};
+        return { state: withAppliedEvent(this.state, event, {
+          learning: clone(reduced.snapshot),
+          receiptIndex: { ...this.state.receiptIndex, [receiptId]: receipt, ...interactionUse },
+        }) };
+      }
+      case "attack_capacity_calibrated": {
+        const { transactionId, writerEvent, contract } = event.payload;
+        if (!isNonEmptyString(transactionId) || writerEvent !== ATTACK_CALIBRATION_WRITER_EVENT ||
+            !same(contract, RUNTIME_ATTACK_QUALIFICATION_CONTRACT)) {
+          return { reason: "invalid_event", duplicate: false };
+        }
+        const receiptId = `attack-calibration:${transactionId}`;
+        const payloadHash = sha256Canonical(event.payload as unknown as JsonValue);
+        const priorReceipt = this.state.receiptIndex[receiptId];
+        if (priorReceipt) return priorReceipt.payloadHash === payloadHash
+          ? { reason: "duplicate_receipt", duplicate: true }
+          : { reason: "receipt_payload_conflict", duplicate: false };
+        if (this.state.capabilities.appliedMilestones[ATTACK_CALIBRATION_MILESTONE_ID]) {
+          return { reason: "milestone_payload_conflict", duplicate: false };
+        }
+        const worldEvents: CommittedWorldEventReference[] = this.ledger.flatMap((candidate): CommittedWorldEventReference[] => {
+          if (candidate.type === "quest_stage_set" || candidate.type === "world_flag_set" ||
+              candidate.type === "scene_entered") {
+            return [{ eventId: candidate.eventId, sequence: candidate.sequence, type: candidate.type }];
+          }
+          if (candidate.type === "learning_evidence_committed" &&
+              candidate.payload.qualificationActionId?.startsWith("settlement.calibration.unrelated_") === true) {
+            const receipt = this.state.receiptIndex[`attack-qualification-world:${candidate.payload.qualificationActionId}`];
+            return receipt?.recordedByEventId === candidate.eventId && receipt.recordedAtSequence === candidate.sequence
+              ? [{ eventId: candidate.eventId, sequence: candidate.sequence, type: candidate.type }]
+              : [];
+          }
+          return [];
+        });
+        const committedEvidence: CommittedLearningEvidenceReference[] = this.ledger.flatMap((candidate) => {
+          if (candidate.type !== "learning_evidence_committed" ||
+              candidate.payload.qualificationActionId === undefined ||
+              candidate.payload.qualificationActionId.startsWith("settlement.calibration.unrelated_")) return [];
+          if (candidate.payload.qualificationActionId.startsWith("return_flow.wawa.inert_h")) {
+            if (!("sourceEvidenceEventId" in candidate.payload) ||
+                !isNonEmptyString(candidate.payload.sourceEvidenceEventId)) return [];
+            const sourceEvidenceEventId = candidate.payload.sourceEvidenceEventId;
+            const source = this.ledger.find((subject) => subject.eventId === sourceEvidenceEventId);
+            if (source?.type !== "learning_evidence_committed" || source.payload.evidence === undefined) return [];
+            const entry = this.state.learning.words.wawa?.evidence.find((item) =>
+              item.eventId === source.payload.evidence!.eventId && item.committedAtSessionSequence === source.sequence);
+            const binding = this.state.receiptIndex[
+              `attack-qualification-evidence-binding:${candidate.payload.qualificationActionId}:${source.eventId}`];
+            return entry && binding?.recordedByEventId === candidate.eventId &&
+              binding.recordedAtSequence === candidate.sequence
+              ? [{ evidenceEventId: entry.eventId, sessionSequence: source.sequence }] : [];
+          }
+          const entries = Object.values(this.state.learning.words).flatMap((word) => word.evidence)
+            .filter((entry) => entry.committedAtSessionSequence === candidate.sequence);
+          return entries.flatMap((entry) => {
+            const expectedReceiptId = `attack-qualification-evidence:attack-qualification:${this.sessionId}:${candidate.payload.qualificationActionId}:${entry.variantHash}`;
+            const receipt = this.state.receiptIndex[expectedReceiptId];
+            return receipt?.recordedByEventId === candidate.eventId && receipt.recordedAtSequence === candidate.sequence
+              ? [{ evidenceEventId: entry.eventId, sessionSequence: candidate.sequence }]
+              : [];
+          });
+        });
+        const evaluation = evaluateAttackQualification(contract, this.state.learning, worldEvents, committedEvidence);
+        if (!evaluation.qualified) return { reason: "invalid_event", duplicate: false };
+        const next = contract.resultingState;
+        if (next.expressionCapacityWords < this.state.capabilities.expressionCapacityWords ||
+            next.focusSlots < this.state.capabilities.focusSlots || next.maxMp < this.state.mp.maxMp) {
+          return { reason: "state_regression", duplicate: false };
+        }
+        const milestone: SessionCapabilityMilestoneRecord = {
+          milestoneId: ATTACK_CALIBRATION_MILESTONE_ID,
+          writerEvent,
+          sourcePath: contract.sourcePath,
+          sourceDigest: contract.sourceDigest,
+          contractRevision: contract.contractRevision,
+          ...next,
+          committedByEventId: event.eventId,
+          committedAtSequence: event.sequence,
+        };
+        const flag: SessionWorldFlag = { flagId: ATTACK_CAPACITY_CALIBRATION_FLAG_ID, value: true,
+          scope: "global", areaId: null, areaEpoch: null };
+        const receipt: SessionReceiptIndexEntry = { receiptId, domain: "learning", payloadHash,
+          recordedByEventId: event.eventId, recordedAtSequence: event.sequence };
+        return { state: withAppliedEvent(this.state, event, {
+          mp: { currentMp: this.state.mp.currentMp, maxMp: next.maxMp,
+            worldVersion: this.state.mp.worldVersion + 1 },
+          capabilities: { expressionCapacityWords: next.expressionCapacityWords, focusSlots: next.focusSlots,
+            revision: this.state.capabilities.revision + 1,
+            appliedMilestones: { ...this.state.capabilities.appliedMilestones,
+              [ATTACK_CALIBRATION_MILESTONE_ID]: milestone } },
+          world: { ...this.state.world, revision: this.state.world.revision + 1,
+            flags: { ...this.state.world.flags, [worldFlagKey(flag)]: flag } },
+          receiptIndex: { ...this.state.receiptIndex, [receiptId]: receipt },
+        }) };
+      }
+      case "prologue_return_observation_committed": {
+        const { transactionId, writerEvent } = event.payload;
+        if (!isNonEmptyString(transactionId) || writerEvent !== "return_observation_committed" ||
+            this.state.world.currentSceneId !== "scene.valley.settlement" ||
+            this.state.quests.ch01_return_flow?.stageId !== "completed") {
+          return { reason: "invalid_event", duplicate: false };
+        }
+        const receiptId = `prologue-return-observation:${transactionId}`;
+        const payloadHash = sha256Canonical(event.payload as unknown as JsonValue);
+        const priorReceipt = this.state.receiptIndex[receiptId];
+        if (priorReceipt) return priorReceipt.payloadHash === payloadHash
+          ? { reason: "duplicate_receipt", duplicate: true }
+          : { reason: "receipt_payload_conflict", duplicate: false };
+        const flag: SessionWorldFlag = { flagId: PROLOGUE_RETURN_OBSERVED_FLAG_ID, value: true,
+          scope: "global", areaId: null, areaEpoch: null };
+        const receipt: SessionReceiptIndexEntry = { receiptId, domain: "world", payloadHash,
+          recordedByEventId: event.eventId, recordedAtSequence: event.sequence };
+        return { state: withAppliedEvent(this.state, event, {
+          world: { ...this.state.world, revision: this.state.world.revision + 1,
+            flags: { ...this.state.world.flags, [worldFlagKey(flag)]: flag } },
+          receiptIndex: { ...this.state.receiptIndex, [receiptId]: receipt },
+        }) };
+      }
+      case "attack_prerequisites_verified": {
+        const { transactionId, writerEvent, contractId } = event.payload;
+        if (!isNonEmptyString(transactionId) || writerEvent !== ATTACK_PERMISSION_WRITER_EVENT ||
+            contractId !== "attack_qualification.v0.1") return { reason: "invalid_event", duplicate: false };
+        const calibrationEvent = [...this.ledger].reverse().find((candidate) => candidate.type === "attack_capacity_calibrated");
+        const observationEvent = [...this.ledger].reverse().find((candidate) => candidate.type === "prologue_return_observation_committed");
+        if (!calibrationEvent || !observationEvent) return { reason: "invalid_event", duplicate: false };
+        const calibrationReceipt = this.state.receiptIndex[`attack-calibration:${calibrationEvent.payload.transactionId}`];
+        const observationReceipt = this.state.receiptIndex[`prologue-return-observation:${observationEvent.payload.transactionId}`];
+        if (calibrationReceipt?.recordedByEventId !== calibrationEvent.eventId ||
+            observationReceipt?.recordedByEventId !== observationEvent.eventId ||
+            this.state.world.flags[`global:${ATTACK_CAPACITY_CALIBRATION_FLAG_ID}`]?.value !== true ||
+            this.state.world.flags[`global:${PROLOGUE_RETURN_OBSERVED_FLAG_ID}`]?.value !== true) {
+          return { reason: "invalid_event", duplicate: false };
+        }
+        const receiptId = `attack-permission:${transactionId}`;
+        const payloadHash = sha256Canonical(event.payload as unknown as JsonValue);
+        const priorReceipt = this.state.receiptIndex[receiptId];
+        if (priorReceipt) return priorReceipt.payloadHash === payloadHash
+          ? { reason: "duplicate_receipt", duplicate: true }
+          : { reason: "receipt_payload_conflict", duplicate: false };
+        const permission: SessionWorldFlag = { flagId: RANGE_TRIAL_PERMISSION_FLAG_ID, value: true,
+          scope: "global", areaId: null, areaEpoch: null };
+        const receipt: SessionReceiptIndexEntry = { receiptId, domain: "world", payloadHash,
+          recordedByEventId: event.eventId, recordedAtSequence: event.sequence };
+        return { state: withAppliedEvent(this.state, event, {
+          world: { ...this.state.world, revision: this.state.world.revision + 1,
+            flags: { ...this.state.world.flags, [worldFlagKey(permission)]: permission } },
+          receiptIndex: { ...this.state.receiptIndex, [receiptId]: receipt },
+        }) };
+      }
+      case "safe_range_runtime_frame_committed": {
+        const payload = event.payload;
+        if (event.eventId !== `session.safe-range.frame.${payload.transactionId}` ||
+            this.state.world.currentSceneId !== RUNTIME_SAFE_RANGE_MANIFEST.scene.sceneId ||
+            payload.sessionWorldRevision !== this.state.world.revision ||
+            payload.mpWorldVersion !== this.state.mp.worldVersion ||
+            !validSafeRangeRuntimeFramePayload(payload)) {
+          return { reason: "invalid_event", duplicate: false };
+        }
+        return { state: withAppliedEvent(this.state, event, {}) };
+      }
+      case "safe_range_transfer_passed": {
+        const payload = event.payload;
+        const frame = this.ledger.at(-1);
+        if (payload.writerEvent !== "safe_range_transfer_passed" || !isNonEmptyString(payload.transactionId) ||
+            !isNonEmptyString(payload.targetId) || !isNonEmptyString(payload.normalizedVariantHash) ||
+            (payload.promptLevel !== 0 && payload.promptLevel !== 1) ||
+            this.state.world.currentSceneId !== RUNTIME_SAFE_RANGE_MANIFEST.scene.sceneId ||
+            this.state.world.flags[`global:${RANGE_TRIAL_PERMISSION_FLAG_ID}`]?.value !== true ||
+            payload.expectedCurrentMp !== this.state.mp.currentMp ||
+            payload.expectedMpWorldVersion !== this.state.mp.worldVersion ||
+            !isRecord(payload.authorityProof) || !isNonEmptyString(payload.authorityProof.requestHash) ||
+            !isNonNegativeSafeInteger(payload.authorityProof.runtimeRevision) ||
+            frame?.type !== "safe_range_runtime_frame_committed" || frame.sequence + 1 !== event.sequence ||
+            frame.eventId !== payload.authorityProof.frameEventId ||
+            frame.payload.transactionId !== payload.transactionId || frame.payload.actionKind !== "transfer" ||
+            frame.payload.targetId !== payload.targetClass ||
+            frame.payload.requestHash !== payload.authorityProof.requestHash ||
+            frame.payload.frameHash !== payload.authorityProof.frameHash ||
+            frame.payload.manifestDigest !== payload.authorityProof.manifestDigest ||
+            frame.payload.runtimeRevision !== payload.authorityProof.runtimeRevision ||
+            frame.payload.sessionWorldRevision !== payload.authorityProof.sessionWorldRevision ||
+            frame.payload.mpWorldVersion !== payload.authorityProof.mpWorldVersion ||
+            payload.authorityProof.sessionWorldRevision !== this.state.world.revision ||
+            payload.authorityProof.mpWorldVersion !== this.state.mp.worldVersion) {
+          return { reason: "invalid_event", duplicate: false };
+        }
+        const profile = RUNTIME_SAFE_RANGE_MANIFEST.targetPhysics.profiles.find((candidate) =>
+          candidate.targetClass === payload.targetClass);
+        if (!profile || payload.targetId !== profile.targetClass) return { reason: "invalid_event", duplicate: false };
+        const expectedVariantHash = sha256Canonical({
+          familyId: RUNTIME_SAFE_RANGE_MANIFEST.familyId,
+          targetClass: profile.targetClass,
+          targetId: payload.targetId,
+          normalizedEnvironmentFingerprint: `${RUNTIME_SAFE_RANGE_MANIFEST.scene.sceneId}:${profile.targetClass}`,
+          canonicalAst: RUNTIME_SAFE_RANGE_MANIFEST.canonicalAst,
+        } as unknown as JsonValue);
+        if (payload.normalizedVariantHash !== expectedVariantHash) return { reason: "invalid_event", duplicate: false };
+        const mpCharge = payload.waterSource === "bound_existing"
+          ? RUNTIME_SAFE_RANGE_MANIFEST.signature.mp.boundExistingWater
+          : payload.waterSource === "manifest_default"
+            ? RUNTIME_SAFE_RANGE_MANIFEST.signature.mp.manifestDefaultWater : -1;
+        if (mpCharge < 0 || this.state.mp.currentMp < mpCharge) return { reason: "invalid_event", duplicate: false };
+        const priorTargetEvent = [...this.ledger].reverse().find((candidate) =>
+          candidate.type === "safe_range_transfer_passed" && candidate.payload.targetClass === payload.targetClass);
+        const targetHpBefore = priorTargetEvent?.type === "safe_range_transfer_passed"
+          ? priorTargetEvent.payload.physicsResult.targetHpAfter : profile.initialHp;
+        const paid = RUNTIME_SAFE_RANGE_MANIFEST.signature.output.paidKineticBudgetEu;
+        const transferred = Math.min(paid, paid * profile.kineticCouplingRatio);
+        const damage = Math.floor(Math.max(0, transferred - profile.targetAbsorptionEu) / 4);
+        const expectedPhysics = { paidKineticBudgetEu: paid, transferredKineticEu: transferred,
+          damageHp: damage, targetHpBefore, targetHpAfter: Math.max(0, targetHpBefore - damage),
+          livingOverlap: false as const };
+        if (!same(payload.physicsResult, expectedPhysics)) return { reason: "invalid_event", duplicate: false };
+        const receiptId = `safe-range-transfer:${payload.targetClass}:${payload.normalizedVariantHash}`;
+        const payloadHash = sha256Canonical(payload as unknown as JsonValue);
+        const priorReceipt = this.state.receiptIndex[receiptId];
+        if (priorReceipt) return priorReceipt.payloadHash === payloadHash
+          ? { reason: "duplicate_receipt", duplicate: true }
+          : { reason: "receipt_payload_conflict", duplicate: false };
+        const evidence: LearningEvidenceEvent = {
+          eventId: `safe-range.learning.${payload.transactionId}`,
+          eventType: "grounding_trial_resolved",
+          playerSaveId: this.sessionId,
+          wordId: "telo",
+          idempotencyKey: `safe-range:${payload.transactionId}`,
+          taskId: RUNTIME_SAFE_RANGE_MANIFEST.taskId,
+          taskFamilyId: RUNTIME_SAFE_RANGE_MANIFEST.familyId,
+          variantHash: payload.normalizedVariantHash,
+          normalizedEnvironmentFingerprint: `safe-range:${payload.targetClass}`,
+          promptLevel: payload.promptLevel,
+          interpretationStatus: "executed_legal",
+          worldOutcomeContribution: true,
+          worldOutcomeKind: "safe_range_inert_transfer",
+          toolBypass: false, answerVisible: false, fixedSlotOnly: false, colorOnlyCue: false,
+          semanticFacetsDemonstrated: ["controlled_force_transfer"],
+          canonicalAstWordIds: ["word.telo", "word.tawa", "word.wawa"],
+          canonicalAstShape: "subject_o_predicate",
+          committedAtSessionSequence: event.sequence,
+        };
+        const learning = reduceLearningEvidence(this.state.learning, evidence);
+        if (!learning.applied) return { reason: "invalid_event", duplicate: false };
+        const available: SessionWorldFlag = { flagId: FIRST_ATTACK_SIGNATURE_AVAILABLE_FLAG_ID, value: true,
+          scope: "global", areaId: null, areaEpoch: null };
+        const receipt: SessionReceiptIndexEntry = { receiptId, domain: "learning", payloadHash,
+          recordedByEventId: event.eventId, recordedAtSequence: event.sequence };
+        return { state: withAppliedEvent(this.state, event, {
+          mp: { currentMp: this.state.mp.currentMp - mpCharge, maxMp: this.state.mp.maxMp,
+            worldVersion: this.state.mp.worldVersion + 1 },
+          learning: clone(learning.snapshot),
+          world: { ...this.state.world, revision: this.state.world.revision + 1,
+            flags: { ...this.state.world.flags, [worldFlagKey(available)]: available } },
+          receiptIndex: { ...this.state.receiptIndex, [receiptId]: receipt },
+        }) };
+      }
+      case "safe_range_material_table_completed": {
+        const payload = event.payload;
+        const frame = this.ledger.at(-1);
+        if (!isNonEmptyString(payload.transactionId) || payload.writerEvent !== "safe_range_material_table_completed" ||
+            this.state.world.currentSceneId !== RUNTIME_SAFE_RANGE_MANIFEST.scene.sceneId ||
+            !isRecord(payload.authorityProof) || !isNonEmptyString(payload.authorityProof.requestHash) ||
+            !isNonNegativeSafeInteger(payload.authorityProof.runtimeRevision) ||
+            payload.authorityProof.targetId !== RUNTIME_SAFE_RANGE_MANIFEST.progression.materialTable.tableTargetId ||
+            frame?.type !== "safe_range_runtime_frame_committed" || frame.sequence + 1 !== event.sequence ||
+            frame.eventId !== payload.authorityProof.frameEventId ||
+            frame.payload.transactionId !== payload.transactionId || frame.payload.actionKind !== "material_table" ||
+            frame.payload.targetId !== RUNTIME_SAFE_RANGE_MANIFEST.progression.materialTable.tableTargetId ||
+            frame.payload.requestHash !== payload.authorityProof.requestHash ||
+            frame.payload.frameHash !== payload.authorityProof.frameHash ||
+            frame.payload.manifestDigest !== payload.authorityProof.manifestDigest ||
+            frame.payload.runtimeRevision !== payload.authorityProof.runtimeRevision ||
+            frame.payload.sessionWorldRevision !== payload.authorityProof.sessionWorldRevision ||
+            frame.payload.mpWorldVersion !== payload.authorityProof.mpWorldVersion ||
+            payload.authorityProof.sessionWorldRevision !== this.state.world.revision ||
+            payload.authorityProof.mpWorldVersion !== this.state.mp.worldVersion) {
+          return { reason: "invalid_event", duplicate: false };
+        }
+        const targetClasses = RUNTIME_SAFE_RANGE_MANIFEST.progression.materialTable.targetClasses;
+        if (!targetClasses.every((targetClass) => this.ledger.some((subject) => {
+          if (subject.type !== "safe_range_transfer_passed" || subject.payload.targetClass !== targetClass) return false;
+          const receipt = this.state.receiptIndex[
+            `safe-range-transfer:${subject.payload.targetClass}:${subject.payload.normalizedVariantHash}`];
+          return receipt?.domain === "learning" && receipt.recordedByEventId === subject.eventId &&
+            receipt.recordedAtSequence === subject.sequence &&
+            receipt.payloadHash === sha256Canonical(subject.payload as unknown as JsonValue);
+        }))) return { reason: "invalid_event", duplicate: false };
+        const receiptId = `safe-range-material-table:${payload.transactionId}`;
+        const payloadHash = sha256Canonical(payload as unknown as JsonValue);
+        const priorReceipt = this.state.receiptIndex[receiptId];
+        if (priorReceipt) return priorReceipt.payloadHash === payloadHash
+          ? { reason: "duplicate_receipt", duplicate: true }
+          : { reason: "receipt_payload_conflict", duplicate: false };
+        const completed: SessionWorldFlag = { flagId: "first_attack_signature_completed", value: true,
+          scope: "global", areaId: null, areaEpoch: null };
+        const receipt: SessionReceiptIndexEntry = { receiptId, domain: "learning", payloadHash,
+          recordedByEventId: event.eventId, recordedAtSequence: event.sequence };
+        return { state: withAppliedEvent(this.state, event, {
+          world: { ...this.state.world, revision: this.state.world.revision + 1,
+            flags: { ...this.state.world.flags, [worldFlagKey(completed)]: completed } },
+          receiptIndex: { ...this.state.receiptIndex, [receiptId]: receipt },
+        }) };
+      }
+      case "scene_entered": {
         if (!isNonEmptyString(event.payload.sceneId)) return { reason: "invalid_event", duplicate: false };
         return {
           state: withAppliedEvent(this.state, event, {
@@ -1458,6 +2231,10 @@ export class GameSession {
       }
       case "world_flag_set": {
         const { flagId, value, scope } = event.payload;
+        if (PROTECTED_ATTACK_WORLD_FLAGS.has(flagId) &&
+            !this.legacyProtectedWorldFlagSequences.has(event.sequence)) {
+          return { reason: "invalid_event", duplicate: false };
+        }
         if (!isNonEmptyString(flagId) || !isWorldFlagValue(value) ||
             (scope !== "global" && scope !== "region" && scope !== "area")) {
           return { reason: "invalid_event", duplicate: false };
@@ -1495,6 +2272,9 @@ export class GameSession {
         };
       }
       case "learning_replaced": {
+        if (!this.legacyLearningReplacementSequences.has(event.sequence)) {
+          return { reason: "invalid_event", duplicate: false };
+        }
         if (!isLearningSnapshot(event.payload.learning)) return { reason: "invalid_event", duplicate: false };
         if (event.payload.learning.revision < this.state.learning.revision) {
           return { reason: "state_regression", duplicate: false };
@@ -1850,6 +2630,7 @@ const isPreCapabilityOnlyV02SaveStructurallyValid = (value: unknown): value is O
       !isPreCapabilityOnlyV02SessionState(value.origin) || value.origin.revision !== 0 || value.origin.lastEventSequence !== 0 ||
       Object.keys(value.origin.processedEventPayloads).length !== 0 || !isPreCapabilityOnlyV02SessionState(value.state) ||
       !Array.isArray(value.eventLedger) || !value.eventLedger.every(isEventEnvelope) ||
+      hasProtectedAttackState(value.origin) || !protectedAttackStateHasLedgerAuthority(value.state, value.eventLedger) ||
       value.eventLedger.some((event) => event.type === "capability_milestone_committed") ||
       !isRecord(value.integrity) || value.integrity.algorithm !== GAME_SESSION_INTEGRITY_ALGORITHM ||
       typeof value.integrity.digest !== "string" || !/^[0-9a-f]{8}$/.test(value.integrity.digest)) return false;
@@ -1877,6 +2658,7 @@ const isPreCapabilityV02SaveStructurallyValid = (value: unknown): value is Omit<
       !isPreCapabilityV02SessionState(value.origin) || value.origin.revision !== 0 || value.origin.lastEventSequence !== 0 ||
       Object.keys(value.origin.processedEventPayloads).length !== 0 || !isPreCapabilityV02SessionState(value.state) ||
       !Array.isArray(value.eventLedger) || !value.eventLedger.every(isEventEnvelope) ||
+      hasProtectedAttackState(value.origin) || !protectedAttackStateHasLedgerAuthority(value.state, value.eventLedger) ||
       value.eventLedger.some((event) => event.type === "capability_milestone_committed") ||
       !isRecord(value.integrity) || value.integrity.algorithm !== GAME_SESSION_INTEGRITY_ALGORITHM ||
       typeof value.integrity.digest !== "string" || !/^[0-9a-f]{8}$/.test(value.integrity.digest)) return false;
@@ -1910,6 +2692,7 @@ const isPreLifeLedgerV02SaveStructurallyValid = (value: unknown): value is Omit<
       !isPreLifeLedgerV02SessionState(value.origin) || value.origin.revision !== 0 || value.origin.lastEventSequence !== 0 ||
       Object.keys(value.origin.processedEventPayloads).length !== 0 || !isPreLifeLedgerV02SessionState(value.state) ||
       !Array.isArray(value.eventLedger) || !value.eventLedger.every(isEventEnvelope) ||
+      hasProtectedAttackState(value.origin) || !protectedAttackStateHasLedgerAuthority(value.state, value.eventLedger) ||
       value.eventLedger.some((event) => event.type === "wildlife_life_registered" ||
         event.type === "wildlife_damage_committed" || event.type === "wildlife_death_committed") ||
       !isRecord(value.integrity) || value.integrity.algorithm !== GAME_SESSION_INTEGRITY_ALGORITHM ||
@@ -1944,6 +2727,7 @@ const isPreEconomyV02SaveStructurallyValid = (value: unknown): value is Omit<Gam
       !isPreEconomyV02SessionState(value.origin) || value.origin.revision !== 0 || value.origin.lastEventSequence !== 0 ||
       Object.keys(value.origin.processedEventPayloads).length !== 0 || !isPreEconomyV02SessionState(value.state) ||
       !Array.isArray(value.eventLedger) || !value.eventLedger.every(isEventEnvelope) ||
+      hasProtectedAttackState(value.origin) || !protectedAttackStateHasLedgerAuthority(value.state, value.eventLedger) ||
       value.eventLedger.some((event) => event.type === "economy_wallet_changed" ||
         event.type === "quote_sequence_advanced" ||
         event.type === "economy_lot_changed" || event.type === "merchant_state_changed" ||
@@ -1971,6 +2755,7 @@ const isCurrentSaveStructurallyValid = (value: unknown): value is GameSessionSav
       !isSessionState(value.origin) || value.origin.revision !== 0 || value.origin.lastEventSequence !== 0 ||
       Object.keys(value.origin.processedEventPayloads).length !== 0 || !isSessionState(value.state) ||
       !Array.isArray(value.eventLedger) || !value.eventLedger.every(isEventEnvelope) ||
+      hasProtectedAttackState(value.origin) || !protectedAttackStateHasLedgerAuthority(value.state, value.eventLedger) ||
       !isRecord(value.integrity) || value.integrity.algorithm !== GAME_SESSION_INTEGRITY_ALGORITHM ||
       typeof value.integrity.digest !== "string" || !/^[0-9a-f]{8}$/.test(value.integrity.digest)) return false;
   return value.eventLedger.length === value.state.lastEventSequence;
@@ -2041,7 +2826,9 @@ export const migrateGameSessionSave = (candidate: unknown): GameSessionMigration
     receiptIndex: indexInheritedSurvivalReceipts(candidate.survival),
     processedEventPayloads: {},
   };
-  if (!isSessionState(migratedOrigin)) return { ok: false, error: "invalid_save" };
+  if (!isSessionState(migratedOrigin) || hasProtectedAttackState(migratedOrigin)) {
+    return { ok: false, error: "invalid_save" };
+  }
   const migrated = GameSession.fromReplayOrigin(candidate.sessionId, migratedOrigin).toSave();
   return { ok: true, save: migrated, migratedFrom: LEGACY_GAME_SESSION_SAVE_SCHEMA };
 };

@@ -1,4 +1,4 @@
-﻿import {
+import {
   commitSessionProposal,
   proposeCisternRecovery,
   type SessionEventDraft,
@@ -369,18 +369,12 @@ export class RpgL01RoomSession {
       if (evidence?.reason === "proposed") {
         const appliedEvidence = evidence.proposedEvents.filter((_, index) => evidence.reductions[index]?.applied);
         if (appliedEvidence.length > 0) {
-          drafts.push({
-            eventId: `session.l01.learning.${stage}.${transactionId}`,
-            type: "learning_replaced",
-            payload: { learning: evidence.learning },
-          });
           for (const event of appliedEvidence) {
-            drafts.push(receiptDraft(
-              `session.l01.learning.receipt.${event.eventId}`,
-              event.idempotencyKey,
-              "learning",
-              `l01:${event.eventType}:${event.eventId}`,
-            ));
+            drafts.push({
+              eventId: `session.l01.learning.${stage}.${transactionId}.${event.eventId}`,
+              type: "learning_evidence_committed",
+              payload: { evidence: event },
+            });
           }
         }
       }

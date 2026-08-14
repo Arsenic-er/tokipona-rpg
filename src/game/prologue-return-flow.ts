@@ -1,4 +1,4 @@
-import generatedRuntimeArtifact from "../generated/content-runtime.v0.1.json";
+﻿import generatedRuntimeArtifact from "../generated/content-runtime.v0.1.json";
 import {
   readRuntimeInfrastructureTaskManifestIndex,
   readRuntimeReturnFlowTaskManifest,
@@ -20,6 +20,7 @@ import {
 import { sha256Canonical, type JsonValue } from "../persistence/cross-save-wal";
 import {
   commitSessionProposal,
+  commitTrustedReturnFlowQualificationProposal,
   type SessionEventDraft,
   type SessionProposalBatch,
 } from "../session/adapters";
@@ -186,6 +187,25 @@ export interface PrologueReturnFlowEntryResult {
   readonly returnFlow: PrologueReturnFlowSession | null;
 }
 
+declare const RETURN_FLOW_QUALIFICATION_PROOF_BRAND: unique symbol;
+export interface ReturnFlowQualificationCommitProof {
+  readonly [RETURN_FLOW_QUALIFICATION_PROOF_BRAND]: true;
+  readonly kind: "grounding" | "observation";
+  readonly batch: SessionProposalBatch;
+}
+const trustedReturnFlowQualificationProofs = new WeakSet<object>();
+export const isTrustedReturnFlowQualificationCommitProof = (
+  value: unknown,
+): value is ReturnFlowQualificationCommitProof =>
+  typeof value === "object" && value !== null && trustedReturnFlowQualificationProofs.has(value);
+const createReturnFlowQualificationProof = (
+  kind: ReturnFlowQualificationCommitProof["kind"],
+  batch: SessionProposalBatch,
+): ReturnFlowQualificationCommitProof => {
+  const proof = Object.freeze({ kind, batch }) as unknown as ReturnFlowQualificationCommitProof;
+  trustedReturnFlowQualificationProofs.add(proof);
+  return proof;
+};
 export interface PrologueReturnFlowSettlementReturnResult {
   readonly accepted: boolean;
   readonly duplicate: boolean;
@@ -222,9 +242,6 @@ const operationReceiptDraft = (sessionId: string, transactionId: string, payload
   receiptDraft(`session.return-flow.operation.${transactionId}`, operationReceiptId(sessionId, transactionId), "world", payloadHash);
 const regionFlagDraft = (eventId: string, flagId: string, value: WorldFlagValue): SessionEventDraft => ({
   eventId, type: "world_flag_set", payload: { flagId, value, scope: "region", regionId: PROLOGUE_RETURN_FLOW_REGION_ID },
-});
-const globalFlagDraft = (eventId: string, flagId: string): SessionEventDraft => ({
-  eventId, type: "world_flag_set", payload: { flagId, value: true, scope: "global" },
 });
 const regionValue = (state: GameSessionState, flagId: string): WorldFlagValue | undefined =>
   Object.values(state.world.flags).find((flag) => flag.scope === "region" &&
@@ -433,20 +450,22 @@ export class PrologueReturnFlowSession {
       return this.result(false, false, "ineligible_evidence");
     }
     const existing = snapshot.session.learning.words.wawa?.evidence.some((entry) =>
-      entry.eventType === "grounding_trial_resolved" && entry.variantHash === variantHash &&
-      entry.sourceObjectClass === RETURN_FLOW_WAWA_SOURCE_OBJECT_CLASS) ?? false;
+      entry.eventType === "grounding_trial_resolved" &&
+      entry.sourceObjectClass === RETURN_FLOW_WAWA_SOURCE_OBJECT_CLASS &&
+      entry.taskFamilyId === RETURN_FLOW_TASK.familyId) ?? false;
     if (existing) return this.recordSemanticDuplicate(id, payloadHash);
     const event: GroundingTrialResolvedEvent = {
       eventId: `return-flow.wawa.grounding.${id}`, eventType: "grounding_trial_resolved",
       playerSaveId: this.authoritativeSession.sessionId, wordId: "wawa",
       idempotencyKey: `${this.authoritativeSession.sessionId}:return-flow:wawa:grounding:${id}`,
       sourceObjectClass: RETURN_FLOW_WAWA_SOURCE_OBJECT_CLASS,
-      taskId: solution.id, taskFamilyId: RETURN_FLOW_TASK.familyId, variantHash,
+      taskId: RETURN_FLOW_TASK.id, taskFamilyId: RETURN_FLOW_TASK.familyId, variantHash,
       normalizedEnvironmentFingerprint: environment, promptLevel: attempt.promptLevel,
       interpretationStatus: "executed_legal", worldOutcomeContribution: true, toolBypass: false,
       answerVisible: false, fixedSlotOnly: false, colorOnlyCue: false,
       semanticFacetsDemonstrated: ["intensity", "energy_input", "noncombat_force"],
       canonicalAstWordIds: [RETURN_FLOW_CONTRACT.wawaEvidence.wordId],
+      worldOutcomeKind: "inert_force_observation",
     };
     return this.commitLearning(id, payloadHash, event);
   }
@@ -472,14 +491,16 @@ export class PrologueReturnFlowSession {
         !regionTrue(state, RETURN_FLOW_CONTRACT.exitPrerequisiteFlag)) {
       return Object.freeze({ accepted: false, duplicate: false, reason: "prerequisite_missing", session: null });
     }
-    const committed = commitSessionProposal(this.authoritativeSession, { transactionId: id, drafts: [
+    const committed = commitTrustedReturnFlowQualificationProposal(this.authoritativeSession, createReturnFlowQualificationProof("observation", { transactionId: id, drafts: [
       { eventId: `session.return-flow.return.${id}.${RETURN_FLOW_SCENE.sceneId}->${SETTLEMENT_SCENE.sceneId}`,
         type: "scene_entered", payload: { sceneId: SETTLEMENT_SCENE.sceneId } },
-      globalFlagDraft(`session.return-flow.return_observation_committed.${id}`, PROLOGUE_RETURN_FLOW_FLAGS.prologueReturnObserved),
+      { eventId: `session.return-flow.return_observation_committed.${id}`,
+        type: "prologue_return_observation_committed",
+        payload: { transactionId: id, writerEvent: "return_observation_committed" } },
       { eventId: `session.return-flow.return.checkpoint.${id}`, type: "checkpoint_set",
         payload: { checkpoint: checkpointFor(state, PROLOGUE_RETURN_FLOW_RETURN_CHECKPOINT_ID, SETTLEMENT_SCENE, SETTLEMENT_ENTRY) } },
       operationReceiptDraft(this.authoritativeSession.sessionId, id, payloadHash),
-    ] });
+    ] }));
     if (!committed.committed) return Object.freeze({ accepted: false, duplicate: false, reason: "session_rejected", session: null });
     this.authoritativeSession = committed.session;
     return Object.freeze({ accepted: true, duplicate: false, reason: "committed", session: committed.session });
@@ -516,13 +537,32 @@ export class PrologueReturnFlowSession {
           "ineligible_evidence";
       return this.result(false, reduction.duplicate, reason);
     }
-    return this.commit({ transactionId, drafts: [
-      { eventId: `session.return-flow.learning.${transactionId}`, type: "learning_replaced",
-        payload: { learning: reduction.snapshot } },
-      receiptDraft(`session.return-flow.learning-receipt.${transactionId}`, event.idempotencyKey, "learning",
-        `return-flow:${event.eventType}:${event.eventId}`),
-      operationReceiptDraft(this.authoritativeSession.sessionId, transactionId, payloadHash),
-    ] }, true);
+    const learningEventId = `session.return-flow.learning.${transactionId}`;
+    const drafts: SessionEventDraft[] = [
+      { eventId: learningEventId, type: "learning_evidence_committed", payload: { evidence: event } },
+    ];
+    if (event.eventType === "grounding_trial_resolved" && event.wordId === "wawa") {
+      drafts.push({
+        eventId: `session.return-flow.qualification.${transactionId}`,
+        type: "learning_evidence_committed",
+        payload: {
+          qualificationActionId: event.promptLevel === 0
+            ? "return_flow.wawa.inert_h0" as const : "return_flow.wawa.inert_h1" as const,
+          transactionId,
+          sourceEvidenceEventId: learningEventId,
+        },
+      });
+    }
+    drafts.push(operationReceiptDraft(this.authoritativeSession.sessionId, transactionId, payloadHash));
+    return event.eventType === "grounding_trial_resolved" && event.wordId === "wawa"
+      ? this.commitTrustedGrounding({ transactionId, drafts })
+      : this.commit({ transactionId, drafts }, true);
+  }
+  private commitTrustedGrounding(batch: SessionProposalBatch): PrologueReturnFlowActionResult {
+    const committed = commitTrustedReturnFlowQualificationProposal(this.authoritativeSession, createReturnFlowQualificationProof("grounding", batch));
+    if (!committed.committed) return this.result(false, false, "session_rejected", false, committed.reason);
+    this.authoritativeSession = committed.session;
+    return this.result(true, false, "committed", true);
   }
   private reset(transactionId: string, kind: string, softLock: boolean): PrologueReturnFlowActionResult {
     const id = requiredId(transactionId, "transactionId");

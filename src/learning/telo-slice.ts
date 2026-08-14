@@ -1,4 +1,4 @@
-﻿import {
+import {
   advanceVisualActivation,
   createVisualActivation,
   reduceLearningEvidence,
@@ -167,26 +167,13 @@ const requiredId = (value: string, name: string): string => {
   return normalized;
 };
 
-const receiptDraft = (
+const learningDraft = (
   transactionId: string,
   event: LearningEvidenceEvent,
 ): SessionEventDraft => ({
-  eventId: `session.receipt.learning.${transactionId}`,
-  type: "receipt_recorded",
-  payload: {
-    receiptId: transactionId,
-    domain: "learning",
-    payloadHash: `telo:${event.eventType}:${event.eventId}`,
-  },
-});
-
-const learningDraft = (
-  transactionId: string,
-  reduction: LearningReductionResult,
-): SessionEventDraft => ({
   eventId: `session.learning.telo.${transactionId}`,
-  type: "learning_replaced",
-  payload: { learning: reduction.snapshot },
+  type: "learning_evidence_committed",
+  payload: { evidence: event },
 });
 
 const reject = (
@@ -239,8 +226,7 @@ const proposeLearningEvent = (
       transactionId,
       drafts: [
         ...extraDrafts,
-        learningDraft(transactionId, reduction),
-        receiptDraft(transactionId, event),
+        learningDraft(transactionId, event),
       ],
     },
     consumedItems,

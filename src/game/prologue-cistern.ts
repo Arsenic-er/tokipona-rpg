@@ -831,18 +831,12 @@ export class PrologueCisternSession {
   ): void {
     const appliedEvents = proposal.proposedEvents.filter((_, index) => proposal.reductions[index]?.applied);
     if (!appliedEvents.length) return;
-    drafts.push({
-      eventId: `session.cistern.learning.${transactionId}`,
-      type: "learning_replaced",
-      payload: { learning: proposal.learning },
-    });
     for (const event of appliedEvents) {
-      drafts.push(receiptDraft(
-        `session.cistern.learning.receipt.${event.eventId}`,
-        event.idempotencyKey,
-        "learning",
-        `cistern:${event.eventType}:${event.eventId}`,
-      ));
+      drafts.push({
+        eventId: `session.cistern.learning.${transactionId}.${event.eventId}`,
+        type: "learning_evidence_committed",
+        payload: { evidence: event },
+      });
     }
   }
 

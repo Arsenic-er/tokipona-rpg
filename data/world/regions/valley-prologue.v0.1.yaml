@@ -117,7 +117,7 @@ nodes:
 
   - node_id: "valley.safe_range"
     scene_id: "scene.valley.safe_range"
-    implementation_status: "planned"
+    implementation_status: "machine_contract_ready"
     suggested_size_tiles: [24, 18]
     entry_condition: {predicate: "range_trial_permission == true"}
     persistence_scope: "global"
@@ -159,6 +159,7 @@ connections:
   - {from: "valley.high_cistern", to: "valley.return_channel", traversal: {predicate: "exit_ladder_lowered == true"}}
   - {from: "valley.return_channel", to: "valley.settlement", traversal: {predicate: "settlement_supply_stable == true"}}
   - {from: "valley.settlement", to: "valley.safe_range", traversal: {predicate: "range_trial_permission == true"}}
+  - {from: "valley.safe_range", to: "valley.settlement", traversal: {predicate: "range_trial_permission == true"}}
   - {from: "valley.settlement", to: "valley.old_mine_threshold", traversal: {predicate: "prologue_return_observed == true"}}
 
 persistence_classes:

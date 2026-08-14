@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { CisternDemoController } from "../game/cistern-demo";
 import { createWildlifeLifeRecord } from "../game/life-corpse-ledger";
 import { createEmptySessionEconomy } from "../game/economy-state";
+import { createSafeRangeRuntimeFramePayload, safeRangeInteractionPointPx } from "../game/safe-range-authority";
 import type { WildlifeProcessingAction, WildlifeProcessingWorkOrder } from "../game/wildlife-processing";
 import { SurvivalSystem } from "../game/survival";
 import { TradeSystem, createDemoTradeLots } from "../game/trade";
@@ -16,7 +17,10 @@ import {
   proposeCapabilityMilestone,
   proposeCisternCast,
   proposeCisternRecovery,
-  proposeLearningReplacement,
+  proposeLearningEvidence,
+  proposeSafeRangeMaterialTableCompletion,
+  proposeSafeRangeRuntimeFrame,
+  proposeSafeRangeTransfer,
   proposeInventoryConsumption,
   proposeQuestStage,
   proposeSurvivalTransaction,
@@ -29,6 +33,8 @@ import {
   proposeWildlifeProcessingWork,
 } from "./adapters";
 
+const FORGED_SAFE_RANGE_SHA = `sha256:${"0".repeat(64)}` as const;
+
 const requireBatch = (
   proposal: import("./adapters").SessionProposalResult,
 ): import("./adapters").SessionProposalBatch => {
@@ -38,6 +44,43 @@ const requireBatch = (
 };
 
 describe("GameSession transaction adapters", () => {
+  it("keeps every public payload-only safe-range proposal outside the ordinary live commit path", () => {
+    const session = GameSession.create({ sessionId: "adapter.safe-range.untrusted",
+      mp: { currentMp: 24, maxMp: 24, worldVersion: 0 }, currentSceneId: "scene.valley.safe_range" });
+    const transfer = proposeSafeRangeTransfer({
+      transactionId: "untrusted.transfer", writerEvent: "safe_range_transfer_passed",
+      targetClass: "wood_dummy", targetId: "wood_dummy", normalizedVariantHash: "forged",
+      promptLevel: 0, waterSource: "bound_existing", expectedCurrentMp: 24, expectedMpWorldVersion: 0,
+      authorityProof: {
+        requestHash: "forged", runtimeRevision: 0,
+        frameEventId: "untrusted.frame.transfer", frameHash: FORGED_SAFE_RANGE_SHA,
+        manifestDigest: FORGED_SAFE_RANGE_SHA, sessionWorldRevision: 0, mpWorldVersion: 0,
+      },
+      physicsResult: { paidKineticBudgetEu: 1, transferredKineticEu: 1, damageHp: 0,
+        targetHpBefore: 6, targetHpAfter: 6, livingOverlap: false },
+    });
+    expect(commitSessionProposal(session, transfer)).toMatchObject({ committed: false, reason: "invalid_event" });
+    const table = proposeSafeRangeMaterialTableCompletion("untrusted.table",
+      {
+        requestHash: "forged", runtimeRevision: 0, targetId: "safe_range.material_table",
+        frameEventId: "untrusted.frame.table", frameHash: FORGED_SAFE_RANGE_SHA,
+        manifestDigest: FORGED_SAFE_RANGE_SHA, sessionWorldRevision: 0, mpWorldVersion: 0,
+      });
+    expect(commitSessionProposal(session, table)).toMatchObject({ committed: false, reason: "invalid_event" });
+    const interactionPoint = safeRangeInteractionPointPx("wood_dummy");
+    expect(interactionPoint).not.toBeNull();
+    const frame = proposeSafeRangeRuntimeFrame(createSafeRangeRuntimeFramePayload({
+      transactionId: "untrusted.frame",
+      actionKind: "transfer",
+      targetId: "wood_dummy",
+      requestHash: "forged",
+      sessionWorldRevision: session.snapshot().world.revision,
+      mpWorldVersion: session.snapshot().mp.worldVersion,
+      runtimeRevision: 0,
+      playerPositionPx: { x: interactionPoint!.x - 12, y: interactionPoint!.y - 4 },
+    }));
+    expect(commitSessionProposal(session, frame)).toMatchObject({ committed: false, reason: "invalid_event" });
+  });
   it("persists an end-to-end executor chain once and replays it without duplication", () => {
     const trade = new TradeSystem(createDemoTradeLots());
     let session = GameSession.create({
@@ -79,7 +122,7 @@ describe("GameSession transaction adapters", () => {
     });
     commit = commitSessionProposal(
       session,
-      requireBatch(proposeLearningReplacement("learning.e2e.telo", discovery)),
+      proposeLearningEvidence("learning.e2e.telo", discovery.proposedEvents[0]!),
     );
     expect(commit.committed).toBe(true);
     session = commit.session;

@@ -49,6 +49,7 @@ describe("N03/N04 infrastructure content contracts", () => {
     const manifest = compileContent(repositorySources());
     expect(Object.keys(manifest.indexes.tasks).sort()).toEqual([
       "ch01_den_bypass",
+      "ch01_first_attack_qualification",
       "ch01_length_cistern",
       "ch01_return_flow",
       "ch01_service_channel",

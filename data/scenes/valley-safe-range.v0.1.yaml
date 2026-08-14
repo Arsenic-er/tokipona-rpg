@@ -1,0 +1,102 @@
+schema_version: "g01.scene.v0.1"
+content_version: "chapter-01.valley-safe-range.1"
+scene_id: "scene.valley.safe_range"
+region_id: "valley_prologue"
+region_node_id: "valley.safe_range"
+chapter_flow_id: "ch01_world_literacy_prologue"
+chapter_segment_id: "return_and_safe_range"
+status: "machine_contract_ready"
+tile_size_px: 16
+size_tiles: {width: 24, height: 18}
+collision_rows_top_down:
+  - "........................"
+  - "........................"
+  - "........................"
+  - "........................"
+  - "........................"
+  - "........................"
+  - "........................"
+  - "........................"
+  - "........................"
+  - "........................"
+  - "........................"
+  - "........................"
+  - "........................"
+  - "........................"
+  - "........................"
+  - "........................"
+  - "........................"
+  - "########################"
+
+entrances:
+  - entrance_id: "safe_range.from_settlement"
+    spawn_tile: [2, 1]
+    recovery_entry: true
+    checkpoint_policy: "scene_entry_and_softlock_recovery"
+
+inbound_route_refs:
+  - inbound_ref_id: "safe_range.inbound_from_settlement"
+    source_scene_id: "scene.valley.settlement"
+    source_exit_id: "settlement.to_safe_range"
+    entrance_id: "safe_range.from_settlement"
+
+exits:
+  - exit_id: "safe_range.to_settlement"
+    trigger_rect_tiles: {x: 22, y: 0, width: 2, height: 6}
+    target_scene_id: "scene.valley.settlement"
+    target_entrance_id: "settlement.from_safe_range"
+    traversal_guard: {predicate: "range_trial_permission == true"}
+
+route_objectives:
+  - objective_id: "safe_range.first_eligible_transfer"
+    predicate: "first_attack_signature_available == true"
+  - objective_id: "safe_range.material_table_complete"
+    predicate: "first_attack_signature_completed == true"
+  - objective_id: "safe_range.return_to_settlement"
+    predicate: "player_reaches_exit(safe_range.to_settlement)"
+
+routes:
+  - route_id: "safe_range.peaceful_return"
+    route_kind: "non_magic"
+    solution_family: "leave_optional_trial"
+    from_entrance_id: "safe_range.from_settlement"
+    to_exit_id: "safe_range.to_settlement"
+    objective_ids: [safe_range.return_to_settlement]
+  - route_id: "safe_range.controlled_attack_trial"
+    route_kind: "optional_magic"
+    solution_family: "safe_range_unseen_transfer"
+    from_entrance_id: "safe_range.from_settlement"
+    to_exit_id: "safe_range.to_settlement"
+    objective_ids: [safe_range.first_eligible_transfer, safe_range.material_table_complete, safe_range.return_to_settlement]
+
+targets:
+  - {target_id: "wood_dummy", target_kind: "wood_dummy", material: "wood", interaction_point_tiles: [5, 1], collision_bounds_tiles: {x: 5, y: 1, width: 1, height: 2}}
+  - {target_id: "sandbag", target_kind: "sandbag", material: "fiber_and_sand", interaction_point_tiles: [9, 1], collision_bounds_tiles: {x: 9, y: 1, width: 1, height: 2}}
+  - {target_id: "minecart", target_kind: "minecart", material: "metal", interaction_point_tiles: [13, 1], collision_bounds_tiles: {x: 13, y: 1, width: 2, height: 1}}
+  - {target_id: "hanging_stone", target_kind: "hanging_stone", material: "stone", interaction_point_tiles: [17, 1], collision_bounds_tiles: {x: 17, y: 2, width: 1, height: 2}}
+  - {target_id: "material_collision_table", target_kind: "material_collision_table", material: "wood_and_slate", interaction_point_tiles: [20, 1]}
+
+interactions:
+  - {interaction_id: "safe_range.test_wood_dummy", target_id: "wood_dummy", verb: "execute_controlled_attack_transfer", tool_or_magic_required: true}
+  - {interaction_id: "safe_range.test_sandbag", target_id: "sandbag", verb: "execute_controlled_attack_transfer", tool_or_magic_required: true}
+  - {interaction_id: "safe_range.test_minecart", target_id: "minecart", verb: "execute_controlled_attack_transfer", tool_or_magic_required: true}
+  - {interaction_id: "safe_range.test_hanging_stone", target_id: "hanging_stone", verb: "execute_controlled_attack_transfer", tool_or_magic_required: true}
+  - {interaction_id: "safe_range.inspect_material_collision_table", target_id: "material_collision_table", verb: "inspect_authored_material_collision_results", tool_or_magic_required: false}
+
+task_refs:
+  - task_id: "ch01_first_attack_qualification"
+    task_ref: "../tasks/ch01-first-attack-qualification.v0.1.yaml"
+    objective_ids: [safe_range.first_eligible_transfer, safe_range.material_table_complete]
+
+material_patches: []
+
+soft_failure_recoveries:
+  - {failure_id: "safe_range.invalid_preview", action: "discard_preview_without_mp_charge", preserves: [learning_evidence, global_progress, completed_target_classes]}
+  - {failure_id: "safe_range.living_overlap", action: "reject_before_commit_and_reposition_trial_volume", preserves: [learning_evidence, global_progress, completed_target_classes]}
+  - {failure_id: "safe_range.local_object_displaced", action: "restore_task_local_inert_targets", preserves: [learning_evidence, global_progress, completed_target_classes]}
+
+recovery:
+  entry_entrance_id: "safe_range.from_settlement"
+  maximum_softlock_recovery_seconds: 60
+  actions: [discard_preview_without_mp_charge, reject_before_commit_and_reposition_trial_volume, restore_task_local_inert_targets, expose_peaceful_return]
+  preserves: [learning_evidence, global_progress, completed_target_classes, attack_qualification_state, survival_state, life_state, corpse_ledger, processing_ledger]

@@ -43,7 +43,9 @@ const requiredManifestByRegionNode = (regionNodeId: string): RuntimeSceneManifes
 const ARRIVAL_MANIFEST = requiredManifestByRegionNode("valley.arrival_shelf");
 const STREAM_MANIFEST = requiredManifestByRegionNode("valley.stream_section");
 const SETTLEMENT_MANIFEST = requiredManifestByRegionNode("valley.settlement");
-if (ARRIVAL_MANIFEST.regionId !== STREAM_MANIFEST.regionId || STREAM_MANIFEST.regionId !== SETTLEMENT_MANIFEST.regionId) {
+const SAFE_RANGE_MANIFEST = requiredManifestByRegionNode("valley.safe_range");
+if (ARRIVAL_MANIFEST.regionId !== STREAM_MANIFEST.regionId || STREAM_MANIFEST.regionId !== SETTLEMENT_MANIFEST.regionId ||
+    SETTLEMENT_MANIFEST.regionId !== SAFE_RANGE_MANIFEST.regionId) {
   throw new Error("arrival, stream and settlement generated scenes must belong to one runtime area");
 }
 
@@ -128,11 +130,13 @@ const toRuntimeScene = (manifest: RuntimeSceneManifest): SceneDefinition => Obje
 export const PROLOGUE_ARRIVAL_SCENE: SceneDefinition = toRuntimeScene(ARRIVAL_MANIFEST);
 export const PROLOGUE_STREAM_SCENE: SceneDefinition = toRuntimeScene(STREAM_MANIFEST);
 export const PROLOGUE_SETTLEMENT_SCENE: SceneDefinition = toRuntimeScene(SETTLEMENT_MANIFEST);
+export const PROLOGUE_SAFE_RANGE_RUNTIME_SCENE: SceneDefinition = toRuntimeScene(SAFE_RANGE_MANIFEST);
 
 export const PROLOGUE_ARRIVAL_STREAM_SCENES = Object.freeze([
   PROLOGUE_ARRIVAL_SCENE,
   PROLOGUE_STREAM_SCENE,
   PROLOGUE_SETTLEMENT_SCENE,
+  PROLOGUE_SAFE_RANGE_RUNTIME_SCENE,
 ]);
 export type PrologueRoute = "unresolved" | "tools" | "telo";
 
@@ -634,11 +638,13 @@ export class PrologueArrivalStreamSession {
         [PROLOGUE_ARRIVAL_SCENE_ID]: PROLOGUE_AREA_ID,
         [PROLOGUE_STREAM_SCENE_ID]: PROLOGUE_AREA_ID,
         [PROLOGUE_SETTLEMENT_SCENE_ID]: PROLOGUE_AREA_ID,
+        [SAFE_RANGE_MANIFEST.sceneId]: PROLOGUE_AREA_ID,
       },
       entranceByScene: {
         [PROLOGUE_ARRIVAL_SCENE_ID]: ARRIVAL_MANIFEST.recovery.entryEntranceId,
         [PROLOGUE_STREAM_SCENE_ID]: STREAM_MANIFEST.recovery.entryEntranceId,
         [PROLOGUE_SETTLEMENT_SCENE_ID]: SETTLEMENT_MANIFEST.recovery.entryEntranceId,
+        [SAFE_RANGE_MANIFEST.sceneId]: SAFE_RANGE_MANIFEST.recovery.entryEntranceId,
       },
       viewportPx: { x: 320, y: 128 },
       fixedHz: FIXED_HZ,

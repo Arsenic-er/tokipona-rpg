@@ -33,7 +33,7 @@
     }
   },
   "scenes": {
-    "sourceDigest": "sha256:f1823a57d759eedfca718883d1c005efe5355e1958642f2bd3bd989eb4513bfb",
+    "sourceDigest": "sha256:0abf801814c2e6448130fbdba7c11bd780febf2cc713b2ebaa5f8d101031d300",
     "byId": {
       "scene.valley.arrival_shelf": {
         "sceneId": "scene.valley.arrival_shelf",
@@ -1530,6 +1530,292 @@
           "patch.valley.return_flow.v0.1"
         ]
       },
+      "scene.valley.safe_range": {
+        "sceneId": "scene.valley.safe_range",
+        "sourcePath": "data/scenes/valley-safe-range.v0.1.yaml",
+        "regionId": "valley_prologue",
+        "regionNodeId": "valley.safe_range",
+        "chapterFlowId": "ch01_world_literacy_prologue",
+        "chapterSegmentId": "return_and_safe_range",
+        "tileSizePx": 16,
+        "sizeTiles": {
+          "width": 24,
+          "height": 18
+        },
+        "collisionRows": [
+          "........................",
+          "........................",
+          "........................",
+          "........................",
+          "........................",
+          "........................",
+          "........................",
+          "........................",
+          "........................",
+          "........................",
+          "........................",
+          "........................",
+          "........................",
+          "........................",
+          "........................",
+          "........................",
+          "........................",
+          "########################"
+        ],
+        "entrances": [
+          {
+            "id": "safe_range.from_settlement",
+            "spawnTile": [
+              2,
+              1
+            ],
+            "spawnPx": {
+              "x": 32,
+              "y": 258
+            },
+            "recoveryEntry": true,
+            "checkpointPolicy": "scene_entry_and_softlock_recovery"
+          }
+        ],
+        "exits": [
+          {
+            "id": "safe_range.to_settlement",
+            "boundsTiles": {
+              "x": 22,
+              "y": 0,
+              "width": 2,
+              "height": 6
+            },
+            "boundsPx": {
+              "x": 352,
+              "y": 192,
+              "width": 32,
+              "height": 96
+            },
+            "target": {
+              "kind": "scene",
+              "sceneId": "scene.valley.settlement",
+              "entranceId": "settlement.from_safe_range"
+            },
+            "firstTraverseCommit": null,
+            "traversalGuardAny": [
+              "range_trial_permission == true"
+            ]
+          }
+        ],
+        "recovery": {
+          "entryEntranceId": "safe_range.from_settlement",
+          "maximumSoftlockRecoverySeconds": 60,
+          "actions": [
+            "discard_preview_without_mp_charge",
+            "reject_before_commit_and_reposition_trial_volume",
+            "restore_task_local_inert_targets",
+            "expose_peaceful_return"
+          ],
+          "preserves": [
+            "learning_evidence",
+            "global_progress",
+            "completed_target_classes",
+            "attack_qualification_state",
+            "survival_state",
+            "life_state",
+            "corpse_ledger",
+            "processing_ledger"
+          ]
+        },
+        "routeObjectives": [
+          {
+            "id": "safe_range.first_eligible_transfer",
+            "predicate": "first_attack_signature_available == true"
+          },
+          {
+            "id": "safe_range.material_table_complete",
+            "predicate": "first_attack_signature_completed == true"
+          },
+          {
+            "id": "safe_range.return_to_settlement",
+            "predicate": "player_reaches_exit(safe_range.to_settlement)"
+          }
+        ],
+        "routes": [
+          {
+            "id": "safe_range.peaceful_return",
+            "kind": "non_magic",
+            "solutionFamily": "leave_optional_trial",
+            "fromEntranceId": "safe_range.from_settlement",
+            "toExitId": "safe_range.to_settlement",
+            "objectiveIds": [
+              "safe_range.return_to_settlement"
+            ]
+          },
+          {
+            "id": "safe_range.controlled_attack_trial",
+            "kind": "optional_magic",
+            "solutionFamily": "safe_range_unseen_transfer",
+            "fromEntranceId": "safe_range.from_settlement",
+            "toExitId": "safe_range.to_settlement",
+            "objectiveIds": [
+              "safe_range.first_eligible_transfer",
+              "safe_range.material_table_complete",
+              "safe_range.return_to_settlement"
+            ]
+          }
+        ],
+        "nonMagicAlternativeRouteIds": [
+          "safe_range.peaceful_return"
+        ],
+        "targets": [
+          {
+            "id": "wood_dummy",
+            "kind": "wood_dummy",
+            "material": "wood",
+            "interactionPointTiles": [
+              5,
+              1
+            ]
+          },
+          {
+            "id": "sandbag",
+            "kind": "sandbag",
+            "material": "fiber_and_sand",
+            "interactionPointTiles": [
+              9,
+              1
+            ]
+          },
+          {
+            "id": "minecart",
+            "kind": "minecart",
+            "material": "metal",
+            "interactionPointTiles": [
+              13,
+              1
+            ]
+          },
+          {
+            "id": "hanging_stone",
+            "kind": "hanging_stone",
+            "material": "stone",
+            "interactionPointTiles": [
+              17,
+              1
+            ]
+          },
+          {
+            "id": "material_collision_table",
+            "kind": "material_collision_table",
+            "material": "wood_and_slate",
+            "interactionPointTiles": [
+              20,
+              1
+            ]
+          }
+        ],
+        "interactions": [
+          {
+            "id": "safe_range.test_wood_dummy",
+            "targetId": "wood_dummy",
+            "verb": "execute_controlled_attack_transfer",
+            "toolOrMagicRequired": true,
+            "optionalWordId": null,
+            "npcId": null,
+            "facilityId": null,
+            "taskId": null
+          },
+          {
+            "id": "safe_range.test_sandbag",
+            "targetId": "sandbag",
+            "verb": "execute_controlled_attack_transfer",
+            "toolOrMagicRequired": true,
+            "optionalWordId": null,
+            "npcId": null,
+            "facilityId": null,
+            "taskId": null
+          },
+          {
+            "id": "safe_range.test_minecart",
+            "targetId": "minecart",
+            "verb": "execute_controlled_attack_transfer",
+            "toolOrMagicRequired": true,
+            "optionalWordId": null,
+            "npcId": null,
+            "facilityId": null,
+            "taskId": null
+          },
+          {
+            "id": "safe_range.test_hanging_stone",
+            "targetId": "hanging_stone",
+            "verb": "execute_controlled_attack_transfer",
+            "toolOrMagicRequired": true,
+            "optionalWordId": null,
+            "npcId": null,
+            "facilityId": null,
+            "taskId": null
+          },
+          {
+            "id": "safe_range.inspect_material_collision_table",
+            "targetId": "material_collision_table",
+            "verb": "inspect_authored_material_collision_results",
+            "toolOrMagicRequired": false,
+            "optionalWordId": null,
+            "npcId": null,
+            "facilityId": null,
+            "taskId": null
+          }
+        ],
+        "npcs": [],
+        "facilities": [],
+        "tasks": [],
+        "taskRefs": [
+          {
+            "id": "ch01_first_attack_qualification",
+            "authoritativeTaskSourcePath": "data/tasks/ch01-first-attack-qualification.v0.1.yaml",
+            "objectiveIds": [
+              "safe_range.first_eligible_transfer",
+              "safe_range.material_table_complete"
+            ]
+          }
+        ],
+        "tradeEntries": [],
+        "inboundRoutes": [
+          {
+            "id": "safe_range.inbound_from_settlement",
+            "sourceSceneId": "scene.valley.settlement",
+            "sourceExitId": "settlement.to_safe_range",
+            "entranceId": "safe_range.from_settlement"
+          }
+        ],
+        "softFailureRecoveries": [
+          {
+            "id": "safe_range.invalid_preview",
+            "action": "discard_preview_without_mp_charge",
+            "preserves": [
+              "learning_evidence",
+              "global_progress",
+              "completed_target_classes"
+            ]
+          },
+          {
+            "id": "safe_range.living_overlap",
+            "action": "reject_before_commit_and_reposition_trial_volume",
+            "preserves": [
+              "learning_evidence",
+              "global_progress",
+              "completed_target_classes"
+            ]
+          },
+          {
+            "id": "safe_range.local_object_displaced",
+            "action": "restore_task_local_inert_targets",
+            "preserves": [
+              "learning_evidence",
+              "global_progress",
+              "completed_target_classes"
+            ]
+          }
+        ],
+        "materialPatchRecordRefs": []
+      },
       "scene.valley.service_channel": {
         "sceneId": "scene.valley.service_channel",
         "sourcePath": "data/scenes/valley-service-channel.v0.1.yaml",
@@ -2147,6 +2433,19 @@
             },
             "recoveryEntry": true,
             "checkpointPolicy": "return_flow_completion_route"
+          },
+          {
+            "id": "settlement.from_safe_range",
+            "spawnTile": [
+              37,
+              1
+            ],
+            "spawnPx": {
+              "x": 592,
+              "y": 450
+            },
+            "recoveryEntry": true,
+            "checkpointPolicy": "safe_range_return_route"
           }
         ],
         "exits": [
@@ -2192,6 +2491,30 @@
             },
             "firstTraverseCommit": null,
             "traversalGuardAny": []
+          },
+          {
+            "id": "settlement.to_safe_range",
+            "boundsTiles": {
+              "x": 38,
+              "y": 8,
+              "width": 2,
+              "height": 7
+            },
+            "boundsPx": {
+              "x": 608,
+              "y": 240,
+              "width": 32,
+              "height": 112
+            },
+            "target": {
+              "kind": "scene",
+              "sceneId": "scene.valley.safe_range",
+              "entranceId": "safe_range.from_settlement"
+            },
+            "firstTraverseCommit": null,
+            "traversalGuardAny": [
+              "range_trial_permission == true"
+            ]
           }
         ],
         "recovery": {
@@ -2395,6 +2718,15 @@
               34,
               28
             ]
+          },
+          {
+            "id": "settlement.attack_calibration_table",
+            "kind": "inert_learning_station",
+            "material": "wood_slate_and_copper",
+            "interactionPointTiles": [
+              36,
+              28
+            ]
           }
         ],
         "interactions": [
@@ -2596,6 +2928,16 @@
             "optionalWordId": null,
             "npcId": "settlement.npc.tanner",
             "facilityId": "settlement.facility.tanner_counter",
+            "taskId": null
+          },
+          {
+            "id": "settlement.open_attack_calibration",
+            "targetId": "settlement.attack_calibration_table",
+            "verb": "open_parallel_attack_calibration",
+            "toolOrMagicRequired": false,
+            "optionalWordId": null,
+            "npcId": null,
+            "facilityId": null,
             "taskId": null
           }
         ],
@@ -2864,6 +3206,12 @@
             "sourceSceneId": "scene.valley.return_channel",
             "sourceExitId": "return.to_settlement",
             "entranceId": "settlement.from_return"
+          },
+          {
+            "id": "settlement.inbound_from_safe_range",
+            "sourceSceneId": "scene.valley.safe_range",
+            "sourceExitId": "safe_range.to_settlement",
+            "entranceId": "settlement.from_safe_range"
           }
         ],
         "softFailureRecoveries": [
@@ -4769,6 +5117,500 @@
         "cistern": null,
         "returnFlow": null
       }
+    }
+  },
+  "safeRangeQualification": {
+    "sourceDigest": "sha256:a0f4ae258bcb58680af2926f6f2368f7e56706e84a7e714071934599edb5b7ed",
+    "taskId": "ch01_first_attack_qualification",
+    "sourcePath": "data/tasks/ch01-first-attack-qualification.v0.1.yaml",
+    "familyId": "safe_range_unseen_transfer",
+    "optional": true,
+    "scene": {
+      "sceneId": "scene.valley.safe_range",
+      "regionId": "valley_prologue",
+      "regionNodeId": "valley.safe_range",
+      "sizeTiles": [
+        24,
+        18
+      ],
+      "entranceId": "safe_range.from_settlement",
+      "exitId": "safe_range.to_settlement",
+      "entryPermissionStateId": "range_trial_permission",
+      "exitPermissionStateId": "range_trial_permission",
+      "targetIds": [
+        "wood_dummy",
+        "sandbag",
+        "minecart",
+        "hanging_stone",
+        "material_collision_table"
+      ],
+      "interactionIds": [
+        "safe_range.test_wood_dummy",
+        "safe_range.test_sandbag",
+        "safe_range.test_minecart",
+        "safe_range.test_hanging_stone",
+        "safe_range.inspect_material_collision_table"
+      ],
+      "materialTableInteractionPointTiles": [
+        20,
+        1
+      ],
+      "interactionBindings": [
+        {
+          "interactionId": "safe_range.test_wood_dummy",
+          "targetId": "wood_dummy",
+          "verb": "execute_controlled_attack_transfer",
+          "toolOrMagicRequired": true
+        },
+        {
+          "interactionId": "safe_range.test_sandbag",
+          "targetId": "sandbag",
+          "verb": "execute_controlled_attack_transfer",
+          "toolOrMagicRequired": true
+        },
+        {
+          "interactionId": "safe_range.test_minecart",
+          "targetId": "minecart",
+          "verb": "execute_controlled_attack_transfer",
+          "toolOrMagicRequired": true
+        },
+        {
+          "interactionId": "safe_range.test_hanging_stone",
+          "targetId": "hanging_stone",
+          "verb": "execute_controlled_attack_transfer",
+          "toolOrMagicRequired": true
+        },
+        {
+          "interactionId": "safe_range.inspect_material_collision_table",
+          "targetId": "material_collision_table",
+          "verb": "inspect_authored_material_collision_results",
+          "toolOrMagicRequired": false
+        }
+      ],
+      "livingTargetCount": 0
+    },
+    "canonicalAst": {
+      "subjectHead": "word.telo",
+      "commandParticle": "o",
+      "action": "word.tawa",
+      "manner": "word.wawa"
+    },
+    "rawUtteranceStringMatchingForbidden": true,
+    "progression": {
+      "calibration": {
+        "stageId": "calibration",
+        "stateId": "attack_capacity_calibration_complete",
+        "writerEvent": "attack_capacity_calibrated"
+      },
+      "permission": {
+        "stageId": "permission",
+        "stateId": "range_trial_permission",
+        "writerEvent": "attack_prerequisites_verified"
+      },
+      "firstTransfer": {
+        "stageId": "first_eligible_unseen_transfer",
+        "evidenceType": "safe_range_unseen_transfer",
+        "promptLevels": [
+          "H0",
+          "H1"
+        ],
+        "targetClass": "inert",
+        "livingOverlapRejectedBeforeCommit": true,
+        "resultStateId": "first_attack_signature_available",
+        "writerEvent": "safe_range_transfer_passed"
+      },
+      "materialTable": {
+        "stageId": "complete_material_table",
+        "targetClasses": [
+          "wood_dummy",
+          "sandbag",
+          "minecart",
+          "hanging_stone"
+        ],
+        "tableTargetId": "material_collision_table",
+        "resultStateId": "first_attack_signature_completed",
+        "writerEvent": "safe_range_material_table_completed"
+      }
+    },
+    "prerequisiteGraph": {
+      "graphId": "attack.water.forceful_motion.prerequisite_graph",
+      "version": "0.1.0",
+      "canonicalAst": {
+        "subjectHead": "word.telo",
+        "commandParticle": "o",
+        "action": "word.tawa",
+        "manner": "word.wawa"
+      },
+      "nodes": {
+        "retrieval": {
+          "nodeId": "retrieve.telo.two_families",
+          "evidenceType": "active_retrieval",
+          "concept": "word.telo",
+          "distinctTaskFamilies": 2,
+          "maxHintLevel": 1
+        },
+        "motion": {
+          "nodeId": "use.motion.noncombat",
+          "evidenceType": "noncombat_action",
+          "astShape": "N o tawa",
+          "distinctTaskFamilies": 2,
+          "maxHintLevel": 1
+        },
+        "intensity": {
+          "nodeId": "use.intensity.inert",
+          "evidenceType": "noncombat_intensity",
+          "concept": "word.wawa",
+          "sourceObjectClass": "inert_return_flow_mechanism",
+          "minimum": 1,
+          "maxHintLevel": 1
+        },
+        "repair": {
+          "nodeId": "repair.related_graph",
+          "evidenceType": "repair",
+          "targetGraphId": "attack.water.forceful_motion.prerequisite_graph",
+          "eligibleTargetNodeIds": [
+            "use.motion.noncombat",
+            "use.intensity.inert"
+          ],
+          "minimum": 1,
+          "maxHintLevelAfterRepair": 1
+        },
+        "delayed": {
+          "nodeId": "retrieve.delayed",
+          "evidenceType": "delayed_retrieval",
+          "targetGraphId": "attack.water.forceful_motion.prerequisite_graph",
+          "retrievalTarget": "canonical_ast_shape_or_declared_paraphrase_equivalence",
+          "minimum": 1,
+          "unrelatedWorldEventsBetween": 2,
+          "maxHintLevel": 1
+        }
+      },
+      "completionEvent": "attack_capacity_calibrated",
+      "forbiddenInputs": [
+        "kill_count",
+        "wildlife_harm",
+        "elapsed_real_time",
+        "repeated_cast_count",
+        "currency",
+        "streak"
+      ]
+    },
+    "signature": {
+      "signatureId": "attack.water.forceful_motion.v0.1",
+      "version": "0.1.0",
+      "prerequisiteGraphId": "attack.water.forceful_motion.prerequisite_graph",
+      "canonicalAst": {
+        "subjectHead": "word.telo",
+        "commandParticle": "o",
+        "action": "word.tawa",
+        "manner": "word.wawa"
+      },
+      "capacity": {
+        "playerMeaningfulTokensMinimum": 4,
+        "artifactSlotsMinimum": 4
+      },
+      "mp": {
+        "boundExistingWater": 13,
+        "manifestDefaultWater": 18
+      },
+      "output": {
+        "phase": "liquid",
+        "massMu": 2,
+        "paidKineticBudgetEu": 8,
+        "initialSpeedBandMps": [
+          3,
+          5
+        ],
+        "gravityAfterRelease": true,
+        "persistenceScope": "ephemeral",
+        "economyExportForbidden": true
+      },
+      "trial": {
+        "permissionStateId": "range_trial_permission",
+        "sceneId": "scene.valley.safe_range",
+        "targetClass": "inert",
+        "livingOverlapRejectedBeforeCommit": true,
+        "sweptVolumeCollisionCheck": true
+      },
+      "damage": {
+        "formulaId": "physics.impact.transfer.v0.1",
+        "liquidSolidMassComponent": 0,
+        "signatureDamageConstantForbidden": true,
+        "languageEvidenceReadByDamageFormula": false
+      }
+    },
+    "physicsModel": {
+      "formulaId": "physics.impact.transfer.v0.1",
+      "kineticComponentHpFormula": "floor(max(0, transferred_kinetic_eu - target_absorption_eu) / 4)",
+      "solidMassComponentHpFormula": "projectile_phase == solid ? floor(max(0, projectile_mass_mu - solid_material_threshold_mu) * solid_material_mass_coefficient) : 0",
+      "totalImpactHpFormula": "kinetic_component_hp + solid_mass_component_hp",
+      "liquidAndGasUseKineticComponentOnly": true
+    },
+    "parallelCalibration": {
+      "authoritySceneId": "scene.valley.settlement",
+      "targetId": "settlement.attack_calibration_table",
+      "interactionId": "settlement.open_attack_calibration",
+      "interactionPointTiles": [
+        36,
+        28
+      ],
+      "receipt": {
+        "receiptRequired": true,
+        "idempotencyKeyFields": [
+          "player_save_id",
+          "action_id",
+          "normalized_variant_hash"
+        ],
+        "duplicateEvidenceAwardForbidden": true
+      },
+      "actions": [
+        {
+          "actionId": "settlement.telo.h0",
+          "authoritySceneId": "scene.valley.settlement",
+          "authorityTaskId": "calibration.telo.delivery",
+          "taskFamilyId": "settlement_water_delivery",
+          "evidenceType": "active_retrieval",
+          "prerequisiteNodeId": "retrieve.telo.two_families",
+          "concept": "word.telo",
+          "promptLevel": 0,
+          "canonicalAst": null,
+          "canonicalAstShape": null,
+          "outcome": "retrieved_water_concept",
+          "eligibleTargetNodeIds": [],
+          "requiredUnrelatedActionIds": [],
+          "existingDomainEventMappingOnly": false
+        },
+        {
+          "actionId": "settlement.telo.h1",
+          "authoritySceneId": "scene.valley.settlement",
+          "authorityTaskId": "calibration.telo.irrigation",
+          "taskFamilyId": "settlement_irrigation_review",
+          "evidenceType": "active_retrieval",
+          "prerequisiteNodeId": "retrieve.telo.two_families",
+          "concept": "word.telo",
+          "promptLevel": 1,
+          "canonicalAst": null,
+          "canonicalAstShape": null,
+          "outcome": "retrieved_water_concept",
+          "eligibleTargetNodeIds": [],
+          "requiredUnrelatedActionIds": [],
+          "existingDomainEventMappingOnly": false
+        },
+        {
+          "actionId": "settlement.tawa.h0",
+          "authoritySceneId": "scene.valley.settlement",
+          "authorityTaskId": "calibration.tawa.courier",
+          "taskFamilyId": "settlement_courier_motion",
+          "evidenceType": "noncombat_action",
+          "prerequisiteNodeId": "use.motion.noncombat",
+          "concept": null,
+          "promptLevel": 0,
+          "canonicalAst": {
+            "subjectHead": "word.jan",
+            "commandParticle": "o",
+            "action": "word.tawa"
+          },
+          "canonicalAstShape": "subject_o_predicate",
+          "outcome": "noncombat_movement",
+          "eligibleTargetNodeIds": [],
+          "requiredUnrelatedActionIds": [],
+          "existingDomainEventMappingOnly": false
+        },
+        {
+          "actionId": "settlement.tawa.h1",
+          "authoritySceneId": "scene.valley.settlement",
+          "authorityTaskId": "calibration.tawa.channel",
+          "taskFamilyId": "settlement_channel_navigation",
+          "evidenceType": "noncombat_action",
+          "prerequisiteNodeId": "use.motion.noncombat",
+          "concept": null,
+          "promptLevel": 1,
+          "canonicalAst": {
+            "subjectHead": "word.jan",
+            "commandParticle": "o",
+            "action": "word.tawa"
+          },
+          "canonicalAstShape": "subject_o_predicate",
+          "outcome": "noncombat_movement",
+          "eligibleTargetNodeIds": [],
+          "requiredUnrelatedActionIds": [],
+          "existingDomainEventMappingOnly": false
+        },
+        {
+          "actionId": "return_flow.wawa.inert_h0",
+          "authoritySceneId": "scene.valley.return_channel",
+          "authorityTaskId": "ch01_return_flow",
+          "taskFamilyId": "ecology_and_return_flow",
+          "evidenceType": "noncombat_intensity",
+          "prerequisiteNodeId": "use.intensity.inert",
+          "concept": "word.wawa",
+          "promptLevel": 0,
+          "canonicalAst": null,
+          "canonicalAstShape": null,
+          "outcome": "grounded_inert_intensity",
+          "eligibleTargetNodeIds": [],
+          "requiredUnrelatedActionIds": [],
+          "existingDomainEventMappingOnly": true
+        },
+        {
+          "actionId": "return_flow.wawa.inert_h1",
+          "authoritySceneId": "scene.valley.return_channel",
+          "authorityTaskId": "ch01_return_flow",
+          "taskFamilyId": "ecology_and_return_flow",
+          "evidenceType": "noncombat_intensity",
+          "prerequisiteNodeId": "use.intensity.inert",
+          "concept": "word.wawa",
+          "promptLevel": 1,
+          "canonicalAst": null,
+          "canonicalAstShape": null,
+          "outcome": "grounded_inert_intensity",
+          "eligibleTargetNodeIds": [],
+          "requiredUnrelatedActionIds": [],
+          "existingDomainEventMappingOnly": true
+        },
+        {
+          "actionId": "settlement.repair.motion_h0",
+          "authoritySceneId": "scene.valley.settlement",
+          "authorityTaskId": "calibration.repair.motion",
+          "taskFamilyId": "settlement_calibration_repair",
+          "evidenceType": "repair",
+          "prerequisiteNodeId": "repair.related_graph",
+          "concept": null,
+          "promptLevel": 0,
+          "canonicalAst": null,
+          "canonicalAstShape": null,
+          "outcome": "repaired_motion_graph",
+          "eligibleTargetNodeIds": [
+            "use.motion.noncombat",
+            "use.intensity.inert"
+          ],
+          "requiredUnrelatedActionIds": [],
+          "existingDomainEventMappingOnly": false
+        },
+        {
+          "actionId": "settlement.delayed_retrieval_h0",
+          "authoritySceneId": "scene.valley.settlement",
+          "authorityTaskId": "calibration.delayed.ast",
+          "taskFamilyId": "settlement_delayed_retrieval",
+          "evidenceType": "delayed_retrieval",
+          "prerequisiteNodeId": "retrieve.delayed",
+          "concept": null,
+          "promptLevel": 0,
+          "canonicalAst": {
+            "subjectHead": "word.telo",
+            "commandParticle": "o",
+            "action": "word.tawa",
+            "manner": "word.wawa"
+          },
+          "canonicalAstShape": null,
+          "outcome": "retrieved_canonical_ast_after_two_events",
+          "eligibleTargetNodeIds": [],
+          "requiredUnrelatedActionIds": [
+            "settlement.calibration.unrelated_delivery_commit",
+            "settlement.calibration.unrelated_route_commit"
+          ],
+          "existingDomainEventMappingOnly": false
+        }
+      ],
+      "unrelatedSemanticWorldActions": [
+        {
+          "actionId": "settlement.calibration.unrelated_delivery_commit",
+          "authoritySceneId": "scene.valley.settlement",
+          "authorityTaskId": "calibration.unrelated.delivery",
+          "taskFamilyId": "settlement_calibration_context",
+          "outcome": "delivery_committed",
+          "qualificationEvidence": false
+        },
+        {
+          "actionId": "settlement.calibration.unrelated_route_commit",
+          "authoritySceneId": "scene.valley.settlement",
+          "authorityTaskId": "calibration.unrelated.route",
+          "taskFamilyId": "settlement_calibration_context",
+          "outcome": "route_committed",
+          "qualificationEvidence": false
+        }
+      ]
+    },
+    "targetPhysics": {
+      "authority": "authored_per_target_class",
+      "balanceStatus": "provisional_authored_values",
+      "runtimeGuessingForbidden": true,
+      "transferredKineticEuFormula": "min(paid_kinetic_budget_eu, paid_kinetic_budget_eu * kinetic_coupling_ratio)",
+      "damageFormulaId": "physics.impact.transfer.v0.1",
+      "profiles": [
+        {
+          "targetClass": "wood_dummy",
+          "materialClass": "wood",
+          "targetAbsorptionEu": 1.5,
+          "kineticCouplingRatio": 0.8,
+          "initialHp": 6,
+          "initialStateBand": "anchored_at_rest",
+          "interactionPointTiles": [
+            5,
+            1
+          ],
+          "collisionBoundsTiles": {
+            "x": 5,
+            "y": 1,
+            "width": 1,
+            "height": 2
+          }
+        },
+        {
+          "targetClass": "sandbag",
+          "materialClass": "fiber_and_sand",
+          "targetAbsorptionEu": 2.5,
+          "kineticCouplingRatio": 0.55,
+          "initialHp": 8,
+          "initialStateBand": "settled_at_rest",
+          "interactionPointTiles": [
+            9,
+            1
+          ],
+          "collisionBoundsTiles": {
+            "x": 9,
+            "y": 1,
+            "width": 1,
+            "height": 2
+          }
+        },
+        {
+          "targetClass": "minecart",
+          "materialClass": "metal",
+          "targetAbsorptionEu": 1,
+          "kineticCouplingRatio": 0.7,
+          "initialHp": 10,
+          "initialStateBand": "braked_on_rail",
+          "interactionPointTiles": [
+            13,
+            1
+          ],
+          "collisionBoundsTiles": {
+            "x": 13,
+            "y": 1,
+            "width": 2,
+            "height": 1
+          }
+        },
+        {
+          "targetClass": "hanging_stone",
+          "materialClass": "stone",
+          "targetAbsorptionEu": 2,
+          "kineticCouplingRatio": 0.9,
+          "initialHp": 8,
+          "initialStateBand": "suspended_at_rest",
+          "interactionPointTiles": [
+            17,
+            1
+          ],
+          "collisionBoundsTiles": {
+            "x": 17,
+            "y": 2,
+            "width": 1,
+            "height": 2
+          }
+        }
+      ]
     }
   },
   "capabilityProgression": {
