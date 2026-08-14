@@ -7,6 +7,8 @@ import type {
   RuntimeCore120Location,
   RuntimeCore120WordManifest,
 } from "../../src/content/runtime-core120-curriculum-manifest.ts";
+import { computeRuntimeCore120LearningSemanticDigest } from
+  "../../src/content/runtime-core120-curriculum-manifest.ts";
 import type { ContentManifest, ContentObject, ContentValue } from "../../src/content/types.ts";
 
 const CORE120_BANDS = ["P0", "P1", "P2", "P3", "P4", "P5"] as const;
@@ -16,6 +18,12 @@ const CORE120_VISUAL_DOMAINS = [
   "D_ENERGY_FIELD", "D_PROPERTY_FORM", "D_ACTION_PROCESS", "D_SPACE_TIME", "D_PERCEPTION_SOCIAL",
 ] as const;
 const EXPECTED_BAND_COUNTS = Object.freeze({ P0: 12, P1: 18, P2: 24, P3: 30, P4: 24, P5: 12 });
+const CORE120_COMPATIBLE_LEGACY_CONTRACTS = [
+  {
+    sourceDigest: "sha256:5d6d824a0c0397b109e5f3934f7f7ec92bdebef912368c5c7ea680b5f3721f2c",
+    semanticDigest: "sha256:fba08cdb6158c93ccb08eef9d65fab06621c0c12f04f57ae72e71b194da3e0b8",
+  },
+] as const;
 
 export function projectCore120Curriculum(manifest: ContentManifest): RuntimeCore120CurriculumManifest {
   const progressionSources = manifest.byKind.glyph_progression;
@@ -29,6 +37,15 @@ export function projectCore120Curriculum(manifest: ContentManifest): RuntimeCore
   if (catalogSourcePath !== catalog.path) throw new Error("core120 catalog_ref is invalid");
   exact(runtime.target_state, "produced", "runtime_curriculum.target_state");
   sameExact(strings(runtime.action_kinds, "runtime_curriculum.action_kinds"), CORE120_ACTION_KINDS, "core120 action kinds");
+  const compatibleLegacyContracts = objects(runtime.compatible_legacy_learning_contracts,
+    "runtime_curriculum.compatible_legacy_learning_contracts");
+  if (compatibleLegacyContracts.length !== CORE120_COMPATIBLE_LEGACY_CONTRACTS.length ||
+      compatibleLegacyContracts.some((contract, index) =>
+        !sameSet(Object.keys(contract), ["source_digest", "semantic_digest"]) ||
+        contract.source_digest !== CORE120_COMPATIBLE_LEGACY_CONTRACTS[index]!.sourceDigest ||
+        contract.semantic_digest !== CORE120_COMPATIBLE_LEGACY_CONTRACTS[index]!.semanticDigest)) {
+    throw new Error("core120 compatible legacy learning contracts are invalid");
+  }
 
   const worldContextAuthoritySource = object(runtime.world_context_authority,
     "runtime_curriculum.world_context_authority");
@@ -154,7 +171,19 @@ export function projectCore120Curriculum(manifest: ContentManifest): RuntimeCore
     acceptance,
   } as const;
   if (body.catalogRuntimeReady && body.catalogReviewStatus !== "approved") throw new Error("core120 catalog cannot be runtime-ready before approval");
-  return { sourceDigest: `sha256:${createHash("sha256").update(stable(body)).digest("hex")}`, ...body } as RuntimeCore120CurriculumManifest;
+  const semanticDigest = computeRuntimeCore120LearningSemanticDigest(body);
+  if (CORE120_COMPATIBLE_LEGACY_CONTRACTS.some((contract) =>
+    contract.semanticDigest !== semanticDigest)) {
+    throw new Error("core120 legacy readers do not match the current semantic contract");
+  }
+  const learningContract = {
+    evidenceIdentityVersion: "core120-learning-evidence.v0.2",
+    semanticDigest,
+    compatibleLegacyContracts: CORE120_COMPATIBLE_LEGACY_CONTRACTS,
+  } as const;
+  const projected = { learningContract, ...body } as const;
+  return { sourceDigest: `sha256:${createHash("sha256").update(stable(projected)).digest("hex")}`,
+    ...projected } as RuntimeCore120CurriculumManifest;
 }
 
 function projectLocation(manifest: ContentManifest, sourcePath: string, value: ContentObject, label: string,

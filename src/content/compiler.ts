@@ -441,8 +441,19 @@ function validateCore120RuntimeCurriculumSource(source: CompiledSource, issues: 
   const same = (actual: readonly string[], expected: readonly string[]): boolean =>
     actual.length === expected.length && actual.every((entry, index) => entry === expected[index]);
   const actionKinds = ["discover", "attune", "context_0", "context_1", "repair"];
+  const compatibleLegacyLearningContracts = [
+    {
+      sourceDigest: "sha256:5d6d824a0c0397b109e5f3934f7f7ec92bdebef912368c5c7ea680b5f3721f2c",
+      semanticDigest: "sha256:fba08cdb6158c93ccb08eef9d65fab06621c0c12f04f57ae72e71b194da3e0b8",
+    },
+  ];
   const domains = ["D_SYNTAX_BINDER", "D_QUANTITY_LOGIC", "D_MATTER_ENV", "D_LIFE_ENTITY", "D_CRAFT_OBJECT", "D_ENERGY_FIELD", "D_PROPERTY_FORM", "D_ACTION_PROCESS", "D_SPACE_TIME", "D_PERCEPTION_SOCIAL"];
-  if (readString(runtime, "catalog_ref") !== "./pu-120-glyph-catalog.v0.2.json" || readString(runtime, "target_state") !== "produced" || !same(readStringArray(runtime, "action_kinds"), actionKinds) || readNumber(runtime, "contexts_per_word") !== 2 || readNumber(runtime, "misconception_repairs_per_word") !== 1 || runtime.all_words_recoverable !== true || runtime.distinct_task_family_per_context !== true || runtime.raw_string_equality_as_success_forbidden !== true || runtime.color_only_identification_forbidden !== true || runtime.fixed_slot_only_production_forbidden !== true || runtime.pronunciation_audio_required !== true || runtime.community_semantic_review_required !== true) {
+  const legacyContracts = readObjectArray(runtime, "compatible_legacy_learning_contracts");
+  const legacyContractsValid = legacyContracts.length === compatibleLegacyLearningContracts.length &&
+    legacyContracts.every((contract, index) => Object.keys(contract).length === 2 &&
+      readString(contract, "source_digest") === compatibleLegacyLearningContracts[index]!.sourceDigest &&
+      readString(contract, "semantic_digest") === compatibleLegacyLearningContracts[index]!.semanticDigest);
+  if (readString(runtime, "catalog_ref") !== "./pu-120-glyph-catalog.v0.2.json" || readString(runtime, "target_state") !== "produced" || !same(readStringArray(runtime, "action_kinds"), actionKinds) || !legacyContractsValid || readNumber(runtime, "contexts_per_word") !== 2 || readNumber(runtime, "misconception_repairs_per_word") !== 1 || runtime.all_words_recoverable !== true || runtime.distinct_task_family_per_context !== true || runtime.raw_string_equality_as_success_forbidden !== true || runtime.color_only_identification_forbidden !== true || runtime.fixed_slot_only_production_forbidden !== true || runtime.pronunciation_audio_required !== true || runtime.community_semantic_review_required !== true) {
     addIssue(issues, "contract.core120_policy", source.path, "runtime_curriculum", "core120 production, recovery, context, misconception, accessibility, and review policy is noncanonical");
   }
   const recovery = readObject(runtime, "recovery_station");

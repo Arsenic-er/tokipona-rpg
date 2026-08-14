@@ -17,7 +17,8 @@ import {
   type EvidenceLedgerEntry,
 } from "./progression";
 
-export const CORE120_CAMPAIGN_SAVE_SCHEMA = "tokipona.core120-learning-campaign.v0.1" as const;
+export const CORE120_CAMPAIGN_SAVE_SCHEMA = "tokipona.core120-learning-campaign.v0.2" as const;
+export const LEGACY_CORE120_CAMPAIGN_SAVE_SCHEMA = "tokipona.core120-learning-campaign.v0.1" as const;
 
 export type Core120LearningActionId = `core120.${string}.${Core120ActionKind}`;
 
@@ -89,7 +90,8 @@ export function createCore120CampaignState(
   const validatedLearning = readLearningSnapshot(learning);
   assertCampaignWords(validatedLearning, manifest);
   assertCampaignEvidenceIdentity(validatedLearning, manifest, playerSaveId);
-  return sealState({ schema: CORE120_CAMPAIGN_SAVE_SCHEMA, manifestDigest: manifest.sourceDigest, playerSaveId, learning: validatedLearning });
+  return sealState({ schema: CORE120_CAMPAIGN_SAVE_SCHEMA,
+    manifestDigest: manifest.learningContract.semanticDigest, playerSaveId, learning: validatedLearning });
 }
 
 export function readCore120CampaignState(
@@ -99,14 +101,24 @@ export function readCore120CampaignState(
   if (!isVerifiedRuntimeCore120CurriculumManifest(manifest)) throw new Error("core120 campaign requires a verified manifest");
   const root = record(candidate, "core120 campaign save");
   exactKeys(root, ["schema", "manifestDigest", "playerSaveId", "learning", "integrity"], "core120 campaign save");
-  if (root.schema !== CORE120_CAMPAIGN_SAVE_SCHEMA || root.manifestDigest !== manifest.sourceDigest || !validPlayerSaveId(root.playerSaveId)) throw new Error("core120 campaign save identity is invalid");
+  const currentIdentity = root.schema === CORE120_CAMPAIGN_SAVE_SCHEMA &&
+    root.manifestDigest === manifest.learningContract.semanticDigest;
+  const legacyIdentity = root.schema === LEGACY_CORE120_CAMPAIGN_SAVE_SCHEMA &&
+    typeof root.manifestDigest === "string" &&
+    manifest.learningContract.compatibleLegacyContracts.some((contract) =>
+      contract.sourceDigest === root.manifestDigest &&
+      contract.semanticDigest === manifest.learningContract.semanticDigest);
+  if ((!currentIdentity && !legacyIdentity) || !validPlayerSaveId(root.playerSaveId)) {
+    throw new Error("core120 campaign save identity is invalid");
+  }
   if (typeof root.integrity !== "string" || !/^sha256:[0-9a-f]{64}$/.test(root.integrity)) throw new Error("core120 campaign integrity is invalid");
   const body = { schema: root.schema, manifestDigest: root.manifestDigest, playerSaveId: root.playerSaveId, learning: root.learning };
   if (computeCore120CampaignIntegrity(body) !== root.integrity) throw new Error("core120 campaign integrity mismatch");
   const learning = readLearningSnapshot(root.learning);
   assertCampaignWords(learning, manifest);
   assertCampaignEvidenceIdentity(learning, manifest, root.playerSaveId);
-  return sealState({ schema: CORE120_CAMPAIGN_SAVE_SCHEMA, manifestDigest: manifest.sourceDigest, playerSaveId: root.playerSaveId, learning });
+  return sealState({ schema: CORE120_CAMPAIGN_SAVE_SCHEMA,
+    manifestDigest: manifest.learningContract.semanticDigest, playerSaveId: root.playerSaveId, learning });
 }
 
 export function toCore120CampaignSave(state: Core120CampaignState): Core120CampaignSave {
@@ -135,7 +147,33 @@ export function materializeCore120LearningEvidence(
   }
   const parsed = parseAction(manifest, actionId);
   if (parsed === null) throw new Error(`unknown core120 action ${actionId}`);
-  return deepFreeze([...materializeEvents(manifest, playerSaveId, parsed.word, parsed.kind)]);
+  return deepFreeze([...materializeEvents(manifest, playerSaveId, parsed.word, parsed.kind,
+    manifest.learningContract.semanticDigest)]);
+}
+
+/** Returns the canonical current evidence first, followed by explicit v0.1 readers. */
+export function materializeCore120LearningEvidenceVariants(
+  manifest: RuntimeCore120CurriculumManifest,
+  playerSaveId: string,
+  actionId: Core120LearningActionId,
+): readonly (readonly LearningEvidenceEvent[])[] {
+  if (!isVerifiedRuntimeCore120CurriculumManifest(manifest) || !validPlayerSaveId(playerSaveId)) {
+    throw new Error("core120 evidence requires a verified manifest and player identity");
+  }
+  const parsed = parseAction(manifest, actionId);
+  if (parsed === null) throw new Error(`unknown core120 action ${actionId}`);
+  return deepFreeze(listCore120LearningContractDigests(manifest).map((identityDigest) =>
+    [...materializeEvents(manifest, playerSaveId, parsed.word, parsed.kind, identityDigest)]));
+}
+
+export function listCore120LearningContractDigests(
+  manifest: RuntimeCore120CurriculumManifest,
+): readonly `sha256:${string}`[] {
+  if (!isVerifiedRuntimeCore120CurriculumManifest(manifest)) {
+    throw new Error("core120 campaign requires a verified manifest");
+  }
+  return Object.freeze([manifest.learningContract.semanticDigest,
+    ...manifest.learningContract.compatibleLegacyContracts.map((contract) => contract.sourceDigest)]);
 }
 
 export function core120EvidenceMatches(expected: LearningEvidenceEvent, actual: LearningEvidenceEvent): boolean {
@@ -148,7 +186,7 @@ export function isCore120LearningActionComplete(
   actionId: Core120LearningActionId,
 ): boolean {
   if (!isVerifiedRuntimeCore120CurriculumManifest(manifest) || !isVerifiedCore120CampaignState(state) ||
-      state.manifestDigest !== manifest.sourceDigest) return false;
+      state.manifestDigest !== manifest.learningContract.semanticDigest) return false;
   const parsed = parseAction(manifest, actionId);
   return parsed !== null && actionEvidencePresent(manifest, state, parsed.word.wordId, parsed.kind);
 }
@@ -201,7 +239,8 @@ export function applyCore120LearningAction(
   actionId: string,
 ): Core120CampaignActionResult {
   if (!isVerifiedRuntimeCore120CurriculumManifest(manifest)) return failed(state, actionId, "invalid_manifest");
-  if (!isVerifiedCore120CampaignState(state) || state.manifestDigest !== manifest.sourceDigest) return failed(state, actionId, "invalid_state");
+  if (!isVerifiedCore120CampaignState(state) ||
+      state.manifestDigest !== manifest.learningContract.semanticDigest) return failed(state, actionId, "invalid_state");
   const parsed = parseAction(manifest, actionId);
   if (parsed === null) return failed(state, actionId, "unknown_action");
   if (!prerequisitesSatisfied(manifest, state, parsed.word, parsed.kind)) return failed(state, actionId, "prerequisite_missing");
@@ -247,7 +286,7 @@ export function isCore120WordComplete(
   state: Core120CampaignState,
   wordId: string,
 ): boolean {
-  if (!isVerifiedRuntimeCore120CurriculumManifest(manifest) || !isVerifiedCore120CampaignState(state) || state.manifestDigest !== manifest.sourceDigest || manifest.words[wordId] === undefined) return false;
+  if (!isVerifiedRuntimeCore120CurriculumManifest(manifest) || !isVerifiedCore120CampaignState(state) || state.manifestDigest !== manifest.learningContract.semanticDigest || manifest.words[wordId] === undefined) return false;
   return CORE120_ACTION_KINDS.every((kind) => actionEvidencePresent(manifest, state, wordId, kind));
 }
 
@@ -255,7 +294,7 @@ export function summarizeCore120Campaign(
   manifest: RuntimeCore120CurriculumManifest,
   state: Core120CampaignState,
 ): Core120CampaignSummary {
-  if (!isVerifiedRuntimeCore120CurriculumManifest(manifest) || !isVerifiedCore120CampaignState(state) || state.manifestDigest !== manifest.sourceDigest) throw new Error("core120 campaign state is not verified for this manifest");
+  if (!isVerifiedRuntimeCore120CurriculumManifest(manifest) || !isVerifiedCore120CampaignState(state) || state.manifestDigest !== manifest.learningContract.semanticDigest) throw new Error("core120 campaign state is not verified for this manifest");
   let discoveredWords = 0;
   let attunedWords = 0;
   let producedWords = 0;
@@ -327,8 +366,11 @@ function actionEvidencePresentInLearning(
   const word = manifest.words[wordId];
   const evidence = learning.words[wordId]?.evidence;
   if (word === undefined || evidence === undefined) return false;
-  const expected = materializeEvents(manifest, playerSaveId, word, kind).map((event) => event.eventId);
-  return expected.every((eventId) => evidence.some((entry) => entry.eventId === eventId));
+  return listCore120LearningContractDigests(manifest).some((identityDigest) => {
+    const expected = materializeEvents(manifest, playerSaveId, word, kind, identityDigest)
+      .map((event) => event.eventId);
+    return expected.every((eventId) => evidence.some((entry) => entry.eventId === eventId));
+  });
 }
 
 function materializeEvents(
@@ -336,10 +378,12 @@ function materializeEvents(
   playerSaveId: string,
   word: RuntimeCore120WordManifest,
   kind: Core120ActionKind,
+  identityDigest: `sha256:${string}` = manifest.learningContract.semanticDigest,
 ): readonly LearningEvidenceEvent[] {
   const actionId = `core120.${word.wordId}.${kind}` as Core120LearningActionId;
   const identity = (eventType: string, ordinal: number): { readonly eventId: string; readonly idempotencyKey: string; readonly variantHash: `sha256:${string}` } => {
-    const digest = computeRuntimeManifestDigest(["core120-learning-event.v0.1", manifest.sourceDigest, playerSaveId, actionId, eventType, ordinal]);
+    const digest = computeRuntimeManifestDigest(["core120-learning-event.v0.1", identityDigest,
+      playerSaveId, actionId, eventType, ordinal]);
     const hex = digest.slice("sha256:".length);
     return { eventId: `core120-event:${hex}`, idempotencyKey: `core120-action:${hex}`, variantHash: digest };
   };
@@ -452,9 +496,11 @@ function assertCampaignEvidenceIdentity(
   for (const wordId of manifest.scope.wordIds) {
     const word = manifest.words[wordId]!;
     for (const kind of CORE120_ACTION_KINDS) {
-      for (const event of materializeEvents(manifest, playerSaveId, word, kind)) {
-        byEventId.set(event.eventId, event);
-        byIdempotencyKey.set(event.idempotencyKey, event);
+      for (const identityDigest of listCore120LearningContractDigests(manifest)) {
+        for (const event of materializeEvents(manifest, playerSaveId, word, kind, identityDigest)) {
+          byEventId.set(event.eventId, event);
+          byIdempotencyKey.set(event.idempotencyKey, event);
+        }
       }
     }
   }

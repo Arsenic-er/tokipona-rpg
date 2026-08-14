@@ -61,7 +61,33 @@ describe("core-120 runtime curriculum contract", () => {
       } });
     expect(value.catalogReviewStatus).toBe("draft");
     expect(value.catalogRuntimeReady).toBe(false);
+    expect(value.learningContract).toMatchObject({
+      evidenceIdentityVersion: "core120-learning-evidence.v0.2",
+      semanticDigest: expect.stringMatching(/^sha256:[0-9a-f]{64}$/),
+      compatibleLegacyContracts: [{
+        sourceDigest: "sha256:5d6d824a0c0397b109e5f3934f7f7ec92bdebef912368c5c7ea680b5f3721f2c",
+        semanticDigest: "sha256:fba08cdb6158c93ccb08eef9d65fab06621c0c12f04f57ae72e71b194da3e0b8",
+      },
+      ],
+    });
     expect(value.acceptance).toMatchObject({ allWordsRecoverable: true, contextsPerWord: 2, misconceptionRepairsPerWord: 1, pronunciationAudioRequired: true, communitySemanticReviewRequired: true });
+  });
+
+  it("isolates evidence semantics from catalog approval state", () => {
+    const draft = readRuntimeCore120CurriculumManifest(generated);
+    const approved = structuredClone(generated) as any;
+    approved.core120Curriculum.catalogReviewStatus = "approved";
+    approved.core120Curriculum.catalogRuntimeReady = true;
+    const verifiedApproved = readRuntimeCore120CurriculumManifest(resign(approved));
+    expect(verifiedApproved.sourceDigest).not.toBe(draft.sourceDigest);
+    expect(verifiedApproved.learningContract.semanticDigest)
+      .toBe(draft.learningContract.semanticDigest);
+
+    const forgedCompatibility = structuredClone(generated) as any;
+    forgedCompatibility.core120Curriculum.learningContract.compatibleLegacyContracts[0].sourceDigest =
+      `sha256:${"0".repeat(64)}`;
+    expect(() => readRuntimeCore120CurriculumManifest(resign(forgedCompatibility)))
+      .toThrow(/learning contract/);
   });
 
   it("rejects checksum tampering and re-signed semantic drift", () => {
@@ -107,6 +133,14 @@ describe("core-120 runtime curriculum contract", () => {
     const actionDrift = sources();
     (progression(actionDrift).runtime_curriculum as Record<string, unknown>).action_kinds = ["discover", "attune"];
     expectCompilerIssue(actionDrift, "contract.core120_policy");
+
+    const legacyDigestDrift = sources();
+    (progression(legacyDigestDrift).runtime_curriculum as Record<string, unknown>)
+      .compatible_legacy_learning_contracts = [{
+        source_digest: `sha256:${"0".repeat(64)}`,
+        semantic_digest: "sha256:fba08cdb6158c93ccb08eef9d65fab06621c0c12f04f57ae72e71b194da3e0b8",
+      }];
+    expectCompilerIssue(legacyDigestDrift, "contract.core120_policy");
 
     const recoveryDrift = sources();
     ((progression(recoveryDrift).runtime_curriculum as Record<string, unknown>).recovery_station as Record<string, unknown>).maximum_distance_px = 99;

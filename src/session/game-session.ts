@@ -17,7 +17,7 @@ import {
 } from "../game/prologue-attack-qualification";
 import { isTrustedP0LearningCommitProof, type P0LearningCommitProof } from "../game/prologue-p0-learning";
 import {
-  core120LearningActionPayloadHash,
+  core120LearningActionPayloadHashes,
   core120LearningActionReceiptId,
   core120LearningAuthorityMatchesAction,
   isTrustedCore120LearningCommitProof,
@@ -35,6 +35,7 @@ import {
   core120LearningActionPrerequisitesSatisfied,
   core120EvidenceMatches,
   materializeCore120LearningEvidence,
+  materializeCore120LearningEvidenceVariants,
   type Core120LearningActionId,
 } from "../learning/core120-campaign";
 import { createCrossSaveReceiptId, sha256Canonical, type JsonValue } from "../persistence/cross-save-wal";
@@ -1851,11 +1852,17 @@ export class GameSession {
             this.sessionId,
             payload.core120CurriculumActionId,
           )) return { reason: "invalid_event", duplicate: false };
-          let expected: readonly LearningEvidenceEvent[];
+          let expected: readonly LearningEvidenceEvent[] | undefined;
           try {
-            expected = materializeCore120LearningEvidence(RUNTIME_CORE120_CURRICULUM_MANIFEST,
-              this.sessionId, payload.core120CurriculumActionId);
+            expected = materializeCore120LearningEvidenceVariants(
+              RUNTIME_CORE120_CURRICULUM_MANIFEST, this.sessionId,
+              payload.core120CurriculumActionId,
+            ).find((variant) => {
+              const candidate = variant[payload.core120EvidenceOrdinal];
+              return candidate !== undefined && core120EvidenceMatches(candidate, payload.evidence);
+            });
           } catch { return { reason: "invalid_event", duplicate: false }; }
+          if (expected === undefined) return { reason: "invalid_event", duplicate: false };
           const expectedEvidence = expected[payload.core120EvidenceOrdinal];
           if (!expectedEvidence || expected.length <= payload.core120EvidenceOrdinal ||
               !core120EvidenceMatches(expectedEvidence, payload.evidence)) {
@@ -2051,11 +2058,11 @@ export class GameSession {
         const legacy = authority === undefined;
         const authorityValid = legacy
           ? this.state.world.currentSceneId === RUNTIME_CORE120_CURRICULUM_MANIFEST.recoveryStation.sceneId &&
-            payloadHash === core120LearningActionPayloadHash(actionId)
+            core120LearningActionPayloadHashes(actionId).includes(payloadHash)
           : core120LearningAuthorityMatchesAction(actionId, authority) &&
             authority.sceneId === this.state.world.currentSceneId &&
             authority.expectedWorldRevision === this.state.world.revision &&
-            payloadHash === core120LearningActionPayloadHash(actionId, authority) &&
+            core120LearningActionPayloadHashes(actionId, authority).includes(payloadHash) &&
             (authority.mode !== "recovery_archive" ||
               this.ledger.some((candidate) => candidate.type === "scene_entered" &&
                 candidate.payload.sceneId === authority.recoveredSceneId));

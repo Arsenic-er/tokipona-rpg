@@ -61,8 +61,18 @@ export interface RuntimeCore120WordManifest {
   }>;
 }
 
+export interface RuntimeCore120LearningContract {
+  readonly evidenceIdentityVersion: "core120-learning-evidence.v0.2";
+  readonly semanticDigest: `sha256:${string}`;
+  readonly compatibleLegacyContracts: readonly Readonly<{
+    readonly sourceDigest: `sha256:${string}`;
+    readonly semanticDigest: `sha256:${string}`;
+  }>[];
+}
+
 export interface RuntimeCore120CurriculumManifest {
   readonly sourceDigest: `sha256:${string}`;
+  readonly learningContract: RuntimeCore120LearningContract;
   readonly sourcePath: "data/language/glyph-progression.v0.1.yaml";
   readonly contentVersion: "core-120.prologue-12";
   readonly catalogSourcePath: "data/language/pu-120-glyph-catalog.v0.2.json";
@@ -105,10 +115,56 @@ export interface RuntimeCore120CurriculumManifest {
 
 const EXPECTED_BAND_COUNTS = Object.freeze({ P0: 12, P1: 18, P2: 24, P3: 30, P4: 24, P5: 12 });
 const REQUIRED_P0_WORD_IDS = ["telo", "tawa", "lili", "suli", "seli", "kiwen", "awen", "kon", "kasi", "lukin", "weka", "soweli"] as const;
+const CORE120_COMPATIBLE_LEGACY_CONTRACTS = [
+  {
+    sourceDigest: "sha256:5d6d824a0c0397b109e5f3934f7f7ec92bdebef912368c5c7ea680b5f3721f2c",
+    semanticDigest: "sha256:fba08cdb6158c93ccb08eef9d65fab06621c0c12f04f57ae72e71b194da3e0b8",
+  },
+] as const;
 const verified = new WeakSet<object>();
 
 export function computeRuntimeCore120CurriculumDigest(payload: unknown): `sha256:${string}` {
   return computeRuntimeManifestDigest(payload);
+}
+
+type RuntimeCore120SemanticSource = Pick<RuntimeCore120CurriculumManifest,
+  "sourcePath" | "contentVersion" | "scope" | "actionKinds" | "recoveryStation" |
+  "worldContextAuthority" | "domainRoutes" | "words" | "acceptance">;
+
+/**
+ * Hashes only the evidence-producing curriculum contract. Release status,
+ * display codepoints, and asset IDs are intentionally excluded so an approved
+ * art/audio handoff cannot invalidate progress keyed by canonical Latin word ID.
+ */
+export function computeRuntimeCore120LearningSemanticDigest(
+  source: RuntimeCore120SemanticSource,
+): `sha256:${string}` {
+  const words = Object.fromEntries(source.scope.wordIds.map((wordId) => {
+    const word = source.words[wordId];
+    if (word === undefined) throw new Error(`core120 semantic word ${wordId} is missing`);
+    return [wordId, {
+      wordId: word.wordId,
+      curriculumBand: word.curriculumBand,
+      visualDomainId: word.visualDomainId,
+      targetState: word.targetState,
+      semanticFacets: word.semanticFacets,
+      availableRoles: word.availableRoles,
+      contexts: word.contexts,
+      misconceptionRepair: word.misconceptionRepair,
+    }];
+  }));
+  return computeRuntimeManifestDigest({
+    evidenceIdentityVersion: "core120-learning-evidence.v0.2",
+    sourcePath: source.sourcePath,
+    contentVersion: source.contentVersion,
+    scope: source.scope,
+    actionKinds: source.actionKinds,
+    recoveryStation: source.recoveryStation,
+    worldContextAuthority: source.worldContextAuthority,
+    domainRoutes: source.domainRoutes,
+    words,
+    acceptance: source.acceptance,
+  });
 }
 
 export function isVerifiedRuntimeCore120CurriculumManifest(value: unknown): value is RuntimeCore120CurriculumManifest {
@@ -118,13 +174,38 @@ export function isVerifiedRuntimeCore120CurriculumManifest(value: unknown): valu
 export function readRuntimeCore120CurriculumManifest(candidate: unknown): RuntimeCore120CurriculumManifest {
   const root = record(candidate, "runtime content artifact");
   const raw = record(root.core120Curriculum, "artifact.core120Curriculum");
-  exactKeys(raw, ["sourceDigest", "sourcePath", "contentVersion", "catalogSourcePath", "catalogContentVersion", "catalogReviewStatus", "catalogRuntimeReady", "scope", "actionKinds", "recoveryStation", "worldContextAuthority", "domainRoutes", "words", "acceptance"], "core120 curriculum");
+  exactKeys(raw, ["sourceDigest", "learningContract", "sourcePath", "contentVersion", "catalogSourcePath", "catalogContentVersion", "catalogReviewStatus", "catalogRuntimeReady", "scope", "actionKinds", "recoveryStation", "worldContextAuthority", "domainRoutes", "words", "acceptance"], "core120 curriculum");
   const digest = string(raw.sourceDigest, "core120 sourceDigest");
   if (!/^sha256:[0-9a-f]{64}$/.test(digest)) throw new Error("core120 sourceDigest must be sha256");
   const payload = Object.fromEntries(Object.entries(raw).filter(([key]) => key !== "sourceDigest"));
   if (computeRuntimeCore120CurriculumDigest(payload) !== digest) throw new Error("core120 curriculum projection digest mismatch");
   if (raw.sourcePath !== "data/language/glyph-progression.v0.1.yaml" || raw.contentVersion !== "core-120.prologue-12" || raw.catalogSourcePath !== "data/language/pu-120-glyph-catalog.v0.2.json" || raw.catalogContentVersion !== "pu-120.visual-semantic-draft.2") throw new Error("core120 source identity is invalid");
   if ((raw.catalogReviewStatus !== "draft" && raw.catalogReviewStatus !== "approved") || typeof raw.catalogRuntimeReady !== "boolean" || (raw.catalogRuntimeReady && raw.catalogReviewStatus !== "approved")) throw new Error("core120 catalog release status is inconsistent");
+
+  const learningContract = record(raw.learningContract, "core120 learning contract");
+  exactKeys(learningContract, ["evidenceIdentityVersion", "semanticDigest", "compatibleLegacyContracts"],
+    "core120 learning contract");
+  const semanticDigest = string(learningContract.semanticDigest, "core120 semanticDigest");
+  if (!Array.isArray(learningContract.compatibleLegacyContracts) ||
+      learningContract.compatibleLegacyContracts.length !== CORE120_COMPATIBLE_LEGACY_CONTRACTS.length) {
+    throw new Error("core120 compatible legacy contracts are invalid");
+  }
+  const compatibleLegacyContracts = learningContract.compatibleLegacyContracts.map((candidate, index) => {
+    const contract = record(candidate, `core120 compatible legacy contract ${index}`);
+    exactKeys(contract, ["sourceDigest", "semanticDigest"], `core120 compatible legacy contract ${index}`);
+    return { sourceDigest: string(contract.sourceDigest, `core120 legacy sourceDigest ${index}`),
+      semanticDigest: string(contract.semanticDigest, `core120 legacy semanticDigest ${index}`) };
+  });
+  if (learningContract.evidenceIdentityVersion !== "core120-learning-evidence.v0.2" ||
+      !/^sha256:[0-9a-f]{64}$/.test(semanticDigest) ||
+      compatibleLegacyContracts.some((entry, index) =>
+        !/^sha256:[0-9a-f]{64}$/.test(entry.sourceDigest) ||
+        !/^sha256:[0-9a-f]{64}$/.test(entry.semanticDigest) ||
+        entry.sourceDigest !== CORE120_COMPATIBLE_LEGACY_CONTRACTS[index]!.sourceDigest ||
+        entry.semanticDigest !== CORE120_COMPATIBLE_LEGACY_CONTRACTS[index]!.semanticDigest ||
+        entry.semanticDigest !== semanticDigest)) {
+    throw new Error("core120 learning contract is invalid");
+  }
 
   const scope = record(raw.scope, "core120 scope");
   exactKeys(scope, ["corpusId", "uniqueWordCount", "wordIds", "bandCounts"], "core120 scope");
@@ -199,6 +280,9 @@ export function readRuntimeCore120CurriculumManifest(candidate: unknown): Runtim
   const acceptance = record(raw.acceptance, "core120 acceptance");
   exactKeys(acceptance, ["allWordsRecoverable", "contextsPerWord", "misconceptionRepairsPerWord", "distinctTaskFamilyPerContext", "pronunciationAudioRequired", "communitySemanticReviewRequired", "rawStringEqualityAsSuccessForbidden", "colorOnlyIdentificationForbidden", "fixedSlotOnlyProductionForbidden"], "core120 acceptance");
   if (acceptance.allWordsRecoverable !== true || acceptance.contextsPerWord !== 2 || acceptance.misconceptionRepairsPerWord !== 1 || acceptance.distinctTaskFamilyPerContext !== true || acceptance.pronunciationAudioRequired !== true || acceptance.communitySemanticReviewRequired !== true || acceptance.rawStringEqualityAsSuccessForbidden !== true || acceptance.colorOnlyIdentificationForbidden !== true || acceptance.fixedSlotOnlyProductionForbidden !== true) throw new Error("core120 acceptance contract is invalid");
+
+  if (computeRuntimeCore120LearningSemanticDigest(raw as unknown as RuntimeCore120SemanticSource) !==
+      semanticDigest) throw new Error("core120 learning semantic digest mismatch");
 
   const result = deepFreeze(structuredClone(raw)) as unknown as RuntimeCore120CurriculumManifest;
   verified.add(result);

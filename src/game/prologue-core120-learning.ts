@@ -4,6 +4,7 @@ import { readRuntimeP0CurriculumManifest } from "../content/runtime-p0-curriculu
 import {
   core120LearningActionEvidencePresent,
   core120LearningActionPrerequisitesSatisfied,
+  listCore120LearningContractDigests,
   listCore120LearningActionIds,
   type Core120LearningActionId,
 } from "../learning/core120-campaign";
@@ -76,11 +77,17 @@ export const core120LearningActionReceiptId = (sessionId: string, actionId: Core
   `learning:${sessionId}:core120-action:${actionId}`;
 
 export const core120LearningActionPayloadHash = (actionId: Core120LearningActionId,
-  authority?: Core120LearningAuthority): `sha256:${string}` => sha256Canonical(authority === undefined ? {
-    contractDigest: MANIFEST.sourceDigest,
-    actionId,
-    authorityMode: "settlement_recovery_archive",
-  } : { contractDigest: MANIFEST.sourceDigest, actionId, authority } as JsonValue);
+  authority?: Core120LearningAuthority): `sha256:${string}` =>
+  core120LearningActionPayloadHashes(actionId, authority)[0]!;
+
+export const core120LearningActionPayloadHashes = (actionId: Core120LearningActionId,
+  authority?: Core120LearningAuthority): readonly `sha256:${string}`[] => Object.freeze(
+  listCore120LearningContractDigests(MANIFEST).map((contractDigest) => sha256Canonical(
+    authority === undefined
+      ? { contractDigest, actionId, authorityMode: "settlement_recovery_archive" }
+      : { contractDigest, actionId, authority } as JsonValue,
+  )),
+);
 
 export function core120LearningAuthorityMatchesAction(
   actionId: Core120LearningActionId,

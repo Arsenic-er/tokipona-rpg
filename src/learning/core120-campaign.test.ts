@@ -1,14 +1,23 @@
 import { describe, expect, it } from "vitest";
 import generated from "../generated/content-runtime.v0.1.json";
-import { readRuntimeCore120CurriculumManifest, type Core120ActionKind } from "../content/runtime-core120-curriculum-manifest";
+import {
+  computeRuntimeCore120CurriculumDigest,
+  computeRuntimeCore120LearningSemanticDigest,
+  readRuntimeCore120CurriculumManifest,
+  type Core120ActionKind,
+  type RuntimeCore120CurriculumManifest,
+} from "../content/runtime-core120-curriculum-manifest";
+import { createLearningProgression, reduceLearningEvidence } from "./progression";
 import {
   CORE120_CAMPAIGN_SAVE_SCHEMA,
+  LEGACY_CORE120_CAMPAIGN_SAVE_SCHEMA,
   applyCore120LearningAction,
   computeCore120CampaignIntegrity,
   createCore120CampaignState,
   isCore120WordComplete,
   isVerifiedCore120CampaignState,
   listCore120LearningActionIds,
+  materializeCore120LearningEvidenceVariants,
   readCore120CampaignState,
   summarizeCore120Campaign,
   toCore120CampaignSave,
@@ -33,6 +42,20 @@ function resign(candidate: any): any {
   const body = { schema: candidate.schema, manifestDigest: candidate.manifestDigest, playerSaveId: candidate.playerSaveId, learning: candidate.learning };
   candidate.integrity = computeCore120CampaignIntegrity(body);
   return candidate;
+}
+
+function resignManifest(candidate: any): RuntimeCore120CurriculumManifest {
+  const body = Object.fromEntries(Object.entries(candidate.core120Curriculum)
+    .filter(([key]) => key !== "sourceDigest"));
+  candidate.core120Curriculum.sourceDigest = computeRuntimeCore120CurriculumDigest(body);
+  return readRuntimeCore120CurriculumManifest(candidate);
+}
+
+function approvedReleaseManifest(): RuntimeCore120CurriculumManifest {
+  const candidate = structuredClone(generated) as any;
+  candidate.core120Curriculum.catalogReviewStatus = "approved";
+  candidate.core120Curriculum.catalogRuntimeReady = true;
+  return resignManifest(candidate);
 }
 
 describe("core-120 learning campaign", () => {
@@ -152,10 +175,57 @@ describe("core-120 learning campaign", () => {
 
   it("keeps the save schema and manifest digest explicit", () => {
     const state = createCore120CampaignState(manifest, PLAYER_SAVE_ID);
-    expect(state).toMatchObject({ schema: CORE120_CAMPAIGN_SAVE_SCHEMA, manifestDigest: manifest.sourceDigest, playerSaveId: PLAYER_SAVE_ID });
+    expect(state).toMatchObject({ schema: CORE120_CAMPAIGN_SAVE_SCHEMA,
+      manifestDigest: manifest.learningContract.semanticDigest, playerSaveId: PLAYER_SAVE_ID });
     const save = toCore120CampaignSave(state);
     expect(save.integrity).toMatch(/^sha256:[0-9a-f]{64}$/);
     expect(Object.isFrozen(state)).toBe(true);
     expect(Object.isFrozen(state.learning)).toBe(true);
+  });
+
+  it("migrates v0.1 evidence and preserves v0.2 progress across asset approval", () => {
+    const approved = approvedReleaseManifest();
+    expect(approved.sourceDigest).not.toBe(manifest.sourceDigest);
+    expect(approved.learningContract.semanticDigest).toBe(manifest.learningContract.semanticDigest);
+
+    let legacyLearning = createLearningProgression();
+    const legacyEvidence = materializeCore120LearningEvidenceVariants(
+      manifest, PLAYER_SAVE_ID, "core120.a.discover",
+    )[1]!;
+    for (const event of legacyEvidence) {
+      const reduced = reduceLearningEvidence(legacyLearning, event);
+      expect(reduced.applied).toBe(true);
+      legacyLearning = reduced.snapshot;
+    }
+    const legacyBody = {
+      schema: LEGACY_CORE120_CAMPAIGN_SAVE_SCHEMA,
+      manifestDigest: manifest.learningContract.compatibleLegacyContracts[0]!.sourceDigest,
+      playerSaveId: PLAYER_SAVE_ID,
+      learning: legacyLearning,
+    };
+    const migrated = readCore120CampaignState(approved, {
+      ...legacyBody,
+      integrity: computeCore120CampaignIntegrity(legacyBody),
+    });
+    expect(migrated).toMatchObject({ schema: CORE120_CAMPAIGN_SAVE_SCHEMA,
+      manifestDigest: approved.learningContract.semanticDigest });
+    expect(applyCore120LearningAction(approved, migrated, "core120.a.attune"))
+      .toMatchObject({ applied: true, reason: "applied" });
+
+    const current = applyCore120LearningAction(manifest,
+      createCore120CampaignState(manifest, PLAYER_SAVE_ID), "core120.akesi.discover").state;
+    const reloaded = readCore120CampaignState(approved, toCore120CampaignSave(current));
+    expect(applyCore120LearningAction(approved, reloaded, "core120.akesi.attune"))
+      .toMatchObject({ applied: true, reason: "applied" });
+  });
+
+  it("still rejects a save when evidence-producing semantics change", () => {
+    const changed = structuredClone(generated) as any;
+    changed.core120Curriculum.words.a.semanticFacets.push("changed_semantic_contract");
+    changed.core120Curriculum.learningContract.semanticDigest =
+      computeRuntimeCore120LearningSemanticDigest(changed.core120Curriculum);
+    expect(changed.core120Curriculum.learningContract.semanticDigest)
+      .not.toBe(manifest.learningContract.semanticDigest);
+    expect(() => resignManifest(changed)).toThrow(/learning contract/);
   });
 });

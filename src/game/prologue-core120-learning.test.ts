@@ -4,6 +4,7 @@ import { readRuntimeCore120CurriculumManifest } from "../content/runtime-core120
 import { readRuntimeP0CurriculumManifest } from "../content/runtime-p0-curriculum-manifest";
 import {
   materializeCore120LearningEvidence,
+  materializeCore120LearningEvidenceVariants,
   type Core120LearningActionId,
 } from "../learning/core120-campaign";
 import { commitSessionProposal, type SessionProposalBatch } from "../session/adapters";
@@ -11,6 +12,7 @@ import { GameSession, replayGameSession, type GameSessionEvent } from "../sessio
 import { type P0LearningActionId } from "./p0-learning-contract";
 import {
   core120LearningActionPayloadHash,
+  core120LearningActionPayloadHashes,
   core120LearningActionReceiptId,
   PrologueCore120LearningCoordinator,
   PROLOGUE_CORE120_LEARNING_ACTION_IDS,
@@ -186,12 +188,12 @@ describe("PrologueCore120LearningCoordinator", () => {
       .toMatchObject({ ok: false, reason: "invalid_event" });
   });
 
-  it("keeps the prior evidence-then-receipt ledger shape loadable", () => {
+  it("keeps the v0.1 evidence-then-receipt ledger shape loadable", () => {
     const target = atArchive("core120.legacy-ledger");
     completeP0(target, "p0.legacy-ledger");
     const base = target.toSave();
     const actionId = "core120.akesi.discover" as const;
-    const evidence = materializeCore120LearningEvidence(manifest, base.sessionId, actionId);
+    const evidence = materializeCore120LearningEvidenceVariants(manifest, base.sessionId, actionId)[1]!;
     const appended: GameSessionEvent[] = evidence.map((entry, ordinal) => ({
       eventId: `session.core120.learning.${actionId}.${ordinal}`,
       sequence: base.eventLedger.length + ordinal + 1,
@@ -203,7 +205,7 @@ describe("PrologueCore120LearningCoordinator", () => {
       sequence: base.eventLedger.length + evidence.length + 1,
       type: "core120_learning_action_committed",
       payload: { actionId, receiptId: core120LearningActionReceiptId(base.sessionId, actionId),
-        payloadHash: core120LearningActionPayloadHash(actionId) },
+        payloadHash: core120LearningActionPayloadHashes(actionId)[1]! },
     });
     const replayed = replayGameSession(base.sessionId, base.origin, [...base.eventLedger, ...appended]);
     expect(replayed.ok).toBe(true);
