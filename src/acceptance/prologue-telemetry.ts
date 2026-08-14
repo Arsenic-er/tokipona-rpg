@@ -1,4 +1,4 @@
-import generatedRuntimeArtifact from "../generated/content-runtime.v0.1.json";
+import generatedRuntimeArtifact from "../generated/content-runtime.v0.1.json" with { type: "json" };
 import {
   PROLOGUE_EXCLUDED_ACTIVITY_KINDS,
   PROLOGUE_INCLUDED_ACTIVITY_KINDS,
@@ -8,7 +8,7 @@ import {
   type PrologueActivityKind,
   type PrologueIncludedActivityKind,
   type PrologueTelemetryEventId,
-} from "../content/runtime-prologue-acceptance-manifest";
+} from "../content/runtime-prologue-acceptance-manifest.ts";
 
 const CONTRACT = readRuntimePrologueAcceptanceManifest(generatedRuntimeArtifact);
 const ACTIVITY_KINDS = Object.freeze([...PROLOGUE_INCLUDED_ACTIVITY_KINDS, ...PROLOGUE_EXCLUDED_ACTIVITY_KINDS]);

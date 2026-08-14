@@ -1,4 +1,4 @@
-import { sha256Canonical, type JsonValue } from "../persistence/cross-save-wal";
+import { sha256Canonical, type JsonValue } from "../persistence/cross-save-wal.ts";
 
 export const PROLOGUE_TELEMETRY_EVENT_IDS = Object.freeze([
   "prologue_segment_started", "prologue_segment_completed", "world_literacy_observed",

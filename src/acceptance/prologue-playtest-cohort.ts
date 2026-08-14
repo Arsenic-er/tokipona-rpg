@@ -1,12 +1,12 @@
-import generatedRuntimeArtifact from "../generated/content-runtime.v0.1.json";
+import generatedRuntimeArtifact from "../generated/content-runtime.v0.1.json" with { type: "json" };
 import {
   PROLOGUE_PLAYTEST_SESSION_FIELDS,
   readRuntimePrologueAcceptanceManifest,
-} from "../content/runtime-prologue-acceptance-manifest";
+} from "../content/runtime-prologue-acceptance-manifest.ts";
 import {
   evaluatePrologueQualificationCohort,
   type PrologueQualificationCohortAcceptanceReport,
-} from "./prologue-telemetry";
+} from "./prologue-telemetry.ts";
 
 const CONTRACT = readRuntimePrologueAcceptanceManifest(generatedRuntimeArtifact);
 const SUMMARY = CONTRACT.telemetry.playtestSessionSummary;
