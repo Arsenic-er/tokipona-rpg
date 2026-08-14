@@ -35,6 +35,22 @@ export interface PublicRuntimeAssetBoundaryReport {
   readonly missingExportPlaceholderPresent: boolean;
 }
 
+export function readRepositoryPublicRuntimeAssetBoundary(
+  repositoryRootInput: string,
+): PublicRuntimeAssetBoundaryReport {
+  const repositoryRoot = resolve(repositoryRootInput);
+  const readJson = (logicalPath: string): unknown =>
+    JSON.parse(readFileSync(checkedPath(repositoryRoot, logicalPath), "utf8")) as unknown;
+  return checkPublicRuntimeAssetBoundary({
+    repositoryRoot,
+    runtimeArtifact: readJson("src/generated/content-runtime.v0.1.json"),
+    releaseContract: readJson("src/assets/runtime-release-contract.v0.1.json"),
+    glyphCatalog: readJson("data/language/pu-120-glyph-catalog.v0.2.json"),
+    p0PronunciationManifest: readJson("src/assets/p0-pronunciation-manifest.v0.1.json"),
+    privateAssetExport: readJson("src/assets/runtime-core120-private-export.v0.1.json"),
+  });
+}
+
 const P0_ENTRY_KEYS = ["audioAssetId", "publicPath", "sha256", "sourceUrl", "licenseSpdx",
   "redistributionApproved", "languageReviewApproved", "communityReviewApproved"] as const;
 const REQUIRED_BLOCKED_GLYPH_FILES = ["public/assets/magic-glyphs/README.md"] as const;

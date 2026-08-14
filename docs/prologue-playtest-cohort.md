@@ -86,3 +86,16 @@ corresponding percentile/proportion gate instead of being imputed. Hunting and
 nonviolent income rates are computed from aggregate coin and active time; counts
 are summed. The collection mode is a provenance declaration, not a signature or
 cryptographic attestation of human participation.
+
+## Final public release readiness
+
+After the cohort report is accepted and the separate private-asset handoff is approved, run:
+
+```powershell
+pnpm run release:check -- .\private-input\prologue-cohort.json
+```
+
+This is stricter than `pnpm run verify`: it requires the deterministic three-hour predecessor gate,
+approved and hash-matched core-120 runtime assets, and a nonempty observed cohort whose authored
+thresholds all pass. The output contains only asset/cohort statuses, sample count, and blocker codes;
+it does not echo the cohort ID or individual session data.

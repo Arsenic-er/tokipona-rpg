@@ -78,5 +78,17 @@ cross-check. It emits `approved_runtime_assets_verified` only when all evidence 
 fails closed or, for the intentional no-export state, emits
 `safe_blocked_pending_external_approval`.
 
+The ordinary `verify` command intentionally accepts that safe blocked state so code can continue to
+ship through CI without private assets. It is not a production-release approval. Once an anonymized
+observed cohort has also been collected, run the stricter final gate:
+
+```powershell
+pnpm run release:check -- .\private-input\prologue-cohort.json
+```
+
+`release:check` first reruns the deterministic three-hour scenarios, then requires
+`approved_runtime_assets_verified` and an accepted, nonempty observed cohort. The current checked-in
+state must fail this command with `approved_runtime_assets_required`; do not weaken that result.
+
 Remote push and release tagging remain separate approval-gated operations. Never push the private
 asset repository or its review/source material through the public code workflow.
