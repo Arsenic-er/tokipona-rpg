@@ -209,7 +209,7 @@ function sha256(value: string): string {
 }
 
 function readPublicFiles(publicRoot: string): string[] {
-  const runtimeRoot = join(publicRoot, "src", "assets", "runtime", "magic-glyphs");
+  const runtimeRoot = join(publicRoot, "public", "assets", "magic-glyphs");
   try {
     return Array.from(new BunLikeRecursiveFiles(runtimeRoot));
   } catch {
@@ -228,7 +228,7 @@ class BunLikeRecursiveFiles {
     const { readdirSync } = requireNodeFs();
     for (const path of readdirSync(this.#root, { recursive: true })) {
       const absolute = join(this.#root, String(path));
-      if (readFileStat(absolute).isFile()) yield join("src", "assets", "runtime", "magic-glyphs", String(path));
+      if (readFileStat(absolute).isFile()) yield join("public", "assets", "magic-glyphs", String(path));
     }
   }
 }

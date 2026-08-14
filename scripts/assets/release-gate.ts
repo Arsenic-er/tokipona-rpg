@@ -13,7 +13,7 @@ import { basename, dirname, extname, isAbsolute, relative, resolve, sep } from "
 import { parse } from "yaml";
 
 export const ASSET_RELEASE_SCHEMA_VERSION = "tokipona.asset-release-gate.v0.1" as const;
-export const PUBLIC_RUNTIME_ROOT = "src/assets/runtime/magic-glyphs" as const;
+export const PUBLIC_RUNTIME_ROOT = "public/assets/magic-glyphs" as const;
 
 export const REQUIRED_APPROVALS = [
   "source",

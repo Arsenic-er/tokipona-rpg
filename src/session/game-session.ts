@@ -29,10 +29,9 @@ import {
   type P0LearningActionId,
 } from "../game/p0-learning-contract";
 import {
-  applyCore120LearningAction,
+  core120LearningActionEvidencePresent,
+  core120LearningActionPrerequisitesSatisfied,
   core120EvidenceMatches,
-  createCore120CampaignState,
-  isCore120LearningActionComplete,
   materializeCore120LearningEvidence,
   type Core120LearningActionId,
 } from "../learning/core120-campaign";
@@ -1107,6 +1106,9 @@ export class GameSession {
         if (!result.applied) return { ok: false, failedEventId: event.eventId, reason: result.reason };
       }
     } finally { session.replaying = false; }
+    if (!isSessionState(session.state)) {
+      return { ok: false, failedEventId: events.at(-1)?.eventId ?? null, reason: "invalid_event" };
+    }
     return { ok: true, session };
   }
 
@@ -1269,7 +1271,11 @@ export class GameSession {
 
     const reduced = this.reduceEvent(event);
     if ("reason" in reduced) return this.result(false, reduced.duplicate, reduced.reason);
-    if (!isSessionState(reduced.state)) return this.result(false, false, "invalid_event");
+    // Every reducer validates its own event and changed domain. During replay,
+    // validating the entire growing Session after every event makes a complete
+    // Core-120 ledger quadratic. replayLedger performs one authoritative full
+    // structural validation after the complete causally ordered ledger.
+    if (!this.replaying && !isSessionState(reduced.state)) return this.result(false, false, "invalid_event");
     this.state = reduced.state;
     this.ledger.push(clone(event));
     return this.result(true, false, "applied");
@@ -1836,13 +1842,12 @@ export class GameSession {
               progress?.learningState ?? null, progress?.attunementState);
           });
           if (!p0Complete) return { reason: "invalid_event", duplicate: false };
-          try {
-            const campaign = createCore120CampaignState(RUNTIME_CORE120_CURRICULUM_MANIFEST,
-              this.sessionId, this.state.learning);
-            const preview = applyCore120LearningAction(RUNTIME_CORE120_CURRICULUM_MANIFEST,
-              campaign, payload.core120CurriculumActionId);
-            if (!preview.applied) return { reason: "invalid_event", duplicate: false };
-          } catch { return { reason: "invalid_event", duplicate: false }; }
+          if (!core120LearningActionPrerequisitesSatisfied(
+            RUNTIME_CORE120_CURRICULUM_MANIFEST,
+            this.state.learning,
+            this.sessionId,
+            payload.core120CurriculumActionId,
+          )) return { reason: "invalid_event", duplicate: false };
           let expected: readonly LearningEvidenceEvent[];
           try {
             expected = materializeCore120LearningEvidence(RUNTIME_CORE120_CURRICULUM_MANIFEST,
@@ -2045,18 +2050,34 @@ export class GameSession {
             payloadHash !== core120LearningActionPayloadHash(actionId)) {
           return { reason: "invalid_event", duplicate: false };
         }
-        let campaign;
-        try {
-          campaign = createCore120CampaignState(RUNTIME_CORE120_CURRICULUM_MANIFEST,
-            this.sessionId, this.state.learning);
-        } catch { return { reason: "invalid_event", duplicate: false }; }
-        if (!isCore120LearningActionComplete(RUNTIME_CORE120_CURRICULUM_MANIFEST, campaign, actionId)) {
-          return { reason: "invalid_event", duplicate: false };
-        }
         const prior = this.state.receiptIndex[receiptId];
         if (prior) return prior.payloadHash === payloadHash
           ? { reason: "duplicate_receipt", duplicate: true }
           : { reason: "receipt_payload_conflict", duplicate: false };
+        let learning = this.state.learning;
+        const legacyEvidenceAlreadyPresent = core120LearningActionEvidencePresent(
+          RUNTIME_CORE120_CURRICULUM_MANIFEST, learning, this.sessionId, actionId,
+        );
+        if (!legacyEvidenceAlreadyPresent) {
+          if (!core120LearningActionPrerequisitesSatisfied(
+            RUNTIME_CORE120_CURRICULUM_MANIFEST, learning, this.sessionId, actionId,
+          )) return { reason: "invalid_event", duplicate: false };
+          let canonicalEvidence: readonly LearningEvidenceEvent[];
+          try {
+            canonicalEvidence = materializeCore120LearningEvidence(
+              RUNTIME_CORE120_CURRICULUM_MANIFEST, this.sessionId, actionId,
+            );
+          } catch { return { reason: "invalid_event", duplicate: false }; }
+          for (const evidenceDraft of canonicalEvidence) {
+            const evidence = { ...evidenceDraft, committedAtSessionSequence: event.sequence } as LearningEvidenceEvent;
+            const reduced = reduceLearningEvidence(learning, evidence);
+            if (!reduced.applied) return { reason: "invalid_event", duplicate: false };
+            learning = reduced.snapshot;
+          }
+          if (!core120LearningActionEvidencePresent(
+            RUNTIME_CORE120_CURRICULUM_MANIFEST, learning, this.sessionId, actionId,
+          )) return { reason: "invalid_event", duplicate: false };
+        }
         const receipt: SessionReceiptIndexEntry = {
           receiptId,
           domain: "learning",
@@ -2065,6 +2086,7 @@ export class GameSession {
           recordedAtSequence: event.sequence,
         };
         return { state: withAppliedEvent(this.state, event, {
+          learning: clone(learning),
           receiptIndex: { ...this.state.receiptIndex, [receiptId]: receipt },
         }) };
       }

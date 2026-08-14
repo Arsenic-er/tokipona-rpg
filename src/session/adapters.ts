@@ -761,19 +761,12 @@ export const commitTrustedCore120LearningProposal = (
   if (!isTrustedCore120LearningCommitProof(proof)) {
     return { committed: false, failedDraftId: null, reason: "invalid_event", session: authoritative };
   }
-  const protectedDrafts = proof.batch.drafts.filter((draft) => draft.type === "learning_evidence_committed" &&
-    (draft.payload as Extract<GameSessionEvent, { type: "learning_evidence_committed" }>["payload"])
-      .core120CurriculumActionId !== undefined);
-  const receipt = proof.batch.drafts.at(-1);
+  const receipt = proof.batch.drafts[0];
   const validReceipt = receipt?.type === "core120_learning_action_committed" &&
     (receipt.payload as Extract<GameSessionEvent, { type: "core120_learning_action_committed" }>["payload"])
       .actionId === proof.actionId;
-  if (protectedDrafts.length === 0 || protectedDrafts.length + 1 !== proof.batch.drafts.length ||
-      !validReceipt ||
-      protectedDrafts.some((draft) =>
-    (draft.payload as Extract<GameSessionEvent, { type: "learning_evidence_committed" }>["payload"])
-      .core120CurriculumActionId !== proof.actionId)) {
-    return { committed: false, failedDraftId: protectedDrafts[0]?.eventId ?? null,
+  if (proof.batch.drafts.length !== 1 || !validReceipt) {
+    return { committed: false, failedDraftId: receipt?.eventId ?? null,
       reason: "invalid_event", session: authoritative };
   }
   const working = authoritative.forkForProposal();

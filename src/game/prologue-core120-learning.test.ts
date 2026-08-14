@@ -12,6 +12,7 @@ import { type P0LearningActionId } from "./p0-learning-contract";
 import {
   core120LearningActionPayloadHash,
   core120LearningActionReceiptId,
+  PROLOGUE_CORE120_LEARNING_ACTION_IDS,
 } from "./prologue-core120-learning";
 import { PrologueFlowSession } from "./prologue-flow";
 import { PrologueSettlementSession, createPrologueSettlementInitialSession } from "./prologue-settlement";
@@ -113,17 +114,17 @@ describe("PrologueCore120LearningCoordinator", () => {
     completeP0(target, "p0.replay");
     expect(target.commitCore120LearningAction("core120.akesi.discover", "discover")).toMatchObject({ accepted: true });
     const save = structuredClone(target.toSave()) as any;
-    const evidence = save.eventLedger.find((event: GameSessionEvent) => event.type === "learning_evidence_committed" &&
-      event.payload.core120CurriculumActionId === "core120.akesi.discover");
-    evidence.payload.core120EvidenceOrdinal = 1;
+    const committed = save.eventLedger.find((event: GameSessionEvent) =>
+      event.type === "core120_learning_action_committed" && event.payload.actionId === "core120.akesi.discover");
+    committed.payload.payloadHash = `sha256:${"0".repeat(64)}`;
     expect(replayGameSession(save.sessionId, save.origin, save.eventLedger)).toMatchObject({ ok: false, reason: "invalid_event" });
 
     const p0Only = atArchive("core120.receipt-chain");
     completeP0(p0Only, "p0.receipt-chain");
     const p0Save = p0Only.toSave();
-    const actionId = "core120.akesi.discover" as const;
+    const actionId = "core120.akesi.context_0" as const;
     const appended: GameSessionEvent = {
-      eventId: "forged.core120.replay-receipt",
+      eventId: "forged.core120.replay-prerequisite",
       sequence: p0Save.eventLedger.length + 1,
       type: "core120_learning_action_committed",
       payload: {
@@ -134,6 +135,31 @@ describe("PrologueCore120LearningCoordinator", () => {
     };
     expect(replayGameSession(p0Save.sessionId, p0Save.origin, [...p0Save.eventLedger, appended]))
       .toMatchObject({ ok: false, reason: "invalid_event" });
+  });
+
+  it("keeps the prior evidence-then-receipt ledger shape loadable", () => {
+    const target = atArchive("core120.legacy-ledger");
+    completeP0(target, "p0.legacy-ledger");
+    const base = target.toSave();
+    const actionId = "core120.akesi.discover" as const;
+    const evidence = materializeCore120LearningEvidence(manifest, base.sessionId, actionId);
+    const appended: GameSessionEvent[] = evidence.map((entry, ordinal) => ({
+      eventId: `session.core120.learning.${actionId}.${ordinal}`,
+      sequence: base.eventLedger.length + ordinal + 1,
+      type: "learning_evidence_committed",
+      payload: { evidence: entry, core120CurriculumActionId: actionId, core120EvidenceOrdinal: ordinal },
+    }));
+    appended.push({
+      eventId: `session.core120.learning.receipt.${actionId}`,
+      sequence: base.eventLedger.length + evidence.length + 1,
+      type: "core120_learning_action_committed",
+      payload: { actionId, receiptId: core120LearningActionReceiptId(base.sessionId, actionId),
+        payloadHash: core120LearningActionPayloadHash(actionId) },
+    });
+    const replayed = replayGameSession(base.sessionId, base.origin, [...base.eventLedger, ...appended]);
+    expect(replayed.ok).toBe(true);
+    if (!replayed.ok) throw new Error(`legacy core120 replay failed at ${replayed.failedEventId}`);
+    expect(replayed.session.snapshot().learning.words.akesi?.discoveryState).toBe("discovered");
   });
 
   it("exposes a narrow 120-word Flow projection and keeps external assets explicitly blocked", () => {
@@ -163,4 +189,40 @@ describe("PrologueCore120LearningCoordinator", () => {
       .toMatchObject({ currentState: "discovered", nextActionId: "core120.akesi.attune",
         audioReady: false, glyphReady: false });
   });
+
+  it("replays all 600 canonical actions through the unified GameSession and reloads the completed 120-word save", () => {
+    const target = atArchive("core120.full-session");
+    completeP0(target, "p0.full-session");
+    const base = target.toSave();
+    const ledger: GameSessionEvent[] = [...base.eventLedger];
+    let sequence = ledger.at(-1)?.sequence ?? 0;
+
+    for (const actionId of PROLOGUE_CORE120_LEARNING_ACTION_IDS) {
+      ledger.push({
+        eventId: `session.core120.learning.receipt.${actionId}`,
+        sequence: ++sequence,
+        type: "core120_learning_action_committed",
+        payload: {
+          actionId,
+          receiptId: core120LearningActionReceiptId(base.sessionId, actionId),
+          payloadHash: core120LearningActionPayloadHash(actionId),
+        },
+      });
+    }
+
+    const replayed = replayGameSession(base.sessionId, base.origin, ledger);
+    expect(replayed.ok).toBe(true);
+    if (!replayed.ok) throw new Error(`full core120 replay failed at ${replayed.failedEventId}: ${replayed.reason}`);
+    const completed = replayed.session.snapshot();
+    expect(PROLOGUE_CORE120_LEARNING_ACTION_IDS).toHaveLength(600);
+    expect(manifest.scope.wordIds).toHaveLength(120);
+    expect(manifest.scope.wordIds.every((wordId) => completed.learning.words[wordId]?.learningState === "produced")).toBe(true);
+    expect(PROLOGUE_CORE120_LEARNING_ACTION_IDS.every((actionId) =>
+      completed.receiptIndex[core120LearningActionReceiptId(base.sessionId, actionId)]?.domain === "learning")).toBe(true);
+
+    const save = replayed.session.toSave();
+    const loaded = GameSession.fromSave(JSON.parse(JSON.stringify(save)));
+    expect(loaded.snapshot()).toEqual(completed);
+    expect(loaded.events()).toHaveLength(ledger.length);
+  }, 20_000);
 });

@@ -153,6 +153,50 @@ export function isCore120LearningActionComplete(
   return parsed !== null && actionEvidencePresent(manifest, state, parsed.word.wordId, parsed.kind);
 }
 
+/**
+ * Lightweight authority checks for the unified GameSession reducer.
+ *
+ * The reducer already owns a structurally verified LearningProgressionSnapshot,
+ * so rebuilding and revalidating a complete 120-word campaign for every ledger
+ * event is unnecessary and makes reload quadratic in total evidence. These
+ * checks inspect only the canonical evidence for the affected word/action.
+ */
+export function core120LearningActionPrerequisitesSatisfied(
+  manifest: RuntimeCore120CurriculumManifest,
+  learning: LearningProgressionSnapshot,
+  playerSaveId: string,
+  actionId: Core120LearningActionId,
+): boolean {
+  if (!isVerifiedRuntimeCore120CurriculumManifest(manifest) || !validPlayerSaveId(playerSaveId)) return false;
+  const parsed = parseAction(manifest, actionId);
+  if (parsed === null) return false;
+  const present = (kind: Core120ActionKind): boolean =>
+    actionEvidencePresentInLearning(manifest, learning, playerSaveId, parsed.word.wordId, kind);
+  if (parsed.kind === "discover") return true;
+  if (!present("discover")) return false;
+  if (parsed.kind === "attune") return true;
+  if (!present("attune")) return false;
+  if (parsed.kind === "context_0") return true;
+  if (!present("context_0")) return false;
+  if (parsed.kind === "context_1") return true;
+  const progress = learning.words[parsed.word.wordId];
+  return present("context_1") &&
+    (progress?.learningState === "produced" || progress?.learningState === "stabilized");
+}
+
+export function core120LearningActionEvidencePresent(
+  manifest: RuntimeCore120CurriculumManifest,
+  learning: LearningProgressionSnapshot,
+  playerSaveId: string,
+  actionId: Core120LearningActionId,
+): boolean {
+  if (!isVerifiedRuntimeCore120CurriculumManifest(manifest) || !validPlayerSaveId(playerSaveId)) return false;
+  const parsed = parseAction(manifest, actionId);
+  return parsed !== null && actionEvidencePresentInLearning(
+    manifest, learning, playerSaveId, parsed.word.wordId, parsed.kind,
+  );
+}
+
 export function applyCore120LearningAction(
   manifest: RuntimeCore120CurriculumManifest,
   state: Core120CampaignState,
@@ -273,10 +317,20 @@ function actionEvidencePresent(
   wordId: string,
   kind: Core120ActionKind,
 ): boolean {
+  return actionEvidencePresentInLearning(manifest, state.learning, state.playerSaveId, wordId, kind);
+}
+
+function actionEvidencePresentInLearning(
+  manifest: RuntimeCore120CurriculumManifest,
+  learning: LearningProgressionSnapshot,
+  playerSaveId: string,
+  wordId: string,
+  kind: Core120ActionKind,
+): boolean {
   const word = manifest.words[wordId];
-  const evidence = state.learning.words[wordId]?.evidence;
+  const evidence = learning.words[wordId]?.evidence;
   if (word === undefined || evidence === undefined) return false;
-  const expected = materializeEvents(manifest, state.playerSaveId, word, kind).map((event) => event.eventId);
+  const expected = materializeEvents(manifest, playerSaveId, word, kind).map((event) => event.eventId);
   return expected.every((eventId) => evidence.some((entry) => entry.eventId === eventId));
 }
 

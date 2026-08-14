@@ -116,7 +116,7 @@ function readApprovedPrivateExport(
 function readGlyphReleaseApproval(candidate: unknown): boolean {
   const root = record(candidate, "glyph release contract");
   exactKeys(root, ["schemaVersion", "status", "destinationRoot", "requiredApprovals", "allowedRuntimeRoles", "currentAudits", "privacy"], "glyph release contract");
-  if (root.schemaVersion !== "tokipona.asset-release-gate.v0.1" || root.destinationRoot !== "src/assets/runtime/magic-glyphs" || !same(root.requiredApprovals, REQUIRED_GLYPH_APPROVALS) || (root.status !== "blocked" && root.status !== "approved")) throw new Error("glyph release contract identity is invalid");
+  if (root.schemaVersion !== "tokipona.asset-release-gate.v0.1" || root.destinationRoot !== "public/assets/magic-glyphs" || !same(root.requiredApprovals, REQUIRED_GLYPH_APPROVALS) || (root.status !== "blocked" && root.status !== "approved")) throw new Error("glyph release contract identity is invalid");
   const privacy = record(root.privacy, "glyph release privacy");
   exactKeys(privacy, ["containsPrivatePaths", "containsPrivateAssets", "containsSourceFonts", "containsReviewMedia"], "glyph release privacy");
   if (privacy.containsPrivatePaths !== false || privacy.containsPrivateAssets !== false || privacy.containsSourceFonts !== false || privacy.containsReviewMedia !== false) throw new Error("glyph release contract leaks private material");

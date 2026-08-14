@@ -2,11 +2,9 @@ import generatedRuntimeArtifact from "../generated/content-runtime.v0.1.json";
 import { readRuntimeCore120CurriculumManifest } from "../content/runtime-core120-curriculum-manifest";
 import { readRuntimeP0CurriculumManifest } from "../content/runtime-p0-curriculum-manifest";
 import {
-  applyCore120LearningAction,
-  createCore120CampaignState,
-  isCore120LearningActionComplete,
+  core120LearningActionEvidencePresent,
+  core120LearningActionPrerequisitesSatisfied,
   listCore120LearningActionIds,
-  materializeCore120LearningEvidence,
   type Core120LearningActionId,
 } from "../learning/core120-campaign";
 import { sha256Canonical, type JsonValue } from "../persistence/cross-save-wal";
@@ -92,43 +90,23 @@ export class PrologueCore120LearningCoordinator {
       return this.result(false, false, "p0_prerequisite_missing", actionId, session);
     }
 
-    let campaign;
-    try {
-      campaign = createCore120CampaignState(MANIFEST, session.sessionId, state.learning);
-    } catch {
-      return this.result(false, false, "session_rejected", actionId, session);
-    }
     const receiptId = core120LearningActionReceiptId(session.sessionId, actionId);
     const payloadHash = core120LearningActionPayloadHash(actionId);
     const prior = state.receiptIndex[receiptId];
     if (prior) {
       const matches = prior.payloadHash === payloadHash &&
-        isCore120LearningActionComplete(MANIFEST, campaign, actionId);
+        core120LearningActionEvidencePresent(MANIFEST, state.learning, session.sessionId, actionId);
       return this.result(matches, matches, matches ? "duplicate" : "transaction_conflict", actionId, session);
     }
+    if (!core120LearningActionPrerequisitesSatisfied(
+      MANIFEST, state.learning, session.sessionId, actionId,
+    )) return this.result(false, false, "prerequisite_missing", actionId, session);
 
-    let preview;
-    try {
-      preview = applyCore120LearningAction(MANIFEST, campaign, actionId);
-    } catch {
-      return this.result(false, false, "session_rejected", actionId, session);
-    }
-    if (!preview.applied) {
-      return this.result(false, false,
-        preview.reason === "prerequisite_missing" ? "prerequisite_missing" : "session_rejected", actionId, session);
-    }
-
-    const evidence = materializeCore120LearningEvidence(MANIFEST, session.sessionId, actionId);
-    const drafts: SessionEventDraft[] = evidence.map((entry, ordinal) => ({
-      eventId: `session.core120.learning.${actionId}.${ordinal}`,
-      type: "learning_evidence_committed",
-      payload: { evidence: entry, core120CurriculumActionId: actionId, core120EvidenceOrdinal: ordinal },
-    }));
-    drafts.push({
+    const drafts: SessionEventDraft[] = [{
       eventId: `session.core120.learning.receipt.${actionId}`,
       type: "core120_learning_action_committed",
       payload: { actionId, receiptId, payloadHash },
-    });
+    }];
     const batch: SessionProposalBatch = { transactionId: operationId, drafts };
     const committed = commitTrustedCore120LearningProposal(session, createProof(actionId, batch));
     return committed.committed

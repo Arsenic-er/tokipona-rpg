@@ -1,7 +1,7 @@
 {
   "schemaVersion": "tokipona.asset-release-gate.v0.1",
   "status": "blocked",
-  "destinationRoot": "src/assets/runtime/magic-glyphs",
+  "destinationRoot": "public/assets/magic-glyphs",
   "requiredApprovals": [
     "source",
     "license",
