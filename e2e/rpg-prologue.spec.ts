@@ -166,17 +166,18 @@ async function completeP0RecoveryCurriculum(page: Page): Promise<void> {
   await expect(page.locator("[data-p0-learning-count]")).toHaveText("12 / 12");
 }
 
-async function completeCore120Word(page: Page, band: string, wordId: string): Promise<void> {
+async function prepareCore120WordAtArchive(page: Page, band: string, wordId: string): Promise<void> {
   await page.locator(`[data-core120-band="${band}"]`).click();
   await page.locator("[data-core120-search]").fill(wordId);
   await expect(page.locator("[data-core120-search-status]")).toHaveText("1 个匹配词。");
   const action = page.locator(`[data-core120-word="${wordId}"]`);
-  for (const [index, label] of LEARNING_ACTION_LABELS.entries()) {
+  for (const [index, label] of LEARNING_ACTION_LABELS.slice(0, 2).entries()) {
     await expect(action).toBeEnabled();
     await expect(action).toHaveText(label);
     await action.click();
-    await expect(action).toHaveText(LEARNING_ACTION_LABELS[index + 1] ?? "完成");
+    await expect(action).toHaveText(index === 0 ? "attune" : "待现场见证");
   }
+  await expect(action).toHaveText("待现场见证");
   await expect(action).toBeDisabled();
 }
 
@@ -225,16 +226,16 @@ test("runs the real keyboard/touch route and restores companion-first without ma
   expect(JSON.stringify(telemetry)).not.toMatch(/rawUtterance|rawText|inventoryLotId|damageOverride|worldFlagOverride/);
 
   await completeP0RecoveryCurriculum(page);
-  await completeCore120Word(page, "P1", "ala");
-  await expect(page.locator("[data-core120-learning-count]")).toHaveText("5 / 600");
+  await prepareCore120WordAtArchive(page, "P1", "ala");
+  await expect(page.locator("[data-core120-learning-count]")).toHaveText("2 / 600");
   await page.reload();
   await expectModeAndScene(page, "settlement", SETTLEMENT);
   await expect(page.locator("[data-p0-learning-count]")).toHaveText("12 / 12");
-  await expect(page.locator("[data-core120-learning-count]")).toHaveText("5 / 600");
+  await expect(page.locator("[data-core120-learning-count]")).toHaveText("2 / 600");
   await page.locator('[data-core120-band="P1"]').click();
   await page.locator("[data-core120-search]").fill("ala");
   await expect(page.locator("[data-core120-search-status]")).toHaveText("1 个匹配词。");
-  await expect(page.locator('[data-core120-word="ala"]')).toHaveText("完成");
+  await expect(page.locator('[data-core120-word="ala"]')).toHaveText("待现场见证");
   await expect(page.locator('[data-core120-word="ala"]')).toBeDisabled();
   expect(errors).toEqual([]);
 });
