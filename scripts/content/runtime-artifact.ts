@@ -1,8 +1,10 @@
 import { createHash } from "node:crypto";
 import { projectSafeRangeQualification } from "./safe-range-runtime-artifact.ts";
 import { projectP0Curriculum } from "./p0-runtime-artifact.ts";
+import { projectPrologueAcceptance } from "./prologue-acceptance-runtime-artifact.ts";
 import type { RuntimeSafeRangeManifest } from "../../src/content/runtime-safe-range-manifest.ts";
 import type { RuntimeP0CurriculumManifest } from "../../src/content/runtime-p0-curriculum-manifest.ts";
+import type { RuntimePrologueAcceptanceManifest } from "../../src/content/runtime-prologue-acceptance-manifest.ts";
 import { posix } from "node:path";
 import type { ContentManifest, ContentObject, ContentValue } from "../../src/content/types.ts";
 import type { CapabilityMilestoneMachineProjection } from "../../src/session/capability-contract.ts";
@@ -67,6 +69,7 @@ export interface RuntimeContentArtifact {
   readonly infrastructureTasks: RuntimeInfrastructureTaskManifestIndex;
   readonly safeRangeQualification: RuntimeSafeRangeManifest;
   readonly p0Curriculum: RuntimeP0CurriculumManifest;
+  readonly prologueAcceptance: RuntimePrologueAcceptanceManifest;
   readonly capabilityProgression: CapabilityMilestoneMachineProjection;
   readonly ecology: RuntimeEcologyManifest;
   readonly wildlifeProcessing: RuntimeWildlifeProcessingManifest;
@@ -119,6 +122,7 @@ export function buildRuntimeContentArtifact(manifest: ContentManifest): RuntimeC
   if (chapterSources.length !== 1) throw new Error(`Expected exactly one validated chapter source, received ${chapterSources.length}.`);
   const chapterSource = chapterSources[0];
   if (!chapterSource) throw new Error("Validated chapter source is unavailable.");
+  const prologueAcceptance = projectPrologueAcceptance(manifest);
   const authoredMilestones = requireObjectArray(chapterSource.content, ["capacity_progression", "milestones"]);
   const capacityMilestones = authoredMilestones.flatMap((milestone) => {
     const resultingState = requireObject(milestone, ["resulting_state"]);
@@ -591,6 +595,7 @@ export function buildRuntimeContentArtifact(manifest: ContentManifest): RuntimeC
     },
     safeRangeQualification,
     p0Curriculum,
+    prologueAcceptance,
     capabilityProgression,
     ecology,
     wildlifeProcessing,

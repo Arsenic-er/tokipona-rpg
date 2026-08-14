@@ -33,7 +33,7 @@
     }
   },
   "scenes": {
-    "sourceDigest": "sha256:4360c30f3decfdd55cd135681108ad3bc19461c948f20a0817840c2e3385afad",
+    "sourceDigest": "sha256:9df0459ea40243b7a40e8eb94a6ca81e2360eb95dc5fa17d8a00861435e40cb7",
     "byId": {
       "scene.valley.arrival_shelf": {
         "sceneId": "scene.valley.arrival_shelf",
@@ -1202,6 +1202,174 @@
         "materialPatchRecordRefs": [
           "patch.valley.cistern_return_ladder.v0.1"
         ]
+      },
+      "scene.valley.old_mine_threshold": {
+        "sceneId": "scene.valley.old_mine_threshold",
+        "sourcePath": "data/scenes/valley-old-mine-threshold.v0.1.yaml",
+        "regionId": "valley_prologue",
+        "regionNodeId": "valley.old_mine_threshold",
+        "chapterFlowId": "ch01_world_literacy_prologue",
+        "chapterSegmentId": "return_and_safe_range",
+        "tileSizePx": 16,
+        "sizeTiles": {
+          "width": 24,
+          "height": 20
+        },
+        "collisionRows": [
+          "........................",
+          "........................",
+          "........................",
+          "........................",
+          "........................",
+          "........................",
+          "........................",
+          "........................",
+          "........................",
+          "........................",
+          "........................",
+          "........................",
+          "........................",
+          "........................",
+          "........................",
+          "........................",
+          "........................",
+          "........................",
+          "........................",
+          "########################"
+        ],
+        "entrances": [
+          {
+            "id": "old_mine.from_settlement",
+            "spawnTile": [
+              2,
+              1
+            ],
+            "spawnPx": {
+              "x": 32,
+              "y": 290
+            },
+            "recoveryEntry": true,
+            "checkpointPolicy": "chapter_transition_threshold"
+          }
+        ],
+        "exits": [
+          {
+            "id": "old_mine.to_settlement",
+            "boundsTiles": {
+              "x": 22,
+              "y": 0,
+              "width": 2,
+              "height": 7
+            },
+            "boundsPx": {
+              "x": 352,
+              "y": 208,
+              "width": 32,
+              "height": 112
+            },
+            "target": {
+              "kind": "scene",
+              "sceneId": "scene.valley.settlement",
+              "entranceId": "settlement.from_old_mine"
+            },
+            "firstTraverseCommit": null,
+            "traversalGuardAny": [
+              "prologue_return_observed == true"
+            ]
+          }
+        ],
+        "recovery": {
+          "entryEntranceId": "old_mine.from_settlement",
+          "maximumSoftlockRecoverySeconds": 60,
+          "actions": [
+            "restore_peaceful_threshold_path",
+            "expose_settlement_return"
+          ],
+          "preserves": [
+            "learning_evidence",
+            "global_progress",
+            "region_commits",
+            "survival_state",
+            "life_state",
+            "corpse_ledger",
+            "processing_ledger"
+          ]
+        },
+        "routeObjectives": [
+          {
+            "id": "old_mine.peaceful_threshold_reached",
+            "predicate": "prologue_return_observed == true"
+          },
+          {
+            "id": "old_mine.return_to_settlement",
+            "predicate": "player_reaches_exit(old_mine.to_settlement)"
+          }
+        ],
+        "routes": [
+          {
+            "id": "old_mine.peaceful_chapter_threshold",
+            "kind": "non_magic",
+            "solutionFamily": "peaceful_chapter_transition",
+            "fromEntranceId": "old_mine.from_settlement",
+            "toExitId": "old_mine.to_settlement",
+            "objectiveIds": [
+              "old_mine.peaceful_threshold_reached",
+              "old_mine.return_to_settlement"
+            ]
+          }
+        ],
+        "nonMagicAlternativeRouteIds": [
+          "old_mine.peaceful_chapter_threshold"
+        ],
+        "targets": [
+          {
+            "id": "old_mine.threshold_marker",
+            "kind": "chapter_transition_marker",
+            "material": "stone_and_weathered_wood",
+            "interactionPointTiles": [
+              12,
+              1
+            ]
+          }
+        ],
+        "interactions": [
+          {
+            "id": "old_mine.inspect_threshold_marker",
+            "targetId": "old_mine.threshold_marker",
+            "verb": "inspect_peaceful_chapter_transition",
+            "toolOrMagicRequired": false,
+            "optionalWordId": null,
+            "npcId": null,
+            "facilityId": null,
+            "taskId": null
+          }
+        ],
+        "npcs": [],
+        "facilities": [],
+        "tasks": [],
+        "taskRefs": [],
+        "tradeEntries": [],
+        "inboundRoutes": [
+          {
+            "id": "old_mine.inbound_from_settlement",
+            "sourceSceneId": "scene.valley.settlement",
+            "sourceExitId": "settlement.to_old_mine",
+            "entranceId": "old_mine.from_settlement"
+          }
+        ],
+        "softFailureRecoveries": [
+          {
+            "id": "old_mine.threshold_obstructed",
+            "action": "restore_peaceful_threshold_path",
+            "preserves": [
+              "learning_evidence",
+              "global_progress",
+              "region_commits",
+              "survival_state"
+            ]
+          }
+        ],
+        "materialPatchRecordRefs": []
       },
       "scene.valley.return_channel": {
         "sceneId": "scene.valley.return_channel",
@@ -2446,6 +2614,19 @@
             },
             "recoveryEntry": true,
             "checkpointPolicy": "safe_range_return_route"
+          },
+          {
+            "id": "settlement.from_old_mine",
+            "spawnTile": [
+              2,
+              1
+            ],
+            "spawnPx": {
+              "x": 32,
+              "y": 450
+            },
+            "recoveryEntry": true,
+            "checkpointPolicy": "old_mine_return_route"
           }
         ],
         "exits": [
@@ -2514,6 +2695,30 @@
             "firstTraverseCommit": null,
             "traversalGuardAny": [
               "range_trial_permission == true"
+            ]
+          },
+          {
+            "id": "settlement.to_old_mine",
+            "boundsTiles": {
+              "x": 0,
+              "y": 8,
+              "width": 2,
+              "height": 7
+            },
+            "boundsPx": {
+              "x": 0,
+              "y": 240,
+              "width": 32,
+              "height": 112
+            },
+            "target": {
+              "kind": "scene",
+              "sceneId": "scene.valley.old_mine_threshold",
+              "entranceId": "old_mine.from_settlement"
+            },
+            "firstTraverseCommit": null,
+            "traversalGuardAny": [
+              "prologue_return_observed == true"
             ]
           }
         ],
@@ -3231,6 +3436,12 @@
             "sourceSceneId": "scene.valley.safe_range",
             "sourceExitId": "safe_range.to_settlement",
             "entranceId": "settlement.from_safe_range"
+          },
+          {
+            "id": "settlement.inbound_from_old_mine",
+            "sourceSceneId": "scene.valley.old_mine_threshold",
+            "sourceExitId": "old_mine.to_settlement",
+            "entranceId": "settlement.from_old_mine"
           }
         ],
         "softFailureRecoveries": [
@@ -5993,6 +6204,120 @@
       "fixedSlotOnlyProductionForbidden": true,
       "rawStringEqualityAsSuccessForbidden": true,
       "communitySemanticReviewRequired": true
+    }
+  },
+  "prologueAcceptance": {
+    "sourceDigest": "sha256:afb1aedcd1eeae9fa912cd521f7f5a697fe58a2795228d574ec94eb75884b0ca",
+    "sourcePath": "data/chapters/ch01-world-literacy-prologue.v0.1.yaml",
+    "contentVersion": "chapter-01.prologue.1",
+    "telemetry": {
+      "schemaVersion": "prologue.telemetry.v0.1",
+      "eventIds": [
+        "prologue_segment_started",
+        "prologue_segment_completed",
+        "world_literacy_observed",
+        "world_literacy_intervened",
+        "causal_attribution_submitted",
+        "active_retrieval_submitted",
+        "repair_requested",
+        "repair_completed",
+        "unseen_transfer_completed",
+        "delayed_retrieval_completed",
+        "alternate_method_used",
+        "wildlife_encountered",
+        "wildlife_provoked",
+        "wildlife_fled",
+        "wildlife_harmed",
+        "local_reset_requested",
+        "local_reset_completed",
+        "capacity_milestone_committed",
+        "attack_capacity_calibrated",
+        "range_trial_permission_granted",
+        "first_attack_signature_unlocked",
+        "attack_qualification_started",
+        "attack_qualification_completed",
+        "safe_range_completed"
+      ],
+      "includedPrimaryActivities": [
+        "world_people_physics",
+        "language",
+        "long_explanation"
+      ],
+      "excludedActivities": [
+        "pause",
+        "idle",
+        "settings",
+        "optional_free_roam"
+      ],
+      "exclusivePrimaryActivity": true,
+      "payload": {
+        "requiredFields": [
+          "schemaVersion",
+          "eventId",
+          "sessionId",
+          "sequence",
+          "worldTick",
+          "segmentId",
+          "primaryActivity",
+          "contentActiveMs",
+          "semantic"
+        ],
+        "semanticFieldKeys": [
+          "subjectId",
+          "outcomeId",
+          "promptLevel",
+          "count",
+          "durationMs"
+        ],
+        "forbiddenFields": [
+          "rawUtterance",
+          "rawText",
+          "inventoryLotId",
+          "damageOverride",
+          "worldFlagOverride"
+        ]
+      }
+    },
+    "acceptance": {
+      "required": {
+        "mandatoryKills": 0,
+        "safeRangeUsesLivingTargets": false,
+        "requiredTasksHaveNonAttackSolution": true,
+        "firstAttackReadsKillCount": false,
+        "lengthAvailableIsNotMastered": true,
+        "peacefulProgressWhenAttackLocked": true,
+        "meaningfulWorldDeltasOnReturnMinimum": 3
+      },
+      "playtest": {
+        "forcedHunts": 0,
+        "wildlifeProductsRequiredForMainline": false,
+        "survivalNeedsModifyLanguageOrMp": false,
+        "prologueNeedsFloorMinimum": 20,
+        "activityShareUsesExclusivePrimaryTaxonomy": true,
+        "worldPeoplePhysicsTimeShareMinimum": 0.65,
+        "languageActivityTimeShareRange": [
+          0.15,
+          0.25
+        ],
+        "longExplanationPanelTimeShareMaximum": 0.1,
+        "focusActiveNewWordsPerSegmentMaximum": 2,
+        "recoveryPathVisibilityDesignMaxSeconds": 60,
+        "actualSoftFailureRecoverySecondsP90Target": 120,
+        "rangeTrialPermissionContentMinutesP90Maximum": 180,
+        "formalAttackUnlockBy180ContentMinutesProportionMinimum": 0.7,
+        "timeMetricExcludes": [
+          "pause",
+          "idle",
+          "settings",
+          "optional_free_roam"
+        ],
+        "mandatoryWildlifeHarmEvents": 0,
+        "survivalUiActiveTimeShareMaximum": 0.03,
+        "needsInterruptedLanguageInteractionShareMaximum": 0.02,
+        "freeFoodWaterDiscoverySecondsP95Maximum": 60,
+        "huntingIncomeVsNonviolentJobMaximum": 0.6,
+        "duplicateCorpseLotCurrencyCount": 0
+      }
     }
   },
   "capabilityProgression": {

@@ -126,7 +126,7 @@ nodes:
 
   - node_id: "valley.old_mine_threshold"
     scene_id: "scene.valley.old_mine_threshold"
-    implementation_status: "planned"
+    implementation_status: "machine_contract_ready"
     suggested_size_tiles: [24, 20]
     entry_condition: {predicate: "prologue_return_observed == true"}
     persistence_scope: "region_persistent"
@@ -161,6 +161,7 @@ connections:
   - {from: "valley.settlement", to: "valley.safe_range", traversal: {predicate: "range_trial_permission == true"}}
   - {from: "valley.safe_range", to: "valley.settlement", traversal: {predicate: "range_trial_permission == true"}}
   - {from: "valley.settlement", to: "valley.old_mine_threshold", traversal: {predicate: "prologue_return_observed == true"}}
+  - {from: "valley.old_mine_threshold", to: "valley.settlement", traversal: {predicate: "prologue_return_observed == true"}}
 
 persistence_classes:
   ephemeral: [cosmetic_debris, transient_particles, temporary_manifested_matter, uncommitted_interaction_animation]

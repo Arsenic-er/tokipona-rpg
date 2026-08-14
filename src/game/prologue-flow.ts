@@ -2,6 +2,7 @@ import generatedRuntimeArtifact from "../generated/content-runtime.v0.1.json";
 import { runtimeP0AssetReadiness } from "../assets/runtime-p0-assets";
 import { readRuntimeCisternTaskManifest } from "../content/runtime-task-manifest";
 import { readRuntimeSafeRangeManifest } from "../content/runtime-safe-range-manifest";
+import { readRuntimeSceneManifestIndex } from "../content/runtime-scene-manifest";
 import { readRuntimeP0CurriculumManifest, type RuntimeP0TargetState } from "../content/runtime-p0-curriculum-manifest";
 import {
   DEFAULT_PLAYER_BODY,
@@ -21,7 +22,10 @@ import type { LivingSafetyZone, PointPx } from "../spells/cast-plan";
 import type { CrossSaveTransactionCoordinator } from "./cross-save-transaction-coordinator";
 import {
   PROLOGUE_ARRIVAL_SCENE_ID,
+  PROLOGUE_ARRIVAL_STREAM_SCENES,
   PROLOGUE_AREA_ID,
+  PROLOGUE_OLD_MINE_RUNTIME_SCENE,
+  PROLOGUE_OLD_MINE_SCENE_ID,
   PROLOGUE_SAFE_RANGE_RUNTIME_SCENE,
   PROLOGUE_STREAM_SCENE_ID,
   PrologueArrivalStreamSession,
@@ -108,7 +112,7 @@ import {
 } from "./prologue-wildlife";
 
 export type PrologueFlowMode = "arrival_stream" | "settlement" | "infrastructure" | "cistern" |
-  "wildlife" | "return_flow" | "safe_range";
+  "wildlife" | "return_flow" | "safe_range" | "old_mine";
 export type PrologueFlowActionReason = "delegated" | "wrong_mode" | "delegate_rejected";
 
 export interface PrologueFlowSnapshot {
@@ -123,10 +127,37 @@ export interface PrologueFlowSnapshot {
   readonly wildlife: PrologueWildlifeSnapshot | null;
   readonly returnFlow: PrologueReturnFlowSnapshot | null;
   readonly safeRange: PrologueSafeRangeSnapshot | null;
+  readonly oldMine: PrologueOldMineSnapshot | null;
   readonly returnFlowProgress: Readonly<{
     selectedSolutionId: ReturnFlowSolutionId | null;
     completedActionIds: readonly string[];
   }> | null;
+  readonly killCount: 0;
+}
+
+export interface PrologueOldMineSnapshot {
+  readonly sceneId: typeof PROLOGUE_OLD_MINE_SCENE_ID;
+  readonly chapterComplete: boolean;
+  readonly peacefulExit: true;
+  readonly returnToSettlementAvailable: true;
+  readonly killCount: 0;
+}
+
+export interface PrologueOldMineActionResult {
+  readonly accepted: boolean;
+  readonly duplicate: boolean;
+  readonly reason: "committed" | "duplicate" | "prerequisite_missing" | "session_rejected";
+  readonly snapshot: PrologueOldMineSnapshot | null;
+}
+
+export interface PrologueFlowOldMineView {
+  readonly mode: PrologueFlowMode;
+  readonly sceneId: string;
+  readonly entryAvailable: boolean;
+  readonly inOldMine: boolean;
+  readonly chapterComplete: boolean;
+  readonly peacefulExit: true;
+  readonly returnToSettlementAvailable: boolean;
   readonly killCount: 0;
 }
 
@@ -217,6 +248,7 @@ export const PROLOGUE_FLOW_CISTERN_CAPACITY_TRANSACTION_PREFIX = "prologue.flow.
 export const PROLOGUE_FLOW_WILDLIFE_ENTRY_TRANSACTION_PREFIX = "prologue.flow.wildlife.entry";
 export const PROLOGUE_FLOW_RETURN_ENTRY_TRANSACTION_PREFIX = "prologue.flow.return.entry";
 export const PROLOGUE_FLOW_SAFE_RANGE_ENTRY_TRANSACTION_PREFIX = "prologue.flow.safe-range.entry";
+export const PROLOGUE_FLOW_OLD_MINE_ENTRY_TRANSACTION_PREFIX = "prologue.flow.old-mine.entry";
 
 export interface PrologueFlowFreshOptions {
   readonly sessionId: string;
@@ -236,19 +268,56 @@ const CISTERN_CAPACITY_CONTRACT = readVerifiedCapabilityMilestoneContract(
 );
 const SAFE_RANGE_MANIFEST = readRuntimeSafeRangeManifest(generatedRuntimeArtifact);
 const P0_CURRICULUM_MANIFEST = readRuntimeP0CurriculumManifest(generatedRuntimeArtifact);
+const SCENE_MANIFEST_INDEX = readRuntimeSceneManifestIndex(generatedRuntimeArtifact);
+const OLD_MINE_MANIFEST = SCENE_MANIFEST_INDEX.byId[PROLOGUE_OLD_MINE_SCENE_ID];
+const SETTLEMENT_RUNTIME_MANIFEST = SCENE_MANIFEST_INDEX.byId[PROLOGUE_SETTLEMENT_SCENE_ID];
+if (!OLD_MINE_MANIFEST || !SETTLEMENT_RUNTIME_MANIFEST) throw new Error("old-mine and settlement runtime scenes are required");
+const OLD_MINE_ENTRY = (() => {
+  const entrance = OLD_MINE_MANIFEST.entrances.find((candidate) => candidate.id === "old_mine.from_settlement");
+  if (!entrance) throw new Error("old-mine runtime entrance is required");
+  return entrance;
+})();
+const SETTLEMENT_OLD_MINE_ENTRY = (() => {
+  const entrance = SETTLEMENT_RUNTIME_MANIFEST.entrances.find((candidate) => candidate.id === "settlement.from_old_mine");
+  if (!entrance) throw new Error("settlement old-mine return entrance is required");
+  return entrance;
+})();
 const SAFE_RANGE_RUNTIME_SCENE = Object.freeze({
   ...PROLOGUE_SAFE_RANGE_RUNTIME_SCENE,
   exits: Object.freeze([]),
 });
+const isolatedRegionScenes = (replacement: typeof SAFE_RANGE_RUNTIME_SCENE) => Object.freeze(
+  PROLOGUE_ARRIVAL_STREAM_SCENES.map((scene) => scene.id === replacement.id ? replacement : scene),
+);
+const PROLOGUE_REGION_SCENE_AREAS = Object.freeze(Object.fromEntries(
+  PROLOGUE_ARRIVAL_STREAM_SCENES.map((scene) => [scene.id, PROLOGUE_AREA_ID]),
+));
+const PROLOGUE_REGION_ENTRANCES = Object.freeze(Object.fromEntries(
+  PROLOGUE_ARRIVAL_STREAM_SCENES.map((scene) => {
+    if (!scene.defaultEntranceId) throw new Error(`scene ${scene.id} requires a default runtime entrance`);
+    return [scene.id, scene.defaultEntranceId] as const;
+  }),
+)) as Readonly<Record<string, string>>;
 const createSafeRangeRuntimeBridge = (session: GameSession): GameSessionRuntimeBridge =>
   new GameSessionRuntimeBridge({
     session,
-    scenes: [SAFE_RANGE_RUNTIME_SCENE],
-    sceneAreas: { [PROLOGUE_SAFE_RANGE_SCENE_ID]: PROLOGUE_AREA_ID },
-    entranceByScene: { [PROLOGUE_SAFE_RANGE_SCENE_ID]: SAFE_RANGE_MANIFEST.scene.entranceId },
+    scenes: isolatedRegionScenes(SAFE_RANGE_RUNTIME_SCENE),
+    sceneAreas: PROLOGUE_REGION_SCENE_AREAS,
+    entranceByScene: PROLOGUE_REGION_ENTRANCES,
     viewportPx: { x: 320, y: 128 },
     fixedHz: 60,
   });
+const OLD_MINE_RUNTIME_SCENE = Object.freeze({ ...PROLOGUE_OLD_MINE_RUNTIME_SCENE, exits: Object.freeze([]) });
+const createOldMineRuntimeBridge = (session: GameSession): GameSessionRuntimeBridge =>
+  new GameSessionRuntimeBridge({
+    session,
+    scenes: isolatedRegionScenes(OLD_MINE_RUNTIME_SCENE),
+    sceneAreas: PROLOGUE_REGION_SCENE_AREAS,
+    entranceByScene: PROLOGUE_REGION_ENTRANCES,
+    viewportPx: { x: 320, y: 160 },
+    fixedHz: 60,
+  });
+const oldMineCompletionReceiptId = (sessionId: string): string => `world:${sessionId}:prologue-peaceful-exit`;
 
 const arrivalScene = (sceneId: string): boolean =>
   sceneId === PROLOGUE_ARRIVAL_SCENE_ID || sceneId === PROLOGUE_STREAM_SCENE_ID;
@@ -258,6 +327,8 @@ const regionTrue = (state: GameSessionState, flagId: string): boolean =>
   Object.values(state.world.flags).some((flag) =>
     flag.scope === "region" && flag.regionId === "valley_prologue" && flag.flagId === flagId && flag.value === true
   );
+const globalTrue = (state: GameSessionState, flagId: string): boolean =>
+  Object.values(state.world.flags).some((flag) => flag.scope === "global" && flag.flagId === flagId && flag.value === true);
 const staticRuntimeSnapshot = (
   state: GameSessionState,
   sceneId: string,
@@ -309,6 +380,7 @@ export class PrologueFlowSession {
   private safeRange: PrologueSafeRangeSession | null;
   private safeRangeRuntimeWorld: SafeRangeRuntimeWorld | null;
   private safeRangeBridge: GameSessionRuntimeBridge | null;
+  private oldMineBridge: GameSessionRuntimeBridge | null;
   private readonly safeRangePreviews = new Map<string, PrologueSafeRangePreview>();
   private returnFlowSelectedSolutionId: ReturnFlowSolutionId | null = null;
   private readonly returnFlowCompletedActionIds = new Set<string>();
@@ -332,8 +404,9 @@ export class PrologueFlowSession {
     this.safeRange = this.safeRangeRuntimeWorld
       ? PrologueSafeRangeSession.fromSave(session.toSave(), this.safeRangeRuntimeWorld)
       : null;
+    this.oldMineBridge = sceneId === PROLOGUE_OLD_MINE_SCENE_ID ? createOldMineRuntimeBridge(session) : null;
     this.wildlifePlayerPositionPx = this.wildlife ? Object.freeze({ ...session.snapshot().checkpoint.position }) : null;
-    if (!this.arrival && !this.settlement && !this.infrastructure && !this.cistern && !this.wildlife && !this.returnFlow && !this.safeRange) {
+    if (!this.arrival && !this.settlement && !this.infrastructure && !this.cistern && !this.wildlife && !this.returnFlow && !this.safeRange && !this.oldMineBridge) {
       throw new Error(`unsupported prologue scene: ${sceneId}`);
     }
   }
@@ -346,6 +419,10 @@ export class PrologueFlowSession {
     const session = GameSession.fromSave(candidate);
     const flow = new PrologueFlowSession(session);
     const state = session.snapshot();
+    if (state.world.currentSceneId === PROLOGUE_OLD_MINE_SCENE_ID &&
+        !state.receiptIndex[oldMineCompletionReceiptId(session.sessionId)]) {
+      throw new Error("old-mine load rejected: peaceful completion receipt is missing");
+    }
     if (state.world.currentSceneId === PROLOGUE_SAFE_RANGE_SCENE_ID) {
       if (state.checkpoint.sceneId === PROLOGUE_SAFE_RANGE_SCENE_ID) return flow;
       const entryCount = session.events().filter((event) =>
@@ -423,11 +500,13 @@ export class PrologueFlowSession {
       this.safeRange = PrologueSafeRangeSession.fromSave(coordinator.toSessionSave(), this.safeRangeRuntimeWorld);
       this.safeRangePreviews.clear();
     }
+    if (this.oldMineBridge) this.oldMineBridge = createOldMineRuntimeBridge(coordinator.readSession());
   }
 
   get session(): GameSession {
     const session = this.arrival?.session ?? this.settlement?.session ?? this.infrastructure?.session ??
-      this.cistern?.session ?? this.wildlife?.session ?? this.returnFlow?.session ?? this.safeRange?.session;
+      this.cistern?.session ?? this.wildlife?.session ?? this.returnFlow?.session ?? this.safeRange?.session ??
+      this.oldMineBridge?.session;
     if (!session) throw new Error("prologue flow has no active session");
     return session;
   }
@@ -444,22 +523,22 @@ export class PrologueFlowSession {
     if (this.arrival) {
       const arrival = this.arrival.snapshot();
       return Object.freeze({ mode: "arrival_stream", sessionId: this.session.sessionId, session: arrival.session, runtime: arrival.runtime,
-        arrival, settlement: null, infrastructure: null, cistern: null, wildlife: null, returnFlow: null, safeRange: null, returnFlowProgress: null, killCount: 0 });
+        arrival, settlement: null, infrastructure: null, cistern: null, wildlife: null, returnFlow: null, safeRange: null, oldMine: null, returnFlowProgress: null, killCount: 0 });
     }
     if (this.settlement) {
       const settlement = this.settlement.snapshot();
       return Object.freeze({ mode: "settlement", sessionId: this.session.sessionId, session: settlement.session, runtime: settlement.runtime,
-        arrival: null, settlement, infrastructure: null, cistern: null, wildlife: null, returnFlow: null, safeRange: null, returnFlowProgress: null, killCount: 0 });
+        arrival: null, settlement, infrastructure: null, cistern: null, wildlife: null, returnFlow: null, safeRange: null, oldMine: null, returnFlowProgress: null, killCount: 0 });
     }
     if (this.infrastructure) {
       const infrastructure = this.infrastructure.snapshot();
       return Object.freeze({ mode: "infrastructure", sessionId: this.session.sessionId, session: infrastructure.session, runtime: infrastructure.runtime,
-        arrival: null, settlement: null, infrastructure, cistern: null, wildlife: null, returnFlow: null, safeRange: null, returnFlowProgress: null, killCount: 0 });
+        arrival: null, settlement: null, infrastructure, cistern: null, wildlife: null, returnFlow: null, safeRange: null, oldMine: null, returnFlowProgress: null, killCount: 0 });
     }
     if (this.cistern) {
       const cistern = this.cistern.snapshot();
       return Object.freeze({ mode: "cistern", sessionId: this.session.sessionId, session: cistern.session, runtime: cistern.runtime,
-        arrival: null, settlement: null, infrastructure: null, cistern, wildlife: null, returnFlow: null, safeRange: null, returnFlowProgress: null, killCount: 0 });
+        arrival: null, settlement: null, infrastructure: null, cistern, wildlife: null, returnFlow: null, safeRange: null, oldMine: null, returnFlowProgress: null, killCount: 0 });
     }
     if (this.safeRange) {
       const safeRange = this.safeRange.snapshot();
@@ -467,7 +546,7 @@ export class PrologueFlowSession {
       return Object.freeze({ mode: "safe_range", sessionId: this.session.sessionId, session: state,
         runtime: this.safeRangeBridge?.runtime.snapshot() ?? staticRuntimeSnapshot(state, PROLOGUE_SAFE_RANGE_SCENE_ID, 0),
         arrival: null, settlement: null, infrastructure: null, cistern: null, wildlife: null, returnFlow: null,
-        safeRange, returnFlowProgress: null, killCount: 0 });
+        safeRange, oldMine: null, returnFlowProgress: null, killCount: 0 });
     }
     if (this.returnFlow) {
       const returnFlow = this.returnFlow.snapshot();
@@ -484,13 +563,23 @@ export class PrologueFlowSession {
       return Object.freeze({ mode: "return_flow", sessionId: this.session.sessionId, session: returnFlow.session,
         runtime: staticRuntimeSnapshot(returnFlow.session, PROLOGUE_RETURN_FLOW_SCENE_ID, 0),
         arrival: null, settlement: null, infrastructure: null, cistern: null, wildlife: null, returnFlow, safeRange: null,
-        returnFlowProgress: Object.freeze({ selectedSolutionId, completedActionIds: Object.freeze([...completedActionIds]) }), killCount: 0 });
+        oldMine: null, returnFlowProgress: Object.freeze({ selectedSolutionId, completedActionIds: Object.freeze([...completedActionIds]) }), killCount: 0 });
+    }
+    if (this.oldMineBridge) {
+      const state = this.oldMineBridge.session.snapshot();
+      const sessionId = this.oldMineBridge.session.sessionId;
+      const oldMine: PrologueOldMineSnapshot = Object.freeze({ sceneId: PROLOGUE_OLD_MINE_SCENE_ID,
+        chapterComplete: state.receiptIndex[oldMineCompletionReceiptId(sessionId)] !== undefined,
+        peacefulExit: true, returnToSettlementAvailable: true, killCount: 0 });
+      return Object.freeze({ mode: "old_mine", sessionId, session: state,
+        runtime: this.oldMineBridge.runtime.snapshot(), arrival: null, settlement: null, infrastructure: null,
+        cistern: null, wildlife: null, returnFlow: null, safeRange: null, oldMine, returnFlowProgress: null, killCount: 0 });
     }
     const wildlife = this.wildlife!.snapshot();
     const playerPosition = this.wildlifePlayerPositionPx ?? wildlife.session.checkpoint.position;
     return Object.freeze({ mode: "wildlife", sessionId: this.session.sessionId, session: wildlife.session,
       runtime: wildlifeRuntimeSnapshot(wildlife.session, playerPosition, this.wildlifeRuntimeTick),
-      arrival: null, settlement: null, infrastructure: null, cistern: null, wildlife, returnFlow: null, safeRange: null, returnFlowProgress: null, killCount: 0 });
+      arrival: null, settlement: null, infrastructure: null, cistern: null, wildlife, returnFlow: null, safeRange: null, oldMine: null, returnFlowProgress: null, killCount: 0 });
   }
 
   safeRangeView(): PrologueFlowSafeRangeView {
@@ -540,6 +629,21 @@ export class PrologueFlowSession {
     });
   }
 
+  oldMineView(): PrologueFlowOldMineView {
+    const state = this.session.snapshot();
+    const inOldMine = this.oldMineBridge !== null;
+    return Object.freeze({
+      mode: this.snapshot().mode,
+      sceneId: state.world.currentSceneId,
+      entryAvailable: this.settlement !== null && globalTrue(state, "prologue_return_observed"),
+      inOldMine,
+      chapterComplete: state.receiptIndex[oldMineCompletionReceiptId(this.session.sessionId)] !== undefined,
+      peacefulExit: true,
+      returnToSettlementAvailable: inOldMine,
+      killCount: 0,
+    });
+  }
+
   p0LearningView(): PrologueFlowP0LearningView {
     const state = this.session.snapshot();
     const point = P0_CURRICULUM_MANIFEST.recoveryStation.interactionPointTiles;
@@ -581,6 +685,7 @@ export class PrologueFlowSession {
         const runtime = this.safeRangeBridge.runtime.snapshot();
         this.safeRangeRuntimeWorld.synchronize(runtime.player.position, []);
       }
+      else if (this.oldMineBridge) this.oldMineBridge.advanceTicks(1, input);
       else if (this.returnFlow) return this.snapshot();
       else return this.snapshot();
       this.reconcileMode();
@@ -751,6 +856,88 @@ export class PrologueFlowSession {
       }
       return this.delegated(result, result.accepted);
     } catch { return this.rejectedDelegate(); }
+  }
+
+  enterOldMine(transactionId: string): PrologueFlowAction<PrologueOldMineActionResult> {
+    if (!this.settlement) return this.rejectedMode();
+    const id = transactionId.trim();
+    if (!id) return this.rejectedDelegate();
+    const session = this.settlement.session;
+    const state = session.snapshot();
+    if (!globalTrue(state, "prologue_return_observed")) {
+      return this.delegated(Object.freeze({ accepted: false, duplicate: false,
+        reason: "prerequisite_missing", snapshot: null }), false);
+    }
+    const entryReceiptId = `world:${session.sessionId}:old-mine-entry:${id}`;
+    if (state.receiptIndex[entryReceiptId]) {
+      return this.delegated(Object.freeze({ accepted: true, duplicate: true,
+        reason: "duplicate", snapshot: null }), true);
+    }
+    const drafts: Parameters<typeof commitSessionProposal>[1]["drafts"][number][] = [{
+      eventId: `session.old-mine.enter.${id}`,
+      type: "scene_entered",
+      payload: { sceneId: PROLOGUE_OLD_MINE_SCENE_ID },
+    }, {
+      eventId: `session.old-mine.checkpoint.${id}`,
+      type: "checkpoint_set",
+      payload: { checkpoint: { id: "checkpoint.valley.old-mine.entry", sceneId: PROLOGUE_OLD_MINE_SCENE_ID,
+        position: { ...OLD_MINE_ENTRY.spawnPx }, revision: state.checkpoint.revision + 1 } },
+    }];
+    if (!state.quests.ch01_world_literacy_prologue_exit) drafts.push({
+      eventId: `session.old-mine.quest.${id}`,
+      type: "quest_stage_set",
+      payload: { questId: "ch01_world_literacy_prologue_exit", stageId: "peaceful_exit_reached", stageOrdinal: 1 },
+    });
+    const completionReceiptId = oldMineCompletionReceiptId(session.sessionId);
+    if (!state.receiptIndex[completionReceiptId]) drafts.push({
+      eventId: `session.old-mine.completion.${id}`,
+      type: "receipt_recorded",
+      payload: { receiptId: completionReceiptId, domain: "world", payloadHash: "prologue-peaceful-exit:v1" },
+    });
+    drafts.push({ eventId: `session.old-mine.entry-receipt.${id}`, type: "receipt_recorded",
+      payload: { receiptId: entryReceiptId, domain: "world", payloadHash: `old-mine-entry:${id}` } });
+    const committed = commitSessionProposal(session, { transactionId: id, drafts });
+    if (!committed.committed) return this.delegated(Object.freeze({ accepted: false, duplicate: false,
+      reason: "session_rejected", snapshot: null }), false);
+    this.commitCrossSaveRegionExit(committed.session);
+    this.arrival = null; this.settlement = null; this.infrastructure = null; this.cistern = null;
+    this.wildlife = null; this.returnFlow = null; this.safeRange = null; this.safeRangeRuntimeWorld = null;
+    this.safeRangeBridge = null; this.safeRangePreviews.clear();
+    this.oldMineBridge = createOldMineRuntimeBridge(committed.session);
+    return this.delegated(Object.freeze({ accepted: true, duplicate: false,
+      reason: "committed", snapshot: this.snapshot().oldMine }), true);
+  }
+
+  returnOldMineToSettlement(transactionId: string): PrologueFlowAction<PrologueOldMineActionResult> {
+    if (!this.oldMineBridge) return this.rejectedMode();
+    const id = transactionId.trim();
+    if (!id) return this.rejectedDelegate();
+    const session = this.oldMineBridge.session;
+    const state = session.snapshot();
+    const receiptId = `world:${session.sessionId}:old-mine-return:${id}`;
+    if (state.receiptIndex[receiptId]) return this.delegated(Object.freeze({ accepted: true, duplicate: true,
+      reason: "duplicate", snapshot: this.snapshot().oldMine }), true);
+    const committed = commitSessionProposal(session, { transactionId: id, drafts: [{
+      eventId: `session.old-mine.return.${id}`,
+      type: "scene_entered",
+      payload: { sceneId: PROLOGUE_SETTLEMENT_SCENE_ID },
+    }, {
+      eventId: `session.old-mine.return-checkpoint.${id}`,
+      type: "checkpoint_set",
+      payload: { checkpoint: { id: "checkpoint.valley.settlement.from-old-mine", sceneId: PROLOGUE_SETTLEMENT_SCENE_ID,
+        position: { ...SETTLEMENT_OLD_MINE_ENTRY.spawnPx }, revision: state.checkpoint.revision + 1 } },
+    }, {
+      eventId: `session.old-mine.return-receipt.${id}`,
+      type: "receipt_recorded",
+      payload: { receiptId, domain: "world", payloadHash: `old-mine-return:${id}` },
+    }] });
+    if (!committed.committed) return this.delegated(Object.freeze({ accepted: false, duplicate: false,
+      reason: "session_rejected", snapshot: this.snapshot().oldMine }), false);
+    this.commitCrossSaveRegionExit(committed.session);
+    this.oldMineBridge = null;
+    this.settlement = new PrologueSettlementSession(committed.session, this.crossSaveCoordinator);
+    return this.delegated(Object.freeze({ accepted: true, duplicate: false,
+      reason: "committed", snapshot: null }), true);
   }
 
   enterWaterwheel(transactionId: string): PrologueFlowAction<PrologueWaterwheelEntryResult> {
@@ -1364,6 +1551,42 @@ export class PrologueFlowSession {
       this.infrastructure = adoption.infrastructure;
       return;
     }
+    if (this.settlement && sceneId === PROLOGUE_OLD_MINE_SCENE_ID) {
+      const session = this.settlement.session;
+      const state = session.snapshot();
+      if (!globalTrue(state, "prologue_return_observed")) {
+        throw new Error("old-mine runtime entry requires prologue_return_observed");
+      }
+      const entryCount = session.events().filter((event) =>
+        event.type === "scene_entered" && event.payload.sceneId === PROLOGUE_OLD_MINE_SCENE_ID).length;
+      const transactionId = `${PROLOGUE_FLOW_OLD_MINE_ENTRY_TRANSACTION_PREFIX}:${session.sessionId}:runtime:${entryCount}`;
+      const drafts: Parameters<typeof commitSessionProposal>[1]["drafts"][number][] = [{
+        eventId: `session.old-mine.runtime-checkpoint.${entryCount}`,
+        type: "checkpoint_set",
+        payload: { checkpoint: { id: "checkpoint.valley.old-mine.entry", sceneId: PROLOGUE_OLD_MINE_SCENE_ID,
+          position: { ...OLD_MINE_ENTRY.spawnPx }, revision: state.checkpoint.revision + 1 } },
+      }];
+      if (!state.quests.ch01_world_literacy_prologue_exit) drafts.push({
+        eventId: `session.old-mine.runtime-quest.${entryCount}`,
+        type: "quest_stage_set",
+        payload: { questId: "ch01_world_literacy_prologue_exit", stageId: "peaceful_exit_reached", stageOrdinal: 1 },
+      });
+      const completionReceiptId = oldMineCompletionReceiptId(session.sessionId);
+      if (!state.receiptIndex[completionReceiptId]) drafts.push({
+        eventId: `session.old-mine.runtime-completion.${entryCount}`,
+        type: "receipt_recorded",
+        payload: { receiptId: completionReceiptId, domain: "world", payloadHash: "prologue-peaceful-exit:v1" },
+      });
+      drafts.push({ eventId: `session.old-mine.runtime-entry-receipt.${entryCount}`, type: "receipt_recorded",
+        payload: { receiptId: `world:${session.sessionId}:old-mine-runtime-entry:${entryCount}`,
+          domain: "world", payloadHash: `old-mine-runtime-entry:${entryCount}` } });
+      const committed = commitSessionProposal(session, { transactionId, drafts });
+      if (!committed.committed) throw new Error(`old-mine runtime adoption rejected: ${committed.reason}`);
+      this.commitCrossSaveRegionExit(committed.session);
+      this.settlement = null;
+      this.oldMineBridge = createOldMineRuntimeBridge(committed.session);
+      return;
+    }
     if (this.infrastructure && sceneId === PROLOGUE_CISTERN_SCENE_ID) {
       const session = this.withCisternCapacity(this.infrastructure.session);
       const adoption = PrologueCisternSession.adoptRuntimeEntry(
@@ -1404,7 +1627,7 @@ export class PrologueFlowSession {
     if (!arrivalScene(sceneId) && sceneId !== PROLOGUE_SETTLEMENT_SCENE_ID &&
         !infrastructureScene(sceneId) && sceneId !== PROLOGUE_CISTERN_SCENE_ID &&
         sceneId !== PROLOGUE_WILDLIFE_SCENE_ID && sceneId !== PROLOGUE_RETURN_FLOW_SCENE_ID &&
-        sceneId !== PROLOGUE_SAFE_RANGE_SCENE_ID) {
+        sceneId !== PROLOGUE_SAFE_RANGE_SCENE_ID && sceneId !== PROLOGUE_OLD_MINE_SCENE_ID) {
       throw new Error(`unsupported prologue scene: ${sceneId}`);
     }
   }

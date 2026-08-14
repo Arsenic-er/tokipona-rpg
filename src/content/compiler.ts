@@ -210,6 +210,7 @@ function validateSource(
       break;
     case "chapter":
       validateArrayIds(source, "segments", "segment_id", issues);
+      validatePrologueAcceptanceSource(source, issues);
       break;
     case "scene":
       validateSceneSource(source, issues);
@@ -284,6 +285,57 @@ function validateSource(
     case "learning_progression":
       validateLearningProgression(source, issues);
       break;
+  }
+}
+
+function validatePrologueAcceptanceSource(source: CompiledSource, issues: ContentIssue[]): void {
+  if (readString(source.content, "chapter_flow_id") !== "ch01_world_literacy_prologue") return;
+  const expectedEvents = [
+    "prologue_segment_started", "prologue_segment_completed", "world_literacy_observed",
+    "world_literacy_intervened", "causal_attribution_submitted", "active_retrieval_submitted",
+    "repair_requested", "repair_completed", "unseen_transfer_completed", "delayed_retrieval_completed",
+    "alternate_method_used", "wildlife_encountered", "wildlife_provoked", "wildlife_fled",
+    "wildlife_harmed", "local_reset_requested", "local_reset_completed", "capacity_milestone_committed",
+    "attack_capacity_calibrated", "range_trial_permission_granted", "first_attack_signature_unlocked",
+    "attack_qualification_started", "attack_qualification_completed", "safe_range_completed",
+  ];
+  const same = (actual: readonly string[], expected: readonly string[]): boolean =>
+    actual.length === expected.length && actual.every((entry, index) => entry === expected[index]);
+  if (!same(readStringArray(source.content, "telemetry_events"), expectedEvents)) {
+    addIssue(issues, "chapter.telemetry_events", source.path, "telemetry_events", "chapter telemetry event IDs and order are noncanonical");
+  }
+  const contract = readObject(source.content, "telemetry_contract");
+  const taxonomy = readObject(contract, "primary_activity_taxonomy");
+  const payload = readObject(contract, "event_payload");
+  if (readString(contract, "schema_version") !== "prologue.telemetry.v0.1" ||
+      !same(readStringArray(taxonomy, "included"), ["world_people_physics", "language", "long_explanation"]) ||
+      !same(readStringArray(taxonomy, "excluded"), ["pause", "idle", "settings", "optional_free_roam"]) ||
+      taxonomy.exclusive_one_of_required !== true ||
+      !same(readStringArray(payload, "required_fields"), ["schemaVersion", "eventId", "sessionId", "sequence", "worldTick", "segmentId", "primaryActivity", "contentActiveMs", "semantic"]) ||
+      !same(readStringArray(payload, "semantic_field_keys"), ["subjectId", "outcomeId", "promptLevel", "count", "durationMs"]) ||
+      !same(readStringArray(payload, "forbidden_fields"), ["rawUtterance", "rawText", "inventoryLotId", "damageOverride", "worldFlagOverride"])) {
+    addIssue(issues, "chapter.telemetry_contract", source.path, "telemetry_contract", "telemetry taxonomy and privacy-safe payload schema are noncanonical");
+  }
+  const acceptance = readObject(source.content, "acceptance");
+  const required = readObject(acceptance, "required");
+  const playtest = readObject(acceptance, "playtest_targets");
+  const languageRange = playtest.language_activity_time_share_range;
+  if (required.mandatory_kills !== 0 || required.safe_range_uses_living_targets !== false ||
+      required.required_tasks_have_non_attack_solution !== true || required.first_attack_reads_kill_count !== false ||
+      required.length_available_is_not_mastered !== true || required.peaceful_progress_when_attack_locked !== true ||
+      required.meaningful_world_deltas_on_return_minimum !== 3 || playtest.forced_hunts !== 0 ||
+      playtest.wildlife_products_required_for_mainline !== false || playtest.survival_needs_modify_language_or_mp !== false ||
+      playtest.prologue_needs_floor_minimum !== 20 || playtest.activity_share_uses_exclusive_primary_taxonomy !== true ||
+      playtest.world_people_physics_time_share_minimum !== 0.65 || !Array.isArray(languageRange) || languageRange.length !== 2 ||
+      languageRange[0] !== 0.15 || languageRange[1] !== 0.25 || playtest.long_explanation_panel_time_share_maximum !== 0.10 ||
+      playtest.focus_active_new_words_per_segment_maximum !== 2 || playtest.recovery_path_visibility_design_max_seconds !== 60 ||
+      playtest.actual_soft_failure_recovery_seconds_p90_target !== 120 || playtest.range_trial_permission_content_minutes_p90_maximum !== 180 ||
+      playtest.formal_attack_unlock_by_180_content_minutes_proportion_minimum !== 0.70 ||
+      !same(readStringArray(playtest, "time_metric_excludes"), ["pause", "idle", "settings", "optional_free_roam"]) ||
+      playtest.mandatory_wildlife_harm_events !== 0 || playtest.survival_ui_active_time_share_maximum !== 0.03 ||
+      playtest.needs_interrupted_language_interaction_share_maximum !== 0.02 || playtest.free_food_water_discovery_seconds_p95_maximum !== 60 ||
+      playtest.hunting_income_vs_nonviolent_job_maximum !== 0.60 || playtest.duplicate_corpse_lot_currency_count !== 0) {
+    addIssue(issues, "chapter.acceptance_contract", source.path, "acceptance", "chapter acceptance thresholds are noncanonical");
   }
 }
 
@@ -1110,6 +1162,9 @@ function floodEmptyTiles(rows: readonly string[], width: number, height: number,
   return visited;
 }
 function validateSceneReferences(source: CompiledSource, sources: readonly CompiledSource[], indexes: MutableIndexes, issues: ContentIssue[]): void {
+  if (readString(source.content, "scene_id") === "scene.valley.old_mine_threshold") {
+    validateOldMineThresholdSource(source, sources, issues);
+  }
   if (readString(source.content, "scene_id") === "scene.valley.den_bypass") {
     const ecology = resolveReferencedSource(source, readString(source.content, "ecology_ref"), sources);
     const fox = ecology?.kind === "ecology" ? readObjectArray(ecology.content, "entities").find((entity) => readString(entity, "entity_id") === "wildlife.fox.den") : undefined;
@@ -1230,6 +1285,68 @@ function validateSceneReferences(source: CompiledSource, sources: readonly Compi
   for (const [index, patch] of readObjectArray(source.content, "material_patches").entries()) {
     const record = readString(patch, "patch_record_ref");
     if (record && !patchIds.has(record)) addIssue(issues, "ref.missing", source.path, `material_patches[${index}].patch_record_ref`, `unknown material patch record ${record}`);
+  }
+}
+
+function validateOldMineThresholdSource(
+  source: CompiledSource,
+  sources: readonly CompiledSource[],
+  issues: ContentIssue[],
+): void {
+  const size = readObject(source.content, "size_tiles");
+  const entrances = readObjectArray(source.content, "entrances");
+  const exits = readObjectArray(source.content, "exits");
+  const routes = readObjectArray(source.content, "routes");
+  const targets = readObjectArray(source.content, "targets");
+  const interactions = readObjectArray(source.content, "interactions");
+  const entrance = entrances.find((item) => readString(item, "entrance_id") === "old_mine.from_settlement");
+  const exit = exits.find((item) => readString(item, "exit_id") === "old_mine.to_settlement");
+  const route = routes.find((item) => readString(item, "route_id") === "old_mine.peaceful_chapter_threshold");
+  const target = targets.find((item) => readString(item, "target_id") === "old_mine.threshold_marker");
+  const interaction = interactions.find((item) => readString(item, "interaction_id") === "old_mine.inspect_threshold_marker");
+  if (readString(source.content, "region_node_id") !== "valley.old_mine_threshold" ||
+      readString(source.content, "chapter_segment_id") !== "return_and_safe_range" ||
+      readNumber(size, "width") !== 24 || readNumber(size, "height") !== 20 ||
+      entrances.length !== 1 || exits.length !== 1 || routes.length !== 1 ||
+      !entrance || !exit || !route || !target || !interaction) {
+    addIssue(issues, "scene.old_mine_identity", source.path, "scene_id", "old-mine threshold identity, 24x20 geometry, and peaceful route are noncanonical");
+  }
+  if (readString(exit ?? {}, "target_scene_id") !== "scene.valley.settlement" ||
+      readString(exit ?? {}, "target_entrance_id") !== "settlement.from_old_mine" ||
+      readString(readObject(exit ?? {}, "traversal_guard"), "predicate") !== "prologue_return_observed == true" ||
+      readString(route ?? {}, "route_kind") !== "non_magic" ||
+      readString(route ?? {}, "solution_family") !== "peaceful_chapter_transition" ||
+      readString(route ?? {}, "from_entrance_id") !== "old_mine.from_settlement" ||
+      readString(route ?? {}, "to_exit_id") !== "old_mine.to_settlement" ||
+      readString(interaction ?? {}, "target_id") !== "old_mine.threshold_marker" ||
+      readString(interaction ?? {}, "verb") !== "inspect_peaceful_chapter_transition" ||
+      interaction?.tool_or_magic_required !== false) {
+    addIssue(issues, "scene.old_mine_peaceful_exit", source.path, "routes", "old-mine threshold must remain non-magic, returnable, and guarded only by prologue return observation");
+  }
+  const settlement = sources.find((item) => item.kind === "scene" &&
+    readString(item.content, "scene_id") === "scene.valley.settlement");
+  const settlementEntrance = settlement && readObjectArray(settlement.content, "entrances")
+    .find((item) => readString(item, "entrance_id") === "settlement.from_old_mine");
+  const settlementExit = settlement && readObjectArray(settlement.content, "exits")
+    .find((item) => readString(item, "exit_id") === "settlement.to_old_mine");
+  if (!settlementEntrance || !settlementExit ||
+      readString(settlementExit, "target_scene_id") !== "scene.valley.old_mine_threshold" ||
+      readString(settlementExit, "target_entrance_id") !== "old_mine.from_settlement" ||
+      readString(readObject(settlementExit, "traversal_guard"), "predicate") !== "prologue_return_observed == true") {
+    addIssue(issues, "scene.old_mine_topology", source.path, "inbound_route_refs", "N02 and the old-mine threshold require reciprocal authored scene bindings with the return-observed guard");
+  }
+  const region = sources.find((item) => item.kind === "region" &&
+    readString(item.content, "region_id") === "valley_prologue");
+  const regionConnections = region ? readObjectArray(region.content, "connections") : [];
+  const outbound = regionConnections.find((item) => readString(item, "from") === "valley.settlement" &&
+    readString(item, "to") === "valley.old_mine_threshold");
+  const inbound = regionConnections.find((item) => readString(item, "from") === "valley.old_mine_threshold" &&
+    readString(item, "to") === "valley.settlement");
+  const connectionGuard = (item: ContentObject | undefined): string =>
+    readString(readObject(item ?? {}, "traversal"), "predicate");
+  if (connectionGuard(outbound) !== "prologue_return_observed == true" ||
+      connectionGuard(inbound) !== "prologue_return_observed == true") {
+    addIssue(issues, "scene.old_mine_region_topology", source.path, "region_node_id", "old-mine region edges must be explicit, reciprocal, and guarded by prologue return observation");
   }
 }
 function validateSingleWordSource(source: CompiledSource, issues: ContentIssue[]): void {

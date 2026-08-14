@@ -94,13 +94,16 @@ describe("production WAL wired prologue flow", () => {
     expect(flow.snapshot().session.economy.lots.find((lot) => lot.itemId === "food.cooked_game_meat"))
       .toMatchObject({ quantity: 0 });
 
-    const records = coordinator.toEnvelope().companion.wal.records;
-    expect(records.filter((record) => record.transactionKind === "death")).toHaveLength(1);
-    expect(records.filter((record) => record.transactionKind === "harvest")).toHaveLength(1);
+    const collected = coordinator.toEnvelope().companion.wal;
+    const records = collected.records;
+    const compactReceipts = collected.compactReceipts ?? [];
+    expect(records).toEqual([]);
+    expect(compactReceipts.filter((record) => record.transactionKind === "death")).toHaveLength(1);
+    expect(compactReceipts.filter((record) => record.transactionKind === "harvest")).toHaveLength(1);
     for (const kind of ["sell", "workorder_start", "workorder_work", "workorder_complete", "workorder_claim", "consume"]) {
-      expect(records.filter((record) => record.transactionKind === kind), kind).toHaveLength(1);
+      expect(compactReceipts.filter((record) => record.transactionKind === kind), kind).toHaveLength(1);
     }
-    expect(records.filter((record) => record.state === "garbage_collectable")).toHaveLength(8);
+    expect(compactReceipts).toHaveLength(8);
 
     const loadedCoordinator = BrowserGameSessionWalCoordinator.load(store);
     const loadedFlow = PrologueFlowSession.fromSave(loadedCoordinator.toSessionSave());
@@ -117,7 +120,7 @@ describe("production WAL wired prologue flow", () => {
     expect(loadedFlow.enterWaterwheel("production.wal.enter-waterwheel")).toMatchObject({ accepted: true });
     expect(loadedFlow.snapshot()).toMatchObject({ mode: "infrastructure", runtime: { sceneId: PROLOGUE_WATERWHEEL_SCENE_ID } });
     expect(loadedCoordinator.isSceneActivationReady()).toBe(true);
-    expect(loadedCoordinator.toCompanion().wal.records.every((record) => record.state === "garbage_collectable")).toBe(true);
+    expect(loadedCoordinator.toCompanion().wal).toMatchObject({ records: [], compactReceipts: expect.any(Array) });
   }, 30_000);
 
   it("resumes gifted registration after process death before WAL death and writes the marker last", () => {

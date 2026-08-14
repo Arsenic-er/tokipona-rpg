@@ -1,0 +1,81 @@
+schema_version: "g01.scene.v0.1"
+content_version: "chapter-01.valley-old-mine-threshold.1"
+scene_id: "scene.valley.old_mine_threshold"
+region_id: "valley_prologue"
+region_node_id: "valley.old_mine_threshold"
+chapter_flow_id: "ch01_world_literacy_prologue"
+chapter_segment_id: "return_and_safe_range"
+status: "machine_contract_ready"
+tile_size_px: 16
+size_tiles: {width: 24, height: 20}
+collision_rows_top_down:
+  - "........................"
+  - "........................"
+  - "........................"
+  - "........................"
+  - "........................"
+  - "........................"
+  - "........................"
+  - "........................"
+  - "........................"
+  - "........................"
+  - "........................"
+  - "........................"
+  - "........................"
+  - "........................"
+  - "........................"
+  - "........................"
+  - "........................"
+  - "........................"
+  - "........................"
+  - "########################"
+
+entrances:
+  - entrance_id: "old_mine.from_settlement"
+    spawn_tile: [2, 1]
+    recovery_entry: true
+    checkpoint_policy: "chapter_transition_threshold"
+
+inbound_route_refs:
+  - inbound_ref_id: "old_mine.inbound_from_settlement"
+    source_scene_id: "scene.valley.settlement"
+    source_exit_id: "settlement.to_old_mine"
+    entrance_id: "old_mine.from_settlement"
+
+exits:
+  - exit_id: "old_mine.to_settlement"
+    trigger_rect_tiles: {x: 22, y: 0, width: 2, height: 7}
+    target_scene_id: "scene.valley.settlement"
+    target_entrance_id: "settlement.from_old_mine"
+    traversal_guard: {predicate: "prologue_return_observed == true"}
+
+route_objectives:
+  - objective_id: "old_mine.peaceful_threshold_reached"
+    predicate: "prologue_return_observed == true"
+  - objective_id: "old_mine.return_to_settlement"
+    predicate: "player_reaches_exit(old_mine.to_settlement)"
+
+routes:
+  - route_id: "old_mine.peaceful_chapter_threshold"
+    route_kind: "non_magic"
+    solution_family: "peaceful_chapter_transition"
+    from_entrance_id: "old_mine.from_settlement"
+    to_exit_id: "old_mine.to_settlement"
+    objective_ids: [old_mine.peaceful_threshold_reached, old_mine.return_to_settlement]
+
+targets:
+  - {target_id: "old_mine.threshold_marker", target_kind: "chapter_transition_marker", material: "stone_and_weathered_wood", interaction_point_tiles: [12, 1]}
+
+interactions:
+  - {interaction_id: "old_mine.inspect_threshold_marker", target_id: "old_mine.threshold_marker", verb: "inspect_peaceful_chapter_transition", tool_or_magic_required: false}
+
+material_patches: []
+
+soft_failure_recoveries:
+  - {failure_id: "old_mine.threshold_obstructed", action: "restore_peaceful_threshold_path", preserves: [learning_evidence, global_progress, region_commits, survival_state]}
+
+recovery:
+  entry_entrance_id: "old_mine.from_settlement"
+  maximum_softlock_recovery_seconds: 60
+  actions: [restore_peaceful_threshold_path, expose_settlement_return]
+  preserves: [learning_evidence, global_progress, region_commits, survival_state, life_state, corpse_ledger, processing_ledger]

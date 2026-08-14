@@ -37,6 +37,7 @@ describe("runtime content artifact generator", () => {
       "scene.valley.arrival_shelf",
       "scene.valley.den_bypass",
       "scene.valley.high_cistern",
+      "scene.valley.old_mine_threshold",
       "scene.valley.return_channel",
       "scene.valley.safe_range",
       "scene.valley.service_channel",
@@ -112,6 +113,10 @@ describe("runtime content artifact generator", () => {
       expect.objectContaining({
         sourceSceneId: "scene.valley.safe_range", sourceExitId: "safe_range.to_settlement",
         entranceId: "settlement.from_safe_range",
+      }),
+      expect.objectContaining({
+        sourceSceneId: "scene.valley.old_mine_threshold", sourceExitId: "old_mine.to_settlement",
+        entranceId: "settlement.from_old_mine",
       }),
     ]);
   });

@@ -44,9 +44,10 @@ const ARRIVAL_MANIFEST = requiredManifestByRegionNode("valley.arrival_shelf");
 const STREAM_MANIFEST = requiredManifestByRegionNode("valley.stream_section");
 const SETTLEMENT_MANIFEST = requiredManifestByRegionNode("valley.settlement");
 const SAFE_RANGE_MANIFEST = requiredManifestByRegionNode("valley.safe_range");
+const OLD_MINE_MANIFEST = requiredManifestByRegionNode("valley.old_mine_threshold");
 if (ARRIVAL_MANIFEST.regionId !== STREAM_MANIFEST.regionId || STREAM_MANIFEST.regionId !== SETTLEMENT_MANIFEST.regionId ||
-    SETTLEMENT_MANIFEST.regionId !== SAFE_RANGE_MANIFEST.regionId) {
-  throw new Error("arrival, stream and settlement generated scenes must belong to one runtime area");
+    SETTLEMENT_MANIFEST.regionId !== SAFE_RANGE_MANIFEST.regionId || SAFE_RANGE_MANIFEST.regionId !== OLD_MINE_MANIFEST.regionId) {
+  throw new Error("arrival, stream, settlement, safe-range and old-mine scenes must belong to one runtime area");
 }
 
 type SettlementExitManifest = RuntimeSceneExitManifest & Readonly<{
@@ -67,6 +68,7 @@ const SETTLEMENT_EXIT = SETTLEMENT_EXIT_CANDIDATE as SettlementExitManifest;
 export const PROLOGUE_ARRIVAL_SCENE_ID = ARRIVAL_MANIFEST.sceneId;
 export const PROLOGUE_STREAM_SCENE_ID = STREAM_MANIFEST.sceneId;
 export const PROLOGUE_SETTLEMENT_SCENE_ID = SETTLEMENT_MANIFEST.sceneId;
+export const PROLOGUE_OLD_MINE_SCENE_ID = OLD_MINE_MANIFEST.sceneId;
 export const PROLOGUE_AREA_ID = ARRIVAL_MANIFEST.regionId;
 export const PROLOGUE_SETTLEMENT_ENTRANCE_ID = SETTLEMENT_EXIT.target.entranceId;
 
@@ -131,12 +133,14 @@ export const PROLOGUE_ARRIVAL_SCENE: SceneDefinition = toRuntimeScene(ARRIVAL_MA
 export const PROLOGUE_STREAM_SCENE: SceneDefinition = toRuntimeScene(STREAM_MANIFEST);
 export const PROLOGUE_SETTLEMENT_SCENE: SceneDefinition = toRuntimeScene(SETTLEMENT_MANIFEST);
 export const PROLOGUE_SAFE_RANGE_RUNTIME_SCENE: SceneDefinition = toRuntimeScene(SAFE_RANGE_MANIFEST);
+export const PROLOGUE_OLD_MINE_RUNTIME_SCENE: SceneDefinition = toRuntimeScene(OLD_MINE_MANIFEST);
 
 export const PROLOGUE_ARRIVAL_STREAM_SCENES = Object.freeze([
   PROLOGUE_ARRIVAL_SCENE,
   PROLOGUE_STREAM_SCENE,
   PROLOGUE_SETTLEMENT_SCENE,
   PROLOGUE_SAFE_RANGE_RUNTIME_SCENE,
+  PROLOGUE_OLD_MINE_RUNTIME_SCENE,
 ]);
 export type PrologueRoute = "unresolved" | "tools" | "telo";
 
@@ -639,12 +643,14 @@ export class PrologueArrivalStreamSession {
         [PROLOGUE_STREAM_SCENE_ID]: PROLOGUE_AREA_ID,
         [PROLOGUE_SETTLEMENT_SCENE_ID]: PROLOGUE_AREA_ID,
         [SAFE_RANGE_MANIFEST.sceneId]: PROLOGUE_AREA_ID,
+        [OLD_MINE_MANIFEST.sceneId]: PROLOGUE_AREA_ID,
       },
       entranceByScene: {
         [PROLOGUE_ARRIVAL_SCENE_ID]: ARRIVAL_MANIFEST.recovery.entryEntranceId,
         [PROLOGUE_STREAM_SCENE_ID]: STREAM_MANIFEST.recovery.entryEntranceId,
         [PROLOGUE_SETTLEMENT_SCENE_ID]: SETTLEMENT_MANIFEST.recovery.entryEntranceId,
         [SAFE_RANGE_MANIFEST.sceneId]: SAFE_RANGE_MANIFEST.recovery.entryEntranceId,
+        [OLD_MINE_MANIFEST.sceneId]: OLD_MINE_MANIFEST.recovery.entryEntranceId,
       },
       viewportPx: { x: 320, y: 128 },
       fixedHz: FIXED_HZ,

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   CROSS_SAVE_WAL_COORDINATOR_ID,
+  CrossSaveWalDuplicateReceiptError,
   CrossSaveWalRuntime,
   InMemoryDurableCrossSaveWalStore,
   createCrossSaveOutputId,
@@ -31,6 +32,10 @@ const fixture = (owners: readonly string[] = ["inventory", "ledger"]) => {
   return { runtime, participants, durableStore };
 };
 const begin = (runtime: CrossSaveWalRuntime, key = "event.1", operations = [operation("inventory"), operation("ledger")]) => runtime.begin({ transactionKind: "harvest", canonicalIdempotencyKey: key, operations, tick: 1 });
+const resignSave = <T extends Record<string, any>>(body: T): T & { checksum: `sha256:${string}` } => ({ ...body,
+  checksum: sha256Canonical({ schema: body.schema, contract: body.contract, records: body.records,
+    ...(body.compactReceipts === undefined ? {} : { compactReceipts: body.compactReceipts }),
+    receiptIndex: body.receiptIndex, acceptingNewTransactions: body.acceptingNewTransactions } as never) });
 
 describe("cross-save WAL durable protocol", () => {
   it("hashes the canonical bytes and matches the fixed transaction golden vector", () => {
@@ -111,7 +116,7 @@ it("merges an old checkpoint with a newer authoritative durable commit", () => {
     expect(inventory.apply(inventoryEnvelope, prepared.transactionId)).toBe(inventoryParticipant.afterRevision);
     const committedRecord = { ...prepared, state: "committed" as const, durableDecision: "commit" as const, participantApplyAcks: ["inventory"], participants: prepared.participants.map((participant, index) => index === 0 ? { ...participant, appliedRevision: participant.afterRevision } : participant) };
     const raw = source.snapshot(), body = { ...raw, records: [committedRecord] };
-    const crashSave = { ...body, checksum: sha256Canonical({ schema: body.schema, contract: body.contract as never, records: body.records as never, receiptIndex: body.receiptIndex as never, acceptingNewTransactions: body.acceptingNewTransactions }) };
+    const crashSave = resignSave(body);
     expect(isCrossSaveWalSave(crashSave)).toBe(true);
     const resumedStore = new InMemoryDurableCrossSaveWalStore(), resumed = new CrossSaveWalRuntime({ contract: contract(), participants: [inventory, ledger], durableStore: resumedStore });
     resumed.load(crashSave);
@@ -170,16 +175,7 @@ it("allows two inventory_lot outputs in one operation and strictly rejects forge
       operationEnvelopes: [forgedEnvelope],
     };
     const forgedBodySave = { ...save, records: [forgedRecord] };
-    const forgedSave = {
-      ...forgedBodySave,
-      checksum: sha256Canonical({
-        schema: forgedBodySave.schema,
-        contract: forgedBodySave.contract as never,
-        records: forgedBodySave.records as never,
-        receiptIndex: forgedBodySave.receiptIndex as never,
-        acceptingNewTransactions: forgedBodySave.acceptingNewTransactions,
-      }),
-    };
+    const forgedSave = resignSave(forgedBodySave);
     expect(isCrossSaveWalSave(forgedSave)).toBe(false);
     expect(() => fixture(["inventory"]).runtime.load(forgedSave)).toThrow("corrupt");
   });
@@ -198,6 +194,55 @@ it("allows two inventory_lot outputs in one operation and strictly rejects forge
     expect(() => runtime.garbageCollect(record.transactionId, 3)).toThrow("snapshots");
     for (const participant of applied.participants) { durableStore.acknowledgeDurableSnapshot(record.transactionId, participant.saveOwner, participant.afterRevision); runtime.acknowledgeParticipantSnapshot(record.transactionId, participant.saveOwner, participant.afterRevision, 3); }
     expect(runtime.garbageCollect(record.transactionId, 4).state).toBe("garbage_collectable");
+    const compacted = runtime.snapshot();
+    expect(compacted.records).toEqual([]);
+    expect(compacted.compactReceipts).toEqual([expect.objectContaining({ transactionId: record.transactionId,
+      transactionKind: "harvest", canonicalIdempotencyKey: "event.1", collectedTick: 4 })]);
+    expect(isCrossSaveWalSave(compacted)).toBe(true);
+    const resumed = fixture(); resumed.runtime.load(compacted); expect(resumed.runtime.recover(5).sceneActivationBlocked).toBe(false);
+    expect(resumed.runtime.recordsSnapshot()).toEqual([]);
+    expect(resumed.runtime.compactReceiptsSnapshot()).toHaveLength(1);
+    resumed.runtime.endBarrier();
+    let duplicate: unknown;
+    try { begin(resumed.runtime); } catch (error) { duplicate = error; }
+    expect(duplicate).toBeInstanceOf(CrossSaveWalDuplicateReceiptError);
+    expect([...(duplicate as CrossSaveWalDuplicateReceiptError).receipt.deterministicReceiptIds].sort()).toEqual([...compacted.receiptIndex].sort());
+    expect(() => begin(resumed.runtime, "event.1", [{ ...operation("inventory"), redoPayload: { changed: true } }, operation("ledger")])).toThrow(/conflicts/);
+  });
+
+  it("migrates legacy garbage-collectable payloads and rejects re-signed compact receipt ID drift", () => {
+    const source = fixture(); const record = begin(source.runtime, "legacy-collection"); const applied = source.runtime.commit(record.transactionId, 2);
+    for (const participant of applied.participants) { source.durableStore.acknowledgeDurableSnapshot(record.transactionId, participant.saveOwner, participant.afterRevision); source.runtime.acknowledgeParticipantSnapshot(record.transactionId, participant.saveOwner, participant.afterRevision, 3); }
+    const collected = source.runtime.garbageCollect(record.transactionId, 4), compactSave = source.runtime.snapshot();
+    const legacyBody = { schema: compactSave.schema, contract: compactSave.contract, records: [collected], receiptIndex: compactSave.receiptIndex, acceptingNewTransactions: compactSave.acceptingNewTransactions };
+    const legacy = resignSave(legacyBody);
+    expect(isCrossSaveWalSave(legacy)).toBe(true);
+    const resumed = fixture(); resumed.runtime.load(legacy); expect(resumed.runtime.recover(5).sceneActivationBlocked).toBe(false);
+    expect(resumed.runtime.snapshot()).toMatchObject({ records: [], compactReceipts: [expect.objectContaining({ transactionId: record.transactionId })] });
+
+    const forgedBody = structuredClone(compactSave) as any;
+    forgedBody.compactReceipts[0].deterministicReceiptIds[0] = `wal-receipt:sha256:${"0".repeat(64)}`;
+    const forged = resignSave(forgedBody);
+    expect(isCrossSaveWalSave(forged)).toBe(false);
+  });
+
+  it("keeps collected WAL growth to a bounded compact index without redo payloads", () => {
+    const { runtime, durableStore } = fixture(["inventory"]);
+    for (let revision = 0; revision < 25; revision += 1) {
+      const record = begin(runtime, `bounded.${revision}`, [operation("inventory", revision, `lot.${revision}`, ["harvest"])]);
+      const applied = runtime.commit(record.transactionId, revision + 1);
+      const participant = applied.participants[0]!;
+      durableStore.acknowledgeDurableSnapshot(record.transactionId, participant.saveOwner, participant.afterRevision);
+      runtime.acknowledgeParticipantSnapshot(record.transactionId, participant.saveOwner, participant.afterRevision, revision + 2);
+      runtime.garbageCollect(record.transactionId, revision + 3);
+    }
+    const save = runtime.snapshot(), serialized = JSON.stringify(save);
+    expect(save.records).toEqual([]);
+    expect(save.compactReceipts).toHaveLength(25);
+    expect(save.compactReceipts!.every((receipt) => JSON.stringify(receipt).length < 700)).toBe(true);
+    expect(serialized).not.toContain("redoPayload");
+    expect(serialized.length).toBeLessThan(25_000);
+    expect(isCrossSaveWalSave(save)).toBe(true);
   });
 
   it("strict reader rejects corrupt checksum, schema, revisions, ids, and illegal acks", () => {
@@ -220,9 +265,9 @@ const preparedFixture = fixture(), prepared = begin(preparedFixture.runtime, "st
       { ...prepared, participantSnapshotAcks: ["inventory"] },
     ]) {
       const body = { ...preparedSave, records: [illegal] };
-      const resigned = { ...body, checksum: sha256Canonical({ schema: body.schema, contract: body.contract as never, records: body.records as never, receiptIndex: body.receiptIndex as never, acceptingNewTransactions: body.acceptingNewTransactions }) };
+      const resigned = resignSave(body);
       expect(isCrossSaveWalSave(resigned)).toBe(false);
     }
-    for (const badRecord of mutations) { const body = { ...good, records: [badRecord] }; const bad = { ...body, checksum: sha256Canonical({ schema: body.schema, contract: body.contract as never, records: body.records as never, receiptIndex: body.receiptIndex as never, acceptingNewTransactions: body.acceptingNewTransactions }) }; expect(isCrossSaveWalSave(bad)).toBe(false); }
+    for (const badRecord of mutations) { const body = { ...good, records: [badRecord] }; const bad = resignSave(body); expect(isCrossSaveWalSave(bad)).toBe(false); }
   });
 });

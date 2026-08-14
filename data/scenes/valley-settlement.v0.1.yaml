@@ -57,6 +57,10 @@ entrances:
     spawn_tile: [37, 1]
     recovery_entry: true
     checkpoint_policy: "safe_range_return_route"
+  - entrance_id: "settlement.from_old_mine"
+    spawn_tile: [2, 1]
+    recovery_entry: true
+    checkpoint_policy: "old_mine_return_route"
 
 inbound_route_refs:
   - inbound_ref_id: "settlement.inbound_from_stream"
@@ -71,6 +75,10 @@ inbound_route_refs:
     source_scene_id: "scene.valley.safe_range"
     source_exit_id: "safe_range.to_settlement"
     entrance_id: "settlement.from_safe_range"
+  - inbound_ref_id: "settlement.inbound_from_old_mine"
+    source_scene_id: "scene.valley.old_mine_threshold"
+    source_exit_id: "old_mine.to_settlement"
+    entrance_id: "settlement.from_old_mine"
 
 exits:
   - exit_id: "settlement.to_stream"
@@ -85,6 +93,11 @@ exits:
     target_scene_id: "scene.valley.safe_range"
     target_entrance_id: "safe_range.from_settlement"
     traversal_guard: {predicate: "range_trial_permission == true"}
+  - exit_id: "settlement.to_old_mine"
+    trigger_rect_tiles: {x: 0, y: 8, width: 2, height: 7}
+    target_scene_id: "scene.valley.old_mine_threshold"
+    target_entrance_id: "old_mine.from_settlement"
+    traversal_guard: {predicate: "prologue_return_observed == true"}
 
 route_objectives:
   - objective_id: "settlement.use_public_relief"

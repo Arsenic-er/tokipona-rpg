@@ -164,7 +164,7 @@ segments:
 
   - segment_id: "return_and_safe_range"
     content_budget_minutes: [155, 180]
-    map_nodes: [valley.settlement, valley.safe_range]
+    map_nodes: [valley.settlement, valley.safe_range, valley.old_mine_threshold]
     required_task_ids: [ch01_return_observation]
     optional_task_ids: [ch01_first_attack_qualification]
     task_family_id: "delayed_return_and_safe_transfer"
@@ -309,6 +309,17 @@ telemetry_events:
   - attack_qualification_started
   - attack_qualification_completed
   - safe_range_completed
+
+telemetry_contract:
+  schema_version: "prologue.telemetry.v0.1"
+  primary_activity_taxonomy:
+    included: [world_people_physics, language, long_explanation]
+    excluded: [pause, idle, settings, optional_free_roam]
+    exclusive_one_of_required: true
+  event_payload:
+    required_fields: [schemaVersion, eventId, sessionId, sequence, worldTick, segmentId, primaryActivity, contentActiveMs, semantic]
+    semantic_field_keys: [subjectId, outcomeId, promptLevel, count, durationMs]
+    forbidden_fields: [rawUtterance, rawText, inventoryLotId, damageOverride, worldFlagOverride]
 
 acceptance:
   required:

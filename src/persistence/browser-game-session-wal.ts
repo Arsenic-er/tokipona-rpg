@@ -423,9 +423,12 @@ class DurableBrowserWalStore implements DurableCrossSaveWalStore {
     this.backing.update((draft) => { draft.durableWalSnapshotAcks = [...draft.durableWalSnapshotAcks,
       { transactionId, saveOwner, revision }]; });
   }
-  public reconcileFromSave(checkpointRecords: readonly CrossSaveWalRecord[]): readonly CrossSaveWalRecord[] {
+  public reconcileFromSave(checkpointRecords: readonly CrossSaveWalRecord[], collectedTransactionIds: readonly string[] = []): readonly CrossSaveWalRecord[] {
+    const collected = new Set(collectedTransactionIds);
     const merged = new Map(this.backing.peek().durableWalRecords.map((record) => [record.transactionId, record]));
+    for (const transactionId of collected) merged.delete(transactionId);
     for (const checkpoint of checkpointRecords) {
+      if (collected.has(checkpoint.transactionId)) continue;
       const durable = merged.get(checkpoint.transactionId);
       if (!durable || recordScore(checkpoint) > recordScore(durable)) merged.set(checkpoint.transactionId, checkpoint);
     }
@@ -434,6 +437,7 @@ class DurableBrowserWalStore implements DurableCrossSaveWalStore {
       // The checkpoint WAL already owns records at or above its durable rank.
       // Keep only phase-ahead records written before the next atomic WAL snapshot flush.
       draft.durableWalRecords = draft.durableWalRecords.filter((record) => {
+        if (collected.has(record.transactionId)) return false;
         const checkpoint = checkpointRecords.find((candidate) => candidate.transactionId === record.transactionId);
         return !checkpoint || recordScore(record) > recordScore(checkpoint);
       });
@@ -592,6 +596,11 @@ export class BrowserGameSessionWalCoordinator implements CrossSaveTransactionCoo
       }
       if (current.state === "applied" && current.participantSnapshotAcks.length === current.participants.length) {
         this.bridge.garbageCollect(record.transactionId, tick);
+        this.backing.update((draft) => {
+          draft.ownerSnapshots = draft.ownerSnapshots.map((snapshot) => ({ ...snapshot,
+            appliedTransactionIds: snapshot.appliedTransactionIds.filter((transactionId) => transactionId !== record.transactionId) }));
+          draft.durableWalSnapshotAcks = draft.durableWalSnapshotAcks.filter((entry) => entry.transactionId !== record.transactionId);
+        });
       }
     }
   }

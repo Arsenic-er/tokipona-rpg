@@ -9,6 +9,7 @@ import {
   type PrologueFlowAction,
   type PrologueFlowSafeRangeCompileResult,
   type PrologueFlowSafeRangeView,
+  type PrologueFlowOldMineView,
   type PrologueFlowP0LearningView,
   type PrologueFlowSnapshot,
 } from "./game/prologue-flow";
@@ -49,6 +50,7 @@ import {
   type SafeRangeUiCommand,
 } from "./rpg-safe-range-ui";
 import { createRpgP0LearningUi, type P0LearningUiCommand } from "./rpg-p0-learning-ui";
+import { createRpgOldMineUi, type OldMineUiCommand } from "./rpg-old-mine-ui";
 
 type GlyphPhase = "undiscovered" | "discovered" | "activated";
 type Tone = "neutral" | "success" | "warning" | "danger";
@@ -108,6 +110,16 @@ class FlowBrowserPort {
 
   p0LearningView(): PrologueFlowP0LearningView {
     return this.flow.p0LearningView();
+  }
+
+  oldMineView(): PrologueFlowOldMineView {
+    return this.flow.oldMineView();
+  }
+
+  oldMine(command: OldMineUiCommand): UiResult {
+    return command.kind === "enter_old_mine"
+      ? flowResult(this.flow.enterOldMine(nextId("old-mine-enter")), "进入旧矿门槛；和平章节出口已提交。", "success")
+      : flowResult(this.flow.returnOldMineToSettlement(nextId("old-mine-return")), "从旧矿门槛返回 N02 聚落。", "neutral");
   }
 
   p0Learning(command: P0LearningUiCommand): UiResult {
@@ -586,6 +598,7 @@ const economyUi = createRpgEconomyUi((command) => run(() => port.economy(command
 const returnFlowUi = createRpgReturnFlowUi((command) => run(() => port.returnFlow(command)));
 const safeRangeUi = createRpgSafeRangeUi((command) => run(() => port.safeRange(command)));
 const p0LearningUi = createRpgP0LearningUi((command) => run(() => port.p0Learning(command)));
+const oldMineUi = createRpgOldMineUi((command) => run(() => port.oldMine(command)));
 let priorTime = performance.now();
 let activationStarted: number | null = null;
 let jumpQueued = false;
@@ -623,6 +636,7 @@ function render(snapshot: PrologueFlowSnapshot, now: number): void {
   returnFlowUi.render(snapshot);
   safeRangeUi.render(port.safeRangeView(), port.safeRangeCompileResult());
   p0LearningUi.render(port.p0LearningView());
+  oldMineUi.render(port.oldMineView());
   const scene = requiredScene(snapshot.runtime.sceneId);
   drawWorld(snapshot, scene);
   sceneLabel.textContent = sceneTitle(snapshot.runtime.sceneId);
@@ -633,7 +647,7 @@ function render(snapshot: PrologueFlowSnapshot, now: number): void {
   objectiveLabel.textContent = objective(snapshot);
   required<HTMLButtonElement>('[data-action="checkpoint"]').disabled =
     snapshot.mode === "cistern" || snapshot.mode === "wildlife" || snapshot.mode === "return_flow" ||
-    snapshot.mode === "safe_range";
+    snapshot.mode === "safe_range" || snapshot.mode === "old_mine";
 
   const inSettlement = snapshot.mode === "settlement";
   settlementPanel.hidden = !inSettlement;
@@ -660,6 +674,11 @@ function render(snapshot: PrologueFlowSnapshot, now: number): void {
   }
   if (snapshot.mode === "safe_range") {
     hintLabel.textContent = "使用 N08 面板选择惰性靶具，检查结构化预览后执行。";
+    hintLabel.dataset.active = "true";
+    return;
+  }
+  if (snapshot.mode === "old_mine") {
+    hintLabel.textContent = "旧矿和平门槛已完成；可保存、读取或返回 N02 聚落。";
     hintLabel.dataset.active = "true";
     return;
   }
@@ -989,6 +1008,11 @@ function topicsForNpc(npc: RuntimeSceneNpcManifest): readonly SettlementDialogue
 }
 
 function objective(snapshot: PrologueFlowSnapshot): string {
+  if (snapshot.mode === "old_mine") {
+    return snapshot.oldMine?.chapterComplete
+      ? "序章已以零击杀抵达旧矿门槛；可安全返回 N02 或保留存档。"
+      : "旧矿门槛记录不完整；请使用恢复路径返回最近检查点。";
+  }
   if (snapshot.mode === "safe_range") {
     return snapshot.safeRange?.firstAttackSignatureCompleted
       ? "N08 四种惰性材料对照已完成；可返回 N02。"
@@ -1148,6 +1172,7 @@ function factLabel(fact: string): string {
 }
 
 function sceneTitle(sceneId: string): string {
+  if (sceneId === "scene.valley.old_mine_threshold") return "旧矿 · 和平章节门槛";
   if (sceneId === "scene.valley.safe_range") return "N08 · 惰性材料靶场";
   if (sceneId === "scene.valley.return_channel") return "N07 · 回流水路";
   if (sceneId === PROLOGUE_WILDLIFE_SCENE_ID) return "N06 · 兽穴绕道";

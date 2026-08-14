@@ -61,9 +61,12 @@ describe("production browser GameSession WAL companion", () => {
     const envelope = coordinator.toEnvelope();
     expect(envelope.schema).toBe(BROWSER_GAME_SESSION_SAVE_ENVELOPE_SCHEMA);
     expect(envelope.companion.ownerSnapshots).toHaveLength(8);
-    expect(envelope.companion.wal.records[0]).toMatchObject({ state: "garbage_collectable" });
-    expect(envelope.companion.wal.records[0]!.participantSnapshotAcks)
-      .toHaveLength(envelope.companion.wal.records[0]!.participants.length);
+    expect(envelope.companion.wal.records).toEqual([]);
+    expect(envelope.companion.wal.compactReceipts).toEqual([expect.objectContaining({
+      transactionKind: "death", canonicalIdempotencyKey: expect.any(String), collectedTick: expect.any(Number),
+    })]);
+    expect(envelope.companion.ownerSnapshots.every((snapshot) => snapshot.appliedTransactionIds.length === 0)).toBe(true);
+    expect(envelope.companion.durableWalSnapshotAcks).toEqual([]);
     expect(readBrowserGameSessionSaveEnvelope(JSON.parse(JSON.stringify(envelope)))).toEqual(envelope);
 
     const reloaded = BrowserGameSessionWalCoordinator.load(store, 2);
@@ -71,7 +74,7 @@ describe("production browser GameSession WAL companion", () => {
     expect(reloaded.toSessionSave().state.lifeCorpseLedger.corpses).toHaveProperty(
       reloaded.toSessionSave().state.lifeCorpseLedger.corpseIdByLifeId[life().lifeInstanceId]!,
     );
-    expect(reloaded.toCompanion().wal.records[0]!.state).toBe("garbage_collectable");
+    expect(reloaded.toCompanion().wal).toMatchObject({ records: [], compactReceipts: [expect.objectContaining({ transactionKind: "death" })] });
   });
 
   it("recovers every actual durable write cut to an unambiguous before or committed death fixed point", () => {
@@ -96,8 +99,8 @@ describe("production browser GameSession WAL companion", () => {
       if (durableDeath?.durableDecision === "commit") {
         outcomes.add("committed");
         expect(corpseId).toBeDefined();
-        const record = reloaded.toCompanion().wal.records.find((candidate) => candidate.transactionKind === "death")!;
-        expect(save.state.receiptIndex[createCrossSaveReceiptId(record.transactionId, "death")]).toBeDefined();
+        const receipt = reloaded.toCompanion().wal.compactReceipts?.find((candidate) => candidate.transactionKind === "death")!;
+        expect(save.state.receiptIndex[createCrossSaveReceiptId(receipt.transactionId, "death")]).toBeDefined();
       } else {
         outcomes.add("before");
         expect(durableDeath?.state === "aborted" || durableDeath?.durableDecision === "undecided" || !durableDeath).toBe(true);
@@ -145,12 +148,13 @@ describe("production browser GameSession WAL companion", () => {
 
     const withRecord = deathCoordinator();
     withRecord.coordinator.commitDeath(deathRequest());
+    const fullRecord = (withRecord.store.read() as ReturnType<typeof withRecord.coordinator.toCompanion>).wal.records[0]!;
     const recorded = withRecord.coordinator.toCompanion();
     const resignedWal = { ...valid, wal: recorded.wal };
     const resignedWalStore = new MemoryDurableJsonStore(); resignedWalStore.write(resignedWal);
     expect(() => BrowserGameSessionWalCoordinator.load(resignedWalStore)).toThrow(/checksum/);
 
-    const validPhaseAheadRecord = { ...valid, durableWalRecords: [recorded.wal.records[0]!] };
+    const validPhaseAheadRecord = { ...valid, durableWalRecords: [fullRecord] };
     const phaseAheadStore = new MemoryDurableJsonStore(); phaseAheadStore.write(validPhaseAheadRecord);
     expect(() => BrowserGameSessionWalCoordinator.load(phaseAheadStore)).toThrow(/checksum/);
 

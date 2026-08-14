@@ -14,7 +14,7 @@ button:disabled { color: #625f59; cursor: not-allowed; }
 .rpg-header h1 { font-family: "Microsoft YaHei UI", sans-serif; font-size: 18px; letter-spacing: .12em; }
 .rpg-header a { color: #b9a778; font-size: 10px; text-decoration: none; }
 .eyebrow { color: #817b6e; font-size: 8px; letter-spacing: .14em; }
-.notice, .hud, .telo-panel, .settlement-panel, .status, .command-row { border: 1px solid #39352e; background: #101113; }
+.notice, .hud, .telo-panel, .settlement-panel, .old-mine-gateway, .old-mine-panel, .status, .command-row { border: 1px solid #39352e; background: #101113; }
 .notice { margin-bottom: 6px; padding: 6px 8px; color: #aaa18e; font-size: 9px; line-height: 1.5; }
 .hud { margin-bottom: 6px; padding: 7px 8px; }
 .hud-row, .meter-row, .panel-heading { justify-content: space-between; gap: 8px; }
@@ -76,6 +76,18 @@ button:disabled { color: #625f59; cursor: not-allowed; }
 @media (max-width: 440px) { .npc-grid { grid-template-columns: 1fr; } .npc-card { display: grid; grid-template-columns: 1fr 2fr; gap: 4px; } .npc-card small { grid-column: 1; } .topic-row { grid-column: 2; grid-row: 1 / span 2; grid-template-columns: repeat(2, 1fr); margin-top: 0; } }
 @media (max-width: 370px) { .telo-panel { grid-template-columns: 38px 1fr; } .telo-panel button { grid-column: 1 / -1; } .command-row, .service-grid, .job-row { grid-template-columns: repeat(3, 1fr); } }
 @media (prefers-reduced-motion: reduce) { .glyph-placeholder { transition: none; } }
+
+.old-mine-gateway, .old-mine-panel { margin-top: 6px; padding: 8px; }
+.old-mine-gateway h2, .old-mine-gateway p, .old-mine-panel h2, .old-mine-panel p { margin: 0; }
+.old-mine-gateway h2, .old-mine-panel h2 { margin-top: 2px; color: #c8b184; font-size: 13px; }
+.old-mine-gateway > p, .old-mine-panel > p { margin-top: 6px; color: #9f9788; font-size: 7px; line-height: 1.55; }
+.old-mine-gateway > button, .old-mine-panel > button { width: 100%; min-height: 32px; margin-top: 6px; }
+.old-mine-contract { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; margin-top: 7px; }
+.old-mine-contract span { padding: 5px; color: #8f897d; border: 1px solid #403a30; background: #0c0c0b; font-size: 7px; }
+.old-mine-contract strong { display: block; margin-top: 2px; color: #cad59a; font-size: 8px; }
+.old-mine-live { min-height: 1.5em; color: #c3d1aa !important; }
+.old-mine-gateway button:focus-visible, .old-mine-panel button:focus-visible { outline: 2px solid #dfc98f; outline-offset: 2px; }
+@media (max-width: 370px) { .old-mine-contract { grid-template-columns: 1fr; } }
 
 .infrastructure-panel { margin-top: 6px; padding: 8px; border: 1px solid #3f3a31; background: #101113; }
 .infrastructure-panel h2, .infrastructure-panel p { margin: 0; }
