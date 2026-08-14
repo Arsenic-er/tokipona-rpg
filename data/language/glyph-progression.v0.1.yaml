@@ -88,6 +88,54 @@ runtime_curriculum:
   catalog_ref: "./pu-120-glyph-catalog.v0.2.json"
   target_state: produced
   action_kinds: [discover, attune, context_0, context_1, repair]
+  corpus_expansion_registry:
+    registry_id: "post-pu120.csp-expansion"
+    base_corpus:
+      corpus_id: "pu-120"
+      learning_content_version: "core-120.prologue-12"
+      action_namespace: "core120"
+      save_partition_id: "learning.corpus.pu-120"
+      save_schema_version: "tokipona.core120-learning-campaign.v0.2"
+      canonical_word_key: "latin_word_id"
+    policies:
+      extension_order: [csp-tier1-remainder, csp-tier2, csp-tier3]
+      new_corpus_id_required: true
+      new_content_version_required: true
+      distinct_action_namespace_required: true
+      distinct_save_partition_required: true
+      append_to_base_corpus_forbidden: true
+      cross_corpus_word_overlap_forbidden: true
+      display_codepoint_is_identity: false
+      runtime_load_requires_admitted_status: true
+      admission_requirements:
+        - corpus_id
+        - content_version
+        - action_namespace
+        - save_partition
+        - reviewed_word_manifest
+        - semantic_review
+        - pronunciation_assets
+        - glyph_assets
+    admitted_corpus_ids: []
+    phases:
+      - phase_id: "csp-tier1-remainder"
+        sequence: 1
+        predecessor_id: "pu-120"
+        status: "pending_review"
+        admission_contract: null
+        blocked_reasons: [corpus_id, content_version, action_namespace, save_partition, reviewed_word_manifest, semantic_review, pronunciation_assets, glyph_assets]
+      - phase_id: "csp-tier2"
+        sequence: 2
+        predecessor_id: "csp-tier1-remainder"
+        status: "pending_review"
+        admission_contract: null
+        blocked_reasons: [corpus_id, content_version, action_namespace, save_partition, reviewed_word_manifest, semantic_review, pronunciation_assets, glyph_assets]
+      - phase_id: "csp-tier3"
+        sequence: 3
+        predecessor_id: "csp-tier2"
+        status: "pending_review"
+        admission_contract: null
+        blocked_reasons: [corpus_id, content_version, action_namespace, save_partition, reviewed_word_manifest, semantic_review, pronunciation_assets, glyph_assets]
   # One-time reader for saves emitted before semantic and asset release digests
   # were separated. New saves bind the semantic digest below this projection.
   compatible_legacy_learning_contracts:

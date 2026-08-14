@@ -14785,6 +14785,99 @@
       "fixedSlotOnlyProductionForbidden": true
     }
   },
+  "corpusExpansionRegistry": {
+    "sourceDigest": "sha256:e59ad50c34d2908620a8e11febd4ee0dac86fead640a14c0291000aee1f91e65",
+    "sourcePath": "data/language/glyph-progression.v0.1.yaml",
+    "contentVersion": "core-120.prologue-12",
+    "registryId": "post-pu120.csp-expansion",
+    "baseCorpus": {
+      "corpusId": "pu-120",
+      "learningContentVersion": "core-120.prologue-12",
+      "actionNamespace": "core120",
+      "savePartitionId": "learning.corpus.pu-120",
+      "saveSchemaVersion": "tokipona.core120-learning-campaign.v0.2",
+      "canonicalWordKey": "latin_word_id"
+    },
+    "policies": {
+      "extensionOrder": [
+        "csp-tier1-remainder",
+        "csp-tier2",
+        "csp-tier3"
+      ],
+      "newCorpusIdRequired": true,
+      "newContentVersionRequired": true,
+      "distinctActionNamespaceRequired": true,
+      "distinctSavePartitionRequired": true,
+      "appendToBaseCorpusForbidden": true,
+      "crossCorpusWordOverlapForbidden": true,
+      "displayCodepointIsIdentity": false,
+      "runtimeLoadRequiresAdmittedStatus": true,
+      "admissionRequirements": [
+        "corpus_id",
+        "content_version",
+        "action_namespace",
+        "save_partition",
+        "reviewed_word_manifest",
+        "semantic_review",
+        "pronunciation_assets",
+        "glyph_assets"
+      ]
+    },
+    "admittedCorpusIds": [],
+    "phases": [
+      {
+        "phaseId": "csp-tier1-remainder",
+        "sequence": 1,
+        "predecessorId": "pu-120",
+        "status": "pending_review",
+        "admissionContract": null,
+        "blockedReasons": [
+          "corpus_id",
+          "content_version",
+          "action_namespace",
+          "save_partition",
+          "reviewed_word_manifest",
+          "semantic_review",
+          "pronunciation_assets",
+          "glyph_assets"
+        ]
+      },
+      {
+        "phaseId": "csp-tier2",
+        "sequence": 2,
+        "predecessorId": "csp-tier1-remainder",
+        "status": "pending_review",
+        "admissionContract": null,
+        "blockedReasons": [
+          "corpus_id",
+          "content_version",
+          "action_namespace",
+          "save_partition",
+          "reviewed_word_manifest",
+          "semantic_review",
+          "pronunciation_assets",
+          "glyph_assets"
+        ]
+      },
+      {
+        "phaseId": "csp-tier3",
+        "sequence": 3,
+        "predecessorId": "csp-tier2",
+        "status": "pending_review",
+        "admissionContract": null,
+        "blockedReasons": [
+          "corpus_id",
+          "content_version",
+          "action_namespace",
+          "save_partition",
+          "reviewed_word_manifest",
+          "semantic_review",
+          "pronunciation_assets",
+          "glyph_assets"
+        ]
+      }
+    ]
+  },
   "cameraProfile": {
     "sourcePath": "data/world/regions/valley-prologue.v0.1.yaml",
     "profileId": "portrait_scroll.v0.1",

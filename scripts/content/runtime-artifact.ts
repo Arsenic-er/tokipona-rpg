@@ -2,10 +2,12 @@ import { createHash } from "node:crypto";
 import { projectSafeRangeQualification } from "./safe-range-runtime-artifact.ts";
 import { projectP0Curriculum } from "./p0-runtime-artifact.ts";
 import { projectCore120Curriculum } from "./core120-runtime-artifact.ts";
+import { projectCorpusExpansionRegistry } from "./corpus-expansion-runtime-artifact.ts";
 import { projectPrologueAcceptance } from "./prologue-acceptance-runtime-artifact.ts";
 import type { RuntimeSafeRangeManifest } from "../../src/content/runtime-safe-range-manifest.ts";
 import type { RuntimeP0CurriculumManifest } from "../../src/content/runtime-p0-curriculum-manifest.ts";
 import type { RuntimeCore120CurriculumManifest } from "../../src/content/runtime-core120-curriculum-manifest.ts";
+import type { RuntimeCorpusExpansionRegistry } from "../../src/content/runtime-corpus-expansion-registry.ts";
 import type { RuntimePortraitCameraProfile } from "../../src/content/runtime-camera-profile.ts";
 import type { RuntimePrologueAcceptanceManifest } from "../../src/content/runtime-prologue-acceptance-manifest.ts";
 import { posix } from "node:path";
@@ -73,6 +75,7 @@ export interface RuntimeContentArtifact {
   readonly safeRangeQualification: RuntimeSafeRangeManifest;
   readonly p0Curriculum: RuntimeP0CurriculumManifest;
   readonly core120Curriculum: RuntimeCore120CurriculumManifest;
+  readonly corpusExpansionRegistry: RuntimeCorpusExpansionRegistry;
   readonly cameraProfile: RuntimePortraitCameraProfile;
   readonly prologueAcceptance: RuntimePrologueAcceptanceManifest;
   readonly capabilityProgression: CapabilityMilestoneMachineProjection;
@@ -372,6 +375,7 @@ export function buildRuntimeContentArtifact(manifest: ContentManifest): RuntimeC
   const safeRangeQualification = projectSafeRangeQualification(manifest);
   const p0Curriculum = projectP0Curriculum(manifest);
   const core120Curriculum = projectCore120Curriculum(manifest);
+  const corpusExpansionRegistry = projectCorpusExpansionRegistry(manifest);
   const infrastructureTaskSources = [...manifest.byKind.task]
     .filter((taskSource) => taskSource.content.task_type === "infrastructure_world_predicate")
     .sort((left, right) => left.path.localeCompare(right.path));
@@ -603,6 +607,7 @@ export function buildRuntimeContentArtifact(manifest: ContentManifest): RuntimeC
     safeRangeQualification,
     p0Curriculum,
     core120Curriculum,
+    corpusExpansionRegistry,
     cameraProfile,
     prologueAcceptance,
     capabilityProgression,

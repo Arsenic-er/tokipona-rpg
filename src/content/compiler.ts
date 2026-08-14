@@ -438,6 +438,7 @@ function validateP0CurriculumSource(source: CompiledSource, issues: ContentIssue
 
 function validateCore120RuntimeCurriculumSource(source: CompiledSource, issues: ContentIssue[]): void {
   const runtime = readObject(source.content, "runtime_curriculum");
+  validateCorpusExpansionRegistrySource(source, runtime, issues);
   const same = (actual: readonly string[], expected: readonly string[]): boolean =>
     actual.length === expected.length && actual.every((entry, index) => entry === expected[index]);
   const actionKinds = ["discover", "attune", "context_0", "context_1", "repair"];
@@ -495,6 +496,52 @@ function validateCore120RuntimeCurriculumSource(source: CompiledSource, issues: 
     if (readString(primary, "scene_id") === readString(reinforcement, "scene_id") || readString(primary, "target_id") === readString(reinforcement, "target_id")) {
       addIssue(issues, "contract.core120_route", source.path, `runtime_curriculum.domain_routes.${domain}`, "core120 primary and reinforcement witnesses must be distinct");
     }
+  }
+}
+
+function validateCorpusExpansionRegistrySource(
+  source: CompiledSource,
+  runtime: ContentObject,
+  issues: ContentIssue[],
+): void {
+  const registry = readObject(runtime, "corpus_expansion_registry");
+  const base = readObject(registry, "base_corpus");
+  const policies = readObject(registry, "policies");
+  const phases = readObjectArray(registry, "phases");
+  const phaseIds = ["csp-tier1-remainder", "csp-tier2", "csp-tier3"];
+  const predecessors = ["pu-120", "csp-tier1-remainder", "csp-tier2"];
+  const requirements = ["corpus_id", "content_version", "action_namespace", "save_partition",
+    "reviewed_word_manifest", "semantic_review", "pronunciation_assets", "glyph_assets"];
+  const same = (actual: readonly string[], expected: readonly string[]): boolean =>
+    actual.length === expected.length && actual.every((entry, index) => entry === expected[index]);
+  const baseValid = readString(registry, "registry_id") === "post-pu120.csp-expansion" &&
+    readString(base, "corpus_id") === "pu-120" &&
+    readString(base, "learning_content_version") === "core-120.prologue-12" &&
+    readString(base, "action_namespace") === "core120" &&
+    readString(base, "save_partition_id") === "learning.corpus.pu-120" &&
+    readString(base, "save_schema_version") === "tokipona.core120-learning-campaign.v0.2" &&
+    readString(base, "canonical_word_key") === "latin_word_id";
+  const policiesValid = same(readStringArray(policies, "extension_order"), phaseIds) &&
+    policies.new_corpus_id_required === true && policies.new_content_version_required === true &&
+    policies.distinct_action_namespace_required === true &&
+    policies.distinct_save_partition_required === true &&
+    policies.append_to_base_corpus_forbidden === true &&
+    policies.cross_corpus_word_overlap_forbidden === true &&
+    policies.display_codepoint_is_identity === false &&
+    policies.runtime_load_requires_admitted_status === true &&
+    same(readStringArray(policies, "admission_requirements"), requirements);
+  const phasesValid = phases.length === 3 && phases.every((phase, index) =>
+    readString(phase, "phase_id") === phaseIds[index] &&
+    readNumber(phase, "sequence") === index + 1 &&
+    readString(phase, "predecessor_id") === predecessors[index] &&
+    readString(phase, "status") === "pending_review" && phase.admission_contract === null &&
+    same(readStringArray(phase, "blocked_reasons"), requirements));
+  if (!baseValid || !policiesValid || !phasesValid ||
+      readStringArray(registry, "admitted_corpus_ids").length !== 0 ||
+      !Array.isArray(registry.admitted_corpus_ids)) {
+    addIssue(issues, "contract.corpus_expansion_registry", source.path,
+      "runtime_curriculum.corpus_expansion_registry",
+      "post-pu120 corpora require distinct reviewed identities and must remain blocked until admitted");
   }
 }
 
