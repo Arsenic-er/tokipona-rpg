@@ -636,8 +636,13 @@ reducedMotion.addEventListener("change", (event) => {
 requestAnimationFrame(frame);
 
 function frame(now: number): void {
-  const elapsed = Math.min(0.1, Math.max(0, (now - priorTime) / 1_000));
-  priorTime = now;
+  // A requestAnimationFrame timestamp describes the start of the frame and can
+  // be fractionally older than a performance.now() sample taken while the app
+  // was bootstrapping. Keep the browser frame clock monotonic so the exclusive
+  // telemetry timer never observes a boundary before its initial sample.
+  const monotonicNow = Math.max(now, priorTime);
+  const elapsed = Math.min(0.1, Math.max(0, (monotonicNow - priorTime) / 1_000));
+  priorTime = monotonicNow;
   try {
     port.advanceFrame(elapsed, {
       moveX: (isHeld("right") ? 1 : 0) - (isHeld("left") ? 1 : 0),
@@ -652,9 +657,9 @@ function frame(now: number): void {
     sceneId: snapshot.runtime.sceneId,
     worldTick: snapshot.runtime.tick,
     active: browserActivityKind(),
-    atMs: telemetryTimestamp(now),
+    atMs: telemetryTimestamp(monotonicNow),
   });
-  render(snapshot, now);
+  render(snapshot, monotonicNow);
   requestAnimationFrame(frame);
 }
 

@@ -83,6 +83,8 @@ test("runs the real keyboard/touch route and restores companion-first without ma
 });
 
 test("flushes a checked envelope on pagehide and keeps the touch controls labelled", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
   await clearAndOpen(page);
   expect(await page.evaluate((key) => localStorage.getItem(key), PRIMARY_KEY)).toBeNull();
 
@@ -95,4 +97,5 @@ test("flushes a checked envelope on pagehide and keeps the touch controls labell
   await expect(page.locator('[data-hold="left"]')).toHaveAttribute("aria-label", "向左移动");
   await expect(page.locator('[data-hold="right"]')).toHaveAttribute("aria-label", "向右移动");
   await expect(page.locator("#rpg-canvas")).toHaveAttribute("tabindex", "0");
+  expect(errors).toEqual([]);
 });
