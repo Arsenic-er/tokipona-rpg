@@ -9,12 +9,12 @@
   },
   "scripts": {
     "dev": "vite --host 0.0.0.0",
-    "build": "pnpm run content:check && tsc -b && vite build",
-    "verify": "pnpm run content:check && pnpm run assets:check && pnpm run typecheck && pnpm run test && pnpm run test:e2e && pnpm run build",
+    "build": "pnpm run content:check && tsc -b && vite build && node --experimental-strip-types scripts/build/check-bundle-budget.ts",
+    "verify": "pnpm run content:check && pnpm run assets:check && pnpm run typecheck && pnpm run test && pnpm run test:e2e",
     "assets:check": "node --experimental-strip-types scripts/assets/check-public-runtime-boundary.ts",
     "typecheck": "tsc -b --pretty false",
     "test": "vitest run",
-    "test:e2e": "playwright test",
+    "test:e2e": "pnpm run build && playwright test",
     "test:watch": "vitest",
     "content:generate": "node --experimental-strip-types scripts/content/generate-runtime.ts",
     "content:check": "node --experimental-strip-types scripts/content/generate-runtime.ts --check"

@@ -12,13 +12,77 @@ import type { ContentSource } from "./types";
 type Obj = Record<string, unknown>;
 const raw = import.meta.glob("../../data/**/*.{yaml,yml,json}", { eager: true, import: "default", query: "?raw" }) as Record<string, string>;
 const sources = (): ContentSource[] => Object.entries(raw).map(([path, text]) => ({ path: path.replace(/^\.\.\/\.\.\//, ""), data: path.endsWith(".json") ? JSON.parse(text) : parse(text) }));
+const canonicalSources = sources();
+const freshSources = (): ContentSource[] => structuredClone(canonicalSources);
 function source(all: ContentSource[], suffix: string): Obj { const value = all.find((item) => item.path.endsWith(suffix))?.data; if (typeof value !== "object" || value === null || Array.isArray(value)) throw new Error(`missing ${suffix}`); return value as Obj; }
 function list(root: Obj, key: string): Obj[] { const value = root[key]; if (!Array.isArray(value)) throw new Error(`${key} is not an array`); return value as Obj[]; }
 function issue(run: () => unknown, code: string): void { try { run(); throw new Error(`expected ${code}`); } catch (error) { expect(error).toBeInstanceOf(ContentValidationError); expect((error as ContentValidationError).issues).toEqual(expect.arrayContaining([expect.objectContaining({ code })])); } }
 
+const invalidContentCases: readonly Readonly<{
+  label: string;
+  code: string;
+  mutate: (all: ContentSource[]) => void;
+}>[] = [
+  { label: "living target", code: "task.safe_range_scene", mutate: (all) => {
+    list(source(all, "scenes/valley-safe-range.v0.1.yaml"), "targets")[0]!.target_kind = "living_target";
+  } },
+  { label: "duplicate physics coverage", code: "task.safe_range_attack", mutate: (all) => {
+    const signature = list(source(all, "spells/attack-signatures.v0.1.yaml"), "signatures")[0]!;
+    list(signature.safe_range_target_physics as Obj, "profiles")[1]!.target_class = "wood_dummy";
+  } },
+  { label: "nonpositive target HP", code: "task.safe_range_attack", mutate: (all) => {
+    const signature = list(source(all, "spells/attack-signatures.v0.1.yaml"), "signatures")[0]!;
+    list(signature.safe_range_target_physics as Obj, "profiles")[0]!.initial_hp = 0;
+  } },
+  { label: "weakened old-mine guard", code: "task.safe_range_old_mine_guard", mutate: (all) => {
+    const nodes = list(source(all, "world/regions/valley-prologue.v0.1.yaml"), "nodes");
+    const oldMine = nodes.find((node) => node.node_id === "valley.old_mine_threshold")!;
+    (oldMine.entry_condition as Obj).predicate = "range_trial_permission == true";
+  } },
+  { label: "invented calibration family", code: "task.safe_range_parallel_calibration", mutate: (all) => {
+    const task = source(all, "tasks/ch01-first-attack-qualification.v0.1.yaml");
+    list(task.parallel_calibration_station as Obj, "actions")[0]!.task_family_id = "made_up";
+  } },
+  { label: "altered speed band", code: "task.safe_range_attack", mutate: (all) => {
+    const signature = list(source(all, "spells/attack-signatures.v0.1.yaml"), "signatures")[0]!;
+    (signature.motion_output as Obj).initial_speed_band_mps = [1, 2];
+  } },
+  { label: "disabled gravity", code: "task.safe_range_attack", mutate: (all) => {
+    const signature = list(source(all, "spells/attack-signatures.v0.1.yaml"), "signatures")[0]!;
+    (signature.material_output as Obj).gravity_after_release = false;
+  } },
+  { label: "unknown signature override", code: "task.safe_range_attack", mutate: (all) => {
+    const signature = list(source(all, "spells/attack-signatures.v0.1.yaml"), "signatures")[0]!;
+    (signature.material_output as Obj).unchecked_override = true;
+  } },
+  { label: "interaction target drift", code: "task.safe_range_scene", mutate: (all) => {
+    list(source(all, "scenes/valley-safe-range.v0.1.yaml"), "interactions")[0]!.target_id = "sandbag";
+  } },
+  { label: "harmful unrelated outcome", code: "task.safe_range_parallel_calibration", mutate: (all) => {
+    const task = source(all, "tasks/ch01-first-attack-qualification.v0.1.yaml");
+    list(task.parallel_calibration_station as Obj, "unrelated_semantic_world_actions")[0]!.outcome = "wildlife_harm_committed";
+  } },
+  { label: "material table point drift", code: "task.safe_range_scene", mutate: (all) => {
+    list(source(all, "scenes/valley-safe-range.v0.1.yaml"), "targets")[4]!.interaction_point_tiles = [19, 1];
+  } },
+  { label: "out-of-bounds collision", code: "task.safe_range_geometry", mutate: (all) => {
+    const target = list(source(all, "scenes/valley-safe-range.v0.1.yaml"), "targets")[0]!;
+    (target.collision_bounds_tiles as Obj).x = 24;
+  } },
+  { label: "overlapping collision bounds", code: "task.safe_range_geometry_overlap", mutate: (all) => {
+    const targets = list(source(all, "scenes/valley-safe-range.v0.1.yaml"), "targets");
+    targets[1]!.collision_bounds_tiles = structuredClone(targets[0]!.collision_bounds_tiles);
+  } },
+  { label: "missing reciprocal topology", code: "task.safe_range_topology", mutate: (all) => {
+    const connections = list(source(all, "world/regions/valley-prologue.v0.1.yaml"), "connections");
+    const index = connections.findIndex((edge) => edge.from === "valley.safe_range" && edge.to === "valley.settlement");
+    connections.splice(index, 1);
+  } },
+];
+
 describe("N08 safe-range frozen content contract", () => {
   it("authors the exact 24x18 inert scene and guarded N02 round trip", () => {
-    const manifest = compileContent(sources());
+    const manifest = compileContent(freshSources());
     const scene = manifest.indexes.scenes["scene.valley.safe_range"]!;
     expect(scene.size_tiles).toEqual({ width: 24, height: 18 });
     expect(list(scene as Obj, "targets").map((target) => target.target_id)).toEqual(["wood_dummy", "sandbag", "minecart", "hanging_stone", "material_collision_table"]);
@@ -43,21 +107,10 @@ describe("N08 safe-range frozen content contract", () => {
     expect(value.parallelCalibration.receipt).toEqual({ receiptRequired: true, idempotencyKeyFields: ["player_save_id", "action_id", "normalized_variant_hash"], duplicateEvidenceAwardForbidden: true });
   });
 
-  it("fails closed on living targets, guessed physics, duplicate coverage and weakened topology", () => {
-    const a = sources(), scene = source(a, "scenes/valley-safe-range.v0.1.yaml"); list(scene, "targets")[0]!.target_kind = "living_target"; issue(() => compileContent(a), "task.safe_range_scene");
-    const b = sources(), attack = source(b, "spells/attack-signatures.v0.1.yaml"), signature = list(attack, "signatures")[0]!, physics = signature.safe_range_target_physics as Obj, profiles = list(physics, "profiles"); profiles[1]!.target_class = "wood_dummy"; issue(() => compileContent(b), "task.safe_range_attack");
-    const c = sources(), attackC = source(c, "spells/attack-signatures.v0.1.yaml"), signatureC = list(attackC, "signatures")[0]!, profilesC = list(signatureC.safe_range_target_physics as Obj, "profiles"); profilesC[0]!.initial_hp = 0; issue(() => compileContent(c), "task.safe_range_attack");
-    const d = sources(), region = source(d, "world/regions/valley-prologue.v0.1.yaml"), oldMine = list(region, "nodes").find((node) => node.node_id === "valley.old_mine_threshold")!; (oldMine.entry_condition as Obj).predicate = "range_trial_permission == true"; issue(() => compileContent(d), "task.safe_range_old_mine_guard");
-    const e = sources(), task = source(e, "tasks/ch01-first-attack-qualification.v0.1.yaml"), parallel = task.parallel_calibration_station as Obj; list(parallel, "actions")[0]!.task_family_id = "made_up"; issue(() => compileContent(e), "task.safe_range_parallel_calibration");
-    const i = sources(), attackI = source(i, "spells/attack-signatures.v0.1.yaml"), signatureI = list(attackI, "signatures")[0]!; (signatureI.motion_output as Obj).initial_speed_band_mps = [1, 2]; issue(() => compileContent(i), "task.safe_range_attack");
-    const j = sources(), attackJ = source(j, "spells/attack-signatures.v0.1.yaml"), signatureJ = list(attackJ, "signatures")[0]!; (signatureJ.material_output as Obj).gravity_after_release = false; issue(() => compileContent(j), "task.safe_range_attack");
-    const k = sources(), attackK = source(k, "spells/attack-signatures.v0.1.yaml"), signatureK = list(attackK, "signatures")[0]!; (signatureK.material_output as Obj).unchecked_override = true; issue(() => compileContent(k), "task.safe_range_attack");
-    const l = sources(), sceneL = source(l, "scenes/valley-safe-range.v0.1.yaml"); list(sceneL, "interactions")[0]!.target_id = "sandbag"; issue(() => compileContent(l), "task.safe_range_scene");
-    const m = sources(), taskM = source(m, "tasks/ch01-first-attack-qualification.v0.1.yaml"), parallelM = taskM.parallel_calibration_station as Obj; list(parallelM, "unrelated_semantic_world_actions")[0]!.outcome = "wildlife_harm_committed"; issue(() => compileContent(m), "task.safe_range_parallel_calibration");
-    const n = sources(), sceneN = source(n, "scenes/valley-safe-range.v0.1.yaml"), tableN = list(sceneN, "targets")[4]!; tableN.interaction_point_tiles = [19, 1]; issue(() => compileContent(n), "task.safe_range_scene");
-    const f = sources(), sceneF = source(f, "scenes/valley-safe-range.v0.1.yaml"), targetF = list(sceneF, "targets")[0]!; (targetF.collision_bounds_tiles as Obj).x = 24; issue(() => compileContent(f), "task.safe_range_geometry");
-    const g = sources(), sceneG = source(g, "scenes/valley-safe-range.v0.1.yaml"), targetsG = list(sceneG, "targets"); targetsG[1]!.collision_bounds_tiles = structuredClone(targetsG[0]!.collision_bounds_tiles); issue(() => compileContent(g), "task.safe_range_geometry_overlap");
-    const h = sources(), regionH = source(h, "world/regions/valley-prologue.v0.1.yaml"), connectionsH = list(regionH, "connections"), reverseIndex = connectionsH.findIndex((edge) => edge.from === "valley.safe_range" && edge.to === "valley.settlement"); connectionsH.splice(reverseIndex, 1); issue(() => compileContent(h), "task.safe_range_topology");
+  it.each(invalidContentCases)("fails closed on $label", ({ code, mutate }) => {
+    const all = freshSources();
+    mutate(all);
+    issue(() => compileContent(all), code);
   });
 
   it("recomputes digest, rejects tampering and brands only reader output", () => {

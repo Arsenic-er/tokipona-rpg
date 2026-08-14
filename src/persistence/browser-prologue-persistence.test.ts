@@ -103,7 +103,13 @@ describe("browser prologue companion-first bootstrap", () => {
       seed.advanceTicks(1, { moveX: 1 });
     }
     for (const wordId of p0Manifest.scope.wordIds) {
-      for (const [index, kind] of (["discover", "attune", "context_0", "context_1", "repair"] as const).entries()) {
+      const targetState = p0Manifest.words[wordId].targetState;
+      const prerequisiteKinds = targetState === "attuned"
+        ? (["discover", "attune"] as const)
+        : targetState === "grounded"
+          ? (["discover", "attune", "context_0"] as const)
+          : (["discover", "attune", "context_0", "context_1"] as const);
+      for (const [index, kind] of prerequisiteKinds.entries()) {
         const actionId = `p0.${wordId}.${kind}` as P0LearningActionId;
         expect(seed.commitP0LearningAction(actionId, `browser.core120.p0.${wordId}.${index}`), actionId)
           .toMatchObject({ accepted: true });
