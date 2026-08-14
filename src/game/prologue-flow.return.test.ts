@@ -199,8 +199,15 @@ describe("PrologueFlowSession N07 return-flow integration", () => {
   it("keeps incomplete task-local progress ephemeral across reload and accepted resets", () => {
     const target = reachCompletedCistern("flow.return.ephemeral");
     expect(target.enterReturnFlow("ephemeral.entry").accepted).toBe(true);
+    const entryRuntime = target.snapshot().runtime;
+    target.advanceTicks(30, { moveX: 1 });
+    const movedRuntime = target.snapshot().runtime;
+    expect(movedRuntime).toMatchObject({ sceneId: PROLOGUE_RETURN_FLOW_SCENE_ID });
+    expect(movedRuntime.tick).toBeGreaterThan(entryRuntime.tick);
+    expect(movedRuntime.player.position.x).toBeGreaterThan(entryRuntime.player.position.x);
     const solution = PROLOGUE_RETURN_FLOW_SOLUTION_CONTRACTS[1]!;
     expect(target.performReturnFlowAction("ephemeral.first", solution.requiredActions[0]!).accepted).toBe(true);
+    expect(target.snapshot().runtime.player.position).toEqual(movedRuntime.player.position);
     expect(target.snapshot().returnFlowProgress).toEqual({
       selectedSolutionId: solution.id,
       completedActionIds: [solution.requiredActions[0]],
@@ -214,6 +221,7 @@ describe("PrologueFlowSession N07 return-flow integration", () => {
       returnFlowProgress: { selectedSolutionId: null, completedActionIds: [] },
       killCount: 0,
     });
+    expect(loaded.snapshot().runtime.player.position).toEqual(loaded.snapshot().session.checkpoint.position);
     expect(loaded.completeReturnFlowSolution("ephemeral.incomplete", solution.id))
       .toMatchObject({ accepted: false, result: { reason: "prerequisite_missing" } });
     expect(loaded.performReturnFlowAction("ephemeral.after-load", solution.requiredActions[0]!).accepted).toBe(true);
@@ -222,6 +230,18 @@ describe("PrologueFlowSession N07 return-flow integration", () => {
     expect(loaded.performReturnFlowAction("ephemeral.after-reset", solution.requiredActions[0]!).accepted).toBe(true);
     expect(loaded.resetArea("ephemeral.softlock")).toMatchObject({ accepted: true });
     expect(loaded.snapshot().returnFlowProgress).toEqual({ selectedSolutionId: null, completedActionIds: [] });
+  });
+
+  it("keeps N07 runtime exits isolated until the formal return transaction commits", () => {
+    const target = reachCompletedCistern("flow.return.runtime-isolation");
+    expect(target.enterReturnFlow("runtime-isolation.entry").accepted).toBe(true);
+    target.advanceTicks(900, { moveX: 1 });
+    expect(target.snapshot()).toMatchObject({
+      mode: "return_flow",
+      runtime: { sceneId: PROLOGUE_RETURN_FLOW_SCENE_ID },
+      returnFlow: { sceneId: PROLOGUE_RETURN_FLOW_SCENE_ID },
+    });
+    expect(globalTrue(target, PROLOGUE_RETURN_FLOW_FLAGS.prologueReturnObserved)).toBe(false);
   });
 
   it("delegates inert wawa learning without exposing provenance or world facts", () => {

@@ -339,6 +339,17 @@ export class PrologueReturnFlowSession {
   public get session(): GameSession { return this.authoritativeSession; }
   public toSave(): GameSessionSave { return this.authoritativeSession.toSave(); }
 
+  /** Installs a newer aggregate while preserving Flow-owned task-local action progress. */
+  public adoptSession(session: GameSession): void {
+    if (session.sessionId !== this.authoritativeSession.sessionId) {
+      throw new Error("return-flow coordinator cannot adopt a different session");
+    }
+    if (session.snapshot().world.currentSceneId !== RETURN_FLOW_SCENE.sceneId) {
+      throw new Error("return-flow coordinator can only adopt an N07 session");
+    }
+    this.authoritativeSession = session;
+  }
+
   public snapshot(): PrologueReturnFlowSnapshot {
     const state = this.authoritativeSession.snapshot();
     const wawa = state.learning.words.wawa;
