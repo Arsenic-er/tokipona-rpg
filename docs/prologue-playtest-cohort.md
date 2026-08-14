@@ -4,6 +4,28 @@ This gate evaluates anonymized, observed playtest summaries against the authored
 three-hour prologue thresholds. It does not generate samples, infer human
 participation, or treat the deterministic acceptance runner as playtest data.
 
+## Collect a browser sample
+
+Open `rpg.html` and play normally. The browser stores an aggregate-only,
+checksummed observation beside the GameSession save under
+`tokipona.rpg.prologue.v0.3.telemetry.playtest`. Save, reload, `pagehide`, and
+companion-first recovery flush this observation without copying the event ledger
+or any raw utterance, player identifier, inventory lot ID, or save payload into
+the telemetry record.
+
+After at least 180 content-active minutes, choose **导出实测样本**. Export is
+fail-closed when the observation is corrupt, belongs to a different ledger
+prefix, started after measurable play had already occurred, or still contains
+an unresolved user-visible failure. The downloaded file is a valid cohort
+envelope containing one pseudonymous sample. Paused, idle, settings, and
+optional free-roam time do not count toward the 180-minute threshold.
+
+Combine the `samples` arrays from independently exported envelopes, keep one
+unique pseudonymous `sessionId` per participant, and choose a new semantic
+`cohortId`. Do not replace `collectionMode` or add identifying metadata.
+
+## Evaluate a cohort
+
 Run it with:
 
 ```powershell
