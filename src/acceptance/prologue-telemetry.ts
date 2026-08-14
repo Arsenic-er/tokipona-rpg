@@ -60,6 +60,14 @@ export class ExclusivePrologueActivityTimer {
   #activeSinceMs = 0;
   #lastBoundaryMs = 0;
 
+  constructor(initialTotals: Partial<Readonly<Record<PrologueActivityKind, number>>> = {}) {
+    for (const kind of ACTIVITY_KINDS) {
+      const value = initialTotals[kind] ?? 0;
+      if (!Number.isSafeInteger(value) || value < 0) throw new Error("initial activity totals must be non-negative safe integers");
+      this.#totals.set(kind, value);
+    }
+  }
+
   start(kind: PrologueActivityKind, atMs: number): void {
     validateActivity(kind);
     validateTimestamp(atMs, this.#lastBoundaryMs);
@@ -107,9 +115,19 @@ export class PrologueTelemetryRecorder {
   readonly #timer: ExclusivePrologueActivityTimer;
   readonly #events: PrologueTelemetryEvent[] = [];
 
-  constructor(sessionId: string, timer: ExclusivePrologueActivityTimer) {
+  constructor(
+    sessionId: string,
+    timer: ExclusivePrologueActivityTimer,
+    priorEvents: readonly PrologueTelemetryEvent[] = [],
+  ) {
     this.#sessionId = semanticId(sessionId, "sessionId");
     this.#timer = timer;
+    let priorContentActiveMs = 0;
+    priorEvents.forEach((candidate, index) => {
+      const event = validateEvent(candidate, this.#sessionId, index + 1, priorContentActiveMs);
+      priorContentActiveMs = event.contentActiveMs;
+      this.#events.push(event);
+    });
   }
 
   record(input: Readonly<{
@@ -173,6 +191,38 @@ function validateSemantic(value: unknown): PrologueTelemetrySemantic {
   const count = nullableNonNegativeSafeInteger(record.count, "semantic.count");
   const durationMs = nullableNonNegativeSafeInteger(record.durationMs, "semantic.durationMs");
   return Object.freeze({ subjectId, outcomeId, promptLevel: record.promptLevel as 0 | 1 | null, count, durationMs });
+}
+
+function validateEvent(
+  value: unknown,
+  sessionId: string,
+  expectedSequence: number,
+  minimumContentActiveMs: number,
+): PrologueTelemetryEvent {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) throw new Error("telemetry event must be an object");
+  const record = value as Record<string, unknown>;
+  const required = ["schemaVersion", "eventId", "sessionId", "sequence", "worldTick", "segmentId", "primaryActivity", "contentActiveMs", "semantic"] as const;
+  if (Object.keys(record).length !== required.length || required.some((key) => !(key in record))) throw new Error("telemetry event contains unknown or missing fields");
+  if (record.schemaVersion !== CONTRACT.telemetry.schemaVersion ||
+      !PROLOGUE_TELEMETRY_EVENT_IDS.includes(record.eventId as PrologueTelemetryEventId) ||
+      record.sessionId !== sessionId || record.sequence !== expectedSequence ||
+      !Number.isSafeInteger(record.worldTick) || (record.worldTick as number) < 0 ||
+      !Number.isSafeInteger(record.contentActiveMs) || (record.contentActiveMs as number) < minimumContentActiveMs) {
+    throw new Error("telemetry event identity or counters are invalid");
+  }
+  validateActivity(record.primaryActivity as string);
+  const event = Object.freeze({
+    schemaVersion: CONTRACT.telemetry.schemaVersion,
+    eventId: record.eventId as PrologueTelemetryEventId,
+    sessionId,
+    sequence: expectedSequence,
+    worldTick: record.worldTick as number,
+    segmentId: semanticId(record.segmentId, "segmentId"),
+    primaryActivity: record.primaryActivity as PrologueActivityKind,
+    contentActiveMs: record.contentActiveMs as number,
+    semantic: validateSemantic(record.semantic),
+  }) satisfies PrologueTelemetryEvent;
+  return event;
 }
 
 function validateActivity(value: string): asserts value is PrologueActivityKind { if (!(ACTIVITY_KINDS as readonly string[]).includes(value)) throw new Error("primary activity is outside the generated taxonomy"); }

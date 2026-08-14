@@ -2,6 +2,7 @@
   "name": "tokipona",
   "version": "0.1.0",
   "private": true,
+  "packageManager": "pnpm@11.19.0",
   "type": "module",
   "engines": {
     "node": ">=22.12 <23"
@@ -9,13 +10,16 @@
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "build": "pnpm run content:check && tsc -b && vite build",
+    "verify": "pnpm run content:check && pnpm run typecheck && pnpm run test && pnpm run test:e2e && pnpm run build",
     "typecheck": "tsc -b --pretty false",
     "test": "vitest run",
+    "test:e2e": "playwright test",
     "test:watch": "vitest",
     "content:generate": "node --experimental-strip-types scripts/content/generate-runtime.ts",
     "content:check": "node --experimental-strip-types scripts/content/generate-runtime.ts --check"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
     "typescript": "7.0.2",
     "vite": "8.2.0",
     "vitest": "4.1.10",

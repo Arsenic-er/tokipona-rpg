@@ -51,6 +51,8 @@ import {
 } from "./rpg-safe-range-ui";
 import { createRpgP0LearningUi, type P0LearningUiCommand } from "./rpg-p0-learning-ui";
 import { createRpgOldMineUi, type OldMineUiCommand } from "./rpg-old-mine-ui";
+import { BrowserPrologueTelemetry } from "./acceptance/browser-prologue-telemetry";
+import type { PrologueActivityKind } from "./content/runtime-prologue-acceptance-manifest";
 
 type GlyphPhase = "undiscovered" | "discovered" | "activated";
 type Tone = "neutral" | "success" | "warning" | "danger";
@@ -68,6 +70,7 @@ const HEIGHT = 320;
 const WORLD_Y_OFFSET = 96;
 const STORAGE_KEY = "tokipona.rpg.prologue.v0.3";
 const COMPANION_STORAGE_KEY = `${STORAGE_KEY}.cross-save-wal`;
+const TELEMETRY_STORAGE_KEY = `${STORAGE_KEY}.telemetry`;
 const STORAGE_KEYS = Object.freeze({
   checkpointKey: STORAGE_KEY,
   companionKey: COMPANION_STORAGE_KEY,
@@ -81,9 +84,11 @@ const SETTLEMENT_SCENE = requiredScene(PROLOGUE_SETTLEMENT_SCENE_ID);
 class FlowBrowserPort {
   private remainderTicks = 0;
   private safeRangeCompileResultValue: PrologueFlowSafeRangeCompileResult | null = null;
+  private persistedSessionRevision: number;
 
   private constructor(private readonly flow: PrologueFlowSession, private readonly coordinator: BrowserGameSessionWalCoordinator) {
     this.flow.attachCrossSaveTransactionCoordinator(coordinator);
+    this.persistedSessionRevision = coordinator.readSession().snapshot().revision;
   }
 
   static bootstrap(): FlowBrowserPort {
@@ -98,10 +103,15 @@ class FlowBrowserPort {
     if (ticks === 0) return;
     this.remainderTicks -= ticks;
     this.flow.advanceTicks(ticks, input);
+    this.persistIfChanged();
   }
 
   snapshot(): PrologueFlowSnapshot {
     return this.flow.snapshot();
+  }
+
+  sessionId(): string {
+    return this.flow.session.sessionId;
   }
 
   safeRangeView(): PrologueFlowSafeRangeView {
@@ -486,12 +496,23 @@ class FlowBrowserPort {
   }
 
   toSave(): unknown {
-    return persistBrowserPrologueCheckpoint(localStorage, STORAGE_KEYS, { flow: this.flow, coordinator: this.coordinator });
+    return this.persistIfChanged(true);
+  }
+
+  persistIfChanged(force = false): unknown | null {
+    const revision = this.flow.session.snapshot().revision;
+    if (!force && revision === this.persistedSessionRevision) return null;
+    const envelope = persistBrowserPrologueCheckpoint(
+      localStorage,
+      STORAGE_KEYS,
+      { flow: this.flow, coordinator: this.coordinator },
+    );
+    this.persistedSessionRevision = revision;
+    return envelope;
   }
 }
 
-const app = document.querySelector<HTMLElement>("#app");
-if (!app) throw new Error("Missing #app mount point");
+const app = required<HTMLElement>("#app");
 
 app.innerHTML = `
   <div class="rpg-shell">
@@ -591,6 +612,7 @@ const taskStageLabel = required<HTMLElement>('[data-ui="task-stage"]');
 const statusLabel = required<HTMLElement>('[data-ui="status"]');
 
 let port = FlowBrowserPort.bootstrap();
+let telemetry = bootstrapTelemetry(port, telemetryNow());
 const infrastructureUi = createRpgInfrastructureUi((command) => run(() => port.infrastructure(command)));
 const cisternUi = createRpgCisternUi((command) => run(() => port.cistern(command)));
 const wildlifeUi = createRpgWildlifeUi((command) => run(() => port.wildlife(command)));
@@ -607,6 +629,7 @@ const pointerHolds = new Map<string, Set<number>>();
 const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 
 bindInputs();
+bindPersistenceLifecycle();
 reducedMotion.addEventListener("change", (event) => {
   if (event.matches) activationStarted = null;
 });
@@ -624,11 +647,20 @@ function frame(now: number): void {
     setStatus(errorMessage(error, "运行时推进失败。"), "danger");
   }
   jumpQueued = false;
-  render(port.snapshot(), now);
+  const snapshot = port.snapshot();
+  telemetry.observe({
+    sceneId: snapshot.runtime.sceneId,
+    worldTick: snapshot.runtime.tick,
+    active: browserActivityKind(),
+    atMs: telemetryTimestamp(now),
+  });
+  render(snapshot, now);
   requestAnimationFrame(frame);
 }
 
 function render(snapshot: PrologueFlowSnapshot, now: number): void {
+  app.dataset.mode = snapshot.mode;
+  app.dataset.sceneId = snapshot.runtime.sceneId;
   infrastructureUi.render(snapshot);
   cisternUi.render(snapshot);
   wildlifeUi.render(snapshot);
@@ -945,6 +977,21 @@ function bindInputs(): void {
   required<HTMLButtonElement>('[data-action="load"]').addEventListener("click", load);
 }
 
+function bindPersistenceLifecycle(): void {
+  const flush = (): void => {
+    try {
+      port.toSave();
+      telemetry.suspend(telemetryNow());
+    } catch (error: unknown) {
+      setStatus(errorMessage(error, "自动保存失败。"), "danger");
+    }
+  };
+  window.addEventListener("pagehide", flush);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") flush();
+  });
+}
+
 function save(): void {
   try {
     const save = port.toSave();
@@ -963,7 +1010,10 @@ function load(): void {
       setStatus("尚无本地存档。", "warning");
       return;
     }
+    const now = telemetryNow();
+    telemetry.suspend(now);
     port = FlowBrowserPort.bootstrap();
+    telemetry = bootstrapTelemetry(port, now);
     economyUi.clearQuote();
     clearHeld();
     activationStarted = null;
@@ -971,6 +1021,37 @@ function load(): void {
   } catch (error: unknown) {
     setStatus(errorMessage(error, "存档无效或本地存储不可用。"), "danger");
   }
+}
+
+function bootstrapTelemetry(target: FlowBrowserPort, atMs: number): BrowserPrologueTelemetry {
+  const snapshot = target.snapshot();
+  return BrowserPrologueTelemetry.bootstrap({
+    storage: localStorage,
+    key: TELEMETRY_STORAGE_KEY,
+    sessionId: target.sessionId(),
+    sceneId: snapshot.runtime.sceneId,
+    worldTick: snapshot.runtime.tick,
+    active: browserActivityKind(),
+    atMs,
+  });
+}
+
+function browserActivityKind(): PrologueActivityKind {
+  if (document.hidden || !document.hasFocus()) return "idle";
+  const focused = document.activeElement;
+  if (focused instanceof Element && focused.closest(".notice, .dialogue-box")) return "long_explanation";
+  if (focused instanceof Element && focused.closest(
+    ".telo-panel, .p0-learning-panel, .cistern-panel, .return-flow-panel, .safe-range-panel",
+  )) return "language";
+  return "world_people_physics";
+}
+
+function telemetryNow(): number {
+  return telemetryTimestamp(performance.now());
+}
+
+function telemetryTimestamp(value: number): number {
+  return Math.max(0, Math.floor(value));
 }
 
 function renderDialogue(node: SettlementDialogueNode): void {
@@ -1203,6 +1284,14 @@ function run(action: () => UiResult): void {
 }
 
 function show(result: UiResult): void {
+  if (result.accepted) {
+    try {
+      port.persistIfChanged();
+    } catch (error: unknown) {
+      setStatus(errorMessage(error, "操作已完成，但自动保存失败。"), "danger");
+      return;
+    }
+  }
   setStatus(result.message, result.tone);
 }
 
