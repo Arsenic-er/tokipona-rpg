@@ -52,6 +52,7 @@ export interface SafeRangeQualificationActionModel {
   readonly evidenceType: string;
   readonly promptLevel: 0 | 1 | null;
   readonly unrelated: boolean;
+  readonly available: boolean;
   readonly completed: boolean;
   readonly enabled: boolean;
 }
@@ -205,7 +206,7 @@ export function deriveSafeRangeUiModel(
     snapshot.sceneId === PROLOGUE_SAFE_RANGE_SCENE_ID && safeRange !== null;
   const qualificationActions = Object.freeze(snapshot.qualificationActions.map((action) => Object.freeze({
     ...action,
-    enabled: gatewayVisible && !action.completed,
+    enabled: gatewayVisible && action.available && !action.completed,
   })));
   const settlementActionsComplete = snapshot.settlementActionsComplete;
   const qualificationGraphComplete = snapshot.qualificationGraphComplete;
@@ -417,6 +418,8 @@ export function createRpgSafeRangeUi(onCommand: (command: SafeRangeUiCommand) =>
   let currentModel: SafeRangeUiModel | null = null;
   let lastSnapshot: PrologueFlowSafeRangeView | null = null;
   let lastCompileResult: PrologueFlowSafeRangeCompileResult | null = null;
+  let qualificationRenderKey = "";
+  let targetRenderKey = "";
 
   const rerender = (): void => {
     if (lastSnapshot) render(lastSnapshot, lastCompileResult);
@@ -472,15 +475,19 @@ export function createRpgSafeRangeUi(onCommand: (command: SafeRangeUiCommand) =>
     required<HTMLElement>(root, "[data-safe-range-gateway]").hidden = !currentModel.gatewayVisible;
     required<HTMLButtonElement>(root, "[data-safe-range-intent='enter_safe_range']").disabled = !currentModel.canEnter;
     const qualificationRoot = required<HTMLElement>(root, "[data-safe-range-qualification-actions]");
-    qualificationRoot.replaceChildren(...currentModel.qualificationActions.map((action) => {
-      const button = document.createElement("button");
-      button.type = "button";
-      button.dataset.safeRangeQualificationAction = action.actionId;
-      button.disabled = !action.enabled;
-      const hint = action.promptLevel === null ? "world" : `H${action.promptLevel}`;
-      button.textContent = `${action.completed ? "✓ " : ""}${action.actionId} · ${action.evidenceType} · ${hint}`;
-      return button;
-    }));
+    const nextQualificationRenderKey = JSON.stringify(currentModel.qualificationActions);
+    if (nextQualificationRenderKey !== qualificationRenderKey) {
+      qualificationRenderKey = nextQualificationRenderKey;
+      qualificationRoot.replaceChildren(...currentModel.qualificationActions.map((action) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.dataset.safeRangeQualificationAction = action.actionId;
+        button.disabled = !action.enabled;
+        const hint = action.promptLevel === null ? "world" : `H${action.promptLevel}`;
+        button.textContent = `${action.completed ? "✓ " : ""}${action.actionId} · ${action.evidenceType} · ${hint}`;
+        return button;
+      }));
+    }
     required<HTMLButtonElement>(root, "[data-safe-range-intent='calibrate_attack_capacity']").disabled =
       !currentModel.canCalibrate;
     required<HTMLButtonElement>(root, "[data-safe-range-intent='grant_range_trial_permission']").disabled =
@@ -503,17 +510,21 @@ export function createRpgSafeRangeUi(onCommand: (command: SafeRangeUiCommand) =>
     text(root, "[data-safe-range-live]", currentModel.liveStatus);
 
     const targetRoot = required<HTMLElement>(root, "[data-safe-range-targets]");
-    targetRoot.replaceChildren(...currentModel.targets.map((target) => {
-      const button = document.createElement("button");
-      button.type = "button";
-      button.setAttribute("role", "radio");
-      button.dataset.safeRangeTarget = target.targetClass;
-      button.setAttribute("aria-checked", String(target.selected));
-      button.tabIndex = target.selected ? 0 : -1;
-      button.disabled = !target.enabled;
-      button.textContent = `${target.label} · ${target.materialClass}${target.completed ? " · 已记录" : ""}`;
-      return button;
-    }));
+    const nextTargetRenderKey = JSON.stringify(currentModel.targets);
+    if (nextTargetRenderKey !== targetRenderKey) {
+      targetRenderKey = nextTargetRenderKey;
+      targetRoot.replaceChildren(...currentModel.targets.map((target) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.setAttribute("role", "radio");
+        button.dataset.safeRangeTarget = target.targetClass;
+        button.setAttribute("aria-checked", String(target.selected));
+        button.tabIndex = target.selected ? 0 : -1;
+        button.disabled = !target.enabled;
+        button.textContent = `${target.label} · ${target.materialClass}${target.completed ? " · 已记录" : ""}`;
+        return button;
+      }));
+    }
     for (const button of root.querySelectorAll<HTMLButtonElement>("[data-safe-range-source]")) {
       const source = button.dataset.safeRangeSource;
       const selectedSource = currentModel.waterSources.find((candidate) => candidate.waterSource === source);
@@ -538,6 +549,10 @@ export function createRpgSafeRangeUi(onCommand: (command: SafeRangeUiCommand) =>
 }
 
 function intentFromButton(button: HTMLButtonElement): SafeRangeUiIntent | null {
+  const qualificationActionId = button.dataset.safeRangeQualificationAction;
+  if (qualificationActionId && isQualificationActionId(qualificationActionId)) {
+    return { kind: "perform_qualification_action", actionId: qualificationActionId };
+  }
   const targetClass = button.dataset.safeRangeTarget;
   if (targetClass) return { kind: "select_target", targetClass };
   const waterSource = button.dataset.safeRangeSource;

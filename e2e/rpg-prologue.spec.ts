@@ -10,6 +10,7 @@ const WATERWHEEL = "scene.valley.waterwheel";
 const SERVICE_CHANNEL = "scene.valley.service_channel";
 const CISTERN = "scene.valley.high_cistern";
 const RETURN_CHANNEL = "scene.valley.return_channel";
+const SAFE_RANGE = "scene.valley.safe_range";
 const OLD_MINE = "scene.valley.old_mine_threshold";
 
 const app = (page: Page) => page.locator("#app");
@@ -59,6 +60,73 @@ async function clickEnabled(page: Page, selector: string): Promise<void> {
   await expect(control).toBeVisible();
   await expect(control).toBeEnabled();
   await control.click();
+}
+
+async function activateWhileMovingRightUntilDisabled(page: Page, selector: string): Promise<void> {
+  const control = page.locator(selector);
+  await expect(control).toBeVisible();
+  const deadline = Date.now() + 20_000;
+  while (Date.now() < deadline && await control.isEnabled()) {
+    await stepRight(page);
+    await control.click({ timeout: 1_000 }).catch(() => undefined);
+  }
+  await expect(control).toBeDisabled();
+}
+
+async function activateWhileMovingLeftUntilDisabled(page: Page, selector: string): Promise<void> {
+  const control = page.locator(selector);
+  await expect(control).toBeVisible();
+  const deadline = Date.now() + 20_000;
+  while (Date.now() < deadline && await control.isEnabled()) {
+    await stepHorizontal(page, "a");
+    await control.click({ timeout: 1_000 }).catch(() => undefined);
+  }
+  const status = await page.locator('[data-ui="status"]').textContent().catch(() => null);
+  await expect(control, `control remained enabled; last status: ${status ?? "unavailable"}`).toBeDisabled();
+}
+
+async function compileWhileMovingRight(page: Page): Promise<void> {
+  const compile = page.locator('[data-safe-range-intent="compile"]');
+  const execute = page.locator('[data-safe-range-intent="execute"]');
+  const deadline = Date.now() + 12_000;
+  while (Date.now() < deadline && await execute.isDisabled()) {
+    await stepRight(page);
+    if (await compile.isEnabled()) await compile.click({ timeout: 1_000 }).catch(() => undefined);
+  }
+  await expect(execute).toBeEnabled();
+}
+
+async function stepRight(page: Page): Promise<void> {
+  await stepHorizontal(page, "d");
+}
+
+async function stepHorizontal(page: Page, key: "a" | "d"): Promise<void> {
+  await page.locator("#rpg-canvas").focus();
+  await page.keyboard.down(key);
+  try {
+    await page.waitForTimeout(100);
+  } finally {
+    await page.keyboard.up(key);
+  }
+}
+
+async function groundP0WordAtArchive(page: Page, wordId: "telo" | "tawa", unlockSelector: string): Promise<void> {
+  const action = page.locator(`[data-p0-word="${wordId}"]`);
+  const unlock = page.locator(unlockSelector);
+  const deadline = Date.now() + 20_000;
+  while (Date.now() < deadline && await action.isDisabled()) await stepRight(page);
+  await expect(action).toBeEnabled();
+  while (Date.now() < deadline && await unlock.isDisabled()) {
+    await action.click();
+    await page.waitForTimeout(25);
+  }
+  await expect(unlock).toBeEnabled();
+}
+
+async function refillSettlementMp(page: Page): Promise<void> {
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    await clickEnabled(page, '[data-settlement="meditate-wrong"]');
+  }
 }
 
 test("runs the real keyboard/touch route and restores companion-first without manual save", async ({ page }) => {
@@ -124,7 +192,8 @@ test("flushes a checked envelope on pagehide and keeps the touch controls labell
   expect(errors).toEqual([]);
 });
 
-test("completes the production non-attack chapter through N07 and the old-mine threshold", async ({ page }) => {
+test("completes N07, the optional production N08 trial, and the old-mine threshold", async ({ page }) => {
+  test.setTimeout(120_000);
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await clearAndOpen(page);
@@ -167,14 +236,76 @@ test("completes the production non-attack chapter through N07 and the old-mine t
   for (let action = 0; action < actionCount; action += 1) {
     await expect(routeActions.nth(action)).toBeEnabled();
     await routeActions.nth(action).click();
+    if (action === 0) {
+      await clickEnabled(page, '[data-return-intent="discover_wawa"]');
+      await clickEnabled(page, '[data-return-intent="attune_wawa"]');
+    }
   }
   await expect(firstRoute.locator('[data-return-intent="complete_solution"]')).toBeEnabled();
   await firstRoute.locator('[data-return-intent="complete_solution"]').click();
   await expect(page.locator('[data-return-flag="supply"]')).toHaveText("是");
   await expect(page.locator('[data-return-flag="meadow"]')).toHaveText("是");
+  await clickEnabled(page, '[data-return-intent="ground_h0"]');
+  await clickEnabled(page, '[data-return-intent="ground_h1"]');
   await page.reload();
   await expectModeAndScene(page, "return_flow", RETURN_CHANNEL);
   await clickEnabled(page, '[data-return-intent="return_settlement"]');
+  await expectModeAndScene(page, "settlement", SETTLEMENT);
+
+  const qualificationActions = page.locator("[data-safe-range-qualification-action]");
+  await expect(qualificationActions).toHaveCount(8);
+  const teloH0 = '[data-safe-range-qualification-action="settlement.telo.h0"]';
+  const tawaH0 = '[data-safe-range-qualification-action="settlement.tawa.h0"]';
+  await expect(page.locator(teloH0)).toBeDisabled();
+  await expect(page.locator(tawaH0)).toBeDisabled();
+  await groundP0WordAtArchive(page, "telo", teloH0);
+  await groundP0WordAtArchive(page, "tawa", tawaH0);
+  await activateWhileMovingLeftUntilDisabled(
+    page,
+    teloH0,
+  );
+  for (const actionId of [
+    "settlement.telo.h1",
+    "settlement.tawa.h0",
+    "settlement.tawa.h1",
+    "settlement.repair.motion_h0",
+    "settlement.calibration.unrelated_delivery_commit",
+    "settlement.calibration.unrelated_route_commit",
+    "settlement.delayed_retrieval_h0",
+  ]) {
+    const action = page.locator(`[data-safe-range-qualification-action="${actionId}"]`);
+    await expect(action).toBeEnabled();
+    await action.click();
+    await expect(action).toBeDisabled();
+  }
+  await clickEnabled(page, '[data-safe-range-intent="calibrate_attack_capacity"]');
+  await clickEnabled(page, '[data-safe-range-intent="grant_range_trial_permission"]');
+  await refillSettlementMp(page);
+  await clickEnabled(page, '[data-safe-range-intent="enter_safe_range"]');
+  await expectModeAndScene(page, "safe_range", SAFE_RANGE);
+
+  const targetClasses = ["wood_dummy", "sandbag", "minecart", "hanging_stone"] as const;
+  for (const [index, targetClass] of targetClasses.entries()) {
+    if (index > 0 && index % 2 === 0) {
+      await clickEnabled(page, '[data-safe-range-intent="return_settlement"]');
+      await expectModeAndScene(page, "settlement", SETTLEMENT);
+      await refillSettlementMp(page);
+      await clickEnabled(page, '[data-safe-range-intent="enter_safe_range"]');
+      await expectModeAndScene(page, "safe_range", SAFE_RANGE);
+    }
+    const target = page.locator(`[data-safe-range-target="${targetClass}"]`);
+    await expect(target).toBeEnabled();
+    await target.click();
+    await compileWhileMovingRight(page);
+    await clickEnabled(page, '[data-safe-range-intent="execute"]');
+    await expect(target).toBeDisabled();
+  }
+  await activateWhileMovingRightUntilDisabled(page, '[data-safe-range-intent="inspect_material_table"]');
+  await expect(page.locator("[data-safe-range-completed]")).toHaveText("是");
+  await page.reload();
+  await expectModeAndScene(page, "safe_range", SAFE_RANGE);
+  await expect(page.locator("[data-safe-range-completed]")).toHaveText("是");
+  await clickEnabled(page, '[data-safe-range-intent="return_settlement"]');
   await expectModeAndScene(page, "settlement", SETTLEMENT);
 
   await clickEnabled(page, "[data-old-mine-enter]");

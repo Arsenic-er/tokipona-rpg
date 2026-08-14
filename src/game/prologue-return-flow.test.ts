@@ -211,6 +211,9 @@ describe("production prologue return-flow coordinator", () => {
     const count = grounded.snapshot.wawa.inertMechanismEvidenceCount;
     expect(flow.groundWawa("wawa.ground.retry", attempt)).toMatchObject({ accepted: true, duplicate: true });
     expect(flow.snapshot().wawa.inertMechanismEvidenceCount).toBe(count);
+    expect(flow.groundWawa("wawa.ground.h0", { ...attempt, promptLevel: 0 }))
+      .toMatchObject({ accepted: true, duplicate: false, evidenceGranted: true });
+    expect(flow.snapshot().wawa.groundedPromptLevels).toEqual([0, 1]);
     expect(flow.groundWawa("wawa.ground.ok", { ...attempt, worldOutcomeContribution: false }))
       .toMatchObject({ accepted: false, reason: "transaction_conflict" });
   });

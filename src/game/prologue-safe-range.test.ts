@@ -274,6 +274,16 @@ describe("prologue safe-range coordinator", () => {
       .toMatchObject({ accepted: false, reason: "world_version_conflict" });
   });
 
+  it("keeps a preview valid across idle runtime synchronization with identical authoritative facts", () => {
+    const position = nearTarget("wood_dummy");
+    const runtime = new SafeRangeRuntimeWorld({ playerPositionPx: position });
+    const coordinator = enter(runtime);
+    const preview = compile(coordinator, request());
+    runtime.synchronize(position, []);
+    expect(coordinator.execute("idle-frame", preview))
+      .toMatchObject({ accepted: true, reason: "committed" });
+  });
+
   it("requires a protected adjacent runtime-frame witness for live commits and replay", () => {
     const runtime = new SafeRangeRuntimeWorld({ playerPositionPx: nearTarget("wood_dummy") });
     const coordinator = enter(runtime);

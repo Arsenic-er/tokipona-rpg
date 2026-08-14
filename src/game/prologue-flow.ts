@@ -221,6 +221,7 @@ export interface PrologueFlowSafeRangeView {
     evidenceType: string;
     promptLevel: 0 | 1 | null;
     unrelated: boolean;
+    available: boolean;
     completed: boolean;
   }>[];
   readonly settlementActionsComplete: boolean;
@@ -633,15 +634,27 @@ export class PrologueFlowSession {
         !action.existingDomainEventMappingOnly),
       ...SAFE_RANGE_MANIFEST.parallelCalibration.unrelatedSemanticWorldActions,
     ];
+    const grounded = (wordId: "telo" | "tawa"): boolean => {
+      const rank = { discovered: 0, attuned: 1, grounded: 2, produced: 3, stabilized: 4 } as const;
+      const learningState = state.learning.words[wordId]?.learningState;
+      return learningState !== undefined && learningState !== null &&
+        (rank[learningState] ?? -1) >= rank.grounded;
+    };
     const qualificationActions = Object.freeze(settlementActions.map((action) => {
       const unrelated = action.actionId.startsWith("settlement.calibration.unrelated_");
       const completed = unrelated
         ? receipts[`attack-qualification-world:${action.actionId}`] !== undefined
         : receiptIds.some((receiptId) => receiptId.startsWith(
             `attack-qualification-evidence:attack-qualification:${this.session.sessionId}:${action.actionId}:`));
+      const available = unrelated || action.actionId.startsWith("settlement.telo.")
+        ? unrelated || grounded("telo")
+        : action.actionId === "settlement.delayed_retrieval_h0"
+          ? grounded("telo") && SAFE_RANGE_MANIFEST.parallelCalibration.unrelatedSemanticWorldActions.every(
+              (required) => receipts[`attack-qualification-world:${required.actionId}`] !== undefined)
+          : grounded("tawa");
       return Object.freeze({ actionId: action.actionId, taskFamilyId: action.taskFamilyId,
         evidenceType: unrelated ? "unrelated_world_action" : "evidenceType" in action ? action.evidenceType : "invalid",
-        promptLevel: "promptLevel" in action ? action.promptLevel : null, unrelated, completed });
+        promptLevel: "promptLevel" in action ? action.promptLevel : null, unrelated, available, completed });
     }));
     const globalFlag = (flagId: string): boolean =>
       state.world.flags[`global:${flagId}`]?.scope === "global" &&

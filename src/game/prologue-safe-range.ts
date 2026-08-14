@@ -111,6 +111,14 @@ export class SafeRangeRuntimeWorld {
     if (!finitePoint(playerPositionPx) || !this.validActors(actors)) {
       throw new Error("safe-range runtime frame is invalid");
     }
+    const unchangedPlayer = this.playerPosition.x === playerPositionPx.x && this.playerPosition.y === playerPositionPx.y;
+    const unchangedActors = this.actorsValue.length === actors.length && this.actorsValue.every((current, index) => {
+      const next = actors[index];
+      return next !== undefined && current.actorId === next.actorId && current.kind === next.kind &&
+        current.boundsPx.x === next.boundsPx.x && current.boundsPx.y === next.boundsPx.y &&
+        current.boundsPx.width === next.boundsPx.width && current.boundsPx.height === next.boundsPx.height;
+    });
+    if (unchangedPlayer && unchangedActors) return;
     this.playerPosition = Object.freeze({ ...playerPositionPx });
     this.actorsValue = Object.freeze(actors.map(cloneActor));
     this.revisionValue += 1;

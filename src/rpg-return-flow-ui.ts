@@ -36,6 +36,7 @@ export interface ReturnFlowUiFlowSnapshot {
       readonly attunementState: string;
       readonly learningState: string | null;
       readonly inertMechanismEvidenceCount: number;
+      readonly groundedPromptLevels: readonly (0 | 1)[];
     }>;
     readonly solutionContracts: readonly Readonly<{
       readonly id: string;
@@ -90,6 +91,8 @@ export interface ReturnFlowUiModel {
   readonly canDiscover: boolean;
   readonly canAttune: boolean;
   readonly canGround: boolean;
+  readonly canGroundH0: boolean;
+  readonly canGroundH1: boolean;
   readonly canReturn: boolean;
   readonly taskCompleted: boolean;
   readonly grounded: boolean;
@@ -197,8 +200,10 @@ export function deriveReturnFlowUiModel(snapshot: ReturnFlowUiFlowSnapshot): Ret
   const indicatorObserved = taskCompleted || [...completedIds].some((id) => id.endsWith(".inspect_indicator"));
   const discovered = flow.wawa.discoveryState === "discovered";
   const attuned = flow.wawa.attunementState === "attuned";
-  const grounded = flow.wawa.learningState === "grounded" || flow.wawa.learningState === "produced" ||
-    flow.wawa.learningState === "stabilized";
+  const promptLevelsValid = flow.wawa.groundedPromptLevels.every((level) => level === 0 || level === 1) &&
+    new Set(flow.wawa.groundedPromptLevels).size === flow.wawa.groundedPromptLevels.length;
+  if (!promptLevelsValid) return Object.freeze({ ...empty, contractValid: false, phase: "contract_error" });
+  const grounded = flow.wawa.groundedPromptLevels.length > 0;
 
   const routes = flow.solutionContracts.map((contract) => {
     const id = contract.id as ReturnFlowSolutionId;
@@ -221,7 +226,9 @@ export function deriveReturnFlowUiModel(snapshot: ReturnFlowUiFlowSnapshot): Ret
 
   const canDiscover = indicatorObserved && !discovered;
   const canAttune = indicatorObserved && discovered && !attuned;
-  const canGround = taskCompleted && attuned && !grounded;
+  const canGroundH0 = taskCompleted && attuned && !flow.wawa.groundedPromptLevels.includes(0);
+  const canGroundH1 = taskCompleted && attuned && !flow.wawa.groundedPromptLevels.includes(1);
+  const canGround = canGroundH0 || canGroundH1;
   const canReturn = taskCompleted && !flow.prologueReturnObserved;
   const phase: ReturnFlowUiPhase = taskCompleted ? canGround ? "ground_wawa" : "return_settlement"
     : !indicatorObserved ? "observe_indicator"
@@ -231,7 +238,7 @@ export function deriveReturnFlowUiModel(snapshot: ReturnFlowUiFlowSnapshot): Ret
   const liveStatus = statusFor(phase, selected, flow.prologueReturnObserved);
 
   return Object.freeze({ ...empty, contractValid: true, phase, routes: Object.freeze(routes),
-    selectedSolutionId: selected, indicatorObserved, canDiscover, canAttune, canGround, canReturn,
+    selectedSolutionId: selected, indicatorObserved, canDiscover, canAttune, canGround, canGroundH0, canGroundH1, canReturn,
     taskCompleted, grounded, flags: Object.freeze({
       settlementSupplyStable: flow.settlementSupplyStable,
       wetMeadowRestored: flow.wetMeadowRestored,
@@ -243,7 +250,8 @@ function baseModel(panelVisible: boolean, contractValid: boolean, flow: ReturnFl
   return {
     panelVisible, contractValid, phase: panelVisible ? "contract_error" : "hidden", routes: Object.freeze([]),
     selectedSolutionId: null, indicatorObserved: false, canDiscover: false, canAttune: false,
-    canGround: false, canReturn: false, taskCompleted: false, grounded: false,
+    canGround: false, canGroundH0: false, canGroundH1: false,
+    canReturn: false, taskCompleted: false, grounded: false,
     flags: Object.freeze({ settlementSupplyStable: flow?.settlementSupplyStable ?? false,
       wetMeadowRestored: flow?.wetMeadowRestored ?? false }),
     patch: Object.freeze({ id: CONTRACT.patchRecordRef, applied: flow?.materialPatchApplied ?? false }),
@@ -281,7 +289,8 @@ export function resolveReturnFlowUiIntent(model: ReturnFlowUiModel, intent: Retu
     return route?.canCommit ? Object.freeze({ kind: "complete_solution", solutionId: route.id }) : null;
   }
   if (intent.kind === "ground_wawa") {
-    return model.canGround && model.selectedSolutionId
+    const allowed = intent.promptLevel === 0 ? model.canGroundH0 : model.canGroundH1;
+    return allowed && model.selectedSolutionId
       ? Object.freeze({ kind: "ground_wawa", solutionId: model.selectedSolutionId, promptLevel: intent.promptLevel }) : null;
   }
   if (intent.kind === "return_settlement") return model.canReturn ? Object.freeze({ kind: "return_settlement" }) : null;
@@ -353,8 +362,8 @@ export function createRpgReturnFlowUi(onCommand: (command: ReturnFlowUiCommand) 
       }
       setDisabled(root, "discover_wawa", !currentModel.canDiscover);
       setDisabled(root, "attune_wawa", !currentModel.canAttune);
-      setDisabled(root, "ground_h0", !currentModel.canGround);
-      setDisabled(root, "ground_h1", !currentModel.canGround);
+      setDisabled(root, "ground_h0", !currentModel.canGroundH0);
+      setDisabled(root, "ground_h1", !currentModel.canGroundH1);
       setDisabled(root, "return_settlement", !currentModel.canReturn);
       text(root, "[data-return-flag='supply']", currentModel.flags.settlementSupplyStable ? "是" : "否");
       text(root, "[data-return-flag='meadow']", currentModel.flags.wetMeadowRestored ? "是" : "否");

@@ -165,6 +165,7 @@ export interface PrologueReturnFlowSnapshot {
     attunementState: string;
     learningState: string | null;
     inertMechanismEvidenceCount: number;
+    groundedPromptLevels: readonly (0 | 1)[];
   }>;
   readonly solutionContracts: readonly RuntimeReturnFlowSolutionContract[];
   readonly softLockRecovery: Readonly<{ maximumSeconds: number }>;
@@ -253,7 +254,7 @@ const checkpointFor = (state: GameSessionState, id: string, scene: RuntimeSceneM
   entrance: RuntimeSceneEntranceManifest) => ({
   id, sceneId: scene.sceneId, position: { ...entrance.spawnPx }, revision: state.checkpoint.revision + 1,
 });
-const variantFor = (solution: RuntimeReturnFlowSolutionContract): `sha256:${string}` => {
+const variantFor = (solution: RuntimeReturnFlowSolutionContract, promptLevel: PromptLevel): `sha256:${string}` => {
   const environment = `${RETURN_FLOW_TASK.regionNodeId}:${RETURN_FLOW_WAWA_TARGET_ID}:${solution.chapterSolutionFamily}:verified-inert-flow`;
   return sha256Canonical({
     task_family: RETURN_FLOW_TASK.familyId,
@@ -261,6 +262,7 @@ const variantFor = (solution: RuntimeReturnFlowSolutionContract): `sha256:${stri
     normalized_environment_fingerprint: environment,
     canonical_ast_word_ids: [RETURN_FLOW_CONTRACT.wawaEvidence.wordId],
     solution_id: solution.id,
+    prompt_level: promptLevel,
   } as JsonValue);
 };
 
@@ -341,6 +343,9 @@ export class PrologueReturnFlowSession {
     const state = this.authoritativeSession.snapshot();
     const wawa = state.learning.words.wawa;
     const solution = regionValue(state, PROLOGUE_RETURN_FLOW_FLAGS.solutionId);
+    const inertGroundings = wawa?.evidence.filter((entry) =>
+      entry.eventType === "grounding_trial_resolved" &&
+      entry.sourceObjectClass === RETURN_FLOW_WAWA_SOURCE_OBJECT_CLASS) ?? [];
     return Object.freeze({
       session: state,
       sceneId: state.world.currentSceneId,
@@ -356,6 +361,8 @@ export class PrologueReturnFlowSession {
         learningState: wawa?.learningState ?? null,
         inertMechanismEvidenceCount: wawa?.evidence.filter((entry) =>
           entry.sourceObjectClass === RETURN_FLOW_WAWA_SOURCE_OBJECT_CLASS).length ?? 0,
+        groundedPromptLevels: Object.freeze([...new Set(inertGroundings.flatMap((entry) =>
+          entry.promptLevel === 0 || entry.promptLevel === 1 ? [entry.promptLevel] : []))].sort()),
       }),
       solutionContracts: SOLUTIONS,
       softLockRecovery: Object.freeze({ maximumSeconds: RETURN_FLOW_TASK.maximumSoftlockRecoverySeconds }),
@@ -436,7 +443,7 @@ export class PrologueReturnFlowSession {
     const id = requiredId(transactionId, "transactionId");
     const solution = SOLUTIONS.find((candidate) => candidate.id === attempt.solutionId);
     if (!solution) return this.result(false, false, "unknown_solution");
-    const variantHash = variantFor(solution);
+    const variantHash = variantFor(solution, attempt.promptLevel);
     const environment = `${RETURN_FLOW_TASK.regionNodeId}:${RETURN_FLOW_WAWA_TARGET_ID}:${solution.chapterSolutionFamily}:verified-inert-flow`;
     const payloadHash = fingerprint("wawa_grounding", { attempt, variantHash, sourceObjectClass: RETURN_FLOW_WAWA_SOURCE_OBJECT_CLASS,
       targetId: RETURN_FLOW_WAWA_TARGET_ID, livingOverlapFalse: true, harmApplied: 0, attackOutputCreated: false });
@@ -452,7 +459,7 @@ export class PrologueReturnFlowSession {
     const existing = snapshot.session.learning.words.wawa?.evidence.some((entry) =>
       entry.eventType === "grounding_trial_resolved" &&
       entry.sourceObjectClass === RETURN_FLOW_WAWA_SOURCE_OBJECT_CLASS &&
-      entry.taskFamilyId === RETURN_FLOW_TASK.familyId) ?? false;
+      entry.taskFamilyId === RETURN_FLOW_TASK.familyId && entry.promptLevel === attempt.promptLevel) ?? false;
     if (existing) return this.recordSemanticDuplicate(id, payloadHash);
     const event: GroundingTrialResolvedEvent = {
       eventId: `return-flow.wawa.grounding.${id}`, eventType: "grounding_trial_resolved",

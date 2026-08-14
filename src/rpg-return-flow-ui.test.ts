@@ -20,7 +20,8 @@ function snapshot(overrides: Readonly<Record<string, unknown>> = {}): ReturnFlow
       materialPatchApplied: false,
       prologueReturnObserved: false,
       taskCompleted: false,
-      wawa: { discoveryState: "unknown", attunementState: "locked", learningState: null, inertMechanismEvidenceCount: 0 },
+      wawa: { discoveryState: "unknown", attunementState: "locked", learningState: null,
+        inertMechanismEvidenceCount: 0, groundedPromptLevels: [] },
       solutionContracts: solutions,
       softLockRecovery: { maximumSeconds: RETURN_FLOW_UI_CONTRACT.maximumSoftlockRecoverySeconds },
     },
@@ -88,14 +89,16 @@ describe("RPG N07 return-flow UI model", () => {
   it("keeps sequential route work available while wawa discovery and attunement remain independent", () => {
     const route = solutions[1]!;
     const inspected = withFlow(snapshot(), {
-      wawa: { discoveryState: "discovered", attunementState: "locked", learningState: "discovered", inertMechanismEvidenceCount: 1 },
+      wawa: { discoveryState: "discovered", attunementState: "locked", learningState: "discovered",
+        inertMechanismEvidenceCount: 1, groundedPromptLevels: [] },
     }, { selectedSolutionId: route.id, completedActionIds: [route.requiredActions[0]!] });
     const discovery = deriveReturnFlowUiModel(inspected);
     expect(discovery).toMatchObject({ phase: "attune_wawa", canAttune: true });
     expect(discovery.routes[1]!.actions[1]!.enabled).toBe(true);
 
     const partial = withFlow(inspected, {
-      wawa: { discoveryState: "discovered", attunementState: "attuned", learningState: "discovered", inertMechanismEvidenceCount: 2 },
+      wawa: { discoveryState: "discovered", attunementState: "attuned", learningState: "discovered",
+        inertMechanismEvidenceCount: 2, groundedPromptLevels: [] },
     });
     const readyForStep = deriveReturnFlowUiModel(partial);
     expect(readyForStep.routes[1]!.actions[1]!.enabled).toBe(true);
@@ -130,7 +133,8 @@ describe("RPG N07 return-flow UI model", () => {
       solutionId: route.id,
       materialPatchApplied: true,
       taskCompleted: true,
-      wawa: { discoveryState: "discovered", attunementState: "attuned", learningState: "discovered", inertMechanismEvidenceCount: 2 },
+      wawa: { discoveryState: "discovered", attunementState: "attuned", learningState: "discovered",
+        inertMechanismEvidenceCount: 2, groundedPromptLevels: [] },
     }, null);
     const model = deriveReturnFlowUiModel(completed);
     expect(model).toMatchObject({ phase: "ground_wawa", canGround: true, canReturn: true });
@@ -139,11 +143,23 @@ describe("RPG N07 return-flow UI model", () => {
     expect(resolveReturnFlowUiIntent(model, { kind: "ground_wawa", promptLevel: 1 }))
       .toEqual({ kind: "ground_wawa", solutionId: route.id, promptLevel: 1 });
 
-    const grounded = deriveReturnFlowUiModel(withFlow(completed, {
-      wawa: { discoveryState: "discovered", attunementState: "attuned", learningState: "grounded", inertMechanismEvidenceCount: 3 },
+    const h0Grounded = deriveReturnFlowUiModel(withFlow(completed, {
+      wawa: { discoveryState: "discovered", attunementState: "attuned", learningState: "grounded",
+        inertMechanismEvidenceCount: 3, groundedPromptLevels: [0] },
     }));
-    expect(grounded).toMatchObject({ phase: "return_settlement", canGround: false, canReturn: true });
-    expect(resolveReturnFlowUiIntent(grounded, { kind: "return_settlement" })).toEqual({ kind: "return_settlement" });
+    expect(h0Grounded).toMatchObject({ phase: "ground_wawa", canGround: true,
+      canGroundH0: false, canGroundH1: true, canReturn: true });
+    expect(resolveReturnFlowUiIntent(h0Grounded, { kind: "ground_wawa", promptLevel: 0 })).toBeNull();
+    expect(resolveReturnFlowUiIntent(h0Grounded, { kind: "ground_wawa", promptLevel: 1 }))
+      .toEqual({ kind: "ground_wawa", solutionId: route.id, promptLevel: 1 });
+
+    const fullyGrounded = deriveReturnFlowUiModel(withFlow(completed, {
+      wawa: { discoveryState: "discovered", attunementState: "attuned", learningState: "grounded",
+        inertMechanismEvidenceCount: 4, groundedPromptLevels: [0, 1] },
+    }));
+    expect(fullyGrounded).toMatchObject({ phase: "return_settlement", canGround: false, canReturn: true });
+    expect(resolveReturnFlowUiIntent(fullyGrounded, { kind: "return_settlement" }))
+      .toEqual({ kind: "return_settlement" });
   });
 
   it("allows a tool-only completion and return without fabricating wawa evidence", () => {

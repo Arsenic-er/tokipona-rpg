@@ -55,7 +55,7 @@ const flowSnapshot = (options: Readonly<{
     ["settlement.calibration.unrelated_route_commit", "settlement_calibration_context", "unrelated_world_action", null, true],
   ] as const;
   const qualificationActions = actionSpecs.map(([actionId, taskFamilyId, evidenceType, promptLevel, unrelated]) => ({
-    actionId, taskFamilyId, evidenceType, promptLevel, unrelated,
+    actionId, taskFamilyId, evidenceType, promptLevel, unrelated, available: true,
     completed: unrelated
       ? receiptIds.includes(`attack-qualification-world:${actionId}`)
       : receiptIds.some((receiptId) => receiptId.includes(`:${actionId}:`)),

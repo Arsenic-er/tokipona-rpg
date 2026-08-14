@@ -55,6 +55,7 @@ export function createRpgP0LearningUi(onCommand: (command: P0LearningUiCommand) 
   root.innerHTML = P0_LEARNING_UI_TEMPLATE;
   anchor.parentElement.insertBefore(root, anchor);
   let current: P0LearningUiModel | null = null;
+  let gridRenderKey = "";
   root.addEventListener("click", (event) => {
     const button = event.target instanceof Element ? event.target.closest<HTMLButtonElement>("button[data-p0-word]") : null;
     if (!button || button.disabled || !current) return;
@@ -66,15 +67,20 @@ export function createRpgP0LearningUi(onCommand: (command: P0LearningUiCommand) 
     const panel = required<HTMLElement>(root, "[data-p0-learning-panel]"); panel.hidden = !model.visible;
     required<HTMLElement>(root, "[data-p0-learning-assets]").hidden = !model.externalAssetsBlocked;
     required<HTMLElement>(root, "[data-p0-learning-count]").textContent = `${model.reachedWordCount} / ${model.targetWordCount}`;
-    const grid = required<HTMLElement>(root, "[data-p0-learning-grid]"); grid.replaceChildren();
-    for (const word of model.words) {
+    const grid = required<HTMLElement>(root, "[data-p0-learning-grid]");
+    const nextGridRenderKey = JSON.stringify({ inRange: model.inRange, words: model.words });
+    if (nextGridRenderKey !== gridRenderKey) {
+      gridRenderKey = nextGridRenderKey;
+      grid.replaceChildren();
+      for (const word of model.words) {
       const row = document.createElement("article"); row.className = "p0-learning-word";
       const label = document.createElement("span"); label.innerHTML = `<strong>${word.wordId}</strong><small>${word.currentState} → ${word.targetState}</small>`;
       const button = document.createElement("button"); button.type = "button"; button.dataset.p0Word = word.wordId;
       button.textContent = word.nextActionId?.split(".").at(-1)?.replace("_", " ") ?? "完成";
       button.disabled = !model.inRange || word.nextActionId === null;
       button.setAttribute("aria-label", `${word.wordId}: ${button.textContent}`);
-      row.append(label, button); grid.append(row);
+        row.append(label, button); grid.append(row);
+      }
     }
     required<HTMLElement>(root, "[data-p0-learning-live]").textContent = !model.inRange
       ? "靠近 settlement.p0_inscription_archive 后才能提交恢复动作。"
