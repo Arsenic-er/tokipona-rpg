@@ -18,6 +18,17 @@ const PROLOGUE_TELEMETRY_SEMANTIC_FIELDS = ["subjectId", "outcomeId", "practiceF
 const PROLOGUE_TELEMETRY_FORBIDDEN_FIELDS = ["rawUtterance", "rawText", "inventoryLotId", "damageOverride", "worldFlagOverride"] as const;
 const PROLOGUE_CONSEQUENTIAL_CHOICE_EVENT_IDS = ["world_literacy_intervened", "repair_completed", "alternate_method_used"] as const;
 const PROLOGUE_ACTIVE_RETRIEVAL_EVENT_IDS = ["active_retrieval_submitted", "delayed_retrieval_completed"] as const;
+const PROLOGUE_PLAYTEST_SESSION_FIELDS = [
+  "schemaVersion", "sessionId", "contentActiveMs", "worldPeoplePhysicsActiveMs", "languageActiveMs",
+  "longExplanationActiveMs", "survivalUiActiveMs", "languageInteractionCount",
+  "needsInterruptedLanguageInteractionCount", "freeFoodWaterDiscoveryMs", "softFailureRecoveryDurationsMs",
+  "rangeTrialPermissionContentMs", "firstAttackSignatureContentMs", "forcedHuntCount", "wildlifeHarmEventCount",
+  "huntingIncomeCoin", "huntingActiveMs", "nonviolentJobIncomeCoin", "nonviolentJobActiveMs",
+  "duplicateCorpseLotCurrencyCount", "minimumNeedsValueObserved", "maximumActiveNewWordsInAnySegment",
+] as const;
+const PROLOGUE_PLAYTEST_SESSION_FORBIDDEN_FIELDS = [
+  "rawUtterance", "rawText", "inventoryLotIds", "savePayload", "playerIdentifier", "damageOverride", "worldFlagOverride",
+] as const;
 
 export function projectPrologueAcceptance(manifest: ContentManifest): RuntimePrologueAcceptanceManifest {
   const source = manifest.byKind.chapter[0];
@@ -30,12 +41,15 @@ export function projectPrologueAcceptance(manifest: ContentManifest): RuntimePro
   const taxonomy = object(telemetryContract.primary_activity_taxonomy, "telemetry primary activity taxonomy");
   const payload = object(telemetryContract.event_payload, "telemetry event payload");
   const cadence = object(telemetryContract.cadence, "telemetry cadence");
+  const playtestSession = object(telemetryContract.playtest_session_summary, "playtest session summary");
   exactStrings(source.content.telemetry_events, PROLOGUE_TELEMETRY_EVENT_IDS, "telemetry_events");
   exactStrings(taxonomy.included, PROLOGUE_INCLUDED_ACTIVITY_KINDS, "telemetry included activities");
   exactStrings(taxonomy.excluded, PROLOGUE_EXCLUDED_ACTIVITY_KINDS, "telemetry excluded activities");
   exactStrings(payload.required_fields, PROLOGUE_TELEMETRY_REQUIRED_FIELDS, "telemetry required fields");
   exactStrings(payload.semantic_field_keys, PROLOGUE_TELEMETRY_SEMANTIC_FIELDS, "telemetry semantic fields");
   exactStrings(payload.forbidden_fields, PROLOGUE_TELEMETRY_FORBIDDEN_FIELDS, "telemetry forbidden fields");
+  exactStrings(playtestSession.required_fields, PROLOGUE_PLAYTEST_SESSION_FIELDS, "playtest session fields");
+  exactStrings(playtestSession.forbidden_fields, PROLOGUE_PLAYTEST_SESSION_FORBIDDEN_FIELDS, "playtest forbidden fields");
   const acceptance = object(source.content.acceptance, "acceptance");
   const required = object(acceptance.required, "acceptance.required");
   const playtest = object(acceptance.playtest_targets, "acceptance.playtest_targets");
@@ -67,6 +81,20 @@ export function projectPrologueAcceptance(manifest: ContentManifest): RuntimePro
           "active retrieval practice-family field"),
         maximumConsecutiveSamePracticeFamily: exact(cadence.maximum_consecutive_same_practice_family,
           2, "maximum consecutive same practice family"),
+      },
+      playtestSessionSummary: {
+        schemaVersion: exact(playtestSession.schema_version, "prologue.playtest-session.v0.1", "playtest session schema"),
+        minimumObservedContentMinutes: exact(playtestSession.minimum_observed_content_minutes,
+          180, "playtest observed content minimum"),
+        requiredFields: [...PROLOGUE_PLAYTEST_SESSION_FIELDS],
+        forbiddenFields: [...PROLOGUE_PLAYTEST_SESSION_FORBIDDEN_FIELDS],
+        percentileMethod: exact(playtestSession.percentile_method,
+          "nearest_rank_missing_as_failure", "playtest percentile method"),
+        shareAggregation: exact(playtestSession.share_aggregation,
+          "ratio_of_aggregate_active_time", "playtest share aggregation"),
+        rateAggregation: exact(playtestSession.rate_aggregation,
+          "ratio_of_aggregate_coin_per_active_minute", "playtest rate aggregation"),
+        countAggregation: exact(playtestSession.count_aggregation, "sum", "playtest count aggregation"),
       },
     },
     acceptance: {

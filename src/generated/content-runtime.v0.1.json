@@ -14792,7 +14792,7 @@
     "sourceDigest": "sha256:33b53f953c5771d7fbf7e10e89ce2b86b8d825c8cc090d9f61d42384f90ccda0"
   },
   "prologueAcceptance": {
-    "sourceDigest": "sha256:2f3d1d3e151e5f49e68f478dcfe742888e273e0acc7c93ae81cfdcd4d13b0887",
+    "sourceDigest": "sha256:5c8e2c2cdb1cf155e3bf7b26f5ab119943de9ece99a20f42c1e44bbd5435820b",
     "sourcePath": "data/chapters/ch01-world-literacy-prologue.v0.1.yaml",
     "contentVersion": "chapter-01.prologue.1",
     "telemetry": {
@@ -14880,6 +14880,47 @@
         ],
         "activeRetrievalPracticeFamilySemanticField": "practiceFamilyId",
         "maximumConsecutiveSamePracticeFamily": 2
+      },
+      "playtestSessionSummary": {
+        "schemaVersion": "prologue.playtest-session.v0.1",
+        "minimumObservedContentMinutes": 180,
+        "requiredFields": [
+          "schemaVersion",
+          "sessionId",
+          "contentActiveMs",
+          "worldPeoplePhysicsActiveMs",
+          "languageActiveMs",
+          "longExplanationActiveMs",
+          "survivalUiActiveMs",
+          "languageInteractionCount",
+          "needsInterruptedLanguageInteractionCount",
+          "freeFoodWaterDiscoveryMs",
+          "softFailureRecoveryDurationsMs",
+          "rangeTrialPermissionContentMs",
+          "firstAttackSignatureContentMs",
+          "forcedHuntCount",
+          "wildlifeHarmEventCount",
+          "huntingIncomeCoin",
+          "huntingActiveMs",
+          "nonviolentJobIncomeCoin",
+          "nonviolentJobActiveMs",
+          "duplicateCorpseLotCurrencyCount",
+          "minimumNeedsValueObserved",
+          "maximumActiveNewWordsInAnySegment"
+        ],
+        "forbiddenFields": [
+          "rawUtterance",
+          "rawText",
+          "inventoryLotIds",
+          "savePayload",
+          "playerIdentifier",
+          "damageOverride",
+          "worldFlagOverride"
+        ],
+        "percentileMethod": "nearest_rank_missing_as_failure",
+        "shareAggregation": "ratio_of_aggregate_active_time",
+        "rateAggregation": "ratio_of_aggregate_coin_per_active_minute",
+        "countAggregation": "sum"
       }
     },
     "acceptance": {

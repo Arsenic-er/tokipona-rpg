@@ -45,6 +45,14 @@ describe("prologue acceptance runtime contract", () => {
         activeRetrievalPracticeFamilySemanticField: "practiceFamilyId",
         maximumConsecutiveSamePracticeFamily: 2,
       },
+      playtestSessionSummary: {
+        schemaVersion: "prologue.playtest-session.v0.1",
+        minimumObservedContentMinutes: 180,
+        percentileMethod: "nearest_rank_missing_as_failure",
+        shareAggregation: "ratio_of_aggregate_active_time",
+        rateAggregation: "ratio_of_aggregate_coin_per_active_minute",
+        countAggregation: "sum",
+      },
     });
     expect(value.telemetry.eventIds).toHaveLength(24);
     expect(value.acceptance.required).toMatchObject({ mandatoryKills: 0, safeRangeUsesLivingTargets: false, meaningfulWorldDeltasOnReturnMinimum: 3 });
@@ -64,6 +72,9 @@ describe("prologue acceptance runtime contract", () => {
     const cadence = structuredClone(generated) as any;
     cadence.prologueAcceptance.telemetry.cadence.activeRetrievalIntervalMinutes = [20, 50];
     expect(() => readRuntimePrologueAcceptanceManifest(resign(cadence))).toThrow(/cadence/);
+    const playtestSession = structuredClone(generated) as any;
+    playtestSession.prologueAcceptance.telemetry.playtestSessionSummary.requiredFields.push("rawText");
+    expect(() => readRuntimePrologueAcceptanceManifest(resign(playtestSession))).toThrow(/playtest session summary/);
     const threshold = structuredClone(generated) as any;
     threshold.prologueAcceptance.acceptance.playtest.worldPeoplePhysicsTimeShareMinimum = 0.5;
     expect(() => readRuntimePrologueAcceptanceManifest(resign(threshold))).toThrow(/playtest acceptance/);
@@ -81,6 +92,14 @@ describe("prologue acceptance runtime contract", () => {
     const cadenceContract = (chapter(cadenceDrift).telemetry_contract as Record<string, unknown>).cadence as Record<string, unknown>;
     cadenceContract.maximum_consecutive_same_practice_family = 3;
     expectIssue(cadenceDrift, "chapter.telemetry_contract");
+    const playtestDrift = sources();
+    const playtestContract = (chapter(playtestDrift).telemetry_contract as Record<string, unknown>).playtest_session_summary as Record<string, unknown>;
+    playtestContract.percentile_method = "average";
+    expectIssue(playtestDrift, "chapter.telemetry_contract");
+    const playtestUnknown = sources();
+    const playtestUnknownContract = (chapter(playtestUnknown).telemetry_contract as Record<string, unknown>).playtest_session_summary as Record<string, unknown>;
+    playtestUnknownContract.raw_text_export = true;
+    expectIssue(playtestUnknown, "chapter.telemetry_contract");
     const acceptanceDrift = sources();
     const acceptance = chapter(acceptanceDrift).acceptance as Record<string, unknown>;
     (acceptance.playtest_targets as Record<string, unknown>).world_people_physics_time_share_minimum = 0.5;

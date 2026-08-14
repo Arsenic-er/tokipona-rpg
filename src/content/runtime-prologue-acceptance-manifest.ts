@@ -39,6 +39,19 @@ export const PROLOGUE_ACTIVE_RETRIEVAL_EVENT_IDS = Object.freeze([
   "active_retrieval_submitted", "delayed_retrieval_completed",
 ] as const);
 
+export const PROLOGUE_PLAYTEST_SESSION_FIELDS = Object.freeze([
+  "schemaVersion", "sessionId", "contentActiveMs", "worldPeoplePhysicsActiveMs", "languageActiveMs",
+  "longExplanationActiveMs", "survivalUiActiveMs", "languageInteractionCount",
+  "needsInterruptedLanguageInteractionCount", "freeFoodWaterDiscoveryMs", "softFailureRecoveryDurationsMs",
+  "rangeTrialPermissionContentMs", "firstAttackSignatureContentMs", "forcedHuntCount", "wildlifeHarmEventCount",
+  "huntingIncomeCoin", "huntingActiveMs", "nonviolentJobIncomeCoin", "nonviolentJobActiveMs",
+  "duplicateCorpseLotCurrencyCount", "minimumNeedsValueObserved", "maximumActiveNewWordsInAnySegment",
+] as const);
+
+export const PROLOGUE_PLAYTEST_SESSION_FORBIDDEN_FIELDS = Object.freeze([
+  "rawUtterance", "rawText", "inventoryLotIds", "savePayload", "playerIdentifier", "damageOverride", "worldFlagOverride",
+] as const);
+
 export type PrologueTelemetryEventId = typeof PROLOGUE_TELEMETRY_EVENT_IDS[number];
 export type PrologueIncludedActivityKind = typeof PROLOGUE_INCLUDED_ACTIVITY_KINDS[number];
 export type PrologueExcludedActivityKind = typeof PROLOGUE_EXCLUDED_ACTIVITY_KINDS[number];
@@ -66,6 +79,16 @@ export interface RuntimePrologueAcceptanceManifest {
       activeRetrievalIntervalMinutes: readonly [30, 40];
       activeRetrievalPracticeFamilySemanticField: "practiceFamilyId";
       maximumConsecutiveSamePracticeFamily: 2;
+    }>;
+    playtestSessionSummary: Readonly<{
+      schemaVersion: "prologue.playtest-session.v0.1";
+      minimumObservedContentMinutes: 180;
+      requiredFields: readonly string[];
+      forbiddenFields: readonly string[];
+      percentileMethod: "nearest_rank_missing_as_failure";
+      shareAggregation: "ratio_of_aggregate_active_time";
+      rateAggregation: "ratio_of_aggregate_coin_per_active_minute";
+      countAggregation: "sum";
     }>;
   }>;
   readonly acceptance: Readonly<{
@@ -126,7 +149,7 @@ export function readRuntimePrologueAcceptanceManifest(candidate: unknown): Runti
   if (raw.sourcePath !== "data/chapters/ch01-world-literacy-prologue.v0.1.yaml" || raw.contentVersion !== "chapter-01.prologue.1") throw new Error("prologue acceptance source identity is invalid");
 
   const telemetry = record(raw.telemetry, "prologue telemetry");
-  exactKeys(telemetry, ["schemaVersion", "eventIds", "includedPrimaryActivities", "excludedActivities", "exclusivePrimaryActivity", "payload", "cadence"], "prologue telemetry");
+  exactKeys(telemetry, ["schemaVersion", "eventIds", "includedPrimaryActivities", "excludedActivities", "exclusivePrimaryActivity", "payload", "cadence", "playtestSessionSummary"], "prologue telemetry");
   if (telemetry.schemaVersion !== "prologue.telemetry.v0.1" || telemetry.exclusivePrimaryActivity !== true ||
       !same(telemetry.eventIds, PROLOGUE_TELEMETRY_EVENT_IDS) ||
       !same(telemetry.includedPrimaryActivities, PROLOGUE_INCLUDED_ACTIVITY_KINDS) ||
@@ -149,6 +172,18 @@ export function readRuntimePrologueAcceptanceManifest(candidate: unknown): Runti
       cadence.activeRetrievalPracticeFamilySemanticField !== "practiceFamilyId" ||
       cadence.maximumConsecutiveSamePracticeFamily !== 2) {
     throw new Error("prologue telemetry cadence contract is noncanonical");
+  }
+  const playtestSession = record(telemetry.playtestSessionSummary, "prologue playtest session summary");
+  exactKeys(playtestSession, ["schemaVersion", "minimumObservedContentMinutes", "requiredFields", "forbiddenFields", "percentileMethod", "shareAggregation", "rateAggregation", "countAggregation"], "prologue playtest session summary");
+  if (playtestSession.schemaVersion !== "prologue.playtest-session.v0.1" ||
+      playtestSession.minimumObservedContentMinutes !== 180 ||
+      !same(playtestSession.requiredFields, PROLOGUE_PLAYTEST_SESSION_FIELDS) ||
+      !same(playtestSession.forbiddenFields, PROLOGUE_PLAYTEST_SESSION_FORBIDDEN_FIELDS) ||
+      playtestSession.percentileMethod !== "nearest_rank_missing_as_failure" ||
+      playtestSession.shareAggregation !== "ratio_of_aggregate_active_time" ||
+      playtestSession.rateAggregation !== "ratio_of_aggregate_coin_per_active_minute" ||
+      playtestSession.countAggregation !== "sum") {
+    throw new Error("prologue playtest session summary contract is noncanonical");
   }
 
   const acceptance = record(raw.acceptance, "prologue acceptance thresholds");

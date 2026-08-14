@@ -309,6 +309,11 @@ function validatePrologueAcceptanceSource(source: CompiledSource, issues: Conten
   const taxonomy = readObject(contract, "primary_activity_taxonomy");
   const payload = readObject(contract, "event_payload");
   const cadence = readObject(contract, "cadence");
+  const playtestSession = readObject(contract, "playtest_session_summary");
+  const playtestSessionKeys = [
+    "schema_version", "minimum_observed_content_minutes", "required_fields", "forbidden_fields",
+    "percentile_method", "share_aggregation", "rate_aggregation", "count_aggregation",
+  ].sort();
   const activeRetrievalInterval = cadence.active_retrieval_interval_minutes;
   if (readString(contract, "schema_version") !== "prologue.telemetry.v0.1" ||
       !same(readStringArray(taxonomy, "included"), ["world_people_physics", "language", "long_explanation"]) ||
@@ -323,7 +328,25 @@ function validatePrologueAcceptanceSource(source: CompiledSource, issues: Conten
       !Array.isArray(activeRetrievalInterval) || activeRetrievalInterval.length !== 2 ||
       activeRetrievalInterval[0] !== 30 || activeRetrievalInterval[1] !== 40 ||
       readString(cadence, "active_retrieval_practice_family_semantic_field") !== "practiceFamilyId" ||
-      readNumber(cadence, "maximum_consecutive_same_practice_family") !== 2) {
+      readNumber(cadence, "maximum_consecutive_same_practice_family") !== 2 ||
+      !same(Object.keys(playtestSession).sort(), playtestSessionKeys) ||
+      readString(playtestSession, "schema_version") !== "prologue.playtest-session.v0.1" ||
+      readNumber(playtestSession, "minimum_observed_content_minutes") !== 180 ||
+      !same(readStringArray(playtestSession, "required_fields"), [
+        "schemaVersion", "sessionId", "contentActiveMs", "worldPeoplePhysicsActiveMs", "languageActiveMs",
+        "longExplanationActiveMs", "survivalUiActiveMs", "languageInteractionCount",
+        "needsInterruptedLanguageInteractionCount", "freeFoodWaterDiscoveryMs", "softFailureRecoveryDurationsMs",
+        "rangeTrialPermissionContentMs", "firstAttackSignatureContentMs", "forcedHuntCount", "wildlifeHarmEventCount",
+        "huntingIncomeCoin", "huntingActiveMs", "nonviolentJobIncomeCoin", "nonviolentJobActiveMs",
+        "duplicateCorpseLotCurrencyCount", "minimumNeedsValueObserved", "maximumActiveNewWordsInAnySegment",
+      ]) ||
+      !same(readStringArray(playtestSession, "forbidden_fields"), [
+        "rawUtterance", "rawText", "inventoryLotIds", "savePayload", "playerIdentifier", "damageOverride", "worldFlagOverride",
+      ]) ||
+      readString(playtestSession, "percentile_method") !== "nearest_rank_missing_as_failure" ||
+      readString(playtestSession, "share_aggregation") !== "ratio_of_aggregate_active_time" ||
+      readString(playtestSession, "rate_aggregation") !== "ratio_of_aggregate_coin_per_active_minute" ||
+      readString(playtestSession, "count_aggregation") !== "sum") {
     addIssue(issues, "chapter.telemetry_contract", source.path, "telemetry_contract", "telemetry taxonomy, privacy-safe payload schema, and cadence authority are noncanonical");
   }
   const acceptance = readObject(source.content, "acceptance");

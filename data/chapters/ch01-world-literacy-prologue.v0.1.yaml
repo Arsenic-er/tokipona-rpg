@@ -327,6 +327,15 @@ telemetry_contract:
     active_retrieval_interval_minutes: [30, 40]
     active_retrieval_practice_family_semantic_field: "practiceFamilyId"
     maximum_consecutive_same_practice_family: 2
+  playtest_session_summary:
+    schema_version: "prologue.playtest-session.v0.1"
+    minimum_observed_content_minutes: 180
+    required_fields: [schemaVersion, sessionId, contentActiveMs, worldPeoplePhysicsActiveMs, languageActiveMs, longExplanationActiveMs, survivalUiActiveMs, languageInteractionCount, needsInterruptedLanguageInteractionCount, freeFoodWaterDiscoveryMs, softFailureRecoveryDurationsMs, rangeTrialPermissionContentMs, firstAttackSignatureContentMs, forcedHuntCount, wildlifeHarmEventCount, huntingIncomeCoin, huntingActiveMs, nonviolentJobIncomeCoin, nonviolentJobActiveMs, duplicateCorpseLotCurrencyCount, minimumNeedsValueObserved, maximumActiveNewWordsInAnySegment]
+    forbidden_fields: [rawUtterance, rawText, inventoryLotIds, savePayload, playerIdentifier, damageOverride, worldFlagOverride]
+    percentile_method: "nearest_rank_missing_as_failure"
+    share_aggregation: "ratio_of_aggregate_active_time"
+    rate_aggregation: "ratio_of_aggregate_coin_per_active_minute"
+    count_aggregation: "sum"
 
 acceptance:
   required:
