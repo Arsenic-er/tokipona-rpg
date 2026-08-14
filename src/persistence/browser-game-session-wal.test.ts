@@ -1,10 +1,22 @@
 import { describe, expect, it } from "vitest";
+import generated from "../generated/content-runtime.v0.1.json";
+import {
+  computeRuntimeCorpusExpansionRegistryDigest,
+  readRuntimeCorpusExpansionRegistry,
+} from "../content/runtime-corpus-expansion-registry";
+import {
+  computeRuntimeLearningCorpusPackageDigest,
+  computeRuntimeLearningCorpusSemanticDigest,
+  readRuntimeLearningCorpusPackage,
+} from "../content/runtime-learning-corpus-package";
 import { createEmptySessionEconomy } from "../game/economy-state";
 import { createWildlifeLifeRecord } from "../game/life-corpse-ledger";
 import { createDemoTradeLots } from "../game/trade";
 import { proposeVerifiedTradeQuote, proposeWildlifeLifeRegistration } from "../session/adapters";
 import { GameSession } from "../session/game-session";
-import { createCrossSaveReceiptId } from "./cross-save-wal";
+import { createCrossSaveReceiptId, sha256Canonical, type JsonValue } from "./cross-save-wal";
+import { verifyRuntimeLearningCorpusSet } from "../learning/corpus-partition-collection";
+import { createBrowserLearningCorpusAdapter } from "./browser-learning-corpus-adapter";
 import {
   BROWSER_GAME_SESSION_SAVE_ENVELOPE_SCHEMA,
   BrowserGameSessionWalCoordinator,
@@ -48,6 +60,83 @@ const tradeCoordinator = (store = new MemoryDurableJsonStore()) => {
     mp: { currentMp: 10, maxMp: 10, worldVersion: 0 }, currentSceneId: "scene.valley.settlement",
     economy: { ...createEmptySessionEconomy(), lots: [{ ...lot, legalOwnerId: "save.browser.trade", quantity: 2 }] } });
   return { coordinator: BrowserGameSessionWalCoordinator.fresh(session, store), store, lot };
+};
+
+const extensionRuntime = () => {
+  const wordId = "browserword", actionNamespace = "browserext";
+  const actions = [
+    ["discover", "glyph_discovered", null],
+    ["attune", "glyph_attunement_completed", null],
+    ["context_0", "active_retrieval_submitted", 0],
+    ["context_1", "active_retrieval_submitted", 1],
+    ["repair", "repair_completed", 1],
+  ].map(([kind, evidenceType, promptLevel]) => ({
+    kind,
+    actionId: `${actionNamespace}.${wordId}.${kind}`,
+    evidenceType,
+    taskFamilyId: kind === "discover" || kind === "attune" ? null : `${actionNamespace}.${kind}.family`,
+    environmentFingerprint: kind === "discover" || kind === "attune" ? null : `scene.browser:${kind}`,
+    promptLevel,
+    semanticFacets: kind === "discover" || kind === "attune" ? [] : ["browser.facet"],
+  }));
+  const semantic = {
+    schemaVersion: "tokipona.runtime-learning-corpus.v0.1" as const,
+    phaseId: "csp-tier1-remainder" as const,
+    corpusId: "browser-extension.v1",
+    contentVersion: "browser-extension.1",
+    actionNamespace,
+    savePartitionId: "learning.corpus.browser-extension.v1",
+    saveSchemaVersion: "tokipona.learning-corpus-partition.v0.1" as const,
+    canonicalWordKey: "latin_word_id" as const,
+    wordIds: [wordId],
+    words: { [wordId]: { wordId, targetState: "produced", semanticFacets: ["browser.facet"], actions,
+      assetBindings: { pronunciationAssetId: "audio.pronunciation.browserword.v1",
+        glyphAssetId: "glyph.browserext.browserword.v1" } } },
+  };
+  const reviewReceiptIds = { semantic: "review.browser.semantic", pronunciation: "review.browser.pronunciation",
+    glyph: "review.browser.glyph" };
+  const payload = { ...semantic, semanticDigest: computeRuntimeLearningCorpusSemanticDigest(semantic as any),
+    reviewReceiptIds };
+  const candidate = { ...payload, sourceDigest: computeRuntimeLearningCorpusPackageDigest(payload) };
+  const artifact = structuredClone(generated) as any;
+  artifact.corpusExpansionRegistry.admittedCorpusIds = [candidate.corpusId];
+  artifact.corpusExpansionRegistry.phases[0] = {
+    ...artifact.corpusExpansionRegistry.phases[0], status: "admitted", blockedReasons: [],
+    admissionContract: {
+      schemaVersion: "tokipona.learning-corpus-admission.v0.1", corpusId: candidate.corpusId,
+      contentVersion: candidate.contentVersion, actionNamespace: candidate.actionNamespace,
+      savePartitionId: candidate.savePartitionId, saveSchemaVersion: candidate.saveSchemaVersion,
+      packageDigest: candidate.sourceDigest, semanticDigest: candidate.semanticDigest,
+      wordIds: candidate.wordIds, reviewReceiptIds,
+    },
+  };
+  const registryPayload = Object.fromEntries(Object.entries(artifact.corpusExpansionRegistry)
+    .filter(([key]) => key !== "sourceDigest"));
+  artifact.corpusExpansionRegistry.sourceDigest = computeRuntimeCorpusExpansionRegistryDigest(registryPayload);
+  const registry = readRuntimeCorpusExpansionRegistry(artifact);
+  const pkg = readRuntimeLearningCorpusPackage(registry, candidate);
+  return verifyRuntimeLearningCorpusSet(registry, [pkg]);
+};
+
+const legacyCompanion = (current: ReturnType<BrowserGameSessionWalCoordinator["toCompanion"]>) => {
+  const { extensionLearning: _extension, checksum: _checksum, ...currentBody } = current;
+  const body = { ...currentBody, schema: "tokipona.browser-game-session-wal.v0.1" as const };
+  const checksum = sha256Canonical({
+    schema: body.schema,
+    authority: { sessionId: body.authority.session.sessionId, integrity: body.authority.session.integrity,
+      barriers: body.authority.barriers },
+    walChecksum: body.wal.checksum,
+    ownerSnapshots: body.ownerSnapshots.map((snapshot) => ({ schema: snapshot.schema,
+      saveOwner: snapshot.saveOwner, revision: snapshot.revision, projectionDigest: snapshot.projectionDigest,
+      appliedTransactionIds: snapshot.appliedTransactionIds })),
+    partitionIntents: body.partitionIntents,
+    partitionLocks: body.partitionLocks,
+    durableWalRecords: [],
+    durableWalIntents: body.durableWalIntents,
+    durableWalSnapshotAcks: body.durableWalSnapshotAcks,
+    persistenceTail: body.persistenceTail,
+  } as unknown as JsonValue);
+  return { ...body, checksum };
 };
 
 describe("production browser GameSession WAL companion", () => {
@@ -134,6 +223,15 @@ describe("production browser GameSession WAL companion", () => {
       { transactionId: "forged", phase: "prepared" as const }] };
     const metadataStore = new MemoryDurableJsonStore(); metadataStore.write(metadataTampered);
     expect(() => BrowserGameSessionWalCoordinator.load(metadataStore)).toThrow(/checksum/);
+
+    // The companion checksum binds the independently verified collection
+    // integrity, while the collection reader binds its full nested payload.
+    const nestedLearningTampered = structuredClone(valid) as any;
+    nestedLearningTampered.extensionLearning.partitions = [{}];
+    const nestedLearningStore = new MemoryDurableJsonStore(); nestedLearningStore.write(nestedLearningTampered);
+    expect(() => BrowserGameSessionWalCoordinator.load(nestedLearningStore)).toThrow(
+      /extension learning collection|collection integrity/,
+    );
     const alternate = BrowserGameSessionWalCoordinator.fresh(GameSession.create({
       sessionId: "save.browser.wal.alternate",
       mp: { currentMp: 4, maxMp: 12, worldVersion: 0 },
@@ -194,5 +292,63 @@ describe("production browser GameSession WAL companion", () => {
     expect(held.coordinator.commitOrdinary(heldIssued.batch).committed).toBe(true);
     const restarted = BrowserGameSessionWalCoordinator.load(held.store, 0);
     expect(() => restarted.commitSell(heldIssued.quote, heldIssued.issuedEventId, runtime)).toThrow(/rejected/);
+  });
+
+  it("durably commits an admitted extension partition and requires its exact package set on reload", () => {
+    const adapter = createBrowserLearningCorpusAdapter(extensionRuntime());
+    const store = new MemoryDurableJsonStore();
+    const coordinator = BrowserGameSessionWalCoordinator.fresh(GameSession.create({
+      sessionId: "save.browser.extension",
+      mp: { currentMp: 10, maxMp: 10, worldVersion: 0 },
+      currentSceneId: "scene.valley.settlement",
+    }), store, adapter);
+    expect(coordinator.readExtensionLearningCollection()).toMatchObject({
+      playerSaveId: "save.browser.extension",
+      admittedCorpusIds: ["browser-extension.v1"],
+    });
+    expect(coordinator.commitExtensionLearningAction(
+      "browser-extension.v1", "browserext.browserword.discover"))
+      .toMatchObject({ applied: true, duplicate: false, reason: "applied" });
+
+    const reloaded = BrowserGameSessionWalCoordinator.load(store, 0, adapter);
+    expect(reloaded.readExtensionLearningCollection().partitions[0]?.learning.words)
+      .toHaveProperty("browserword");
+    expect(reloaded.commitExtensionLearningAction(
+      "browser-extension.v1", "browserext.browserword.discover"))
+      .toMatchObject({ applied: false, duplicate: true, reason: "duplicate" });
+    expect(() => BrowserGameSessionWalCoordinator.load(store, 0)).toThrow(
+      /extension learning collection|cannot be reconciled/,
+    );
+  });
+
+  it("migrates a checked v0.1 companion to v0.2 with an explicit empty extension collection", () => {
+    const sourceStore = new MemoryDurableJsonStore();
+    const source = BrowserGameSessionWalCoordinator.fresh(GameSession.create({
+      sessionId: "save.browser.legacy-companion",
+      mp: { currentMp: 10, maxMp: 10, worldVersion: 0 },
+      currentSceneId: "scene.valley.settlement",
+    }), sourceStore);
+    const old = legacyCompanion(source.toCompanion());
+    expect(readBrowserGameSessionSaveEnvelope({
+      schema: "tokipona.browser-game-session-save.v0.1",
+      session: old.authority.session,
+      companion: old,
+    })).toMatchObject({
+      schema: BROWSER_GAME_SESSION_SAVE_ENVELOPE_SCHEMA,
+      companion: { schema: "tokipona.browser-game-session-wal.v0.2" },
+    });
+    const store = new MemoryDurableJsonStore(); store.write(old);
+
+    const migrated = BrowserGameSessionWalCoordinator.load(store, 0);
+    expect(migrated.toCompanion()).toMatchObject({
+      schema: "tokipona.browser-game-session-wal.v0.2",
+      extensionLearning: {
+        schema: "tokipona.learning-corpus-partition-collection.v0.1",
+        playerSaveId: "save.browser.legacy-companion",
+        admittedCorpusIds: [],
+        partitions: [],
+      },
+    });
+    expect(store.read()).toMatchObject({ schema: "tokipona.browser-game-session-wal.v0.2" });
   });
 });

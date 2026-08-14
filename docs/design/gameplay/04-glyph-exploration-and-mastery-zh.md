@@ -49,6 +49,7 @@
 - Tier 1 余项及 Tier 2/3 必须先经单独审校，再以新的语料 ID、内容版本和存档分区追加；不得修改 `pu-120.scope.wordIds`、重排现有码位或复用 `core120.*` 动作 ID 来伪装扩量。
 - 运行时注册表 `post-pu120.csp-expansion` 固定扩展审查顺序，但在词表、语义审校、发音、字形、独立动作命名空间和独立存档 schema 齐备前不分配语料身份。当前三个扩展阶段均为 `pending_review`，`admittedCorpusIds` 必须为空；阶段名本身不能用作可加载的语料 ID。
 - 经准入的扩展使用 `tokipona.runtime-learning-corpus.v0.1` 包和 `tokipona.learning-corpus-partition.v0.1` 独立存档。包摘要绑定审校回执和素材，语义摘要只绑定词 ID、任务语义和动作身份；素材重发可以更新包摘要而保留进度，语义漂移、跨语料重词、复用命名空间、错分区或伪证据链都会失败关闭。
+- 浏览器持久层以 `tokipona.learning-corpus-partition-collection.v0.1` 保存当前已准入语料的有序完整集合，并由 `tokipona.browser-game-session-wal.v0.2` companion 原子持久化。集合允许当前零扩展，也允许审查顺序中的新增后缀；缺包、额外包、换序、删改既有语料、跨玩家分区或嵌套摘要不一致均失败关闭。旧 v0.1 companion/envelope 经原 checksum 校验后只补建当时尚不存在的集合，不把扩展进度塞回 `GameSession` 或 `pu-120` 分区。当前零扩展的浏览器入口只携带轻量空集合 reader；未来审校包通过独立 adapter 惰性注入，扩展 reducer 不进入未使用时的 RPG 首屏静态闭包。
 
 ## 5. 序章首批 12 字符
 

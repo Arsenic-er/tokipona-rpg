@@ -1,8 +1,8 @@
 import { PrologueFlowSession } from "../game/prologue-flow";
 import { GameSession } from "../session/game-session";
 import {
-  BROWSER_GAME_SESSION_SAVE_ENVELOPE_SCHEMA,
   BrowserGameSessionWalCoordinator,
+  isBrowserGameSessionSaveEnvelopeSchema,
   LocalStorageDurableJsonStore,
   readBrowserGameSessionSaveEnvelope,
   type BrowserGameSessionSaveEnvelope,
@@ -59,7 +59,7 @@ export function bootstrapBrowserPrologue(
   const primary = findPrimary(storage, keys);
   if (primary !== null) {
     if (typeof primary.value === "object" && primary.value !== null &&
-        (primary.value as { schema?: unknown }).schema === BROWSER_GAME_SESSION_SAVE_ENVELOPE_SCHEMA) {
+        isBrowserGameSessionSaveEnvelopeSchema((primary.value as { schema?: unknown }).schema)) {
       const envelope = readBrowserGameSessionSaveEnvelope(primary.value);
       companionStore.write(envelope.companion);
       const coordinator = BrowserGameSessionWalCoordinator.load(companionStore);

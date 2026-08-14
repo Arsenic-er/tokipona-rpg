@@ -1,4 +1,6 @@
 import type { CrossSaveTransactionCoordinator } from "../game/cross-save-transaction-coordinator";
+import type { LearningCorpusPartitionCollectionSave } from
+  "../learning/corpus-partition-collection";
 import type { WildlifeDamageRequest } from "../game/life-corpse-ledger";
 import type { VerifiedSellQuote } from "../game/verified-trade";
 import type { WildlifeProcessingAction } from "../game/wildlife-processing";
@@ -31,8 +33,28 @@ import {
   type GameSessionWalSaveOwner,
 } from "./game-session-processing-wal";
 
-export const BROWSER_GAME_SESSION_WAL_COMPANION_SCHEMA = "tokipona.browser-game-session-wal.v0.1" as const;
-export const BROWSER_GAME_SESSION_SAVE_ENVELOPE_SCHEMA = "tokipona.browser-game-session-save.v0.1" as const;
+export const BROWSER_GAME_SESSION_WAL_COMPANION_SCHEMA = "tokipona.browser-game-session-wal.v0.2" as const;
+export const BROWSER_GAME_SESSION_SAVE_ENVELOPE_SCHEMA = "tokipona.browser-game-session-save.v0.2" as const;
+const LEGACY_BROWSER_GAME_SESSION_WAL_COMPANION_SCHEMA = "tokipona.browser-game-session-wal.v0.1" as const;
+const LEGACY_BROWSER_GAME_SESSION_SAVE_ENVELOPE_SCHEMA = "tokipona.browser-game-session-save.v0.1" as const;
+
+export interface BrowserExtensionLearningActionResult {
+  readonly corpusId: string;
+  readonly actionId: string;
+  readonly applied: boolean;
+  readonly duplicate: boolean;
+  readonly reason: string;
+}
+
+export interface BrowserExtensionLearningAdapter {
+  create(playerSaveId: string): LearningCorpusPartitionCollectionSave;
+  reconcile(candidate: unknown, playerSaveId: string): LearningCorpusPartitionCollectionSave;
+  read(candidate: unknown, playerSaveId: string): LearningCorpusPartitionCollectionSave;
+  commit(candidate: unknown, playerSaveId: string, corpusId: string, actionId: string): Readonly<{
+    save: LearningCorpusPartitionCollectionSave;
+    result: BrowserExtensionLearningActionResult;
+  }>;
+}
 
 interface DurablePartitionIntent {
   readonly durableIntentId: string;
@@ -59,6 +81,7 @@ export interface BrowserGameSessionWalCompanion {
     barriers: readonly Readonly<{ transactionId: string; expectedSessionRevision: number }>[];
   }>;
   readonly wal: CrossSaveWalSave;
+  readonly extensionLearning: LearningCorpusPartitionCollectionSave;
   readonly ownerSnapshots: readonly GameSessionOwnerSnapshot[];
   readonly partitionIntents: readonly DurablePartitionIntent[];
   readonly partitionLocks: readonly Readonly<{ lockKey: string; durableIntentId: string }>[];
@@ -99,6 +122,11 @@ export class LocalStorageDurableJsonStore implements DurableJsonStore {
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   value !== null && typeof value === "object" && !Array.isArray(value);
+const hasExactKeys = (value: Record<string, unknown>, expected: readonly string[]): boolean => {
+  const keys = Object.keys(value);
+  return keys.length === expected.length && new Set(keys).size === keys.length &&
+    expected.every((key) => keys.includes(key));
+};
 const nonEmpty = (value: unknown): value is string => typeof value === "string" && value.trim().length > 0;
 const counter = (value: unknown): value is number => Number.isSafeInteger(value) && (value as number) >= 0;
 const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
@@ -107,6 +135,44 @@ const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
 // durable phase.
 const asJson = (value: unknown): JsonValue => value as JsonValue;
 const digest = (value: unknown): `sha256:${string}` => sha256Canonical(asJson(value));
+
+const emptyExtensionLearningSave = (playerSaveId: string): LearningCorpusPartitionCollectionSave => {
+  if (!nonEmpty(playerSaveId)) throw new Error("browser extension learning player save is required");
+  const body = {
+    schema: "tokipona.learning-corpus-partition-collection.v0.1" as const,
+    registryId: "post-pu120.csp-expansion" as const,
+    playerSaveId,
+    admittedCorpusIds: Object.freeze([]),
+    partitions: Object.freeze([]),
+  };
+  return Object.freeze({ ...body, integrity: digest(body) });
+};
+
+const readEmptyExtensionLearningSave = (candidate: unknown,
+  playerSaveId: string): LearningCorpusPartitionCollectionSave => {
+  if (!isRecord(candidate) || !hasExactKeys(candidate, ["schema", "registryId", "playerSaveId",
+    "admittedCorpusIds", "partitions", "integrity"]) ||
+      candidate.schema !== "tokipona.learning-corpus-partition-collection.v0.1" ||
+      candidate.registryId !== "post-pu120.csp-expansion" || candidate.playerSaveId !== playerSaveId ||
+      !Array.isArray(candidate.admittedCorpusIds) || candidate.admittedCorpusIds.length !== 0 ||
+      !Array.isArray(candidate.partitions) || candidate.partitions.length !== 0 ||
+      !nonEmpty(candidate.integrity)) {
+    throw new Error("browser extension learning collection is invalid for the active runtime");
+  }
+  const { integrity, ...body } = candidate;
+  if (digest(body) !== integrity) throw new Error("learning corpus partition collection integrity mismatch");
+  return emptyExtensionLearningSave(playerSaveId);
+};
+
+const DEFAULT_EXTENSION_LEARNING_ADAPTER: BrowserExtensionLearningAdapter = Object.freeze({
+  create: emptyExtensionLearningSave,
+  reconcile: readEmptyExtensionLearningSave,
+  read: readEmptyExtensionLearningSave,
+  commit: (candidate: unknown, playerSaveId: string, corpusId: string, actionId: string) => ({
+    save: readEmptyExtensionLearningSave(candidate, playerSaveId),
+    result: { corpusId, actionId, applied: false, duplicate: false, reason: "unknown_corpus" },
+  }),
+});
 const intentKey = (transactionId: string, participant: CrossSaveWalParticipantRecord): string =>
   `${transactionId}|${participant.durableIntentId}|${participant.reservationOrLockId}`;
 const snapshotAckKey = (transactionId: string, saveOwner: string, revision: number): string =>
@@ -114,6 +180,13 @@ const snapshotAckKey = (transactionId: string, saveOwner: string, revision: numb
 
 type CompanionBody = Omit<BrowserGameSessionWalCompanion, "checksum">;
 type MutableCompanionBody = { -readonly [K in keyof CompanionBody]: CompanionBody[K] };
+
+interface LegacyBrowserGameSessionWalCompanion extends
+  Omit<BrowserGameSessionWalCompanion, "schema" | "extensionLearning" | "checksum"> {
+  readonly schema: typeof LEGACY_BROWSER_GAME_SESSION_WAL_COMPANION_SCHEMA;
+  readonly checksum: `sha256:${string}`;
+}
+type LegacyCompanionBody = Omit<LegacyBrowserGameSessionWalCompanion, "checksum">;
 
 const durableRecordChecksumMaterial = (record: CrossSaveWalRecord): JsonValue => ({
   transactionId: record.transactionId,
@@ -137,6 +210,36 @@ const durableRecordChecksumMaterial = (record: CrossSaveWalRecord): JsonValue =>
  * Session, WAL redo payloads, and eight owner projections on every phase.
  */
 const companionChecksum = (body: CompanionBody): `sha256:${string}` => sha256Canonical({
+  schema: body.schema,
+  authority: {
+    sessionId: body.authority.session.sessionId,
+    integrity: body.authority.session.integrity,
+    barriers: body.authority.barriers,
+  },
+  walChecksum: body.wal.checksum,
+  extensionLearning: {
+    schema: body.extensionLearning.schema,
+    registryId: body.extensionLearning.registryId,
+    playerSaveId: body.extensionLearning.playerSaveId,
+    admittedCorpusIds: body.extensionLearning.admittedCorpusIds,
+    integrity: body.extensionLearning.integrity,
+  },
+  ownerSnapshots: body.ownerSnapshots.map((snapshot) => ({
+    schema: snapshot.schema,
+    saveOwner: snapshot.saveOwner,
+    revision: snapshot.revision,
+    projectionDigest: snapshot.projectionDigest,
+    appliedTransactionIds: snapshot.appliedTransactionIds,
+  })),
+  partitionIntents: body.partitionIntents,
+  partitionLocks: body.partitionLocks,
+  durableWalRecords: body.durableWalRecords.map(durableRecordChecksumMaterial),
+  durableWalIntents: body.durableWalIntents,
+  durableWalSnapshotAcks: body.durableWalSnapshotAcks,
+  persistenceTail: body.persistenceTail,
+} as unknown as JsonValue);
+
+const legacyCompanionChecksum = (body: LegacyCompanionBody): `sha256:${string}` => sha256Canonical({
   schema: body.schema,
   authority: {
     sessionId: body.authority.session.sessionId,
@@ -178,31 +281,41 @@ const ownerSnapshot = (save: GameSessionSave, saveOwner: GameSessionWalSaveOwner
     projection, projectionDigest: sha256Canonical(projection), appliedTransactionIds: Object.freeze([]) });
 };
 
-const freshCompanion = (save: GameSessionSave): BrowserGameSessionWalCompanion => sealCompanion({
+const freshCompanion = (save: GameSessionSave,
+  learningAdapter: BrowserExtensionLearningAdapter): BrowserGameSessionWalCompanion => sealCompanion({
   schema: BROWSER_GAME_SESSION_WAL_COMPANION_SCHEMA,
   authority: { session: clone(save), barriers: [] },
   wal: emptyWalSave(),
+  extensionLearning: learningAdapter.create(save.sessionId),
   ownerSnapshots: GAME_SESSION_WAL_SAVE_OWNERS.map((owner) => ownerSnapshot(save, owner)),
   partitionIntents: [], partitionLocks: [], durableWalRecords: [], durableWalIntents: [],
   durableWalSnapshotAcks: [], persistenceTail: [],
 });
 
-const validateCompanion = (value: unknown): BrowserGameSessionWalCompanion => {
-  if (!isRecord(value) || value.schema !== BROWSER_GAME_SESSION_WAL_COMPANION_SCHEMA ||
-      !isRecord(value.authority) || !Array.isArray(value.authority.barriers) || !isCrossSaveWalSave(value.wal) ||
+const CURRENT_COMPANION_KEYS = ["schema", "authority", "wal", "extensionLearning", "ownerSnapshots",
+  "partitionIntents", "partitionLocks", "durableWalRecords", "durableWalIntents",
+  "durableWalSnapshotAcks", "persistenceTail", "checksum"] as const;
+const LEGACY_COMPANION_KEYS = CURRENT_COMPANION_KEYS.filter((key) => key !== "extensionLearning");
+
+const assertCoreCompanion = (value: Record<string, unknown>): GameSessionSave => {
+  if (!isRecord(value.authority) || !hasExactKeys(value.authority, ["session", "barriers"]) ||
+      !Array.isArray(value.authority.barriers) || !isCrossSaveWalSave(value.wal) ||
       !Array.isArray(value.ownerSnapshots) || !Array.isArray(value.partitionIntents) ||
       !Array.isArray(value.partitionLocks) || !Array.isArray(value.durableWalRecords) ||
       !Array.isArray(value.durableWalIntents) || !Array.isArray(value.durableWalSnapshotAcks) ||
-      !Array.isArray(value.persistenceTail) || !nonEmpty(value.checksum)) throw new Error("browser WAL companion is malformed");
-  GameSession.fromSave(value.authority.session);
+      !Array.isArray(value.persistenceTail) || !nonEmpty(value.checksum)) {
+    throw new Error("browser WAL companion is malformed");
+  }
+  const authority = GameSession.fromSave(value.authority.session).toSave();
   const owners = value.ownerSnapshots as unknown[];
   if (owners.length !== GAME_SESSION_WAL_SAVE_OWNERS.length || !GAME_SESSION_WAL_SAVE_OWNERS.every((owner) =>
     owners.filter((candidate) => isGameSessionOwnerSnapshot(candidate, owner)).length === 1)) {
     throw new Error("browser WAL companion owner snapshots are incomplete or corrupt");
   }
-  const typed = value as unknown as BrowserGameSessionWalCompanion;
-  const { checksum, ...body } = typed;
-  if (companionChecksum(body) !== checksum) throw new Error("browser WAL companion checksum mismatch");
+  return authority;
+};
+
+const assertDurableMetadata = (typed: Omit<BrowserGameSessionWalCompanion, "extensionLearning">): void => {
   if (!typed.authority.barriers.every((barrier) => nonEmpty(barrier.transactionId) && counter(barrier.expectedSessionRevision)) ||
       !typed.partitionIntents.every((entry) => nonEmpty(entry.durableIntentId) &&
         GAME_SESSION_WAL_SAVE_OWNERS.includes(entry.saveOwner) && nonEmpty(entry.lockKey) && nonEmpty(entry.reservationOrLockId)) ||
@@ -211,14 +324,48 @@ const validateCompanion = (value: unknown): BrowserGameSessionWalCompanion => {
         nonEmpty(entry.transactionId) && nonEmpty(entry.saveOwner) && counter(entry.revision))) {
     throw new Error("browser WAL companion durable metadata is invalid");
   }
-  return clone(typed);
 };
 
-export const readBrowserGameSessionSaveEnvelope = (value: unknown): BrowserGameSessionSaveEnvelope => {
-  if (!isRecord(value) || value.schema !== BROWSER_GAME_SESSION_SAVE_ENVELOPE_SCHEMA) {
+const validateCompanion = (value: unknown,
+  learningAdapter: BrowserExtensionLearningAdapter): BrowserGameSessionWalCompanion => {
+  if (!isRecord(value)) throw new Error("browser WAL companion is malformed");
+  if (value.schema === LEGACY_BROWSER_GAME_SESSION_WAL_COMPANION_SCHEMA) {
+    if (!hasExactKeys(value, LEGACY_COMPANION_KEYS)) throw new Error("browser WAL companion is malformed");
+    const authority = assertCoreCompanion(value);
+    const legacy = value as unknown as LegacyBrowserGameSessionWalCompanion;
+    const { checksum, ...body } = legacy;
+    if (legacyCompanionChecksum(body) !== checksum) throw new Error("browser WAL companion checksum mismatch");
+    assertDurableMetadata(legacy as unknown as Omit<BrowserGameSessionWalCompanion, "extensionLearning">);
+    return sealCompanion({
+      ...clone(body),
+      schema: BROWSER_GAME_SESSION_WAL_COMPANION_SCHEMA,
+      extensionLearning: learningAdapter.create(authority.sessionId),
+    });
+  }
+  if (value.schema !== BROWSER_GAME_SESSION_WAL_COMPANION_SCHEMA ||
+      !hasExactKeys(value, CURRENT_COMPANION_KEYS)) throw new Error("browser WAL companion is malformed");
+  const authority = assertCoreCompanion(value);
+  const typed = value as unknown as BrowserGameSessionWalCompanion;
+  const { checksum, ...body } = typed;
+  if (companionChecksum(body) !== checksum) throw new Error("browser WAL companion checksum mismatch");
+  assertDurableMetadata(typed);
+  const extensionLearning = learningAdapter.reconcile(typed.extensionLearning, authority.sessionId);
+  return digest(extensionLearning) === digest(typed.extensionLearning)
+    ? clone(typed)
+    : sealCompanion({ ...clone(body), extensionLearning });
+};
+
+export const isBrowserGameSessionSaveEnvelopeSchema = (value: unknown): boolean =>
+  value === BROWSER_GAME_SESSION_SAVE_ENVELOPE_SCHEMA ||
+  value === LEGACY_BROWSER_GAME_SESSION_SAVE_ENVELOPE_SCHEMA;
+
+export const readBrowserGameSessionSaveEnvelope = (value: unknown,
+  learningAdapter: BrowserExtensionLearningAdapter = DEFAULT_EXTENSION_LEARNING_ADAPTER): BrowserGameSessionSaveEnvelope => {
+  if (!isRecord(value) || !isBrowserGameSessionSaveEnvelopeSchema(value.schema) ||
+      !hasExactKeys(value, ["schema", "session", "companion"])) {
     throw new Error("browser GameSession save envelope is malformed");
   }
-  const companion = validateCompanion(value.companion);
+  const companion = validateCompanion(value.companion, learningAdapter);
   const session = GameSession.fromSave(value.session).toSave();
   if (digest(session) !== digest(companion.authority.session)) throw new Error("browser save authority mismatch");
   return Object.freeze({ schema: BROWSER_GAME_SESSION_SAVE_ENVELOPE_SCHEMA, session, companion });
@@ -226,8 +373,9 @@ export const readBrowserGameSessionSaveEnvelope = (value: unknown): BrowserGameS
 
 class CompanionBacking {
   private document: BrowserGameSessionWalCompanion;
-  public constructor(private readonly store: DurableJsonStore, document: BrowserGameSessionWalCompanion, writeInitial: boolean) {
-    this.document = validateCompanion(document);
+  public constructor(private readonly store: DurableJsonStore, document: BrowserGameSessionWalCompanion,
+    writeInitial: boolean, learningAdapter: BrowserExtensionLearningAdapter) {
+    this.document = validateCompanion(document, learningAdapter);
     if (writeInitial) this.store.write(this.document);
   }
   public read(): BrowserGameSessionWalCompanion { return clone(this.document); }
@@ -457,25 +605,31 @@ export class BrowserGameSessionWalCoordinator implements CrossSaveTransactionCoo
   private readonly partitions: DurableBrowserPartitionStore;
   private readonly walStore: DurableBrowserWalStore;
   private readonly bridge: GameSessionProcessingWalBridge;
+  private readonly learningAdapter: BrowserExtensionLearningAdapter;
 
-  private constructor(store: DurableJsonStore, companion: BrowserGameSessionWalCompanion, writeInitial: boolean) {
-    this.backing = new CompanionBacking(store, companion, writeInitial);
+  private constructor(store: DurableJsonStore, companion: BrowserGameSessionWalCompanion,
+    writeInitial: boolean, learningAdapter: BrowserExtensionLearningAdapter) {
+    this.learningAdapter = learningAdapter;
+    this.backing = new CompanionBacking(store, companion, writeInitial, learningAdapter);
     this.authority = new DurableBrowserAuthorityStore(this.backing);
     this.partitions = new DurableBrowserPartitionStore(this.backing);
     this.walStore = new DurableBrowserWalStore(this.backing);
     this.bridge = new GameSessionProcessingWalBridge(this.authority, this.walStore, this.partitions);
   }
 
-  public static fresh(session: GameSession, store: DurableJsonStore): BrowserGameSessionWalCoordinator {
-    return new BrowserGameSessionWalCoordinator(store, freshCompanion(session.toSave()), true);
+  public static fresh(session: GameSession, store: DurableJsonStore,
+    learningAdapter: BrowserExtensionLearningAdapter = DEFAULT_EXTENSION_LEARNING_ADAPTER): BrowserGameSessionWalCoordinator {
+    return new BrowserGameSessionWalCoordinator(store,
+      freshCompanion(session.toSave(), learningAdapter), true, learningAdapter);
   }
 
-  public static load(store: DurableJsonStore, tick?: number): BrowserGameSessionWalCoordinator {
+  public static load(store: DurableJsonStore, tick?: number,
+    learningAdapter: BrowserExtensionLearningAdapter = DEFAULT_EXTENSION_LEARNING_ADAPTER): BrowserGameSessionWalCoordinator {
     const raw = store.read();
-    const envelope = isRecord(raw) && raw.schema === BROWSER_GAME_SESSION_SAVE_ENVELOPE_SCHEMA
-      ? readBrowserGameSessionSaveEnvelope(raw) : null;
-    const companion = envelope?.companion ?? validateCompanion(raw);
-    const coordinator = new BrowserGameSessionWalCoordinator(store, companion, false);
+    const envelope = isRecord(raw) && isBrowserGameSessionSaveEnvelopeSchema(raw.schema)
+      ? readBrowserGameSessionSaveEnvelope(raw, learningAdapter) : null;
+    const companion = envelope?.companion ?? validateCompanion(raw, learningAdapter);
+    const coordinator = new BrowserGameSessionWalCoordinator(store, companion, false, learningAdapter);
     const recovery = coordinator.bridge.loadCheckpoint(companion.authority.session, companion.wal,
       tick ?? companion.authority.session.state.survival.worldTicks);
     if (recovery.sceneActivationBlocked) throw new Error(`cross-save WAL recovery blocks scene activation: ${JSON.stringify(recovery)}`);
@@ -486,6 +640,21 @@ export class BrowserGameSessionWalCoordinator implements CrossSaveTransactionCoo
 
   public readSession(): GameSession { return this.authority.read(); }
   public toSessionSave(): GameSessionSave { return this.authority.save(); }
+
+  public readExtensionLearningCollection(): LearningCorpusPartitionCollectionSave {
+    return this.learningAdapter.read(
+      this.backing.peek().extensionLearning, this.authority.save().sessionId);
+  }
+
+  public commitExtensionLearningAction(corpusId: string,
+    actionId: string): BrowserExtensionLearningActionResult {
+    const committed = this.learningAdapter.commit(
+      this.backing.peek().extensionLearning, this.authority.save().sessionId, corpusId, actionId);
+    if (committed.result.applied) {
+      this.backing.update((draft) => { draft.extensionLearning = committed.save; });
+    }
+    return committed.result;
+  }
 
   public synchronizeOrdinarySession(session: GameSession): void {
     const current = this.authority.read();

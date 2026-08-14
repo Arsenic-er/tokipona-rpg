@@ -280,7 +280,7 @@ test("flushes a checked envelope on pagehide and keeps the touch controls labell
   const primary = await page.evaluate((key) => localStorage.getItem(key), PRIMARY_KEY);
   expect(primary).not.toBeNull();
   const parsed = JSON.parse(primary!);
-  expect(parsed).toMatchObject({ schema: "tokipona.browser-game-session-save.v0.1" });
+  expect(parsed).toMatchObject({ schema: "tokipona.browser-game-session-save.v0.2" });
 
   await expect(page.locator('[data-hold="left"]')).toHaveAttribute("aria-label", "向左移动");
   await expect(page.locator('[data-hold="right"]')).toHaveAttribute("aria-label", "向右移动");
