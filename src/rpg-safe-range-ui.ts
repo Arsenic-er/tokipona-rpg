@@ -215,13 +215,14 @@ export function deriveSafeRangeUiModel(
   const permissionGranted = snapshot.permissionGranted;
   const targets = Object.freeze(SAFE_RANGE_TARGET_CLASSES.map((targetClass) => {
     const state = safeRange?.targets[targetClass] ?? {
-      materialClass: "unavailable", completed: false,
+      materialClass: "unavailable", completed: false, inRange: false,
     };
     return Object.freeze({
       targetClass,
       label: TARGET_LABELS[targetClass],
       materialClass: state.materialClass,
       completed: state.completed,
+      inRange: state.inRange,
       selected: selection.targetClass === targetClass,
       enabled: panelVisible && safeRange?.permissionGranted === true && !state.completed,
     });
@@ -230,7 +231,7 @@ export function deriveSafeRangeUiModel(
   const preview = exactPreview(compileResult, selection);
   const compileContractValid = compileResult === null || !compileResult.ok || preview !== null;
   const canCompile = panelVisible && safeRange?.permissionGranted === true &&
-    !selectedTarget.completed && preview === null;
+    selectedTarget.inRange && !selectedTarget.completed && preview === null;
   const allTargetsCompleted = targets.every((target) => target.completed);
   const liveStatus = statusFor(snapshot, compileResult, preview, canCompile, allTargetsCompleted);
 

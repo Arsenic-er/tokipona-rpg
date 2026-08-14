@@ -37,12 +37,20 @@ const flowSnapshot = (options: Readonly<{
   receiptIds?: readonly string[];
   calibrated?: boolean;
   returnObserved?: boolean;
+  inRange?: boolean;
 }> = {}): PrologueFlowSafeRangeView => {
   const mode = options.mode ?? "safe_range";
   const permission = options.permission ?? true;
   const safeRange = options.safeRange === undefined
     ? mode === "safe_range" ? safeRangeSnapshot({ permissionGranted: permission }) : null
     : options.safeRange;
+  const safeRangeView = safeRange === null ? null : {
+    ...safeRange,
+    targets: Object.fromEntries(Object.entries(safeRange.targets).map(([targetClass, target]) => [
+      targetClass,
+      { ...target, inRange: options.inRange ?? true },
+    ])) as NonNullable<PrologueFlowSafeRangeView["safeRange"]>["targets"],
+  };
   const receiptIds = options.receiptIds ?? [];
   const actionSpecs = [
     ["settlement.telo.h0", "settlement_water_delivery", "active_retrieval", 0, false],
@@ -73,7 +81,7 @@ const flowSnapshot = (options: Readonly<{
     attackCapacityCalibrated: options.calibrated ?? false,
     returnObservationComplete: options.returnObserved ?? false,
     permissionGranted: permission,
-    safeRange,
+    safeRange: safeRangeView,
   };
 };
 const preview = (
@@ -228,6 +236,12 @@ describe("RPG safe-range Flow UI boundary", () => {
     expect(Object.keys(command as Extract<SafeRangeUiCommand, { kind: "compile" }>).sort())
       .toEqual(["kind", "promptLevel", "targetClass", "waterSource"]);
     expect(JSON.stringify(command)).not.toMatch(/direction|utterance|damage|swept|living|currentHp|permission/);
+
+    const outOfRange = deriveSafeRangeUiModel(flowSnapshot({ inRange: false }), null, {
+      targetClass: "sandbag", waterSource: "manifest_default", promptLevel: 1,
+    });
+    expect(outOfRange.canCompile).toBe(false);
+    expect(resolveSafeRangeUiIntent(outOfRange, { kind: "compile" })).toBeNull();
   });
 
   it("executes only by Flow previewId and rejects malformed or stale display previews", () => {

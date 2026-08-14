@@ -119,6 +119,7 @@ export function createRpgCore120LearningUi(
   anchor.parentElement.insertBefore(root, anchor);
   let selectedBand: Core120Band = "P0";
   let current: Core120LearningUiModel | null = null;
+  let gridRenderKey = "";
 
   root.addEventListener("click", (event) => {
     const element = event.target instanceof Element ? event.target : null;
@@ -154,35 +155,49 @@ export function createRpgCore120LearningUi(
       : "先完成 P0 12 字目标，120 字档案才会解锁。";
 
     const tabs = required<HTMLElement>(root, "[data-core120-band-tabs]");
-    tabs.replaceChildren(...CORE120_BANDS.map((candidate) => {
-      const button = document.createElement("button");
-      button.type = "button";
-      button.dataset.core120Band = candidate;
-      button.setAttribute("role", "tab");
+    if (tabs.children.length === 0) {
+      tabs.append(...CORE120_BANDS.map((candidate) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.dataset.core120Band = candidate;
+        button.setAttribute("role", "tab");
+        return button;
+      }));
+    }
+    for (const button of tabs.querySelectorAll<HTMLButtonElement>("button[data-core120-band]")) {
+      const candidate = button.dataset.core120Band as Core120Band;
       button.setAttribute("aria-selected", String(candidate === model.selectedBand));
       button.textContent = `${candidate} · ${model.bandWordCounts[candidate]}`;
-      return button;
-    }));
+    }
 
     const grid = required<HTMLElement>(root, "[data-core120-learning-grid]");
-    grid.replaceChildren();
-    for (const word of model.words) {
-      const row = document.createElement("article");
-      row.className = "core120-learning-word";
-      const label = document.createElement("span");
-      const title = document.createElement("strong");
-      title.textContent = word.wordId;
-      const detail = document.createElement("small");
-      detail.textContent = `${word.currentState} · ${word.visualDomainId.replace("D_", "")}`;
-      label.append(title, detail);
-      const button = document.createElement("button");
-      button.type = "button";
-      button.dataset.core120Word = word.wordId;
-      button.textContent = word.nextActionId?.split(".").at(-1)?.replaceAll("_", " ") ?? "完成";
-      button.disabled = !model.inRange || !model.p0PrerequisiteComplete || word.nextActionId === null;
-      button.setAttribute("aria-label", `${word.wordId}: ${button.textContent}`);
-      row.append(label, button);
-      grid.append(row);
+    const nextGridRenderKey = JSON.stringify({
+      selectedBand: model.selectedBand,
+      inRange: model.inRange,
+      p0PrerequisiteComplete: model.p0PrerequisiteComplete,
+      words: model.words,
+    });
+    if (nextGridRenderKey !== gridRenderKey) {
+      gridRenderKey = nextGridRenderKey;
+      grid.replaceChildren();
+      for (const word of model.words) {
+        const row = document.createElement("article");
+        row.className = "core120-learning-word";
+        const label = document.createElement("span");
+        const title = document.createElement("strong");
+        title.textContent = word.wordId;
+        const detail = document.createElement("small");
+        detail.textContent = `${word.currentState} · ${word.visualDomainId.replace("D_", "")}`;
+        label.append(title, detail);
+        const button = document.createElement("button");
+        button.type = "button";
+        button.dataset.core120Word = word.wordId;
+        button.textContent = word.nextActionId?.split(".").at(-1)?.replaceAll("_", " ") ?? "完成";
+        button.disabled = !model.inRange || !model.p0PrerequisiteComplete || word.nextActionId === null;
+        button.setAttribute("aria-label", `${word.wordId}: ${button.textContent}`);
+        row.append(label, button);
+        grid.append(row);
+      }
     }
     required<HTMLElement>(root, "[data-core120-learning-live]").textContent = !model.p0PrerequisiteComplete
       ? "P0 前置尚未完成。"

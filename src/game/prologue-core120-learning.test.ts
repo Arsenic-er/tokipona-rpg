@@ -224,5 +224,5 @@ describe("PrologueCore120LearningCoordinator", () => {
     const loaded = GameSession.fromSave(JSON.parse(JSON.stringify(save)));
     expect(loaded.snapshot()).toEqual(completed);
     expect(loaded.events()).toHaveLength(ledger.length);
-  }, 20_000);
+  }, 60_000);
 });

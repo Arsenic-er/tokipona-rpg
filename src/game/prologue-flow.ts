@@ -99,6 +99,7 @@ import {
 } from "./prologue-core120-learning";
 import type { P0LearningActionId } from "./p0-learning-contract";
 import { p0TargetReached } from "./p0-learning-contract";
+import { safeRangeInteractionPointPx } from "./safe-range-authority";
 import {
   type Core120LearningActionId,
 } from "../learning/core120-campaign";
@@ -210,6 +211,12 @@ export interface PrologueFlowSafeRangeCompileResult {
 }
 
 /** Browser/UI projection. It deliberately excludes GameSession, receipts, flags, HP and physics results. */
+export type PrologueFlowSafeRangeTargetView = Readonly<{
+  materialClass: string;
+  completed: boolean;
+  inRange: boolean;
+}>;
+
 export interface PrologueFlowSafeRangeView {
   readonly mode: "settlement" | "safe_range" | "other";
   readonly sceneId: string;
@@ -233,7 +240,7 @@ export interface PrologueFlowSafeRangeView {
     permissionGranted: boolean;
     firstAttackSignatureAvailable: boolean;
     firstAttackSignatureCompleted: boolean;
-    targets: PrologueSafeRangeSnapshot["targets"];
+    targets: Readonly<Record<keyof PrologueSafeRangeSnapshot["targets"], PrologueFlowSafeRangeTargetView>>;
   }> | null;
 }
 
@@ -660,6 +667,19 @@ export class PrologueFlowSession {
       state.world.flags[`global:${flagId}`]?.scope === "global" &&
       state.world.flags[`global:${flagId}`]?.value === true;
     const safe = this.safeRange?.snapshot() ?? null;
+    const safeRuntime = this.safeRangeBridge?.runtime.snapshot() ?? null;
+    const safeTargets = safe === null ? null : Object.freeze(Object.fromEntries(
+      Object.entries(safe.targets).map(([targetClass, target]) => {
+        const point = safeRangeInteractionPointPx(targetClass as keyof PrologueSafeRangeSnapshot["targets"]);
+        const inRange = safeRuntime !== null && point !== null &&
+          Number.isFinite(safeRuntime.player.position.x) && Number.isFinite(safeRuntime.player.position.y) &&
+          Math.hypot(
+            safeRuntime.player.position.x - point.x,
+            safeRuntime.player.position.y - point.y,
+          ) <= WORLD_TILE_SIZE_PX;
+        return [targetClass, Object.freeze({ ...target, inRange })];
+      }),
+    )) as Readonly<Record<keyof PrologueSafeRangeSnapshot["targets"], PrologueFlowSafeRangeTargetView>>;
     return Object.freeze({
       mode: this.settlement ? "settlement" : this.safeRange ? "safe_range" : "other",
       sceneId: state.world.currentSceneId,
@@ -678,7 +698,7 @@ export class PrologueFlowSession {
         permissionGranted: safe.permissionGranted,
         firstAttackSignatureAvailable: safe.firstAttackSignatureAvailable,
         firstAttackSignatureCompleted: safe.firstAttackSignatureCompleted,
-        targets: safe.targets,
+        targets: safeTargets!,
       }),
     });
   }
