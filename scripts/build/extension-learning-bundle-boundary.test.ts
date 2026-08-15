@@ -7,6 +7,7 @@ import {
 const ROOT = "C:/workspace";
 const MODULES = [
   `${ROOT}/src/persistence/browser-learning-corpus-loader.ts`,
+  `${ROOT}/src/generated/learning-corpus-packages.v0.1.json`,
   `${ROOT}/src/persistence/browser-learning-corpus-adapter.ts`,
   `${ROOT}/src/learning/corpus-partition-collection.ts`,
   `${ROOT}/src/learning/corpus-partition.ts`,

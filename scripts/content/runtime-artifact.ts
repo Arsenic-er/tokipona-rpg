@@ -4,7 +4,7 @@ import { projectP0Curriculum } from "./p0-runtime-artifact.ts";
 import { projectCore120Curriculum } from "./core120-runtime-artifact.ts";
 import {
   projectCorpusExpansionRegistry,
-  projectLearningCorpusCatalog,
+  projectLearningCorpusArtifacts,
 } from "./corpus-expansion-runtime-artifact.ts";
 import { projectPrologueAcceptance } from "./prologue-acceptance-runtime-artifact.ts";
 import type { RuntimeSafeRangeManifest } from "../../src/content/runtime-safe-range-manifest.ts";
@@ -14,7 +14,10 @@ import {
   readRuntimeCorpusExpansionRegistry,
   type RuntimeCorpusExpansionRegistry,
 } from "../../src/content/runtime-corpus-expansion-registry.ts";
-import type { RuntimeLearningCorpusCatalog } from "../../src/content/runtime-learning-corpus-catalog.ts";
+import type { RuntimeLearningCorpusCatalogHeader } from
+  "../../src/content/runtime-learning-corpus-catalog-header.ts";
+import type { RuntimeLearningCorpusPackageBundle } from
+  "../../src/content/runtime-learning-corpus-package-bundle.ts";
 import type { RuntimePortraitCameraProfile } from "../../src/content/runtime-camera-profile.ts";
 import type { RuntimePrologueAcceptanceManifest } from "../../src/content/runtime-prologue-acceptance-manifest.ts";
 import { posix } from "node:path";
@@ -57,6 +60,8 @@ import type {
 
 export const RUNTIME_CONTENT_SCHEMA_VERSION = "tokipona.runtime-content.v0.1" as const;
 export const RUNTIME_CONTENT_OUTPUT_PATH = "src/generated/content-runtime.v0.1.json" as const;
+export const RUNTIME_LEARNING_CORPUS_PACKAGE_OUTPUT_PATH =
+  "src/generated/learning-corpus-packages.v0.1.json" as const;
 export const RUNTIME_SCENE_PLAYER_HEIGHT_PX = 14 as const;
 
 export type RuntimeTeloLengthClass = "short" | "default" | "long";
@@ -83,7 +88,8 @@ export interface RuntimeContentArtifact {
   readonly p0Curriculum: RuntimeP0CurriculumManifest;
   readonly core120Curriculum: RuntimeCore120CurriculumManifest;
   readonly corpusExpansionRegistry: RuntimeCorpusExpansionRegistry;
-  readonly learningCorpusCatalog: RuntimeLearningCorpusCatalog;
+  readonly learningCorpusCatalog: Omit<RuntimeLearningCorpusCatalogHeader,
+    "registry" | "packageCount">;
   readonly cameraProfile: RuntimePortraitCameraProfile;
   readonly prologueAcceptance: RuntimePrologueAcceptanceManifest;
   readonly capabilityProgression: CapabilityMilestoneMachineProjection;
@@ -389,7 +395,8 @@ export function buildRuntimeContentArtifact(manifest: ContentManifest): RuntimeC
     core120Curriculum,
     corpusExpansionRegistry,
   });
-  const learningCorpusCatalog = projectLearningCorpusCatalog(manifest, verifiedCorpusExpansionRegistry);
+  const learningCorpusCatalog = projectLearningCorpusArtifacts(
+    manifest, verifiedCorpusExpansionRegistry).header;
   const infrastructureTaskSources = [...manifest.byKind.task]
     .filter((taskSource) => taskSource.content.task_type === "infrastructure_world_predicate")
     .sort((left, right) => left.path.localeCompare(right.path));
@@ -910,8 +917,18 @@ function projectWildlifeProcessing(manifest: ContentManifest): RuntimeWildlifePr
 }
 
 export function serializeRuntimeContentArtifact(artifact: RuntimeContentArtifact): string { return `${JSON.stringify(artifact, null, 2)}\n`; }
+export function buildRuntimeLearningCorpusPackageBundle(
+  manifest: ContentManifest,
+): RuntimeLearningCorpusPackageBundle {
+  const artifact = buildRuntimeContentArtifact(manifest);
+  const registry = readRuntimeCorpusExpansionRegistry(artifact);
+  return projectLearningCorpusArtifacts(manifest, registry).bundle;
+}
+export function serializeRuntimeLearningCorpusPackageBundle(
+  bundle: RuntimeLearningCorpusPackageBundle,
+): string { return `${JSON.stringify(bundle, null, 2)}\n`; }
 export function assertRuntimeArtifactCurrent(actual: string, expected: string): void {
-  if (actual !== expected) throw new Error(`Generated runtime content is stale. Run the content runtime generator to refresh ${RUNTIME_CONTENT_OUTPUT_PATH}.`);
+  if (actual !== expected) throw new Error("Generated runtime content is stale. Run the content runtime generator to refresh checked-in artifacts.");
 }
 function stableStringify(value: ContentValue): string {
   if (Array.isArray(value)) return `[${value.map(stableStringify).join(",")}]`;

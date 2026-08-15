@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
 import generated from "../generated/content-runtime.v0.1.json";
+import generatedPackageBundle from "../generated/learning-corpus-packages.v0.1.json";
 import { computeRuntimeCorpusExpansionRegistryDigest } from
   "../content/runtime-corpus-expansion-registry";
 import { computeRuntimeLearningCorpusCatalogDigest } from
   "../content/runtime-learning-corpus-catalog";
+import { computeRuntimeLearningCorpusPackageBundleDigest } from
+  "../content/runtime-learning-corpus-package-bundle";
 import {
   computeRuntimeLearningCorpusPackageDigest,
   computeRuntimeLearningCorpusSemanticDigest,
@@ -25,7 +28,7 @@ class MemoryStorage implements LocalStorageLike {
   public setItem(key: string, value: string): void { this.values.set(key, value); }
 }
 
-function admittedArtifact(): any {
+function admittedArtifacts(): { artifact: any; packageBundle: any } {
   const word: RuntimeLearningCorpusWord = {
     wordId: "testword", targetState: "produced", semanticFacets: ["test-semantic-facet"],
     actions: [
@@ -68,16 +71,24 @@ function admittedArtifact(): any {
   const registryBody = Object.fromEntries(Object.entries(registry)
     .filter(([key]) => key !== "sourceDigest"));
   registry.sourceDigest = computeRuntimeCorpusExpansionRegistryDigest(registryBody);
-  const catalogBody = { schemaVersion: "tokipona.runtime-learning-corpus-catalog.v0.1",
-    registryId: registry.registryId, admittedCorpusIds: [CORPUS_ID], packages: [pkg] };
+  const catalogBody = { schemaVersion: "tokipona.runtime-learning-corpus-catalog.v0.2",
+    registryId: registry.registryId, admittedCorpusIds: [CORPUS_ID],
+    packageDescriptors: [{ phaseId: pkg.phaseId, corpusId: pkg.corpusId,
+      packageDigest: pkg.sourceDigest, semanticDigest: pkg.semanticDigest }] };
   artifact.learningCorpusCatalog = { ...catalogBody,
     sourceDigest: computeRuntimeLearningCorpusCatalogDigest(catalogBody) };
-  return artifact;
+  const packageBundleBody = {
+    schemaVersion: "tokipona.runtime-learning-corpus-package-bundle.v0.1",
+    registryId: registry.registryId, admittedCorpusIds: [CORPUS_ID], packages: [pkg],
+  };
+  return { artifact, packageBundle: { ...packageBundleBody,
+    sourceDigest: computeRuntimeLearningCorpusPackageBundleDigest(packageBundleBody) } };
 }
 
 describe("browser learning corpus lazy loader", () => {
   it("builds the full durable adapter only for a verified admitted catalog", () => {
-    const adapter = loadBrowserLearningCorpusAdapter(admittedArtifact());
+    const { artifact, packageBundle } = admittedArtifacts();
+    const adapter = loadBrowserLearningCorpusAdapter(artifact, packageBundle);
     const initial = adapter.create("player.extension.loader");
     expect(initial.admittedCorpusIds).toEqual([CORPUS_ID]);
     const first = adapter.commit(initial, "player.extension.loader", CORPUS_ID,
@@ -89,14 +100,21 @@ describe("browser learning corpus lazy loader", () => {
   });
 
   it("rejects empty and tampered catalogs before browser bootstrap", () => {
-    expect(() => loadBrowserLearningCorpusAdapter(generated)).toThrow(/empty catalog/);
-    const forged = admittedArtifact();
-    forged.learningCorpusCatalog.packages[0].words.testword.actions[0].actionId = "forged";
-    expect(() => loadBrowserLearningCorpusAdapter(forged)).toThrow(/digest mismatch/);
+    expect(() => loadBrowserLearningCorpusAdapter(generated, generatedPackageBundle))
+      .toThrow(/empty catalog/);
+    const forged = admittedArtifacts();
+    forged.packageBundle.packages[0].words.testword.actions[0].actionId = "forged";
+    const packageBundleBody = Object.fromEntries(Object.entries(forged.packageBundle)
+      .filter(([key]) => key !== "sourceDigest"));
+    forged.packageBundle.sourceDigest =
+      computeRuntimeLearningCorpusPackageBundleDigest(packageBundleBody);
+    expect(() => loadBrowserLearningCorpusAdapter(forged.artifact, forged.packageBundle))
+      .toThrow(/digest mismatch/);
   });
 
   it("persists and reloads an admitted partition through companion-first bootstrap", () => {
-    const adapter = loadBrowserLearningCorpusAdapter(admittedArtifact());
+    const { artifact, packageBundle } = admittedArtifacts();
+    const adapter = loadBrowserLearningCorpusAdapter(artifact, packageBundle);
     const storage = new MemoryStorage();
     const keys = { checkpointKey: "extension.primary", companionKey: "extension.companion" };
     const first = bootstrapBrowserPrologue(storage, keys, () => "player.extension.browser", adapter);

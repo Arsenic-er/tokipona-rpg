@@ -11,7 +11,10 @@ import {
   type RuntimeLearningCorpusWord,
 } from "../../src/content/runtime-learning-corpus-package";
 import type { ContentSource } from "../../src/content/types";
-import { buildRuntimeContentArtifact } from "./runtime-artifact";
+import {
+  buildRuntimeContentArtifact,
+  buildRuntimeLearningCorpusPackageBundle,
+} from "./runtime-artifact";
 
 const raw = import.meta.glob("../../data/**/*.{yaml,yml,json}", {
   eager: true,
@@ -93,9 +96,11 @@ describe("post-pu120 corpus expansion projector", () => {
   it("projects a reviewed prefix without mutating the pu-120 partition", () => {
     const all = sources();
     const pkg = admitReviewedPackage(all);
-    const artifact = buildRuntimeContentArtifact(compileContent(all));
+    const manifest = compileContent(all);
+    const artifact = buildRuntimeContentArtifact(manifest);
+    const packageBundle = buildRuntimeLearningCorpusPackageBundle(manifest);
     const projected = readRuntimeCorpusExpansionRegistry(artifact);
-    const catalog = readRuntimeLearningCorpusCatalog(artifact).catalog;
+    const catalog = readRuntimeLearningCorpusCatalog(artifact, packageBundle).catalog;
     expect(projected.baseCorpus.corpusId).toBe("pu-120");
     expect(projected.admittedCorpusIds).toEqual([CORPUS_ID]);
     expect(projected.phases[0]).toMatchObject({ status: "admitted",

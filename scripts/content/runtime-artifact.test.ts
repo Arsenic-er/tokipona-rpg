@@ -5,10 +5,14 @@ import { readRuntimeSceneManifestIndex } from "../../src/content/runtime-scene-m
 import { readRuntimePortraitCameraProfile } from "../../src/content/runtime-camera-profile";
 import type { ContentSource } from "../../src/content/types";
 import generatedRuntimeText from "../../src/generated/content-runtime.v0.1.json?raw";
+import generatedLearningCorpusPackagesText from
+  "../../src/generated/learning-corpus-packages.v0.1.json?raw";
 import {
   assertRuntimeArtifactCurrent,
   buildRuntimeContentArtifact,
+  buildRuntimeLearningCorpusPackageBundle,
   serializeRuntimeContentArtifact,
+  serializeRuntimeLearningCorpusPackageBundle,
 } from "./runtime-artifact";
 
 const rawRepositoryContent = import.meta.glob("../../data/**/*.{yaml,yml,json}", {
@@ -26,10 +30,13 @@ function repositorySources(): ContentSource[] {
 
 describe("runtime content artifact generator", () => {
   it("matches the checked-in generated artifact byte for byte", () => {
-    const expected = serializeRuntimeContentArtifact(
-      buildRuntimeContentArtifact(compileContent(repositorySources())),
-    );
+    const manifest = compileContent(repositorySources());
+    const expected = serializeRuntimeContentArtifact(buildRuntimeContentArtifact(manifest));
+    const expectedPackages = serializeRuntimeLearningCorpusPackageBundle(
+      buildRuntimeLearningCorpusPackageBundle(manifest));
     expect(() => assertRuntimeArtifactCurrent(generatedRuntimeText, expected)).not.toThrow();
+    expect(() => assertRuntimeArtifactCurrent(
+      generatedLearningCorpusPackagesText, expectedPackages)).not.toThrow();
   });
 
   it("emits the validated N00 through N08 runtime scene manifest", () => {
@@ -143,12 +150,17 @@ describe("runtime content artifact generator", () => {
     expect(() => readRuntimeSceneManifestIndex(missingNpcs)).toThrow(/\.npcs must be an array/);
   });
   it("fails the check when the generated artifact is stale", () => {
-    const expected = serializeRuntimeContentArtifact(
-      buildRuntimeContentArtifact(compileContent(repositorySources())),
-    );
+    const manifest = compileContent(repositorySources());
+    const expected = serializeRuntimeContentArtifact(buildRuntimeContentArtifact(manifest));
+    const expectedPackages = serializeRuntimeLearningCorpusPackageBundle(
+      buildRuntimeLearningCorpusPackageBundle(manifest));
     expect(() => assertRuntimeArtifactCurrent(`${generatedRuntimeText} `, expected)).toThrowError(
       /Generated runtime content is stale/,
     );
+    expect(() => assertRuntimeArtifactCurrent(
+      `${generatedLearningCorpusPackagesText} `, expectedPackages)).toThrowError(
+        /Generated runtime content is stale/,
+      );
   });
 
   it("changes the source digest after a valid authoring change", () => {

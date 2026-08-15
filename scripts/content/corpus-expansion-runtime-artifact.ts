@@ -8,8 +8,14 @@ import {
 } from "../../src/content/runtime-corpus-expansion-registry.ts";
 import {
   computeRuntimeLearningCorpusCatalogDigest,
-  type RuntimeLearningCorpusCatalog,
-} from "../../src/content/runtime-learning-corpus-catalog.ts";
+  RUNTIME_LEARNING_CORPUS_CATALOG_SCHEMA,
+  type RuntimeLearningCorpusCatalogHeader,
+} from "../../src/content/runtime-learning-corpus-catalog-header.ts";
+import {
+  computeRuntimeLearningCorpusPackageBundleDigest,
+  RUNTIME_LEARNING_CORPUS_PACKAGE_BUNDLE_SCHEMA,
+  type RuntimeLearningCorpusPackageBundle,
+} from "../../src/content/runtime-learning-corpus-package-bundle.ts";
 import {
   readRuntimeLearningCorpusPackage,
   type RuntimeLearningCorpusPackage,
@@ -157,10 +163,15 @@ export function projectCorpusExpansionRegistry(manifest: ContentManifest): Runti
   } as RuntimeCorpusExpansionRegistry;
 }
 
-export function projectLearningCorpusCatalog(
+export interface ProjectedLearningCorpusArtifacts {
+  readonly header: Omit<RuntimeLearningCorpusCatalogHeader, "registry" | "packageCount">;
+  readonly bundle: RuntimeLearningCorpusPackageBundle;
+}
+
+export function projectLearningCorpusArtifacts(
   manifest: ContentManifest,
   registry: RuntimeCorpusExpansionRegistry,
-): RuntimeLearningCorpusCatalog {
+): ProjectedLearningCorpusArtifacts {
   const sources = manifest.byKind.learning_corpus;
   if (sources.length !== registry.admittedCorpusIds.length) {
     throw new Error("learning corpus sources must exactly cover admitted corpus IDs");
@@ -178,15 +189,32 @@ export function projectLearningCorpusCatalog(
     if (!pkg) throw new Error(`admitted learning corpus ${corpusId} has no reviewed package source`);
     return pkg;
   });
-  const body = {
-    schemaVersion: "tokipona.runtime-learning-corpus-catalog.v0.1" as const,
+  const headerBody = {
+    schemaVersion: RUNTIME_LEARNING_CORPUS_CATALOG_SCHEMA,
     registryId: registry.registryId,
+    admittedCorpusIds: registry.admittedCorpusIds,
+    packageDescriptors: packages.map((pkg) => ({
+      phaseId: pkg.phaseId,
+      corpusId: pkg.corpusId,
+      packageDigest: pkg.sourceDigest,
+      semanticDigest: pkg.semanticDigest,
+    })),
+  };
+  const bundleBody = {
+    schemaVersion: RUNTIME_LEARNING_CORPUS_PACKAGE_BUNDLE_SCHEMA,
+    registryId: registry.registryId as "post-pu120.csp-expansion",
     admittedCorpusIds: registry.admittedCorpusIds,
     packages,
   };
   return {
-    ...body,
-    sourceDigest: computeRuntimeLearningCorpusCatalogDigest(body),
+    header: {
+      ...headerBody,
+      sourceDigest: computeRuntimeLearningCorpusCatalogDigest(headerBody),
+    },
+    bundle: {
+      ...bundleBody,
+      sourceDigest: computeRuntimeLearningCorpusPackageBundleDigest(bundleBody),
+    },
   };
 }
 

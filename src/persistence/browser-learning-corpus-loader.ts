@@ -1,4 +1,6 @@
 import { readRuntimeLearningCorpusCatalog } from "../content/runtime-learning-corpus-catalog";
+import generatedPackageBundle from
+  "../generated/learning-corpus-packages.v0.1.json" with { type: "json" };
 import { createBrowserLearningCorpusAdapter } from "./browser-learning-corpus-adapter";
 import type { BrowserExtensionLearningAdapter } from "./browser-game-session-wal";
 
@@ -9,8 +11,9 @@ import type { BrowserExtensionLearningAdapter } from "./browser-game-session-wal
  */
 export function loadBrowserLearningCorpusAdapter(
   artifact: unknown,
+  packageBundle: unknown = generatedPackageBundle,
 ): BrowserExtensionLearningAdapter {
-  const runtime = readRuntimeLearningCorpusCatalog(artifact);
+  const runtime = readRuntimeLearningCorpusCatalog(artifact, packageBundle);
   if (runtime.catalog.packages.length === 0) {
     throw new Error("full learning corpus loader must not be used for an empty catalog");
   }
