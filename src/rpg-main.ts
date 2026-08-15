@@ -32,6 +32,10 @@ import type {
   BrowserGameSessionWalCoordinator,
 } from "./persistence/browser-game-session-wal";
 import { bootstrapBrowserPrologue, persistBrowserPrologueCheckpoint } from "./persistence/browser-prologue-persistence";
+import {
+  clearBrowserPrologueRecoveryStorage,
+  createBrowserPrologueRecoveryBundle,
+} from "./persistence/browser-prologue-recovery";
 import { nextInventoryConsumptionSequence } from "./session/adapters";
 import { createRpgEconomyUi, type EconomyUiCommand } from "./rpg-economy-ui";
 import {
@@ -99,6 +103,13 @@ const STORAGE_KEYS = Object.freeze({
   companionKey: COMPANION_STORAGE_KEY,
   legacyCheckpointKeys: Object.freeze(["tokipona.rpg.prologue.v0.2"]),
 });
+const RECOVERY_STORAGE_KEYS = Object.freeze([
+  STORAGE_KEY,
+  COMPANION_STORAGE_KEY,
+  ...STORAGE_KEYS.legacyCheckpointKeys,
+  TELEMETRY_STORAGE_KEY,
+  PLAYTEST_STORAGE_KEY,
+]);
 const GLYPH_POSITION = Object.freeze({ x: 144, y: 100 });
 const GLYPH_RADIUS = 40;
 const SCENES = readRuntimeSceneManifestIndex(generatedRuntimeArtifact).byId;
@@ -649,10 +660,9 @@ const taskStageLabel = required<HTMLElement>('[data-ui="task-stage"]');
 const statusLabel = required<HTMLElement>('[data-ui="status"]');
 
 let lastTelemetryAtMs = 0;
-let port = FlowBrowserPort.bootstrap();
-const initialTelemetryAtMs = telemetryNow();
-let telemetry = bootstrapTelemetry(port, initialTelemetryAtMs);
-let playtest = bootstrapPlaytest(port, telemetry, initialTelemetryAtMs);
+let port: FlowBrowserPort;
+let telemetry: ReturnType<typeof bootstrapTelemetry>;
+let playtest: ReturnType<typeof bootstrapPlaytest>;
 const infrastructureUi = createRpgInfrastructureUi((command) => run(() => port.infrastructure(command)));
 const cisternUi = createRpgCisternUi((command) => run(() => port.cistern(command)));
 const wildlifeUi = createRpgWildlifeUi((command) => run(() => port.wildlife(command)));
@@ -669,12 +679,83 @@ const held = new Set<string>();
 const pointerHolds = new Map<string, Set<number>>();
 const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 
-bindInputs();
-bindPersistenceLifecycle();
-reducedMotion.addEventListener("change", (event) => {
-  if (event.matches) activationStarted = null;
-});
-requestAnimationFrame(frame);
+const initialPort = bootstrapOrRenderRecovery();
+if (initialPort !== null) {
+  port = initialPort;
+  const initialTelemetryAtMs = telemetryNow();
+  telemetry = bootstrapTelemetry(port, initialTelemetryAtMs);
+  playtest = bootstrapPlaytest(port, telemetry, initialTelemetryAtMs);
+  bindInputs();
+  bindPersistenceLifecycle();
+  reducedMotion.addEventListener("change", (event) => {
+    if (event.matches) activationStarted = null;
+  });
+  requestAnimationFrame(frame);
+}
+
+function bootstrapOrRenderRecovery(): FlowBrowserPort | null {
+  try {
+    return FlowBrowserPort.bootstrap();
+  } catch {
+    renderStartupRecovery();
+    return null;
+  }
+}
+
+function renderStartupRecovery(): void {
+  app.dataset.mode = "startup_recovery";
+  app.innerHTML = `
+    <section class="startup-recovery" data-ui="startup-recovery" role="alert" aria-live="assertive">
+      <p class="eyebrow">SAVE RECOVERY / FAIL CLOSED</p>
+      <h1>存档没有通过完整性校验</h1>
+      <p>游戏没有回退到旧检查点，也没有删除本地数据。请先导出恢复包，再决定重试或新建存档。</p>
+      <div class="startup-recovery-actions">
+        <button type="button" data-recovery-action="retry">重新检查</button>
+        <button type="button" data-recovery-action="export">导出原始恢复包</button>
+        <button type="button" data-recovery-action="reset">确认后新建存档</button>
+      </div>
+      <small data-ui="startup-recovery-status">原存档与恢复记录仍保留在此浏览器中。</small>
+    </section>`;
+  const status = app.querySelector<HTMLElement>('[data-ui="startup-recovery-status"]');
+  const retry = app.querySelector<HTMLButtonElement>('[data-recovery-action="retry"]');
+  const exportButton = app.querySelector<HTMLButtonElement>('[data-recovery-action="export"]');
+  const reset = app.querySelector<HTMLButtonElement>('[data-recovery-action="reset"]');
+  if (!status || !retry || !exportButton || !reset) {
+    throw new Error("startup recovery controls are unavailable");
+  }
+  retry.addEventListener("click", () => location.reload());
+  exportButton.addEventListener("click", () => {
+    try {
+      const bundle = createBrowserPrologueRecoveryBundle(localStorage, RECOVERY_STORAGE_KEYS);
+      downloadJson("tokipona-prologue-recovery.json", bundle);
+      status.textContent = "恢复包已导出；本地存档未被删除。";
+    } catch {
+      status.textContent = "恢复包导出失败；本地存档仍保留。";
+    }
+  });
+  reset.addEventListener("click", () => {
+    if (!confirm("这会删除本游戏的存档、WAL、遥测和本地试玩记录，并立即建立新存档。是否继续？")) {
+      status.textContent = "已取消；原存档仍保留。";
+      return;
+    }
+    try {
+      clearBrowserPrologueRecoveryStorage(localStorage, RECOVERY_STORAGE_KEYS);
+      location.reload();
+    } catch {
+      status.textContent = "无法清理本地存档；原数据仍保留，请先导出恢复包。";
+    }
+  });
+}
+
+function downloadJson(filename: string, value: unknown): void {
+  const blob = new Blob([`${JSON.stringify(value, null, 2)}\n`], { type: "application/json" });
+  const href = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = href;
+  link.download = filename;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(href), 0);
+}
 
 function frame(now: number): void {
   // A requestAnimationFrame timestamp describes the start of the frame and can

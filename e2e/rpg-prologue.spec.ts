@@ -196,6 +196,45 @@ async function prepareCore120WordAtArchive(page: Page, band: string, wordId: str
   await expect(action).toBeDisabled();
 }
 
+test("keeps corrupt startup data and offers an explicit recovery path", async ({ page }) => {
+  const corruptCompanion = "{not-valid-json";
+  await page.addInitScript(([key, raw]) => {
+    if (sessionStorage.getItem("startup-corruption-injected") === null) {
+      localStorage.setItem(key, raw);
+      sessionStorage.setItem("startup-corruption-injected", "true");
+    }
+  },
+    [COMPANION_KEY, corruptCompanion] as const);
+
+  await page.goto("/rpg.html");
+
+  await expect(app(page)).toHaveAttribute("data-mode", "startup_recovery");
+  await expect(page.locator('[data-ui="startup-recovery"]')).toBeVisible();
+  await expect(page.locator("#rpg-canvas")).toHaveCount(0);
+  await expect.poll(() => page.evaluate((key) => localStorage.getItem(key), COMPANION_KEY))
+    .toBe(corruptCompanion);
+
+  const downloadPromise = page.waitForEvent("download");
+  await page.locator('[data-recovery-action="export"]').click();
+  const download = await downloadPromise;
+  expect(download.suggestedFilename()).toBe("tokipona-prologue-recovery.json");
+  await expect(page.locator('[data-ui="startup-recovery-status"]')).toContainText("已导出");
+  await expect.poll(() => page.evaluate((key) => localStorage.getItem(key), COMPANION_KEY))
+    .toBe(corruptCompanion);
+
+  page.once("dialog", (dialog) => dialog.dismiss());
+  await page.locator('[data-recovery-action="reset"]').click();
+  await expect(page.locator('[data-ui="startup-recovery-status"]')).toContainText("已取消");
+  await expect.poll(() => page.evaluate((key) => localStorage.getItem(key), COMPANION_KEY))
+    .toBe(corruptCompanion);
+
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.locator('[data-recovery-action="reset"]').click();
+  await expect(app(page)).toHaveAttribute("data-scene-id", ARRIVAL);
+  await expect.poll(() => page.evaluate((key) => localStorage.getItem(key), COMPANION_KEY))
+    .not.toBe(corruptCompanion);
+});
+
 test("runs the real keyboard/touch route and restores companion-first without manual save", async ({ page }) => {
   test.setTimeout(90_000);
   const errors: string[] = [];

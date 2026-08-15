@@ -337,3 +337,24 @@ button:disabled { color: #625f59; cursor: not-allowed; }
 @media (prefers-reduced-motion: reduce) {
   .safe-range-panel *, .safe-range-panel *::before, .safe-range-panel *::after { scroll-behavior: auto !important; transition: none !important; }
 }
+
+.startup-recovery {
+  width: min(92vw, 520px);
+  margin: 12vh auto 0;
+  padding: 22px;
+  color: #d6e3df;
+  border: 1px solid #795a52;
+  background: #12100f;
+  box-shadow: 0 18px 54px #000a;
+}
+.startup-recovery h1 { margin: 6px 0 10px; color: #f1c1ad; font-size: 20px; }
+.startup-recovery p { line-height: 1.65; }
+.startup-recovery small { display: block; min-height: 1.5em; margin-top: 12px; color: #a9b8b3; }
+.startup-recovery-actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 16px; }
+.startup-recovery-actions button { min-height: 44px; padding: 8px; }
+.startup-recovery-actions button:last-child { color: #f0c5b3; border-color: #805a4b; }
+.startup-recovery button:focus-visible { outline: 2px solid #f1c1ad; outline-offset: 2px; }
+@media (max-width: 520px) {
+  .startup-recovery { margin-top: 6vh; }
+  .startup-recovery-actions { grid-template-columns: 1fr; }
+}
