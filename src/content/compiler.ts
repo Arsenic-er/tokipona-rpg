@@ -8,6 +8,7 @@ import type {
   ContentValue,
   SerializableManifestIndex,
 } from "./types";
+import { readRuntimeLearningCorpusPackageCandidate } from "./runtime-learning-corpus-package.ts";
 
 const MANIFEST_SCHEMA_VERSION = "tokipona.content-manifest.v0.1" as const;
 const VERSION_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
@@ -35,6 +36,7 @@ const ALL_KINDS: readonly ContentKind[] = [
   "glyph_catalog",
   "glyph_progression",
   "learning_progression",
+  "learning_corpus",
   "length_profiles",
   "p0_curriculum",
   "persistence",
@@ -285,6 +287,9 @@ function validateSource(
       break;
     case "learning_progression":
       validateLearningProgression(source, issues);
+      break;
+    case "learning_corpus":
+      validateLearningCorpusPackageSource(source, issues);
       break;
   }
 }
@@ -1595,6 +1600,20 @@ function validateLearningProgression(source: CompiledSource, issues: ContentIssu
   }
 }
 
+function validateLearningCorpusPackageSource(source: CompiledSource, issues: ContentIssue[]): void {
+  try {
+    const pkg = readRuntimeLearningCorpusPackageCandidate(source.content);
+    const expectedPath = `data/language/corpora/${pkg.corpusId}.${pkg.contentVersion}.json`;
+    if (source.path !== expectedPath) {
+      addIssue(issues, "learning_corpus.path", source.path, "",
+        `reviewed learning corpus package must use canonical path ${expectedPath}`);
+    }
+  } catch (error) {
+    addIssue(issues, "learning_corpus.package", source.path, "",
+      error instanceof Error ? error.message : "learning corpus package is invalid");
+  }
+}
+
 function validateInfrastructureTaskSource(source: CompiledSource, issues: ContentIssue[]): void {
   validateArrayIds(source, "result_modes", "mode_id", issues);
   validateArrayIds(source, "solution_families", "solution_id", issues);
@@ -2078,6 +2097,7 @@ function classifySchema(schema: string): ContentKind | null {
   if (schema.startsWith("w04.cross-save-wal.")) return "persistence";
   if (schema.startsWith("g04.player-survival.")) return "survival";
   if (schema.startsWith("language.learning-progression.")) return "learning_progression";
+  if (schema.startsWith("tokipona.runtime-learning-corpus.")) return "learning_corpus";
   if (schema.startsWith("language.glyph-progression.")) return "glyph_progression";
   if (schema.startsWith("language.p0-curriculum.")) return "p0_curriculum";
   if (schema.startsWith("pu120.magic-glyph-catalog.")) return "glyph_catalog";

@@ -5,6 +5,7 @@ import {
   isBrowserGameSessionSaveEnvelopeSchema,
   LocalStorageDurableJsonStore,
   readBrowserGameSessionSaveEnvelope,
+  type BrowserExtensionLearningAdapter,
   type BrowserGameSessionSaveEnvelope,
   type LocalStorageLike,
 } from "./browser-game-session-wal";
@@ -47,10 +48,11 @@ export function bootstrapBrowserPrologue(
   storage: LocalStorageLike,
   keys: BrowserPrologueStorageKeys,
   freshSessionId: () => string,
+  learningAdapter?: BrowserExtensionLearningAdapter,
 ): BrowserPrologueRuntime {
   const companionStore = new LocalStorageDurableJsonStore(storage, keys.companionKey);
   if (companionStore.read() !== null) {
-    const coordinator = BrowserGameSessionWalCoordinator.load(companionStore);
+    const coordinator = BrowserGameSessionWalCoordinator.load(companionStore, undefined, learningAdapter);
     const flow = PrologueFlowSession.fromSave(coordinator.toSessionSave());
     flow.attachCrossSaveTransactionCoordinator(coordinator);
     return Object.freeze({ flow, coordinator });
@@ -60,16 +62,16 @@ export function bootstrapBrowserPrologue(
   if (primary !== null) {
     if (typeof primary.value === "object" && primary.value !== null &&
         isBrowserGameSessionSaveEnvelopeSchema((primary.value as { schema?: unknown }).schema)) {
-      const envelope = readBrowserGameSessionSaveEnvelope(primary.value);
+      const envelope = readBrowserGameSessionSaveEnvelope(primary.value, learningAdapter);
       companionStore.write(envelope.companion);
-      const coordinator = BrowserGameSessionWalCoordinator.load(companionStore);
+      const coordinator = BrowserGameSessionWalCoordinator.load(companionStore, undefined, learningAdapter);
       const flow = PrologueFlowSession.fromSave(coordinator.toSessionSave());
       flow.attachCrossSaveTransactionCoordinator(coordinator);
       if (primary.legacy) storage.setItem(keys.checkpointKey, JSON.stringify(coordinator.toEnvelope()));
       return Object.freeze({ flow, coordinator });
     }
     const legacySession = GameSession.fromSave(primary.value);
-    const coordinator = BrowserGameSessionWalCoordinator.fresh(legacySession, companionStore);
+    const coordinator = BrowserGameSessionWalCoordinator.fresh(legacySession, companionStore, learningAdapter);
     const flow = PrologueFlowSession.fromSave(legacySession.toSave());
     flow.attachCrossSaveTransactionCoordinator(coordinator);
     if (primary.legacy) storage.setItem(keys.checkpointKey, JSON.stringify(coordinator.toEnvelope()));
@@ -77,7 +79,7 @@ export function bootstrapBrowserPrologue(
   }
 
   const flow = PrologueFlowSession.fresh({ sessionId: freshSessionId() });
-  const coordinator = BrowserGameSessionWalCoordinator.fresh(flow.session, companionStore);
+  const coordinator = BrowserGameSessionWalCoordinator.fresh(flow.session, companionStore, learningAdapter);
   flow.attachCrossSaveTransactionCoordinator(coordinator);
   return Object.freeze({ flow, coordinator });
 }

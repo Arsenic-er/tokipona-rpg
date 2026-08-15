@@ -1,4 +1,5 @@
 import {
+  CORPUS_EXPANSION_PHASE_IDS,
   isVerifiedRuntimeCorpusExpansionRegistry,
   resolveRuntimeExtensionCorpusAdmission,
   type CorpusExpansionPhaseId,
@@ -113,6 +114,31 @@ export function readRuntimeLearningCorpusPackage(
   if (!isVerifiedRuntimeCorpusExpansionRegistry(registry)) {
     throw new Error("corpus expansion registry is not verified");
   }
+  const parsed = readRuntimeLearningCorpusPackageCandidate(candidate);
+  const contract = resolveRuntimeExtensionCorpusAdmission(registry, parsed.corpusId);
+  if (parsed.phaseId !== registry.phases.find((phase) =>
+    phase.status === "admitted" && phase.admissionContract.corpusId === parsed.corpusId)?.phaseId ||
+      parsed.contentVersion !== contract.contentVersion ||
+      parsed.actionNamespace !== contract.actionNamespace ||
+      parsed.savePartitionId !== contract.savePartitionId ||
+      parsed.saveSchemaVersion !== contract.saveSchemaVersion ||
+      parsed.sourceDigest !== contract.packageDigest || parsed.semanticDigest !== contract.semanticDigest ||
+      !same(parsed.wordIds, contract.wordIds) ||
+      !sameReviewReceipts(parsed.reviewReceiptIds, contract.reviewReceiptIds)) {
+    throw new Error("learning corpus package does not match its admitted contract");
+  }
+  verified.add(parsed);
+  return parsed;
+}
+
+/**
+ * Strictly parses and verifies a signed package without granting runtime admission.
+ * Content compilation uses this boundary before an admission registry exists; only
+ * readRuntimeLearningCorpusPackage may add the runtime verification brand.
+ */
+export function readRuntimeLearningCorpusPackageCandidate(
+  candidate: unknown,
+): RuntimeLearningCorpusPackage {
   const raw = record(candidate, "runtime learning corpus package");
   exactKeys(raw, ["schemaVersion", "sourceDigest", "semanticDigest", "phaseId", "corpusId",
     "contentVersion", "actionNamespace", "savePartitionId", "saveSchemaVersion", "canonicalWordKey",
@@ -127,8 +153,11 @@ export function readRuntimeLearningCorpusPackage(
       raw.canonicalWordKey !== "latin_word_id") {
     throw new Error("learning corpus package schema is invalid");
   }
+  if (typeof raw.phaseId !== "string" ||
+      !CORPUS_EXPANSION_PHASE_IDS.includes(raw.phaseId as CorpusExpansionPhaseId)) {
+    throw new Error("learning corpus phaseId is invalid");
+  }
   const corpusId = string(raw.corpusId, "learning corpus corpusId");
-  const contract = resolveRuntimeExtensionCorpusAdmission(registry, corpusId);
   const wordIds = canonicalWordIds(raw.wordIds, "learning corpus wordIds");
   const wordsRaw = record(raw.words, "learning corpus words");
   if (!sameSet(Object.keys(wordsRaw), wordIds)) throw new Error("learning corpus words do not match word IDs");
@@ -151,19 +180,8 @@ export function readRuntimeLearningCorpusPackage(
   if (computeRuntimeLearningCorpusSemanticDigest(semanticSource) !== semanticDigest) {
     throw new Error("learning corpus semantic digest mismatch");
   }
-  if (raw.phaseId !== registry.phases.find((phase) =>
-    phase.status === "admitted" && phase.admissionContract.corpusId === corpusId)?.phaseId ||
-      semanticSource.contentVersion !== contract.contentVersion ||
-      semanticSource.actionNamespace !== contract.actionNamespace ||
-      semanticSource.savePartitionId !== contract.savePartitionId ||
-      semanticSource.saveSchemaVersion !== contract.saveSchemaVersion ||
-      sourceDigest !== contract.packageDigest || semanticDigest !== contract.semanticDigest ||
-      !same(wordIds, contract.wordIds) || !sameReviewReceipts(receipts, contract.reviewReceiptIds)) {
-    throw new Error("learning corpus package does not match its admitted contract");
-  }
   const result = deepFreeze({ sourceDigest, semanticDigest, ...semanticSource,
     reviewReceiptIds: receipts }) as RuntimeLearningCorpusPackage;
-  verified.add(result);
   return result;
 }
 

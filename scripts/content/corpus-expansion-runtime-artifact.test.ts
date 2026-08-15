@@ -3,6 +3,13 @@ import { describe, expect, it } from "vitest";
 import { compileContent } from "../../src/content/compiler";
 import { readRuntimeCorpusExpansionRegistry } from
   "../../src/content/runtime-corpus-expansion-registry";
+import { readRuntimeLearningCorpusCatalog } from
+  "../../src/content/runtime-learning-corpus-catalog";
+import {
+  computeRuntimeLearningCorpusPackageDigest,
+  computeRuntimeLearningCorpusSemanticDigest,
+  type RuntimeLearningCorpusWord,
+} from "../../src/content/runtime-learning-corpus-package";
 import type { ContentSource } from "../../src/content/types";
 import { buildRuntimeContentArtifact } from "./runtime-artifact";
 
@@ -20,39 +27,103 @@ const sources = (): ContentSource[] => Object.entries(raw).map(([path, text]) =>
 const registrySource = (all: ContentSource[]): Record<string, any> =>
   all.find((source) => source.path.endsWith("glyph-progression.v0.1.yaml"))!.data as Record<string, any>;
 
+const CORPUS_ID = "csp-tier1-rehearsal.v1";
+const CONTENT_VERSION = "csp-tier1.rehearsal.1";
+const REVIEW_RECEIPTS = {
+  semantic: "review.semantic.csp1.v1",
+  pronunciation: "review.pronunciation.csp1.v1",
+  glyph: "review.glyph.csp1.v1",
+} as const;
+
+function reviewedPackage(): any {
+  const word: RuntimeLearningCorpusWord = {
+    wordId: "testword", targetState: "produced", semanticFacets: ["test-semantic-facet"],
+    actions: [
+      { kind: "discover", actionId: "csp1.testword.discover", evidenceType: "glyph_discovered",
+        taskFamilyId: null, environmentFingerprint: null, promptLevel: null, semanticFacets: [] },
+      { kind: "attune", actionId: "csp1.testword.attune", evidenceType: "glyph_attunement_completed",
+        taskFamilyId: null, environmentFingerprint: null, promptLevel: null, semanticFacets: [] },
+      { kind: "context_0", actionId: "csp1.testword.context_0", evidenceType: "active_retrieval_submitted",
+        taskFamilyId: "csp1.testword.family0", environmentFingerprint: "scene.test:target.primary",
+        promptLevel: 0, semanticFacets: ["test-semantic-facet"] },
+      { kind: "context_1", actionId: "csp1.testword.context_1", evidenceType: "active_retrieval_submitted",
+        taskFamilyId: "csp1.testword.family1", environmentFingerprint: "scene.test:target.reinforcement",
+        promptLevel: 1, semanticFacets: ["test-semantic-facet"] },
+      { kind: "repair", actionId: "csp1.testword.repair", evidenceType: "repair_completed",
+        taskFamilyId: "csp1.testword.repair", environmentFingerprint: "scene.test:target.repair",
+        promptLevel: 1, semanticFacets: ["test-semantic-facet"] },
+    ],
+    assetBindings: { pronunciationAssetId: "audio.pronunciation.testword.v1",
+      glyphAssetId: "glyph.csp1.testword.v1" },
+  };
+  const semantic = {
+    schemaVersion: "tokipona.runtime-learning-corpus.v0.1" as const,
+    phaseId: "csp-tier1-remainder" as const,
+    corpusId: CORPUS_ID, contentVersion: CONTENT_VERSION, actionNamespace: "csp1",
+    savePartitionId: `learning.corpus.${CORPUS_ID}`,
+    saveSchemaVersion: "tokipona.learning-corpus-partition.v0.1" as const,
+    canonicalWordKey: "latin_word_id" as const, wordIds: ["testword"],
+    words: { testword: word },
+  };
+  const payload = { ...semantic, semanticDigest: computeRuntimeLearningCorpusSemanticDigest(semantic),
+    reviewReceiptIds: REVIEW_RECEIPTS };
+  return { ...payload, sourceDigest: computeRuntimeLearningCorpusPackageDigest(payload) };
+}
+
+function admitReviewedPackage(all: ContentSource[]): any {
+  const pkg = reviewedPackage();
+  const registry = registrySource(all).runtime_curriculum.corpus_expansion_registry;
+  registry.admitted_corpus_ids = [CORPUS_ID];
+  registry.phases[0] = {
+    ...registry.phases[0], status: "admitted", blocked_reasons: [],
+    admission_contract: {
+      schema_version: "tokipona.learning-corpus-admission.v0.1", corpus_id: CORPUS_ID,
+      content_version: CONTENT_VERSION, action_namespace: "csp1",
+      save_partition_id: `learning.corpus.${CORPUS_ID}`,
+      save_schema_version: "tokipona.learning-corpus-partition.v0.1",
+      package_digest: pkg.sourceDigest, semantic_digest: pkg.semanticDigest, word_ids: ["testword"],
+      review_receipt_ids: REVIEW_RECEIPTS,
+    },
+  };
+  all.push({ path: `data/language/corpora/${CORPUS_ID}.${CONTENT_VERSION}.json`, data: pkg });
+  return pkg;
+}
+
 describe("post-pu120 corpus expansion projector", () => {
   it("projects a reviewed prefix without mutating the pu-120 partition", () => {
     const all = sources();
-    const registry = registrySource(all).runtime_curriculum.corpus_expansion_registry;
-    registry.admitted_corpus_ids = ["csp-tier1-rehearsal.v1"];
-    registry.phases[0] = {
-      ...registry.phases[0],
-      status: "admitted",
-      blocked_reasons: [],
-      admission_contract: {
-        schema_version: "tokipona.learning-corpus-admission.v0.1",
-        corpus_id: "csp-tier1-rehearsal.v1",
-        content_version: "csp-tier1.rehearsal.1",
-        action_namespace: "csp1",
-        save_partition_id: "learning.corpus.csp-tier1-rehearsal.v1",
-        save_schema_version: "tokipona.learning-corpus-partition.v0.1",
-        package_digest: `sha256:${"1".repeat(64)}`,
-        semantic_digest: `sha256:${"2".repeat(64)}`,
-        word_ids: ["testword"],
-        review_receipt_ids: {
-          semantic: "review.semantic.csp1.v1",
-          pronunciation: "review.pronunciation.csp1.v1",
-          glyph: "review.glyph.csp1.v1",
-        },
-      },
-    };
-    const projected = readRuntimeCorpusExpansionRegistry(
-      buildRuntimeContentArtifact(compileContent(all)),
-    );
+    const pkg = admitReviewedPackage(all);
+    const artifact = buildRuntimeContentArtifact(compileContent(all));
+    const projected = readRuntimeCorpusExpansionRegistry(artifact);
+    const catalog = readRuntimeLearningCorpusCatalog(artifact).catalog;
     expect(projected.baseCorpus.corpusId).toBe("pu-120");
-    expect(projected.admittedCorpusIds).toEqual(["csp-tier1-rehearsal.v1"]);
+    expect(projected.admittedCorpusIds).toEqual([CORPUS_ID]);
     expect(projected.phases[0]).toMatchObject({ status: "admitted",
       admissionContract: { actionNamespace: "csp1", wordIds: ["testword"] } });
+    expect(catalog.admittedCorpusIds).toEqual([CORPUS_ID]);
+    expect(catalog.packages[0]).toMatchObject({ corpusId: CORPUS_ID, sourceDigest: pkg.sourceDigest });
+  });
+
+  it("requires exactly one reviewed package for every admitted corpus", () => {
+    const missing = sources();
+    const pkg = admitReviewedPackage(missing);
+    missing.pop();
+    expect(() => buildRuntimeContentArtifact(compileContent(missing)))
+      .toThrow(/exactly cover admitted corpus IDs/);
+
+    const wrongPath = sources();
+    admitReviewedPackage(wrongPath);
+    wrongPath[wrongPath.length - 1] = {
+      ...wrongPath.at(-1)!, path: `data/language/corpora/${CORPUS_ID}.wrong.json`,
+    };
+    expect(() => compileContent(wrongPath)).toThrow(/canonical path/);
+
+    const tampered = sources();
+    admitReviewedPackage(tampered);
+    (tampered.at(-1)!.data as any).words.testword.assetBindings.glyphAssetId =
+      "glyph.csp1.testword.forged";
+    expect(() => compileContent(tampered)).toThrow(/package digest mismatch/);
+    expect(pkg.corpusId).toBe(CORPUS_ID);
   });
 
   it("rejects word overlap and a gap in reviewed phases", () => {

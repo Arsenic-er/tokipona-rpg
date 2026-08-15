@@ -14878,6 +14878,13 @@
       }
     ]
   },
+  "learningCorpusCatalog": {
+    "schemaVersion": "tokipona.runtime-learning-corpus-catalog.v0.1",
+    "registryId": "post-pu120.csp-expansion",
+    "admittedCorpusIds": [],
+    "packages": [],
+    "sourceDigest": "sha256:dfaeb1a2aede830f32239cbf4eb51e6fd40ad8fd5677d1f6b4298041458e4fae"
+  },
   "cameraProfile": {
     "sourcePath": "data/world/regions/valley-prologue.v0.1.yaml",
     "profileId": "portrait_scroll.v0.1",

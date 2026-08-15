@@ -27,7 +27,10 @@ import {
 } from "./game/prologue-arrival-stream";
 import { WORLD_TILE_SIZE_PX, type CameraState, type RuntimeInput, type RuntimeSnapshot } from "./runtime";
 import { projectPortraitCamera } from "./runtime/portrait-camera";
-import type { BrowserGameSessionWalCoordinator } from "./persistence/browser-game-session-wal";
+import type {
+  BrowserExtensionLearningAdapter,
+  BrowserGameSessionWalCoordinator,
+} from "./persistence/browser-game-session-wal";
 import { bootstrapBrowserPrologue, persistBrowserPrologueCheckpoint } from "./persistence/browser-prologue-persistence";
 import { nextInventoryConsumptionSequence } from "./session/adapters";
 import { createRpgEconomyUi, type EconomyUiCommand } from "./rpg-economy-ui";
@@ -80,6 +83,11 @@ interface UiResult {
 }
 
 const CAMERA_PROFILE = readRuntimePortraitCameraProfile(generatedRuntimeArtifact);
+const EXTENSION_LEARNING_ADAPTER: BrowserExtensionLearningAdapter | undefined =
+  __TOKIPONA_EXTENSION_LEARNING_ADMITTED__
+    ? (await import("./persistence/browser-learning-corpus-loader"))
+      .loadBrowserLearningCorpusAdapter(generatedRuntimeArtifact)
+    : undefined;
 const WIDTH = CAMERA_PROFILE.viewportPx.width;
 const HEIGHT = CAMERA_PROFILE.viewportPx.height;
 const STORAGE_KEY = "tokipona.rpg.prologue.v0.3";
@@ -108,7 +116,7 @@ class FlowBrowserPort {
 
   static bootstrap(): FlowBrowserPort {
     const runtime = bootstrapBrowserPrologue(localStorage, STORAGE_KEYS,
-      () => `browser-prologue-${globalThis.crypto.randomUUID()}`);
+      () => `browser-prologue-${globalThis.crypto.randomUUID()}`, EXTENSION_LEARNING_ADAPTER);
     return new FlowBrowserPort(runtime.flow, runtime.coordinator);
   }
 

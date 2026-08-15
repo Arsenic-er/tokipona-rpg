@@ -6,6 +6,14 @@ import {
   type RuntimeCorpusExpansionPhase,
   type RuntimeCorpusExpansionRegistry,
 } from "../../src/content/runtime-corpus-expansion-registry.ts";
+import {
+  computeRuntimeLearningCorpusCatalogDigest,
+  type RuntimeLearningCorpusCatalog,
+} from "../../src/content/runtime-learning-corpus-catalog.ts";
+import {
+  readRuntimeLearningCorpusPackage,
+  type RuntimeLearningCorpusPackage,
+} from "../../src/content/runtime-learning-corpus-package.ts";
 import type { ContentManifest, ContentObject, ContentValue } from "../../src/content/types.ts";
 
 const EXPECTED_PREDECESSORS = ["pu-120", "csp-tier1-remainder", "csp-tier2"] as const;
@@ -147,6 +155,39 @@ export function projectCorpusExpansionRegistry(manifest: ContentManifest): Runti
     sourceDigest: computeRuntimeCorpusExpansionRegistryDigest(body),
     ...body,
   } as RuntimeCorpusExpansionRegistry;
+}
+
+export function projectLearningCorpusCatalog(
+  manifest: ContentManifest,
+  registry: RuntimeCorpusExpansionRegistry,
+): RuntimeLearningCorpusCatalog {
+  const sources = manifest.byKind.learning_corpus;
+  if (sources.length !== registry.admittedCorpusIds.length) {
+    throw new Error("learning corpus sources must exactly cover admitted corpus IDs");
+  }
+  const byCorpusId = new Map<string, RuntimeLearningCorpusPackage>();
+  for (const source of sources) {
+    const pkg = readRuntimeLearningCorpusPackage(registry, source.content);
+    if (byCorpusId.has(pkg.corpusId)) {
+      throw new Error(`learning corpus source ${pkg.corpusId} is duplicated`);
+    }
+    byCorpusId.set(pkg.corpusId, pkg);
+  }
+  const packages = registry.admittedCorpusIds.map((corpusId) => {
+    const pkg = byCorpusId.get(corpusId);
+    if (!pkg) throw new Error(`admitted learning corpus ${corpusId} has no reviewed package source`);
+    return pkg;
+  });
+  const body = {
+    schemaVersion: "tokipona.runtime-learning-corpus-catalog.v0.1" as const,
+    registryId: registry.registryId,
+    admittedCorpusIds: registry.admittedCorpusIds,
+    packages,
+  };
+  return {
+    ...body,
+    sourceDigest: computeRuntimeLearningCorpusCatalogDigest(body),
+  };
 }
 
 function projectAdmissionContract(value: ContentValue | undefined,

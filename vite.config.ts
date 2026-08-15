@@ -1,7 +1,14 @@
 import { defineConfig } from "vite";
+import generatedRuntimeArtifact from "./src/generated/content-runtime.v0.1.json" with { type: "json" };
+
+const extensionLearningAdmitted =
+  generatedRuntimeArtifact.learningCorpusCatalog.admittedCorpusIds.length > 0;
 
 export default defineConfig({
   base: "./",
+  define: {
+    __TOKIPONA_EXTENSION_LEARNING_ADMITTED__: JSON.stringify(extensionLearningAdmitted),
+  },
   build: {
     target: "es2022",
     manifest: true,

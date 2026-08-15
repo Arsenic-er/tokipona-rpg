@@ -22,6 +22,7 @@ export type ContentKind =
   | "glyph_catalog"
   | "glyph_progression"
   | "learning_progression"
+  | "learning_corpus"
   | "length_profiles"
   | "p0_curriculum"
   | "persistence"

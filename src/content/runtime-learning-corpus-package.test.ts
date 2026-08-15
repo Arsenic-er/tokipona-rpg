@@ -9,6 +9,7 @@ import {
   computeRuntimeLearningCorpusSemanticDigest,
   isVerifiedRuntimeLearningCorpusPackage,
   readRuntimeLearningCorpusPackage,
+  readRuntimeLearningCorpusPackageCandidate,
   type RuntimeLearningCorpusWord,
 } from "./runtime-learning-corpus-package";
 import {
@@ -120,6 +121,18 @@ function resignPartition(save: any): any {
 }
 
 describe("versioned extension learning corpus packages", () => {
+  it("strictly validates content candidates without granting runtime admission", () => {
+    const candidate = packageCandidate();
+    const parsed = readRuntimeLearningCorpusPackageCandidate(candidate);
+    expect(parsed.corpusId).toBe(CORPUS_ID);
+    expect(isVerifiedRuntimeLearningCorpusPackage(parsed)).toBe(false);
+
+    const wrongPhase = structuredClone(candidate);
+    wrongPhase.phaseId = "invented-phase";
+    resignPackage(wrongPhase);
+    expect(() => readRuntimeLearningCorpusPackageCandidate(wrongPhase)).toThrow(/phaseId/);
+  });
+
   it("keeps current pending phases unloadable", () => {
     const registry = readRuntimeCorpusExpansionRegistry(generated);
     expect(() => readRuntimeLearningCorpusPackage(registry, packageCandidate())).toThrow(/not admitted/);
