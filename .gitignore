@@ -5,6 +5,8 @@ playwright-report/
 test-results/
 .vite/
 tmp/
+/private-input/
+/exports/
 *.tsbuildinfo
 *.log
 .env

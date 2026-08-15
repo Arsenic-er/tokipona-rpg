@@ -17,6 +17,18 @@ const MINUTE_MS = 60_000;
 const SCRIPT = resolve("scripts/acceptance/merge-prologue-playtest-cohort.ts");
 
 describe("prologue playtest cohort merge CLI", () => {
+  it("keeps the documented cohort input and export roots outside public version control", () => {
+    const ignoredRoots = new Set(
+      readFileSync(resolve(".gitignore"), "utf8")
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter(Boolean),
+    );
+
+    expect(ignoredRoots.has("/private-input/")).toBe(true);
+    expect(ignoredRoots.has("/exports/")).toBe(true);
+  });
+
   it("writes a new deterministic cohort once without echoing session records", () => {
     const root = mkdtempSync(join(tmpdir(), "tokipona-cohort-merge-"));
     try {

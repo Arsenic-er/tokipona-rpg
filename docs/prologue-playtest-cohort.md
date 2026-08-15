@@ -45,6 +45,11 @@ pnpm acceptance:cohort:merge -- cohort.prologue.alpha `
   .\exports\session-a.json .\exports\session-b.json
 ```
 
+The repository ignores the root-level `private-input/` and `exports/` directories. Keep observed
+samples there (or outside the repository), never force-add them, and publish only the aggregate
+release-readiness result. Pseudonymization and field minimization reduce exposure; they do not turn
+individual playtest samples into public source artifacts.
+
 The merger validates every sample, rejects duplicate pseudonymous session IDs
 and privacy-expanding fields, and sorts samples deterministically. Do not replace
 `collectionMode` or add identifying metadata.
