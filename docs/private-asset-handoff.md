@@ -51,6 +51,28 @@ The current public core-120 contract admits exactly the declared glyph atlas and
 files. Masks, animations, palettes, or other runtime roles require an explicit public schema/version
 change before handoff; allowlisting a private role alone does not make it part of this release.
 
+Glyph and pronunciation media use separate, atomic manifests. Existing glyph manifests omit
+`destination_root` (equivalent to `magic_glyphs`) and retain their versioned destination. The
+pronunciation manifest must declare the fixed pronunciation root and a flat target set:
+
+```yaml
+public_export:
+  destination_root: pronunciation
+  destination: .
+  files:
+    - role: pronunciation_audio
+      source: runtime/pronunciation/telo.ogg
+      target: telo.ogg
+      sha256: <64 lowercase hex characters>
+```
+
+Only `.ogg` pronunciation files are admitted, and every public target must be exactly
+`<lowercase-word-id>.ogg`. Audio cannot be exported through the glyph root, glyph roles cannot be
+exported through the pronunciation root, and one manifest cannot span both roots. Put all 120
+approved pronunciation entries in the pronunciation manifest so the whole audio set is installed
+atomically. The later `assets:check` gate still requires the exact 120-file set and verifies every
+file against the public core-120 and P0 metadata.
+
 The approved private pipeline must also provide the corresponding public metadata updates:
 
 - `src/assets/runtime-core120-private-export.v0.1.json`

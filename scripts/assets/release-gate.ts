@@ -11,9 +11,15 @@ import {
 } from "node:fs";
 import { basename, dirname, extname, isAbsolute, relative, resolve, sep } from "node:path";
 import { parse } from "yaml";
+import generatedRuntime from "../../src/generated/content-runtime.v0.1.json" with { type: "json" };
+import { readRuntimeCore120CurriculumManifest } from "../../src/content/runtime-core120-curriculum-manifest.ts";
 
 export const ASSET_RELEASE_SCHEMA_VERSION = "tokipona.asset-release-gate.v0.1" as const;
 export const PUBLIC_RUNTIME_ROOT = "public/assets/magic-glyphs" as const;
+export const PUBLIC_PRONUNCIATION_ROOT = "public/assets/pronunciation" as const;
+export const CORE120_PRONUNCIATION_WORD_IDS = Object.freeze(
+  [...readRuntimeCore120CurriculumManifest(generatedRuntime).scope.wordIds].sort(),
+);
 
 export const REQUIRED_APPROVALS = [
   "source",
@@ -74,6 +80,7 @@ interface ParsedRelease {
   readonly assetId: string;
   readonly runtimeReady: boolean;
   readonly publicExport: UnknownRecord | undefined;
+  readonly destinationRoot: RuntimeRootId;
   readonly destination: string | undefined;
   readonly files: readonly ReleaseFile[];
   readonly licenseRecordPath: string | undefined;
@@ -81,6 +88,12 @@ interface ParsedRelease {
 
 type UnknownRecord = Record<string, unknown>;
 type RuntimeFileRole = keyof typeof ROLE_EXTENSIONS;
+type RuntimeRootId = keyof typeof RUNTIME_ROOTS;
+
+const RUNTIME_ROOTS = {
+  magic_glyphs: PUBLIC_RUNTIME_ROOT,
+  pronunciation: PUBLIC_PRONUNCIATION_ROOT,
+} as const;
 
 const ROLE_EXTENSIONS = {
   runtime_atlas: [".png"],
@@ -88,6 +101,18 @@ const ROLE_EXTENSIONS = {
   runtime_animation: [".apng"],
   runtime_palette: [".json"],
   runtime_manifest: [".json"],
+  pronunciation_audio: [".ogg"],
+} as const;
+
+const ROOT_ROLES = {
+  magic_glyphs: new Set<RuntimeFileRole>([
+    "runtime_atlas",
+    "runtime_mask",
+    "runtime_animation",
+    "runtime_palette",
+    "runtime_manifest",
+  ]),
+  pronunciation: new Set<RuntimeFileRole>(["pronunciation_audio"]),
 } as const;
 
 const FORBIDDEN_PATH_SEGMENTS = new Set([
@@ -109,6 +134,9 @@ const FORBIDDEN_FILE_MARKERS = [
 ];
 
 const SHA256_PATTERN = /^[a-f0-9]{64}$/;
+const CORE120_PRONUNCIATION_TARGETS = new Set(
+  CORE120_PRONUNCIATION_WORD_IDS.map((wordId) => `${wordId}.ogg`),
+);
 
 export function auditAssetRelease(options: AuditAssetReleaseOptions): AssetReleaseAudit {
   const checks: ReleaseGateCheck[] = [];
@@ -160,7 +188,10 @@ export function exportApprovedAssetRelease(options: ExportAssetReleaseOptions): 
 
   const parsed = parseRelease(options);
   if (!parsed.destination) throw new Error("destination_missing");
-  const publicRuntimeRoot = resolve(options.publicRepositoryRoot, PUBLIC_RUNTIME_ROOT);
+  const publicRuntimeRoot = resolve(
+    options.publicRepositoryRoot,
+    RUNTIME_ROOTS[parsed.destinationRoot],
+  );
   const destination = resolve(publicRuntimeRoot, parsed.destination);
   const publicDestination = toPublicPath(options.publicRepositoryRoot, destination);
 
@@ -176,10 +207,9 @@ export function exportApprovedAssetRelease(options: ExportAssetReleaseOptions): 
     };
   }
 
-  mkdirSync(publicRuntimeRoot, { recursive: true });
-  assertNoSymlinkComponents(options.publicRepositoryRoot, publicRuntimeRoot);
+  assertNoSymlinkComponents(options.publicRepositoryRoot, dirname(destination));
   mkdirSync(dirname(destination), { recursive: true });
-  assertNoSymlinkComponents(publicRuntimeRoot, dirname(destination));
+  assertNoSymlinkComponents(options.publicRepositoryRoot, dirname(destination));
 
   const staging = `${destination}.staging-${randomUUID()}`;
   mkdirSync(staging, { recursive: false });
@@ -218,17 +248,26 @@ function parseRelease(options: AuditAssetReleaseOptions): ParsedRelease {
   const rawFiles = Array.isArray(publicExport?.files) ? publicExport.files : [];
   const files = rawFiles.map(parseReleaseFile).filter((file): file is ReleaseFile => file !== undefined);
   const sourceFont = recordValue(parsed.source_font);
+  const destinationRoot = parseRuntimeRoot(publicExport?.destination_root);
 
   return {
     manifest: parsed,
     assetId,
     runtimeReady: parsed.runtime_ready === true,
     publicExport,
+    destinationRoot,
     destination: stringValue(publicExport?.destination),
     files,
     licenseRecordPath:
       stringValue(publicExport?.license_record) ?? stringValue(sourceFont?.license_record),
   };
+}
+
+function parseRuntimeRoot(value: unknown): RuntimeRootId {
+  if (value === undefined || value === null) return "magic_glyphs";
+  const root = stringValue(value);
+  if (root === "magic_glyphs" || root === "pronunciation") return root;
+  throw new Error("destination_root_invalid");
 }
 
 function parseReleaseFile(value: unknown): ReleaseFile | undefined {
@@ -342,7 +381,13 @@ function auditDestination(
     return;
   }
   try {
-    const root = resolve(options.publicRepositoryRoot, PUBLIC_RUNTIME_ROOT);
+    if (parsed.destinationRoot === "pronunciation" && parsed.destination !== ".") {
+      throw new Error("pronunciation_destination_invalid");
+    }
+    if (parsed.destinationRoot === "magic_glyphs" && parsed.destination === ".") {
+      throw new Error("glyph_root_replacement_forbidden");
+    }
+    const root = resolve(options.publicRepositoryRoot, RUNTIME_ROOTS[parsed.destinationRoot]);
     resolveSafeTarget(root, parsed.destination, "destination_path_escape");
     checks.push({ id: "destination", passed: true, reasonCode: "ok" });
   } catch (error) {
@@ -372,8 +417,14 @@ function auditFiles(
   try {
     const assetRoot = realpathSync(options.assetRoot);
     for (const file of parsed.files) {
+      if (!ROOT_ROLES[parsed.destinationRoot].has(file.role)) {
+        throw new Error("runtime_role_root_mismatch");
+      }
       validateRuntimeFilePath(file.source, file.role);
       validateRuntimeFilePath(file.target, file.role);
+      if (file.role === "pronunciation_audio" && !/^[a-z]+\.ogg$/.test(file.target)) {
+        throw new Error("pronunciation_target_invalid");
+      }
       resolveSafeTarget(assetRoot, file.source, "source_path_escape");
       resolveSafeTarget(assetRoot, file.target, "target_path_escape");
       if (!SHA256_PATTERN.test(file.sha256)) throw new Error("runtime_file_hash_missing");
@@ -381,6 +432,13 @@ function auditFiles(
       targetSet.add(file.target.toLowerCase());
       const source = resolveSafeExistingFile(assetRoot, file.source, "source_path_escape");
       if (sha256File(source) !== file.sha256) throw new Error("runtime_file_hash_mismatch");
+    }
+    if (
+      parsed.destinationRoot === "pronunciation" &&
+      (targetSet.size !== CORE120_PRONUNCIATION_TARGETS.size ||
+        [...CORE120_PRONUNCIATION_TARGETS].some((target) => !targetSet.has(target)))
+    ) {
+      throw new Error("pronunciation_file_set_invalid");
     }
   } catch (error) {
     passed = false;
