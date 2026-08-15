@@ -7,6 +7,10 @@ import {
   isVerifiedRuntimeLearningCorpusPackage,
   type RuntimeLearningCorpusPackage,
 } from "../content/runtime-learning-corpus-package.ts";
+import { validateRuntimeLearningCorpusWorldAuthorities } from
+  "../content/runtime-learning-corpus-package.ts";
+import type { RuntimeSceneManifestIndex } from "../content/runtime-scene-manifest.ts";
+import type { LearningCorpusActionAuthorityProof } from "./corpus-action-authority.ts";
 import {
   applyLearningCorpusPartitionAction,
   createLearningCorpusPartitionState,
@@ -41,6 +45,7 @@ export interface LearningCorpusPartitionCollectionSave {
 export interface RuntimeLearningCorpusSet {
   readonly registry: RuntimeCorpusExpansionRegistry;
   readonly packages: readonly RuntimeLearningCorpusPackage[];
+  readonly scenes: RuntimeSceneManifestIndex;
 }
 
 export type LearningCorpusCollectionActionReason =
@@ -73,9 +78,11 @@ export function isVerifiedLearningCorpusPartitionCollectionState(
 export function verifyRuntimeLearningCorpusSet(
   registry: RuntimeCorpusExpansionRegistry,
   packages: readonly RuntimeLearningCorpusPackage[],
+  scenes: RuntimeSceneManifestIndex,
 ): RuntimeLearningCorpusSet {
   const ordered = exactRuntimePackages(registry, packages);
-  return deepFreeze({ registry, packages: ordered });
+  ordered.forEach((pkg) => validateRuntimeLearningCorpusWorldAuthorities(pkg, scenes));
+  return deepFreeze({ registry, packages: ordered, scenes });
 }
 
 export function createLearningCorpusPartitionCollectionState(
@@ -182,6 +189,7 @@ export function applyLearningCorpusCollectionAction(
   state: LearningCorpusPartitionCollectionState,
   corpusId: string,
   actionId: string,
+  authorityProof: LearningCorpusActionAuthorityProof,
 ): LearningCorpusCollectionActionResult {
   const packages = exactRuntimePackages(runtime.registry, runtime.packages);
   if (!isVerifiedLearningCorpusPartitionCollectionState(state) ||
@@ -195,7 +203,7 @@ export function applyLearningCorpusCollectionAction(
   if (pkg === undefined || partition === undefined) {
     return actionFailure(state, corpusId, actionId, "invalid_state");
   }
-  const result = applyLearningCorpusPartitionAction(pkg, partition, actionId);
+  const result = applyLearningCorpusPartitionAction(pkg, partition, actionId, authorityProof);
   if (!result.applied) {
     return {
       state,

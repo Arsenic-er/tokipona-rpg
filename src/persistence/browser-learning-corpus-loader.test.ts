@@ -12,6 +12,12 @@ import {
   computeRuntimeLearningCorpusSemanticDigest,
   type RuntimeLearningCorpusWord,
 } from "../content/runtime-learning-corpus-package";
+import {
+  createExtensionLearningBridge,
+  createExtensionLearningSession,
+  extensionLearningAuthority,
+  extensionLearningEnvironmentFingerprint,
+} from "../testing/extension-learning-fixture";
 import { loadBrowserLearningCorpusAdapter } from "./browser-learning-corpus-loader";
 import type { LocalStorageLike } from "./browser-game-session-wal";
 import { bootstrapBrowserPrologue, persistBrowserPrologueCheckpoint } from
@@ -33,27 +39,35 @@ function admittedArtifacts(): { artifact: any; packageBundle: any } {
     wordId: "testword", targetState: "produced", semanticFacets: ["test-semantic-facet"],
     actions: [
       { kind: "discover", actionId: "csp1.testword.discover", evidenceType: "glyph_discovered",
-        taskFamilyId: null, environmentFingerprint: null, promptLevel: null, semanticFacets: [] },
+        taskFamilyId: null, environmentFingerprint: null, promptLevel: null, semanticFacets: [],
+        worldAuthority: extensionLearningAuthority("discover") },
       { kind: "attune", actionId: "csp1.testword.attune", evidenceType: "glyph_attunement_completed",
-        taskFamilyId: null, environmentFingerprint: null, promptLevel: null, semanticFacets: [] },
+        taskFamilyId: null, environmentFingerprint: null, promptLevel: null, semanticFacets: [],
+        worldAuthority: extensionLearningAuthority("attune") },
       { kind: "context_0", actionId: "csp1.testword.context_0", evidenceType: "active_retrieval_submitted",
-        taskFamilyId: "csp1.testword.family0", environmentFingerprint: "scene.test:target.primary",
-        promptLevel: 0, semanticFacets: ["test-semantic-facet"] },
+        taskFamilyId: "csp1.testword.family0", environmentFingerprint:
+          extensionLearningEnvironmentFingerprint("context_0"),
+        promptLevel: 0, semanticFacets: ["test-semantic-facet"],
+        worldAuthority: extensionLearningAuthority("context_0") },
       { kind: "context_1", actionId: "csp1.testword.context_1", evidenceType: "active_retrieval_submitted",
-        taskFamilyId: "csp1.testword.family1", environmentFingerprint: "scene.test:target.reinforcement",
-        promptLevel: 1, semanticFacets: ["test-semantic-facet"] },
+        taskFamilyId: "csp1.testword.family1", environmentFingerprint:
+          extensionLearningEnvironmentFingerprint("context_1"),
+        promptLevel: 1, semanticFacets: ["test-semantic-facet"],
+        worldAuthority: extensionLearningAuthority("context_1") },
       { kind: "repair", actionId: "csp1.testword.repair", evidenceType: "repair_completed",
-        taskFamilyId: "csp1.testword.repair", environmentFingerprint: "scene.test:target.repair",
-        promptLevel: 1, semanticFacets: ["test-semantic-facet"] },
+        taskFamilyId: "csp1.testword.repair", environmentFingerprint:
+          extensionLearningEnvironmentFingerprint("repair"),
+        promptLevel: 1, semanticFacets: ["test-semantic-facet"],
+        worldAuthority: extensionLearningAuthority("repair") },
     ],
     assetBindings: { pronunciationAssetId: "audio.pronunciation.testword.v1",
       glyphAssetId: "glyph.csp1.testword.v1" },
   };
   const semantic = {
-    schemaVersion: "tokipona.runtime-learning-corpus.v0.1" as const,
+    schemaVersion: "tokipona.runtime-learning-corpus.v0.2" as const,
     phaseId: "csp-tier1-remainder" as const, corpusId: CORPUS_ID, contentVersion: VERSION,
     actionNamespace: "csp1", savePartitionId: `learning.corpus.${CORPUS_ID}`,
-    saveSchemaVersion: "tokipona.learning-corpus-partition.v0.1" as const,
+    saveSchemaVersion: "tokipona.learning-corpus-partition.v0.2" as const,
     canonicalWordKey: "latin_word_id" as const, wordIds: ["testword"], words: { testword: word },
   };
   const packageBody = { ...semantic, semanticDigest: computeRuntimeLearningCorpusSemanticDigest(semantic),
@@ -66,7 +80,7 @@ function admittedArtifacts(): { artifact: any; packageBundle: any } {
     admissionContract: { schemaVersion: "tokipona.learning-corpus-admission.v0.1",
       corpusId: CORPUS_ID, contentVersion: VERSION, actionNamespace: "csp1",
       savePartitionId: `learning.corpus.${CORPUS_ID}`,
-      saveSchemaVersion: "tokipona.learning-corpus-partition.v0.1", packageDigest: pkg.sourceDigest,
+      saveSchemaVersion: "tokipona.learning-corpus-partition.v0.2", packageDigest: pkg.sourceDigest,
       semanticDigest: pkg.semanticDigest, wordIds: ["testword"], reviewReceiptIds: RECEIPTS } };
   const registryBody = Object.fromEntries(Object.entries(registry)
     .filter(([key]) => key !== "sourceDigest"));
@@ -91,11 +105,14 @@ describe("browser learning corpus lazy loader", () => {
     const adapter = loadBrowserLearningCorpusAdapter(artifact, packageBundle);
     const initial = adapter.create("player.extension.loader");
     expect(initial.admittedCorpusIds).toEqual([CORPUS_ID]);
+    const bridge = createExtensionLearningBridge(
+      createExtensionLearningSession("player.extension.loader", "discover"));
     const first = adapter.commit(initial, "player.extension.loader", CORPUS_ID,
-      "csp1.testword.discover");
+      "csp1.testword.discover", bridge);
     expect(first.result).toMatchObject({ applied: true, duplicate: false, reason: "applied" });
     const duplicate = adapter.commit(first.save, "player.extension.loader", CORPUS_ID,
-      "csp1.testword.discover");
+      "csp1.testword.discover", createExtensionLearningBridge(
+        createExtensionLearningSession("player.extension.loader", "discover")));
     expect(duplicate.result).toMatchObject({ applied: false, duplicate: true, reason: "duplicate" });
   });
 
@@ -117,8 +134,11 @@ describe("browser learning corpus lazy loader", () => {
     const adapter = loadBrowserLearningCorpusAdapter(artifact, packageBundle);
     const storage = new MemoryStorage();
     const keys = { checkpointKey: "extension.primary", companionKey: "extension.companion" };
+    storage.setItem(keys.checkpointKey, JSON.stringify(
+      createExtensionLearningSession("player.extension.browser", "discover").toSave()));
     const first = bootstrapBrowserPrologue(storage, keys, () => "player.extension.browser", adapter);
-    expect(first.coordinator.commitExtensionLearningAction(CORPUS_ID, "csp1.testword.discover"))
+    expect(first.coordinator.commitExtensionLearningAction(CORPUS_ID, "csp1.testword.discover",
+      createExtensionLearningBridge(first.coordinator.readSession())))
       .toMatchObject({ applied: true });
     persistBrowserPrologueCheckpoint(storage, keys, first);
 
@@ -127,7 +147,8 @@ describe("browser learning corpus lazy loader", () => {
     expect(collection.partitions[0]!.learning.words.testword).toMatchObject({
       discoveryState: "discovered",
     });
-    expect(reloaded.coordinator.commitExtensionLearningAction(CORPUS_ID, "csp1.testword.discover"))
+    expect(reloaded.coordinator.commitExtensionLearningAction(CORPUS_ID, "csp1.testword.discover",
+      createExtensionLearningBridge(reloaded.coordinator.readSession())))
       .toMatchObject({ applied: false, duplicate: true });
   });
 });

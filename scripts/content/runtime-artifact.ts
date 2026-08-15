@@ -395,8 +395,12 @@ export function buildRuntimeContentArtifact(manifest: ContentManifest): RuntimeC
     core120Curriculum,
     corpusExpansionRegistry,
   });
+  const runtimeScenes: RuntimeSceneManifestIndex = {
+    sourceDigest: `sha256:${createHash("sha256").update(stableStringify(sceneSources.map((item) => item.content))).digest("hex")}`,
+    byId: scenes,
+  };
   const learningCorpusCatalog = projectLearningCorpusArtifacts(
-    manifest, verifiedCorpusExpansionRegistry).header;
+    manifest, verifiedCorpusExpansionRegistry, runtimeScenes).header;
   const infrastructureTaskSources = [...manifest.byKind.task]
     .filter((taskSource) => taskSource.content.task_type === "infrastructure_world_predicate")
     .sort((left, right) => left.path.localeCompare(right.path));
@@ -617,10 +621,7 @@ export function buildRuntimeContentArtifact(manifest: ContentManifest): RuntimeC
     sourceDigest: `sha256:${createHash("sha256").update(stableStringify(content)).digest("hex")}`,
     source: { path: source.path, schemaVersion: source.schemaVersion, contentVersion: source.contentVersion },
     telo: { pixelsPerTile, profiles },
-    scenes: {
-      sourceDigest: `sha256:${createHash("sha256").update(stableStringify(sceneSources.map((item) => item.content))).digest("hex")}`,
-      byId: scenes,
-    },
+    scenes: runtimeScenes,
     infrastructureTasks: {
       sourceDigest: `sha256:${createHash("sha256").update(stableStringify(infrastructureTaskSources.map((item) => item.content))).digest("hex")}`,
       byId: infrastructureTasks,
@@ -922,7 +923,7 @@ export function buildRuntimeLearningCorpusPackageBundle(
 ): RuntimeLearningCorpusPackageBundle {
   const artifact = buildRuntimeContentArtifact(manifest);
   const registry = readRuntimeCorpusExpansionRegistry(artifact);
-  return projectLearningCorpusArtifacts(manifest, registry).bundle;
+  return projectLearningCorpusArtifacts(manifest, registry, artifact.scenes).bundle;
 }
 export function serializeRuntimeLearningCorpusPackageBundle(
   bundle: RuntimeLearningCorpusPackageBundle,

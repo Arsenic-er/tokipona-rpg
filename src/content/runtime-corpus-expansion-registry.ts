@@ -26,7 +26,7 @@ export interface RuntimeLearningCorpusAdmissionContract {
   readonly contentVersion: string;
   readonly actionNamespace: string;
   readonly savePartitionId: string;
-  readonly saveSchemaVersion: "tokipona.learning-corpus-partition.v0.1";
+  readonly saveSchemaVersion: "tokipona.learning-corpus-partition.v0.2";
   readonly packageDigest: `sha256:${string}`;
   readonly semanticDigest: `sha256:${string}`;
   readonly wordIds: readonly string[];
@@ -258,7 +258,7 @@ function readAdmissionContract(value: unknown, label: string): RuntimeLearningCo
       !/^[A-Za-z0-9][A-Za-z0-9._-]*\d[A-Za-z0-9._-]*$/.test(contentVersion) ||
       !/^[a-z][a-z0-9_]*$/.test(actionNamespace) || actionNamespace === "core120" ||
       savePartitionId !== `learning.corpus.${corpusId}` ||
-      contract.saveSchemaVersion !== "tokipona.learning-corpus-partition.v0.1" ||
+      contract.saveSchemaVersion !== "tokipona.learning-corpus-partition.v0.2" ||
       !/^sha256:[0-9a-f]{64}$/.test(packageDigest) ||
       !/^sha256:[0-9a-f]{64}$/.test(semanticDigest) ||
       new Set(Object.values(reviewReceiptIds)).size !== 3) {
@@ -270,7 +270,7 @@ function readAdmissionContract(value: unknown, label: string): RuntimeLearningCo
     contentVersion,
     actionNamespace,
     savePartitionId,
-    saveSchemaVersion: "tokipona.learning-corpus-partition.v0.1",
+    saveSchemaVersion: "tokipona.learning-corpus-partition.v0.2",
     packageDigest: packageDigest as `sha256:${string}`,
     semanticDigest: semanticDigest as `sha256:${string}`,
     wordIds: Object.freeze(wordIds),

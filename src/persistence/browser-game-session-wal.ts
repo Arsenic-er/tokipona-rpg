@@ -1,6 +1,7 @@
 import type { CrossSaveTransactionCoordinator } from "../game/cross-save-transaction-coordinator";
 import type { LearningCorpusPartitionCollectionSave } from
   "../learning/corpus-partition-collection";
+import type { GameSessionRuntimeBridge } from "../runtime/game-session-bridge";
 import type { WildlifeDamageRequest } from "../game/life-corpse-ledger";
 import type { VerifiedSellQuote } from "../game/verified-trade";
 import type { WildlifeProcessingAction } from "../game/wildlife-processing";
@@ -50,7 +51,8 @@ export interface BrowserExtensionLearningAdapter {
   create(playerSaveId: string): LearningCorpusPartitionCollectionSave;
   reconcile(candidate: unknown, playerSaveId: string): LearningCorpusPartitionCollectionSave;
   read(candidate: unknown, playerSaveId: string): LearningCorpusPartitionCollectionSave;
-  commit(candidate: unknown, playerSaveId: string, corpusId: string, actionId: string): Readonly<{
+  commit(candidate: unknown, playerSaveId: string, corpusId: string, actionId: string,
+    runtimeBridge: GameSessionRuntimeBridge): Readonly<{
     save: LearningCorpusPartitionCollectionSave;
     result: BrowserExtensionLearningActionResult;
   }>;
@@ -168,7 +170,8 @@ const DEFAULT_EXTENSION_LEARNING_ADAPTER: BrowserExtensionLearningAdapter = Obje
   create: emptyExtensionLearningSave,
   reconcile: readEmptyExtensionLearningSave,
   read: readEmptyExtensionLearningSave,
-  commit: (candidate: unknown, playerSaveId: string, corpusId: string, actionId: string) => ({
+  commit: (candidate: unknown, playerSaveId: string, corpusId: string, actionId: string,
+    _runtimeBridge: GameSessionRuntimeBridge) => ({
     save: readEmptyExtensionLearningSave(candidate, playerSaveId),
     result: { corpusId, actionId, applied: false, duplicate: false, reason: "unknown_corpus" },
   }),
@@ -646,10 +649,14 @@ export class BrowserGameSessionWalCoordinator implements CrossSaveTransactionCoo
       this.backing.peek().extensionLearning, this.authority.save().sessionId);
   }
 
-  public commitExtensionLearningAction(corpusId: string,
-    actionId: string): BrowserExtensionLearningActionResult {
+  public commitExtensionLearningAction(corpusId: string, actionId: string,
+    runtimeBridge: GameSessionRuntimeBridge): BrowserExtensionLearningActionResult {
+    if (digest(runtimeBridge.session.toSave()) !== digest(this.authority.save())) {
+      throw new Error("extension learning runtime bridge is not bound to the durable GameSession authority");
+    }
     const committed = this.learningAdapter.commit(
-      this.backing.peek().extensionLearning, this.authority.save().sessionId, corpusId, actionId);
+      this.backing.peek().extensionLearning, this.authority.save().sessionId, corpusId, actionId,
+      runtimeBridge);
     if (committed.result.applied) {
       this.backing.update((draft) => { draft.extensionLearning = committed.save; });
     }

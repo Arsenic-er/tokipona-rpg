@@ -15,9 +15,15 @@ import {
   type LearningEvidenceEvent,
   type LearningProgressionSnapshot,
 } from "./progression.ts";
+import {
+  consumeTrustedLearningCorpusActionProof,
+  validLearningCorpusWorldAuthorityReceipt,
+  type LearningCorpusActionAuthorityProof,
+  type LearningCorpusWorldAuthorityReceipt,
+} from "./corpus-action-authority.ts";
 
 export const LEARNING_CORPUS_PARTITION_SAVE_SCHEMA =
-  "tokipona.learning-corpus-partition.v0.1" as const;
+  "tokipona.learning-corpus-partition.v0.2" as const;
 
 export interface LearningCorpusPartitionState {
   readonly schema: typeof LEARNING_CORPUS_PARTITION_SAVE_SCHEMA;
@@ -27,6 +33,7 @@ export interface LearningCorpusPartitionState {
   readonly savePartitionId: string;
   readonly playerSaveId: string;
   readonly learning: LearningProgressionSnapshot;
+  readonly authorityReceipts: readonly LearningCorpusWorldAuthorityReceipt[];
 }
 
 export interface LearningCorpusPartitionSave extends LearningCorpusPartitionState {
@@ -38,6 +45,7 @@ export type LearningCorpusPartitionActionReason =
   | "duplicate"
   | "unknown_action"
   | "prerequisite_missing"
+  | "authority_rejected"
   | "invalid_state"
   | "idempotency_conflict"
   | "evidence_rejected";
@@ -82,6 +90,7 @@ export function createLearningCorpusPartitionState(
     savePartitionId: corpus.savePartitionId,
     playerSaveId,
     learning: createLearningProgression(),
+    authorityReceipts: [],
   });
 }
 
@@ -92,7 +101,8 @@ export function readLearningCorpusPartitionState(
   assertVerifiedCorpus(corpus);
   const root = record(candidate, "learning corpus partition save");
   exactKeys(root, ["schema", "corpusId", "corpusContentVersion", "corpusSemanticDigest",
-    "savePartitionId", "playerSaveId", "learning", "integrity"], "learning corpus partition save");
+    "savePartitionId", "playerSaveId", "learning", "authorityReceipts", "integrity"],
+  "learning corpus partition save");
   const body = {
     schema: root.schema,
     corpusId: root.corpusId,
@@ -101,6 +111,7 @@ export function readLearningCorpusPartitionState(
     savePartitionId: root.savePartitionId,
     playerSaveId: root.playerSaveId,
     learning: root.learning,
+    authorityReceipts: root.authorityReceipts,
   };
   if (root.integrity !== computeLearningCorpusPartitionIntegrity(body)) {
     throw new Error("learning corpus partition integrity mismatch");
@@ -114,6 +125,8 @@ export function readLearningCorpusPartitionState(
   assertPlayerSaveId(body.playerSaveId);
   const learning = readLearningSnapshot(body.learning, corpus);
   assertPartitionEvidenceIdentity(learning, corpus, body.playerSaveId);
+  const authorityReceipts = readAuthorityReceipts(
+    body.authorityReceipts, corpus, body.playerSaveId, learning);
   return seal({
     schema: LEARNING_CORPUS_PARTITION_SAVE_SCHEMA,
     corpusId: corpus.corpusId,
@@ -122,6 +135,7 @@ export function readLearningCorpusPartitionState(
     savePartitionId: corpus.savePartitionId,
     playerSaveId: body.playerSaveId,
     learning,
+    authorityReceipts,
   });
 }
 
@@ -139,6 +153,7 @@ export function applyLearningCorpusPartitionAction(
   corpus: RuntimeLearningCorpusPackage,
   state: LearningCorpusPartitionState,
   actionId: string,
+  authorityProof: LearningCorpusActionAuthorityProof,
 ): LearningCorpusPartitionActionResult {
   if (!isVerifiedRuntimeLearningCorpusPackage(corpus) ||
       !isVerifiedLearningCorpusPartitionState(state) ||
@@ -150,6 +165,9 @@ export function applyLearningCorpusPartitionAction(
   if (!actionPrerequisitesSatisfied(corpus, state, parsed.word, parsed.kind)) {
     return actionFailure(state, actionId, "prerequisite_missing");
   }
+  const authorityReceipt = consumeTrustedLearningCorpusActionProof(
+    authorityProof, corpus, state.playerSaveId, actionId);
+  if (authorityReceipt === null) return actionFailure(state, actionId, "authority_rejected");
   let learning = state.learning;
   let applied = 0;
   let duplicates = 0;
@@ -169,7 +187,8 @@ export function applyLearningCorpusPartitionAction(
     return { state, actionId, applied: false, duplicate: duplicates > 0, reason: "duplicate" };
   }
   return {
-    state: seal({ ...state, learning }),
+    state: seal({ ...state, learning,
+      authorityReceipts: Object.freeze([...state.authorityReceipts, authorityReceipt]) }),
     actionId,
     applied: true,
     duplicate: false,
@@ -247,14 +266,14 @@ function materializeActionEvents(
   };
   if (action.kind === "discover") {
     return [{ ...identity("glyph_discovered", 0), eventType: "glyph_discovered", playerSaveId,
-      wordId: word.wordId, sourceObjectClass: "learning_corpus_recovery_archive",
-      locationId: `${corpus.corpusId}:${word.wordId}:discovery`, recognitionMode: "recovery_route" }];
+      wordId: word.wordId, sourceObjectClass: action.worldAuthority.sourceObjectClass,
+      locationId: action.worldAuthority.sceneId, recognitionMode: "recovery_route" }];
   }
   if (action.kind === "attune") {
     return [{ ...identity("glyph_attunement_completed", 0), eventType: "glyph_attunement_completed",
-      playerSaveId, wordId: word.wordId, sourceObjectClass: "learning_corpus_common_inscription",
+      playerSaveId, wordId: word.wordId, sourceObjectClass: action.worldAuthority.sourceObjectClass,
       catalystClass: "common_nontradeable", catalystTradeable: false,
-      environmentalWitnessId: `${corpus.corpusId}:${word.wordId}:attunement` }];
+      environmentalWitnessId: action.worldAuthority.interactionId }];
   }
   if (action.kind === "context_0" || action.kind === "context_1") {
     const promptLevel = action.kind === "context_0" ? 0 : 1;
@@ -286,7 +305,7 @@ function contextualFields(
     ...identity,
     playerSaveId,
     wordId: word.wordId,
-    sourceObjectClass: "learning_corpus_world_witness",
+    sourceObjectClass: action.worldAuthority.sourceObjectClass,
     taskId: action.actionId,
     taskFamilyId: action.taskFamilyId!,
     normalizedEnvironmentFingerprint: action.environmentFingerprint!,
@@ -346,6 +365,41 @@ function assertPartitionEvidenceIdentity(
       throw new Error("learning corpus partition processed action identity is invalid");
     }
   }
+}
+
+function readAuthorityReceipts(
+  value: unknown,
+  corpus: RuntimeLearningCorpusPackage,
+  playerSaveId: string,
+  learning: LearningProgressionSnapshot,
+): readonly LearningCorpusWorldAuthorityReceipt[] {
+  if (!Array.isArray(value)) throw new Error("learning corpus authority receipts must be an array");
+  const receipts = value.map((candidate) => structuredClone(candidate)) as
+    LearningCorpusWorldAuthorityReceipt[];
+  if (new Set(receipts.map((receipt) => receipt.actionId)).size !== receipts.length ||
+      new Set(receipts.map((receipt) => receipt.receiptId)).size !== receipts.length) {
+    throw new Error("learning corpus authority receipts must be unique");
+  }
+  const byAction = new Map(receipts.map((receipt) => [receipt.actionId, receipt]));
+  for (const word of Object.values(corpus.words)) {
+    const progress = learning.words[word.wordId];
+    const eventIds = new Set(progress?.evidence.map((entry) => entry.eventId) ?? []);
+    for (const action of word.actions) {
+      const expectedEvents = materializeActionEvents(corpus, playerSaveId, word, action);
+      const observedCount = expectedEvents.filter((event) => eventIds.has(event.eventId)).length;
+      const receipt = byAction.get(action.actionId);
+      if (observedCount !== 0 && observedCount !== expectedEvents.length ||
+          (observedCount === expectedEvents.length) !== (receipt !== undefined) ||
+          receipt !== undefined &&
+            !validLearningCorpusWorldAuthorityReceipt(receipt, corpus, playerSaveId, action.actionId)) {
+        throw new Error("learning corpus authority receipt coverage is invalid");
+      }
+    }
+  }
+  if (receipts.some((receipt) => parseAction(corpus, receipt.actionId) === null)) {
+    throw new Error("learning corpus authority receipt action is invalid");
+  }
+  return deepFreeze(receipts);
 }
 
 function expectedLedgerEntry(event: LearningEvidenceEvent): EvidenceLedgerEntry {

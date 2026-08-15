@@ -559,7 +559,7 @@ function validateCorpusExpansionRegistrySource(
       /^[a-z][a-z0-9_]*$/.test(readString(contract, "action_namespace")) &&
       readString(contract, "action_namespace") !== "core120" &&
       readString(contract, "save_partition_id") === `learning.corpus.${corpusId}` &&
-      readString(contract, "save_schema_version") === "tokipona.learning-corpus-partition.v0.1" &&
+      readString(contract, "save_schema_version") === "tokipona.learning-corpus-partition.v0.2" &&
       /^sha256:[0-9a-f]{64}$/.test(readString(contract, "package_digest")) &&
       /^sha256:[0-9a-f]{64}$/.test(readString(contract, "semantic_digest")) &&
       wordIds.length > 0 && wordIds.every((wordId) => /^[a-z]+$/.test(wordId)) &&

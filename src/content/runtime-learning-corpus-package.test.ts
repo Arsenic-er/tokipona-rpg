@@ -10,8 +10,10 @@ import {
   isVerifiedRuntimeLearningCorpusPackage,
   readRuntimeLearningCorpusPackage,
   readRuntimeLearningCorpusPackageCandidate,
+  type LearningCorpusActionKind,
   type RuntimeLearningCorpusWord,
 } from "./runtime-learning-corpus-package";
+import { computeRuntimeManifestDigest } from "./runtime-manifest-digest";
 import {
   computeLearningCorpusPartitionIntegrity,
   applyLearningCorpusPartitionAction,
@@ -21,6 +23,14 @@ import {
   readLearningCorpusPartitionState,
   toLearningCorpusPartitionSave,
 } from "../learning/corpus-partition";
+import { LearningCorpusRuntimeAuthority } from "../learning/corpus-action-authority";
+import {
+  createExtensionLearningBridge,
+  createExtensionLearningSession,
+  extensionLearningAuthority,
+  extensionLearningEnvironmentFingerprint,
+  extensionLearningScenes,
+} from "../testing/extension-learning-fixture";
 
 const CORPUS_ID = "csp-tier1-rehearsal.v1";
 const CONTENT_VERSION = "csp-tier1.rehearsal.1";
@@ -40,22 +50,23 @@ function packageCandidate(glyphAssetId = "glyph.csp1.testword.v1"): any {
     actions: [
       { kind: "discover", actionId: `${ACTION_NAMESPACE}.${WORD_ID}.discover`,
         evidenceType: "glyph_discovered", taskFamilyId: null, environmentFingerprint: null,
-        promptLevel: null, semanticFacets: [] },
+        promptLevel: null, semanticFacets: [], worldAuthority: extensionLearningAuthority("discover") },
       { kind: "attune", actionId: `${ACTION_NAMESPACE}.${WORD_ID}.attune`,
         evidenceType: "glyph_attunement_completed", taskFamilyId: null,
-        environmentFingerprint: null, promptLevel: null, semanticFacets: [] },
+        environmentFingerprint: null, promptLevel: null, semanticFacets: [],
+        worldAuthority: extensionLearningAuthority("attune") },
       { kind: "context_0", actionId: `${ACTION_NAMESPACE}.${WORD_ID}.context_0`,
         evidenceType: "active_retrieval_submitted", taskFamilyId: "csp1.testword.family0",
-        environmentFingerprint: "scene.test:target.primary", promptLevel: 0,
-        semanticFacets: ["test-semantic-facet"] },
+        environmentFingerprint: extensionLearningEnvironmentFingerprint("context_0"), promptLevel: 0,
+        semanticFacets: ["test-semantic-facet"], worldAuthority: extensionLearningAuthority("context_0") },
       { kind: "context_1", actionId: `${ACTION_NAMESPACE}.${WORD_ID}.context_1`,
         evidenceType: "active_retrieval_submitted", taskFamilyId: "csp1.testword.family1",
-        environmentFingerprint: "scene.test:target.reinforcement", promptLevel: 1,
-        semanticFacets: ["test-semantic-facet"] },
+        environmentFingerprint: extensionLearningEnvironmentFingerprint("context_1"), promptLevel: 1,
+        semanticFacets: ["test-semantic-facet"], worldAuthority: extensionLearningAuthority("context_1") },
       { kind: "repair", actionId: `${ACTION_NAMESPACE}.${WORD_ID}.repair`,
         evidenceType: "repair_completed", taskFamilyId: "csp1.testword.repair",
-        environmentFingerprint: "scene.test:target.repair", promptLevel: 1,
-        semanticFacets: ["test-semantic-facet"] },
+        environmentFingerprint: extensionLearningEnvironmentFingerprint("repair"), promptLevel: 1,
+        semanticFacets: ["test-semantic-facet"], worldAuthority: extensionLearningAuthority("repair") },
     ],
     assetBindings: {
       pronunciationAssetId: "audio.pronunciation.testword.v1",
@@ -63,13 +74,13 @@ function packageCandidate(glyphAssetId = "glyph.csp1.testword.v1"): any {
     },
   };
   const semanticSource = {
-    schemaVersion: "tokipona.runtime-learning-corpus.v0.1" as const,
+    schemaVersion: "tokipona.runtime-learning-corpus.v0.2" as const,
     phaseId: "csp-tier1-remainder" as const,
     corpusId: CORPUS_ID,
     contentVersion: CONTENT_VERSION,
     actionNamespace: ACTION_NAMESPACE,
     savePartitionId: `learning.corpus.${CORPUS_ID}`,
-    saveSchemaVersion: "tokipona.learning-corpus-partition.v0.1" as const,
+    saveSchemaVersion: "tokipona.learning-corpus-partition.v0.2" as const,
     canonicalWordKey: "latin_word_id" as const,
     wordIds: [WORD_ID],
     words: { [WORD_ID]: word },
@@ -96,7 +107,7 @@ function admittedArtifact(pkg: any, wordIds: readonly string[] = [WORD_ID]): any
       contentVersion: CONTENT_VERSION,
       actionNamespace: ACTION_NAMESPACE,
       savePartitionId: `learning.corpus.${CORPUS_ID}`,
-      saveSchemaVersion: "tokipona.learning-corpus-partition.v0.1",
+      saveSchemaVersion: "tokipona.learning-corpus-partition.v0.2",
       packageDigest: pkg.sourceDigest,
       semanticDigest: pkg.semanticDigest,
       wordIds,
@@ -118,6 +129,19 @@ function resignPartition(save: any): any {
   const body = Object.fromEntries(Object.entries(save).filter(([key]) => key !== "integrity"));
   save.integrity = computeLearningCorpusPartitionIntegrity(body);
   return save;
+}
+
+function applyAtAuthority(
+  pkg: ReturnType<typeof readRuntimeLearningCorpusPackage>,
+  state: ReturnType<typeof createLearningCorpusPartitionState>,
+  actionId: string,
+) {
+  const kind = pkg.words[WORD_ID]!.actions.find((action) => action.actionId === actionId)!.kind as
+    LearningCorpusActionKind;
+  const session = createExtensionLearningSession(state.playerSaveId, kind);
+  const proof = new LearningCorpusRuntimeAuthority({ packages: [pkg], scenes: extensionLearningScenes })
+    .authorize(pkg.corpusId, actionId, state.playerSaveId, createExtensionLearningBridge(session));
+  return applyLearningCorpusPartitionAction(pkg, state, actionId, proof);
 }
 
 describe("versioned extension learning corpus packages", () => {
@@ -205,16 +229,16 @@ describe("versioned extension learning corpus packages", () => {
     const registry = readRuntimeCorpusExpansionRegistry(admittedArtifact(candidate));
     const pkg = readRuntimeLearningCorpusPackage(registry, candidate);
     let state = createLearningCorpusPartitionState(pkg, "player-save.sequence");
-    expect(applyLearningCorpusPartitionAction(pkg, state, "csp1.testword.repair").reason)
+    expect(applyAtAuthority(pkg, state, "csp1.testword.repair").reason)
       .toBe("prerequisite_missing");
     for (const actionId of ["csp1.testword.discover", "csp1.testword.attune",
       "csp1.testword.context_0", "csp1.testword.context_1", "csp1.testword.repair"]) {
-      const result = applyLearningCorpusPartitionAction(pkg, state, actionId);
+      const result = applyAtAuthority(pkg, state, actionId);
       expect(result.reason).toBe("applied");
       state = result.state;
     }
     expect(isLearningCorpusWordComplete(pkg, state, WORD_ID)).toBe(true);
-    const duplicate = applyLearningCorpusPartitionAction(pkg, state, "csp1.testword.context_1");
+    const duplicate = applyAtAuthority(pkg, state, "csp1.testword.context_1");
     expect(duplicate).toMatchObject({ applied: false, duplicate: true, reason: "duplicate" });
     const save = toLearningCorpusPartitionSave(state);
     const reloaded = readLearningCorpusPartitionState(pkg, JSON.parse(JSON.stringify(save)));
@@ -229,12 +253,36 @@ describe("versioned extension learning corpus packages", () => {
     let state = createLearningCorpusPartitionState(pkg, "player-save.forgery");
     for (const actionId of ["csp1.testword.discover", "csp1.testword.attune",
       "csp1.testword.context_0"]) {
-      state = applyLearningCorpusPartitionAction(pkg, state, actionId).state;
+      state = applyAtAuthority(pkg, state, actionId).state;
     }
     const forged = structuredClone(toLearningCorpusPartitionSave(state)) as any;
     forged.learning.words[WORD_ID].evidence[2].environmentFingerprint = "scene.forged:target";
     expect(() => readLearningCorpusPartitionState(pkg, resignPartition(forged)))
       .toThrow(/evidence identity/);
+  });
+
+  it("consumes world-authority proofs once and rejects re-signed receipt drift", () => {
+    const candidate = packageCandidate();
+    const registry = readRuntimeCorpusExpansionRegistry(admittedArtifact(candidate));
+    const pkg = readRuntimeLearningCorpusPackage(registry, candidate);
+    const state = createLearningCorpusPartitionState(pkg, "player-save.authority-once");
+    const session = createExtensionLearningSession(state.playerSaveId, "discover");
+    const proof = new LearningCorpusRuntimeAuthority({ packages: [pkg], scenes: extensionLearningScenes })
+      .authorize(pkg.corpusId, "csp1.testword.discover", state.playerSaveId,
+        createExtensionLearningBridge(session));
+    const first = applyLearningCorpusPartitionAction(pkg, state, "csp1.testword.discover", proof);
+    expect(first).toMatchObject({ applied: true, duplicate: false, reason: "applied" });
+    expect(applyLearningCorpusPartitionAction(pkg, first.state, "csp1.testword.discover", proof))
+      .toMatchObject({ applied: false, duplicate: false, reason: "authority_rejected" });
+
+    const forged = structuredClone(toLearningCorpusPartitionSave(first.state)) as any;
+    const receipt = forged.authorityReceipts[0];
+    receipt.playerPositionPx.x += 32;
+    const { receiptId: _receiptId, authorityDigest: _authorityDigest, ...receiptBody } = receipt;
+    receipt.authorityDigest = computeRuntimeManifestDigest(receiptBody);
+    receipt.receiptId = `learning-corpus-authority:${receipt.authorityDigest.slice("sha256:".length)}`;
+    expect(() => readLearningCorpusPartitionState(pkg, resignPartition(forged)))
+      .toThrow(/authority receipt coverage/);
   });
 
   it("preserves partition progress when only reviewed asset bindings are reissued", () => {

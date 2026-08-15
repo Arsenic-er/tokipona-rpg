@@ -18,6 +18,13 @@ import { createCrossSaveReceiptId, sha256Canonical, type JsonValue } from "./cro
 import { verifyRuntimeLearningCorpusSet } from "../learning/corpus-partition-collection";
 import { createBrowserLearningCorpusAdapter } from "./browser-learning-corpus-adapter";
 import {
+  createExtensionLearningBridge,
+  createExtensionLearningSession,
+  extensionLearningAuthority,
+  extensionLearningEnvironmentFingerprint,
+  extensionLearningScenes,
+} from "../testing/extension-learning-fixture";
+import {
   BROWSER_GAME_SESSION_SAVE_ENVELOPE_SCHEMA,
   BrowserGameSessionWalCoordinator,
   readBrowserGameSessionSaveEnvelope,
@@ -75,18 +82,21 @@ const extensionRuntime = () => {
     actionId: `${actionNamespace}.${wordId}.${kind}`,
     evidenceType,
     taskFamilyId: kind === "discover" || kind === "attune" ? null : `${actionNamespace}.${kind}.family`,
-    environmentFingerprint: kind === "discover" || kind === "attune" ? null : `scene.browser:${kind}`,
+    environmentFingerprint: kind === "discover" || kind === "attune" ? null :
+      extensionLearningEnvironmentFingerprint(kind as "context_0" | "context_1" | "repair"),
     promptLevel,
     semanticFacets: kind === "discover" || kind === "attune" ? [] : ["browser.facet"],
+    worldAuthority: extensionLearningAuthority(kind as
+      "discover" | "attune" | "context_0" | "context_1" | "repair"),
   }));
   const semantic = {
-    schemaVersion: "tokipona.runtime-learning-corpus.v0.1" as const,
+    schemaVersion: "tokipona.runtime-learning-corpus.v0.2" as const,
     phaseId: "csp-tier1-remainder" as const,
     corpusId: "browser-extension.v1",
     contentVersion: "browser-extension.1",
     actionNamespace,
     savePartitionId: "learning.corpus.browser-extension.v1",
-    saveSchemaVersion: "tokipona.learning-corpus-partition.v0.1" as const,
+    saveSchemaVersion: "tokipona.learning-corpus-partition.v0.2" as const,
     canonicalWordKey: "latin_word_id" as const,
     wordIds: [wordId],
     words: { [wordId]: { wordId, targetState: "produced", semanticFacets: ["browser.facet"], actions,
@@ -115,7 +125,7 @@ const extensionRuntime = () => {
   artifact.corpusExpansionRegistry.sourceDigest = computeRuntimeCorpusExpansionRegistryDigest(registryPayload);
   const registry = readRuntimeCorpusExpansionRegistry(artifact);
   const pkg = readRuntimeLearningCorpusPackage(registry, candidate);
-  return verifyRuntimeLearningCorpusSet(registry, [pkg]);
+  return verifyRuntimeLearningCorpusSet(registry, [pkg], extensionLearningScenes);
 };
 
 const legacyCompanion = (current: ReturnType<BrowserGameSessionWalCoordinator["toCompanion"]>) => {
@@ -297,28 +307,50 @@ describe("production browser GameSession WAL companion", () => {
   it("durably commits an admitted extension partition and requires its exact package set on reload", () => {
     const adapter = createBrowserLearningCorpusAdapter(extensionRuntime());
     const store = new MemoryDurableJsonStore();
-    const coordinator = BrowserGameSessionWalCoordinator.fresh(GameSession.create({
-      sessionId: "save.browser.extension",
-      mp: { currentMp: 10, maxMp: 10, worldVersion: 0 },
-      currentSceneId: "scene.valley.settlement",
-    }), store, adapter);
+    const session = createExtensionLearningSession("save.browser.extension", "discover");
+    const coordinator = BrowserGameSessionWalCoordinator.fresh(session, store, adapter);
     expect(coordinator.readExtensionLearningCollection()).toMatchObject({
       playerSaveId: "save.browser.extension",
       admittedCorpusIds: ["browser-extension.v1"],
     });
     expect(coordinator.commitExtensionLearningAction(
-      "browser-extension.v1", "browserext.browserword.discover"))
+      "browser-extension.v1", "browserext.browserword.discover",
+      createExtensionLearningBridge(session)))
       .toMatchObject({ applied: true, duplicate: false, reason: "applied" });
 
     const reloaded = BrowserGameSessionWalCoordinator.load(store, 0, adapter);
     expect(reloaded.readExtensionLearningCollection().partitions[0]?.learning.words)
       .toHaveProperty("browserword");
     expect(reloaded.commitExtensionLearningAction(
-      "browser-extension.v1", "browserext.browserword.discover"))
+      "browser-extension.v1", "browserext.browserword.discover",
+      createExtensionLearningBridge(reloaded.readSession())))
       .toMatchObject({ applied: false, duplicate: true, reason: "duplicate" });
     expect(() => BrowserGameSessionWalCoordinator.load(store, 0)).toThrow(
       /extension learning collection|cannot be reconciled/,
     );
+  });
+
+  it("rejects far or non-durable runtime bridges for extension learning", () => {
+    const adapter = createBrowserLearningCorpusAdapter(extensionRuntime());
+    const farSession = createExtensionLearningSession(
+      "save.browser.extension-far", "discover", { x: 0, y: 0 });
+    const farCoordinator = BrowserGameSessionWalCoordinator.fresh(
+      farSession, new MemoryDurableJsonStore(), adapter);
+    expect(() => farCoordinator.commitExtensionLearningAction(
+      "browser-extension.v1", "browserext.browserword.discover",
+      createExtensionLearningBridge(farSession),
+    )).toThrow(/runtime authority rejected/);
+
+    const durableSession = createExtensionLearningSession(
+      "save.browser.extension-bound", "discover");
+    const boundCoordinator = BrowserGameSessionWalCoordinator.fresh(
+      durableSession, new MemoryDurableJsonStore(), adapter);
+    const sameIdDifferentState = createExtensionLearningSession(
+      "save.browser.extension-bound", "attune");
+    expect(() => boundCoordinator.commitExtensionLearningAction(
+      "browser-extension.v1", "browserext.browserword.discover",
+      createExtensionLearningBridge(sameIdDifferentState),
+    )).toThrow(/not bound to the durable GameSession authority/);
   });
 
   it("migrates a checked v0.1 companion to v0.2 with an explicit empty extension collection", () => {

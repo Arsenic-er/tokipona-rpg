@@ -18,8 +18,11 @@ import {
 } from "../../src/content/runtime-learning-corpus-package-bundle.ts";
 import {
   readRuntimeLearningCorpusPackage,
+  validateRuntimeLearningCorpusWorldAuthorities,
   type RuntimeLearningCorpusPackage,
 } from "../../src/content/runtime-learning-corpus-package.ts";
+import type { RuntimeSceneManifestIndex } from
+  "../../src/content/runtime-scene-manifest.ts";
 import type { ContentManifest, ContentObject, ContentValue } from "../../src/content/types.ts";
 
 const EXPECTED_PREDECESSORS = ["pu-120", "csp-tier1-remainder", "csp-tier2"] as const;
@@ -171,6 +174,7 @@ export interface ProjectedLearningCorpusArtifacts {
 export function projectLearningCorpusArtifacts(
   manifest: ContentManifest,
   registry: RuntimeCorpusExpansionRegistry,
+  scenes: RuntimeSceneManifestIndex,
 ): ProjectedLearningCorpusArtifacts {
   const sources = manifest.byKind.learning_corpus;
   if (sources.length !== registry.admittedCorpusIds.length) {
@@ -189,6 +193,7 @@ export function projectLearningCorpusArtifacts(
     if (!pkg) throw new Error(`admitted learning corpus ${corpusId} has no reviewed package source`);
     return pkg;
   });
+  packages.forEach((pkg) => validateRuntimeLearningCorpusWorldAuthorities(pkg, scenes));
   const headerBody = {
     schemaVersion: RUNTIME_LEARNING_CORPUS_CATALOG_SCHEMA,
     registryId: registry.registryId,
@@ -243,7 +248,7 @@ function projectAdmissionContract(value: ContentValue | undefined,
       !/^[A-Za-z0-9][A-Za-z0-9._-]*\d[A-Za-z0-9._-]*$/.test(contentVersion) ||
       !/^[a-z][a-z0-9_]*$/.test(actionNamespace) || actionNamespace === "core120" ||
       savePartitionId !== `learning.corpus.${corpusId}` ||
-      contract.save_schema_version !== "tokipona.learning-corpus-partition.v0.1" ||
+      contract.save_schema_version !== "tokipona.learning-corpus-partition.v0.2" ||
       !/^sha256:[0-9a-f]{64}$/.test(packageDigest) ||
       !/^sha256:[0-9a-f]{64}$/.test(semanticDigest) ||
       !wordIds.every((wordId) => /^[a-z]+$/.test(wordId)) ||
@@ -251,7 +256,7 @@ function projectAdmissionContract(value: ContentValue | undefined,
     throw new Error(`${label} admission contract is invalid`);
   }
   return { schemaVersion: "tokipona.learning-corpus-admission.v0.1", corpusId, contentVersion,
-    actionNamespace, savePartitionId, saveSchemaVersion: "tokipona.learning-corpus-partition.v0.1",
+    actionNamespace, savePartitionId, saveSchemaVersion: "tokipona.learning-corpus-partition.v0.2",
     packageDigest: packageDigest as `sha256:${string}`,
     semanticDigest: semanticDigest as `sha256:${string}`, wordIds, reviewReceiptIds };
 }

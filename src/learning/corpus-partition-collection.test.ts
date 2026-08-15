@@ -8,6 +8,7 @@ import {
   computeRuntimeLearningCorpusPackageDigest,
   computeRuntimeLearningCorpusSemanticDigest,
   readRuntimeLearningCorpusPackage,
+  type LearningCorpusActionKind,
   type RuntimeLearningCorpusPackage,
   type RuntimeLearningCorpusWord,
 } from "../content/runtime-learning-corpus-package";
@@ -22,6 +23,14 @@ import {
   toLearningCorpusPartitionCollectionSave,
   verifyRuntimeLearningCorpusSet,
 } from "./corpus-partition-collection";
+import { LearningCorpusRuntimeAuthority } from "./corpus-action-authority";
+import {
+  createExtensionLearningBridge,
+  createExtensionLearningSession,
+  extensionLearningAuthority,
+  extensionLearningEnvironmentFingerprint,
+  extensionLearningScenes,
+} from "../testing/extension-learning-fixture";
 
 type PhaseId = "csp-tier1-remainder" | "csp-tier2";
 type CorpusSpec = Readonly<{
@@ -59,9 +68,10 @@ function packageCandidate(spec: CorpusSpec): any {
     taskFamilyId: kind === "discover" || kind === "attune" ? null :
       `${spec.actionNamespace}.${spec.wordId}.${kind}.family`,
     environmentFingerprint: kind === "discover" || kind === "attune" ? null :
-      `scene.test:${spec.wordId}:${kind}`,
+      extensionLearningEnvironmentFingerprint(kind),
     promptLevel,
     semanticFacets: kind === "discover" || kind === "attune" ? [] : [`${spec.wordId}.facet`],
+    worldAuthority: extensionLearningAuthority(kind),
   });
   const word: RuntimeLearningCorpusWord = {
     wordId: spec.wordId,
@@ -80,13 +90,13 @@ function packageCandidate(spec: CorpusSpec): any {
     },
   };
   const semantic = {
-    schemaVersion: "tokipona.runtime-learning-corpus.v0.1" as const,
+    schemaVersion: "tokipona.runtime-learning-corpus.v0.2" as const,
     phaseId: spec.phaseId,
     corpusId: spec.corpusId,
     contentVersion: spec.contentVersion,
     actionNamespace: spec.actionNamespace,
     savePartitionId: `learning.corpus.${spec.corpusId}`,
-    saveSchemaVersion: "tokipona.learning-corpus-partition.v0.1" as const,
+    saveSchemaVersion: "tokipona.learning-corpus-partition.v0.2" as const,
     canonicalWordKey: "latin_word_id" as const,
     wordIds: [spec.wordId],
     words: { [spec.wordId]: word },
@@ -130,7 +140,7 @@ function admittedRuntime(...candidates: any[]) {
   artifact.corpusExpansionRegistry.sourceDigest = computeRuntimeCorpusExpansionRegistryDigest(payload);
   const registry = readRuntimeCorpusExpansionRegistry(artifact);
   const packages = candidates.map((candidate) => readRuntimeLearningCorpusPackage(registry, candidate));
-  return verifyRuntimeLearningCorpusSet(registry, packages);
+  return verifyRuntimeLearningCorpusSet(registry, packages, extensionLearningScenes);
 }
 
 function resignCollection(candidate: any): any {
@@ -139,9 +149,25 @@ function resignCollection(candidate: any): any {
   return candidate;
 }
 
+function applyAtAuthority(
+  runtime: ReturnType<typeof admittedRuntime>,
+  state: ReturnType<typeof createLearningCorpusPartitionCollectionState>,
+  corpusId: string,
+  actionId: string,
+) {
+  const pkg = runtime.packages.find((candidate) => candidate.corpusId === corpusId)!;
+  const kind = Object.values(pkg.words).flatMap((word) => word.actions)
+    .find((action) => action.actionId === actionId)!.kind as LearningCorpusActionKind;
+  const session = createExtensionLearningSession(state.playerSaveId, kind);
+  const proof = new LearningCorpusRuntimeAuthority(runtime)
+    .authorize(corpusId, actionId, state.playerSaveId, createExtensionLearningBridge(session));
+  return applyLearningCorpusCollectionAction(runtime, state, corpusId, actionId, proof);
+}
+
 describe("versioned learning corpus partition collections", () => {
   it("persists the current zero-extension registry as an explicit empty collection", () => {
-    const runtime = verifyRuntimeLearningCorpusSet(readRuntimeCorpusExpansionRegistry(generated), []);
+    const runtime = verifyRuntimeLearningCorpusSet(
+      readRuntimeCorpusExpansionRegistry(generated), [], extensionLearningScenes);
     const state = createLearningCorpusPartitionCollectionState(runtime, "player.collection.empty");
     expect(isVerifiedLearningCorpusPartitionCollectionState(state)).toBe(true);
     expect(state).toMatchObject({ admittedCorpusIds: [], partitions: [] });
@@ -153,11 +179,11 @@ describe("versioned learning corpus partition collections", () => {
     const first = packageCandidate(FIRST), second = packageCandidate(SECOND);
     const runtime = admittedRuntime(first, second);
     let state = createLearningCorpusPartitionCollectionState(runtime, "player.collection.two");
-    const firstResult = applyLearningCorpusCollectionAction(runtime, state, FIRST.corpusId,
+    const firstResult = applyAtAuthority(runtime, state, FIRST.corpusId,
       `${FIRST.actionNamespace}.${FIRST.wordId}.discover`);
     expect(firstResult).toMatchObject({ applied: true, reason: "applied" });
     state = firstResult.state;
-    const secondResult = applyLearningCorpusCollectionAction(runtime, state, SECOND.corpusId,
+    const secondResult = applyAtAuthority(runtime, state, SECOND.corpusId,
       `${SECOND.actionNamespace}.${SECOND.wordId}.discover`);
     expect(secondResult).toMatchObject({ applied: true, reason: "applied" });
     state = secondResult.state;
@@ -169,19 +195,24 @@ describe("versioned learning corpus partition collections", () => {
       .toHaveProperty(FIRST.wordId);
     expect(resolveLearningCorpusPartitionState(reloaded, SECOND.corpusId)?.learning.words)
       .toHaveProperty(SECOND.wordId);
+    const unknownProof = new LearningCorpusRuntimeAuthority(runtime).authorize(
+      FIRST.corpusId, `${FIRST.actionNamespace}.${FIRST.wordId}.discover`, reloaded.playerSaveId,
+      createExtensionLearningBridge(createExtensionLearningSession(reloaded.playerSaveId, "discover")));
     expect(applyLearningCorpusCollectionAction(runtime, reloaded, "unreviewed-corpus",
-      "forged.action").reason).toBe("unknown_corpus");
+      "forged.action", unknownProof).reason).toBe("unknown_corpus");
   });
 
   it("requires exact verified package coverage and stable registry ordering", () => {
     const firstCandidate = packageCandidate(FIRST), secondCandidate = packageCandidate(SECOND);
     const runtime = admittedRuntime(firstCandidate, secondCandidate);
-    expect(() => verifyRuntimeLearningCorpusSet(runtime.registry, [runtime.packages[1]!, runtime.packages[0]!]))
+    expect(() => verifyRuntimeLearningCorpusSet(runtime.registry,
+      [runtime.packages[1]!, runtime.packages[0]!], runtime.scenes))
       .toThrow(/exactly cover/);
-    expect(() => verifyRuntimeLearningCorpusSet(runtime.registry, [runtime.packages[0]!]))
+    expect(() => verifyRuntimeLearningCorpusSet(runtime.registry, [runtime.packages[0]!], runtime.scenes))
       .toThrow(/exactly cover/);
     expect(() => verifyRuntimeLearningCorpusSet(runtime.registry,
-      [structuredClone(runtime.packages[0]) as RuntimeLearningCorpusPackage, runtime.packages[1]!]))
+      [structuredClone(runtime.packages[0]) as RuntimeLearningCorpusPackage, runtime.packages[1]!],
+      runtime.scenes))
       .toThrow(/exactly cover/);
   });
 
@@ -189,7 +220,7 @@ describe("versioned learning corpus partition collections", () => {
     const firstCandidate = packageCandidate(FIRST), secondCandidate = packageCandidate(SECOND);
     const firstRuntime = admittedRuntime(firstCandidate);
     let firstState = createLearningCorpusPartitionCollectionState(firstRuntime, "player.collection.upgrade");
-    firstState = applyLearningCorpusCollectionAction(firstRuntime, firstState, FIRST.corpusId,
+    firstState = applyAtAuthority(firstRuntime, firstState, FIRST.corpusId,
       `${FIRST.actionNamespace}.${FIRST.wordId}.discover`).state;
     const oldSave = toLearningCorpusPartitionCollectionSave(firstState);
 
@@ -207,7 +238,7 @@ describe("versioned learning corpus partition collections", () => {
     const firstCandidate = packageCandidate(FIRST);
     const firstRuntime = admittedRuntime(firstCandidate);
     let state = createLearningCorpusPartitionCollectionState(firstRuntime, "player.collection.assets");
-    state = applyLearningCorpusCollectionAction(firstRuntime, state, FIRST.corpusId,
+    state = applyAtAuthority(firstRuntime, state, FIRST.corpusId,
       `${FIRST.actionNamespace}.${FIRST.wordId}.discover`).state;
     const save = toLearningCorpusPartitionCollectionSave(state);
 

@@ -6,6 +6,7 @@ import {
   type RuntimeCorpusExpansionRegistry,
 } from "./runtime-corpus-expansion-registry.ts";
 import { computeRuntimeManifestDigest } from "./runtime-manifest-digest.ts";
+import type { RuntimeSceneManifestIndex } from "./runtime-scene-manifest.ts";
 
 export const LEARNING_CORPUS_ACTION_KINDS = [
   "discover", "attune", "context_0", "context_1", "repair",
@@ -18,6 +19,15 @@ export type LearningCorpusEvidenceType =
   | "active_retrieval_submitted"
   | "repair_completed";
 
+export interface RuntimeLearningCorpusWorldAuthority {
+  readonly sceneId: string;
+  readonly targetId: string;
+  readonly interactionId: string;
+  readonly sourceObjectClass: string;
+  readonly interactionPointPx: Readonly<{ readonly x: number; readonly y: number }>;
+  readonly maximumDistancePx: 16;
+}
+
 export interface RuntimeLearningCorpusAction {
   readonly kind: LearningCorpusActionKind;
   readonly actionId: string;
@@ -26,6 +36,7 @@ export interface RuntimeLearningCorpusAction {
   readonly environmentFingerprint: string | null;
   readonly promptLevel: 0 | 1 | null;
   readonly semanticFacets: readonly string[];
+  readonly worldAuthority: RuntimeLearningCorpusWorldAuthority;
 }
 
 export interface RuntimeLearningCorpusWord {
@@ -40,7 +51,7 @@ export interface RuntimeLearningCorpusWord {
 }
 
 export interface RuntimeLearningCorpusPackage {
-  readonly schemaVersion: "tokipona.runtime-learning-corpus.v0.1";
+  readonly schemaVersion: "tokipona.runtime-learning-corpus.v0.2";
   readonly sourceDigest: `sha256:${string}`;
   readonly semanticDigest: `sha256:${string}`;
   readonly phaseId: CorpusExpansionPhaseId;
@@ -48,7 +59,7 @@ export interface RuntimeLearningCorpusPackage {
   readonly contentVersion: string;
   readonly actionNamespace: string;
   readonly savePartitionId: string;
-  readonly saveSchemaVersion: "tokipona.learning-corpus-partition.v0.1";
+  readonly saveSchemaVersion: "tokipona.learning-corpus-partition.v0.2";
   readonly canonicalWordKey: "latin_word_id";
   readonly wordIds: readonly string[];
   readonly words: Readonly<Record<string, RuntimeLearningCorpusWord>>;
@@ -101,6 +112,64 @@ export function computeRuntimeLearningCorpusSemanticDigest(
   });
 }
 
+export function learningCorpusAuthorityFingerprint(
+  authority: RuntimeLearningCorpusWorldAuthority,
+): string {
+  return `${authority.sceneId}|${authority.targetId}|${authority.interactionId}`;
+}
+
+/**
+ * Cross-references every reviewed action site with the verified generated
+ * scene graph. A signed package may name only a real, positioned interaction;
+ * action IDs alone never create world authority.
+ */
+export function validateRuntimeLearningCorpusWorldAuthorities(
+  pkg: RuntimeLearningCorpusPackage,
+  scenes: RuntimeSceneManifestIndex,
+): void {
+  for (const word of Object.values(pkg.words)) {
+    for (const action of word.actions) {
+      const authority = action.worldAuthority;
+      const scene = scenes.byId[authority.sceneId];
+      const target = scene?.targets.find((candidate) => candidate.id === authority.targetId);
+      const interaction = scene?.interactions.find((candidate) =>
+        candidate.id === authority.interactionId);
+      if (!scene || !target || !target.interactionPointTiles || !interaction ||
+          interaction.targetId !== target.id || target.kind !== authority.sourceObjectClass ||
+          authority.maximumDistancePx !== scene.tileSizePx ||
+          !authorityPointMatchesTarget(authority, target.interactionPointTiles, scene) ||
+          interaction.optionalWordId !== null && interaction.optionalWordId !== `word.${word.wordId}`) {
+        throw new Error(`learning corpus action ${action.actionId} world authority is invalid`);
+      }
+      const contextual = action.kind === "context_0" || action.kind === "context_1" ||
+        action.kind === "repair";
+      if (contextual && action.environmentFingerprint !== learningCorpusAuthorityFingerprint(authority)) {
+        throw new Error(`learning corpus action ${action.actionId} environment authority is invalid`);
+      }
+    }
+  }
+}
+
+function authorityPointMatchesTarget(
+  authority: RuntimeLearningCorpusWorldAuthority,
+  tiles: readonly [number, number],
+  scene: RuntimeSceneManifestIndex["byId"][string],
+): boolean {
+  const candidates = [
+    { x: tiles[0] * scene.tileSizePx,
+      y: (scene.sizeTiles.height - 1 - tiles[1]) * scene.tileSizePx },
+    { x: tiles[0] * scene.tileSizePx + scene.tileSizePx / 2,
+      y: tiles[1] * scene.tileSizePx + scene.tileSizePx / 2 },
+  ];
+  return authority.interactionPointPx.x >= 0 && authority.interactionPointPx.y >= 0 &&
+    authority.interactionPointPx.x < scene.sizeTiles.width * scene.tileSizePx &&
+    authority.interactionPointPx.y < scene.sizeTiles.height * scene.tileSizePx &&
+    candidates.some((candidate) => Math.hypot(
+      candidate.x - authority.interactionPointPx.x,
+      candidate.y - authority.interactionPointPx.y,
+    ) <= authority.maximumDistancePx);
+}
+
 export function isVerifiedRuntimeLearningCorpusPackage(
   value: unknown,
 ): value is RuntimeLearningCorpusPackage {
@@ -148,8 +217,8 @@ export function readRuntimeLearningCorpusPackageCandidate(
   if (computeRuntimeLearningCorpusPackageDigest(payload) !== sourceDigest) {
     throw new Error("learning corpus package digest mismatch");
   }
-  if (raw.schemaVersion !== "tokipona.runtime-learning-corpus.v0.1" ||
-      raw.saveSchemaVersion !== "tokipona.learning-corpus-partition.v0.1" ||
+  if (raw.schemaVersion !== "tokipona.runtime-learning-corpus.v0.2" ||
+      raw.saveSchemaVersion !== "tokipona.learning-corpus-partition.v0.2" ||
       raw.canonicalWordKey !== "latin_word_id") {
     throw new Error("learning corpus package schema is invalid");
   }
@@ -165,13 +234,13 @@ export function readRuntimeLearningCorpusPackageCandidate(
     readWord(wordsRaw[wordId], wordId, string(raw.actionNamespace, "learning corpus actionNamespace"))]));
   const receipts = readReviewReceipts(raw.reviewReceiptIds, "learning corpus review receipts");
   const semanticSource = {
-    schemaVersion: "tokipona.runtime-learning-corpus.v0.1" as const,
+    schemaVersion: "tokipona.runtime-learning-corpus.v0.2" as const,
     phaseId: raw.phaseId as CorpusExpansionPhaseId,
     corpusId,
     contentVersion: string(raw.contentVersion, "learning corpus contentVersion"),
     actionNamespace: string(raw.actionNamespace, "learning corpus actionNamespace"),
     savePartitionId: string(raw.savePartitionId, "learning corpus savePartitionId"),
-    saveSchemaVersion: "tokipona.learning-corpus-partition.v0.1" as const,
+    saveSchemaVersion: "tokipona.learning-corpus-partition.v0.2" as const,
     canonicalWordKey: "latin_word_id" as const,
     wordIds,
     words,
@@ -199,10 +268,12 @@ function readWord(value: unknown, wordId: string, namespace: string): RuntimeLea
   const actions = word.actions.map((candidate, index) => {
     const action = record(candidate, `${wordId}.actions[${index}]`);
     exactKeys(action, ["kind", "actionId", "evidenceType", "taskFamilyId",
-      "environmentFingerprint", "promptLevel", "semanticFacets"], `${wordId}.actions[${index}]`);
+      "environmentFingerprint", "promptLevel", "semanticFacets", "worldAuthority"],
+    `${wordId}.actions[${index}]`);
     const kind = LEARNING_CORPUS_ACTION_KINDS[index]!;
     const actionFacets = uniqueStrings(action.semanticFacets, `${wordId}.${kind}.semanticFacets`, true);
     const contextual = kind === "context_0" || kind === "context_1" || kind === "repair";
+    const worldAuthority = readWorldAuthority(action.worldAuthority, `${wordId}.${kind}.worldAuthority`);
     if (action.kind !== kind || action.actionId !== `${namespace}.${wordId}.${kind}` ||
         action.evidenceType !== EXPECTED_EVIDENCE_TYPES[kind] ||
         (contextual ? typeof action.taskFamilyId !== "string" || action.taskFamilyId.length === 0 :
@@ -215,7 +286,8 @@ function readWord(value: unknown, wordId: string, namespace: string): RuntimeLea
         (contextual ? !sameSet(actionFacets, semanticFacets) : actionFacets.length !== 0)) {
       throw new Error(`learning corpus word ${wordId} action ${kind} is invalid`);
     }
-    return action as unknown as RuntimeLearningCorpusAction;
+    return Object.freeze({ ...action, semanticFacets: Object.freeze(actionFacets), worldAuthority }) as
+      unknown as RuntimeLearningCorpusAction;
   });
   if (actions[2]!.taskFamilyId === actions[3]!.taskFamilyId ||
       actions[2]!.environmentFingerprint === actions[3]!.environmentFingerprint) {
@@ -231,6 +303,27 @@ function readWord(value: unknown, wordId: string, namespace: string): RuntimeLea
   }
   return Object.freeze({ wordId, targetState: "produced", semanticFacets: Object.freeze(semanticFacets),
     actions: Object.freeze(actions), assetBindings: Object.freeze({ pronunciationAssetId, glyphAssetId }) });
+}
+
+function readWorldAuthority(value: unknown, label: string): RuntimeLearningCorpusWorldAuthority {
+  const authority = record(value, label);
+  exactKeys(authority, ["sceneId", "targetId", "interactionId", "sourceObjectClass",
+    "interactionPointPx", "maximumDistancePx"], label);
+  if (authority.maximumDistancePx !== 16) throw new Error(`${label}.maximumDistancePx must equal 16`);
+  const point = record(authority.interactionPointPx, `${label}.interactionPointPx`);
+  exactKeys(point, ["x", "y"], `${label}.interactionPointPx`);
+  if (!Number.isSafeInteger(point.x) || (point.x as number) < 0 ||
+      !Number.isSafeInteger(point.y) || (point.y as number) < 0) {
+    throw new Error(`${label}.interactionPointPx must contain non-negative safe integers`);
+  }
+  return Object.freeze({
+    sceneId: string(authority.sceneId, `${label}.sceneId`),
+    targetId: string(authority.targetId, `${label}.targetId`),
+    interactionId: string(authority.interactionId, `${label}.interactionId`),
+    sourceObjectClass: string(authority.sourceObjectClass, `${label}.sourceObjectClass`),
+    interactionPointPx: Object.freeze({ x: point.x as number, y: point.y as number }),
+    maximumDistancePx: 16,
+  });
 }
 
 function readReviewReceipts(value: unknown, label: string): RuntimeLearningCorpusPackage["reviewReceiptIds"] {

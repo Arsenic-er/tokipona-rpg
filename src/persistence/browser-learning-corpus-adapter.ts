@@ -7,6 +7,8 @@ import {
   verifyRuntimeLearningCorpusSet,
   type RuntimeLearningCorpusSet,
 } from "../learning/corpus-partition-collection.ts";
+import { LearningCorpusRuntimeAuthority } from "../learning/corpus-action-authority.ts";
+import type { GameSessionRuntimeBridge } from "../runtime/game-session-bridge.ts";
 import type { BrowserExtensionLearningAdapter } from "./browser-game-session-wal.ts";
 
 /**
@@ -19,7 +21,8 @@ import type { BrowserExtensionLearningAdapter } from "./browser-game-session-wal
 export function createBrowserLearningCorpusAdapter(
   source: RuntimeLearningCorpusSet,
 ): BrowserExtensionLearningAdapter {
-  const runtime = verifyRuntimeLearningCorpusSet(source.registry, source.packages);
+  const runtime = verifyRuntimeLearningCorpusSet(source.registry, source.packages, source.scenes);
+  const authority = new LearningCorpusRuntimeAuthority(runtime);
   return Object.freeze({
     create: (playerSaveId: string) => toLearningCorpusPartitionCollectionSave(
       createLearningCorpusPartitionCollectionState(runtime, playerSaveId)),
@@ -32,12 +35,14 @@ export function createBrowserLearningCorpusAdapter(
       }
       return toLearningCorpusPartitionCollectionSave(state);
     },
-    commit: (candidate: unknown, playerSaveId: string, corpusId: string, actionId: string) => {
+    commit: (candidate: unknown, playerSaveId: string, corpusId: string, actionId: string,
+      runtimeBridge: GameSessionRuntimeBridge) => {
       const state = readLearningCorpusPartitionCollectionState(runtime, candidate);
       if (state.playerSaveId !== playerSaveId) {
         throw new Error("browser extension learning player identity mismatch");
       }
-      const result = applyLearningCorpusCollectionAction(runtime, state, corpusId, actionId);
+      const proof = authority.authorize(corpusId, actionId, playerSaveId, runtimeBridge);
+      const result = applyLearningCorpusCollectionAction(runtime, state, corpusId, actionId, proof);
       return Object.freeze({
         save: toLearningCorpusPartitionCollectionSave(result.state),
         result: Object.freeze({

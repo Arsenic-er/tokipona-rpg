@@ -20,5 +20,6 @@ export function loadBrowserLearningCorpusAdapter(
   return createBrowserLearningCorpusAdapter({
     registry: runtime.registry,
     packages: runtime.catalog.packages,
+    scenes: runtime.scenes,
   });
 }

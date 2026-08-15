@@ -12,6 +12,10 @@ import {
 } from "../../src/content/runtime-learning-corpus-package";
 import type { ContentSource } from "../../src/content/types";
 import {
+  extensionLearningAuthority,
+  extensionLearningEnvironmentFingerprint,
+} from "../../src/testing/extension-learning-fixture";
+import {
   buildRuntimeContentArtifact,
   buildRuntimeLearningCorpusPackageBundle,
 } from "./runtime-artifact";
@@ -43,28 +47,36 @@ function reviewedPackage(): any {
     wordId: "testword", targetState: "produced", semanticFacets: ["test-semantic-facet"],
     actions: [
       { kind: "discover", actionId: "csp1.testword.discover", evidenceType: "glyph_discovered",
-        taskFamilyId: null, environmentFingerprint: null, promptLevel: null, semanticFacets: [] },
+        taskFamilyId: null, environmentFingerprint: null, promptLevel: null, semanticFacets: [],
+        worldAuthority: extensionLearningAuthority("discover") },
       { kind: "attune", actionId: "csp1.testword.attune", evidenceType: "glyph_attunement_completed",
-        taskFamilyId: null, environmentFingerprint: null, promptLevel: null, semanticFacets: [] },
+        taskFamilyId: null, environmentFingerprint: null, promptLevel: null, semanticFacets: [],
+        worldAuthority: extensionLearningAuthority("attune") },
       { kind: "context_0", actionId: "csp1.testword.context_0", evidenceType: "active_retrieval_submitted",
-        taskFamilyId: "csp1.testword.family0", environmentFingerprint: "scene.test:target.primary",
-        promptLevel: 0, semanticFacets: ["test-semantic-facet"] },
+        taskFamilyId: "csp1.testword.family0", environmentFingerprint:
+          extensionLearningEnvironmentFingerprint("context_0"),
+        promptLevel: 0, semanticFacets: ["test-semantic-facet"],
+        worldAuthority: extensionLearningAuthority("context_0") },
       { kind: "context_1", actionId: "csp1.testword.context_1", evidenceType: "active_retrieval_submitted",
-        taskFamilyId: "csp1.testword.family1", environmentFingerprint: "scene.test:target.reinforcement",
-        promptLevel: 1, semanticFacets: ["test-semantic-facet"] },
+        taskFamilyId: "csp1.testword.family1", environmentFingerprint:
+          extensionLearningEnvironmentFingerprint("context_1"),
+        promptLevel: 1, semanticFacets: ["test-semantic-facet"],
+        worldAuthority: extensionLearningAuthority("context_1") },
       { kind: "repair", actionId: "csp1.testword.repair", evidenceType: "repair_completed",
-        taskFamilyId: "csp1.testword.repair", environmentFingerprint: "scene.test:target.repair",
-        promptLevel: 1, semanticFacets: ["test-semantic-facet"] },
+        taskFamilyId: "csp1.testword.repair", environmentFingerprint:
+          extensionLearningEnvironmentFingerprint("repair"),
+        promptLevel: 1, semanticFacets: ["test-semantic-facet"],
+        worldAuthority: extensionLearningAuthority("repair") },
     ],
     assetBindings: { pronunciationAssetId: "audio.pronunciation.testword.v1",
       glyphAssetId: "glyph.csp1.testword.v1" },
   };
   const semantic = {
-    schemaVersion: "tokipona.runtime-learning-corpus.v0.1" as const,
+    schemaVersion: "tokipona.runtime-learning-corpus.v0.2" as const,
     phaseId: "csp-tier1-remainder" as const,
     corpusId: CORPUS_ID, contentVersion: CONTENT_VERSION, actionNamespace: "csp1",
     savePartitionId: `learning.corpus.${CORPUS_ID}`,
-    saveSchemaVersion: "tokipona.learning-corpus-partition.v0.1" as const,
+    saveSchemaVersion: "tokipona.learning-corpus-partition.v0.2" as const,
     canonicalWordKey: "latin_word_id" as const, wordIds: ["testword"],
     words: { testword: word },
   };
@@ -83,7 +95,7 @@ function admitReviewedPackage(all: ContentSource[]): any {
       schema_version: "tokipona.learning-corpus-admission.v0.1", corpus_id: CORPUS_ID,
       content_version: CONTENT_VERSION, action_namespace: "csp1",
       save_partition_id: `learning.corpus.${CORPUS_ID}`,
-      save_schema_version: "tokipona.learning-corpus-partition.v0.1",
+      save_schema_version: "tokipona.learning-corpus-partition.v0.2",
       package_digest: pkg.sourceDigest, semantic_digest: pkg.semanticDigest, word_ids: ["testword"],
       review_receipt_ids: REVIEW_RECEIPTS,
     },
@@ -131,6 +143,26 @@ describe("post-pu120 corpus expansion projector", () => {
     expect(pkg.corpusId).toBe(CORPUS_ID);
   });
 
+  it("rejects a fully re-signed package that points an action at the wrong world target", () => {
+    const all = sources();
+    const pkg = admitReviewedPackage(all);
+    pkg.words.testword.actions[0].worldAuthority = {
+      ...pkg.words.testword.actions[0].worldAuthority,
+      targetId: "settlement.merchant_butcher",
+    };
+    const semanticSource = Object.fromEntries(Object.entries(pkg).filter(([key]) =>
+      key !== "semanticDigest" && key !== "reviewReceiptIds" && key !== "sourceDigest"));
+    pkg.semanticDigest = computeRuntimeLearningCorpusSemanticDigest(semanticSource as any);
+    const packagePayload = Object.fromEntries(Object.entries(pkg).filter(([key]) => key !== "sourceDigest"));
+    pkg.sourceDigest = computeRuntimeLearningCorpusPackageDigest(packagePayload);
+    const admission = registrySource(all).runtime_curriculum.corpus_expansion_registry
+      .phases[0].admission_contract;
+    admission.package_digest = pkg.sourceDigest;
+    admission.semantic_digest = pkg.semanticDigest;
+
+    expect(() => buildRuntimeContentArtifact(compileContent(all))).toThrow(/world authority is invalid/);
+  });
+
   it("rejects word overlap and a gap in reviewed phases", () => {
     const overlap = sources();
     const overlapRegistry = registrySource(overlap).runtime_curriculum.corpus_expansion_registry;
@@ -141,7 +173,7 @@ describe("post-pu120 corpus expansion projector", () => {
         schema_version: "tokipona.learning-corpus-admission.v0.1",
         corpus_id: "csp-tier1-rehearsal.v1", content_version: "csp-tier1.rehearsal.1",
         action_namespace: "csp1", save_partition_id: "learning.corpus.csp-tier1-rehearsal.v1",
-        save_schema_version: "tokipona.learning-corpus-partition.v0.1",
+        save_schema_version: "tokipona.learning-corpus-partition.v0.2",
         package_digest: `sha256:${"1".repeat(64)}`, semantic_digest: `sha256:${"2".repeat(64)}`,
         word_ids: ["telo"], review_receipt_ids: { semantic: "r.s", pronunciation: "r.p", glyph: "r.g" },
       },

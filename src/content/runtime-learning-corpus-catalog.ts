@@ -6,6 +6,12 @@ import {
   readRuntimeLearningCorpusPackageBundle,
 } from "./runtime-learning-corpus-package-bundle.ts";
 import type { RuntimeLearningCorpusPackage } from "./runtime-learning-corpus-package.ts";
+import { validateRuntimeLearningCorpusWorldAuthorities } from
+  "./runtime-learning-corpus-package.ts";
+import {
+  readRuntimeSceneManifestIndex,
+  type RuntimeSceneManifestIndex,
+} from "./runtime-scene-manifest.ts";
 
 export { computeRuntimeLearningCorpusCatalogDigest } from
   "./runtime-learning-corpus-catalog-header.ts";
@@ -29,6 +35,7 @@ export interface RuntimeLearningCorpusCatalog {
 
 export interface VerifiedRuntimeLearningCorpusCatalog {
   readonly registry: RuntimeCorpusExpansionRegistry;
+  readonly scenes: RuntimeSceneManifestIndex;
   readonly catalog: RuntimeLearningCorpusCatalog;
 }
 
@@ -45,6 +52,7 @@ export function readRuntimeLearningCorpusCatalog(
   packageBundleCandidate: unknown,
 ): VerifiedRuntimeLearningCorpusCatalog {
   const header = readRuntimeLearningCorpusCatalogHeader(artifact);
+  const scenes = readRuntimeSceneManifestIndex(artifact);
   const packageBundle = readRuntimeLearningCorpusPackageBundle(
     header.registry, packageBundleCandidate);
   if (packageBundle.registryId !== header.registryId ||
@@ -58,6 +66,8 @@ export function readRuntimeLearningCorpusCatalog(
       })) {
     throw new Error("learning corpus package bundle does not match the core catalog header");
   }
+  packageBundle.packages.forEach((pkg) =>
+    validateRuntimeLearningCorpusWorldAuthorities(pkg, scenes));
   const catalog = deepFreeze({
     schemaVersion: "tokipona.runtime-learning-corpus-catalog.v0.2" as const,
     sourceDigest: header.sourceDigest,
@@ -67,7 +77,7 @@ export function readRuntimeLearningCorpusCatalog(
     packages: packageBundle.packages,
   }) as RuntimeLearningCorpusCatalog;
   verifiedCatalogs.add(catalog);
-  return Object.freeze({ registry: header.registry, catalog });
+  return Object.freeze({ registry: header.registry, scenes, catalog });
 }
 
 function same(value: readonly string[], expected: readonly string[]): boolean {
