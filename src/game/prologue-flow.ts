@@ -29,6 +29,12 @@ import type { LivingSafetyZone, PointPx } from "../spells/cast-plan";
 import type { SceneDefinition } from "../runtime/scene";
 import type { CrossSaveTransactionCoordinator } from "./cross-save-transaction-coordinator";
 import {
+  emptyExtensionLearningRuntimeView,
+  type ExtensionLearningActionResult,
+  type ExtensionLearningRuntimePort,
+  type ExtensionLearningRuntimeView,
+} from "../learning/extension-learning-runtime";
+import {
   PROLOGUE_ARRIVAL_SCENE_ID,
   PROLOGUE_ARRIVAL_STREAM_SCENES,
   PROLOGUE_AREA_ID,
@@ -460,6 +466,7 @@ export class PrologueFlowSession {
   private wildlifePlayerPositionPx: PointPx | null;
   private wildlifeRuntimeTick = 0;
   private crossSaveCoordinator: CrossSaveTransactionCoordinator | null = null;
+  private extensionLearningPort: ExtensionLearningRuntimePort | null = null;
 
   private constructor(session: GameSession) {
     const sceneId = session.snapshot().world.currentSceneId;
@@ -578,6 +585,41 @@ export class PrologueFlowSession {
       this.safeRangePreviews.clear();
     }
     if (this.oldMineBridge) this.oldMineBridge = createOldMineRuntimeBridge(coordinator.readSession());
+  }
+
+  attachExtensionLearningRuntimePort(port: ExtensionLearningRuntimePort): void {
+    this.extensionLearningPort = port;
+  }
+
+  extensionLearningView(): ExtensionLearningRuntimeView {
+    const port = this.extensionLearningPort;
+    const activeSceneId = this.session.snapshot().world.currentSceneId;
+    if (port === null) return emptyExtensionLearningRuntimeView(activeSceneId);
+    if (this.arrival) return this.arrival.readExtensionLearning(port);
+    if (this.settlement) return this.settlement.readExtensionLearning(port);
+    if (this.infrastructure) return this.infrastructure.readExtensionLearning(port);
+    if (this.cistern) return this.cistern.readExtensionLearning(port);
+    if (this.returnFlowBridge) return port.read(this.returnFlowBridge, activeSceneId);
+    if (this.safeRangeBridge) return port.read(this.safeRangeBridge, activeSceneId);
+    if (this.oldMineBridge) return port.read(this.oldMineBridge, activeSceneId);
+    return port.read(null, activeSceneId);
+  }
+
+  performExtensionLearningAction(corpusId: string, actionId: string):
+    PrologueFlowAction<ExtensionLearningActionResult> {
+    const port = this.extensionLearningPort;
+    if (port === null || this.wildlife) return this.rejectedMode();
+    let result: ExtensionLearningActionResult;
+    if (this.arrival) result = this.arrival.commitExtensionLearning(port, corpusId, actionId);
+    else if (this.settlement) result = this.settlement.commitExtensionLearning(port, corpusId, actionId);
+    else if (this.infrastructure) result = this.infrastructure.commitExtensionLearning(port, corpusId, actionId);
+    else if (this.cistern) result = this.cistern.commitExtensionLearning(port, corpusId, actionId);
+    else {
+      const bridge = this.returnFlowBridge ?? this.safeRangeBridge ?? this.oldMineBridge;
+      if (bridge === null) return this.rejectedMode();
+      result = port.commit(corpusId, actionId, bridge);
+    }
+    return this.delegated(result, result.applied || result.duplicate);
   }
 
   get session(): GameSession {

@@ -12,6 +12,11 @@ import {
   type RuntimeSnapshot,
 } from "../runtime";
 import type { SceneDefinition } from "../runtime/scene";
+import type {
+  ExtensionLearningActionResult,
+  ExtensionLearningRuntimePort,
+  ExtensionLearningRuntimeView,
+} from "../learning/extension-learning-runtime";
 import { createCrossSaveTransactionId } from "../persistence/cross-save-wal";
 import type { CrossSaveTransactionCoordinator } from "./cross-save-transaction-coordinator";
 import {
@@ -409,6 +414,15 @@ export class PrologueSettlementSession {
 
   static enterFromStream(session: GameSession, transactionId: string): SettlementEntryResult {
     return this.commitEntry(session, transactionId, "direct_transition");
+  }
+
+  readExtensionLearning(port: ExtensionLearningRuntimePort): ExtensionLearningRuntimeView {
+    return port.read(this.bridge, this.bridge.runtime.snapshot().sceneId);
+  }
+
+  commitExtensionLearning(port: ExtensionLearningRuntimePort, corpusId: string,
+    actionId: string): ExtensionLearningActionResult {
+    return port.commit(corpusId, actionId, this.bridge);
   }
 
   /**

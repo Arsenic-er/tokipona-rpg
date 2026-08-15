@@ -20,6 +20,8 @@ import {
 } from "../testing/extension-learning-fixture";
 import { loadBrowserLearningCorpusAdapter } from "./browser-learning-corpus-loader";
 import type { LocalStorageLike } from "./browser-game-session-wal";
+import type { ExtensionLearningRuntimePort } from "../learning/extension-learning-runtime";
+import type { GameSessionRuntimeBridge } from "../runtime/game-session-bridge";
 import { bootstrapBrowserPrologue, persistBrowserPrologueCheckpoint } from
   "./browser-prologue-persistence";
 
@@ -107,6 +109,13 @@ describe("browser learning corpus lazy loader", () => {
     expect(initial.admittedCorpusIds).toEqual([CORPUS_ID]);
     const bridge = createExtensionLearningBridge(
       createExtensionLearningSession("player.extension.loader", "discover"));
+    const initialView = adapter.view(initial, "player.extension.loader", bridge,
+      "scene.valley.settlement");
+    expect(initialView).toMatchObject({ enabled: true, runtimeAuthorityAvailable: true,
+      admittedCorpusCount: 1, completedWordCount: 0, totalWordCount: 1 });
+    expect(initialView.corpora[0]?.words[0]?.actions.find((action) => action.kind === "discover"))
+      .toMatchObject({ available: true, completed: false, prerequisitesSatisfied: true,
+        inAuthorityScene: true, inRange: true });
     const first = adapter.commit(initial, "player.extension.loader", CORPUS_ID,
       "csp1.testword.discover", bridge);
     expect(first.result).toMatchObject({ applied: true, duplicate: false, reason: "applied" });
@@ -114,6 +123,13 @@ describe("browser learning corpus lazy loader", () => {
       "csp1.testword.discover", createExtensionLearningBridge(
         createExtensionLearningSession("player.extension.loader", "discover")));
     expect(duplicate.result).toMatchObject({ applied: false, duplicate: true, reason: "duplicate" });
+    const postView = adapter.view(first.save, "player.extension.loader", bridge,
+      "scene.valley.settlement");
+    expect(postView.corpora[0]?.words[0]?.actions.find((action) => action.kind === "discover"))
+      .toMatchObject({ available: false, completed: true });
+    expect(postView.corpora[0]?.words[0]?.actions.find((action) => action.kind === "attune"))
+      .toMatchObject({ available: false, completed: false, prerequisitesSatisfied: true,
+        inAuthorityScene: true, inRange: false });
   });
 
   it("rejects empty and tampered catalogs before browser bootstrap", () => {
@@ -129,6 +145,28 @@ describe("browser learning corpus lazy loader", () => {
       .toThrow(/digest mismatch/);
   });
 
+  it("projects and advances the exact five-action prerequisite chain", () => {
+    const { artifact, packageBundle } = admittedArtifacts();
+    const adapter = loadBrowserLearningCorpusAdapter(artifact, packageBundle);
+    const playerSaveId = "player.extension.chain";
+    let save = adapter.create(playerSaveId);
+    const premature = adapter.commit(save, playerSaveId, CORPUS_ID, "csp1.testword.context_0",
+      createExtensionLearningBridge(createExtensionLearningSession(playerSaveId, "context_0")));
+    expect(premature.result).toMatchObject({ applied: false, reason: "prerequisite_missing" });
+    for (const kind of ["discover", "attune", "context_0", "context_1", "repair"] as const) {
+      const bridge = createExtensionLearningBridge(createExtensionLearningSession(playerSaveId, kind));
+      const committed = adapter.commit(save, playerSaveId, CORPUS_ID, `csp1.testword.${kind}`, bridge);
+      expect(committed.result).toMatchObject({ applied: true, duplicate: false, reason: "applied" });
+      save = committed.save;
+    }
+    const final = adapter.view(save, playerSaveId,
+      createExtensionLearningBridge(createExtensionLearningSession(playerSaveId, "repair")),
+      "scene.valley.settlement");
+    expect(final).toMatchObject({ completedWordCount: 1, totalWordCount: 1 });
+    expect(final.corpora[0]?.words[0]).toMatchObject({ currentState: "produced", completed: true });
+    expect(final.corpora[0]?.words[0]?.actions.every((candidate) => candidate.completed)).toBe(true);
+  });
+
   it("persists and reloads an admitted partition through companion-first bootstrap", () => {
     const { artifact, packageBundle } = admittedArtifacts();
     const adapter = loadBrowserLearningCorpusAdapter(artifact, packageBundle);
@@ -137,18 +175,33 @@ describe("browser learning corpus lazy loader", () => {
     storage.setItem(keys.checkpointKey, JSON.stringify(
       createExtensionLearningSession("player.extension.browser", "discover").toSave()));
     const first = bootstrapBrowserPrologue(storage, keys, () => "player.extension.browser", adapter);
-    expect(first.coordinator.commitExtensionLearningAction(CORPUS_ID, "csp1.testword.discover",
-      createExtensionLearningBridge(first.coordinator.readSession())))
-      .toMatchObject({ applied: true });
+    const firstPort: ExtensionLearningRuntimePort = Object.freeze({
+      read: (bridge: GameSessionRuntimeBridge | null, activeSceneId: string) =>
+        first.coordinator.readExtensionLearningView(bridge, activeSceneId),
+      commit: (corpusId: string, actionId: string, bridge: GameSessionRuntimeBridge) =>
+        first.coordinator.commitExtensionLearningAction(corpusId, actionId, bridge),
+    });
+    first.flow.attachExtensionLearningRuntimePort(firstPort);
+    expect(first.flow.extensionLearningView()).toMatchObject({
+      enabled: true, runtimeAuthorityAvailable: true, completedWordCount: 0,
+    });
+    expect(first.flow.performExtensionLearningAction(CORPUS_ID, "csp1.testword.discover"))
+      .toMatchObject({ accepted: true, result: { applied: true, duplicate: false } });
     persistBrowserPrologueCheckpoint(storage, keys, first);
 
     const reloaded = bootstrapBrowserPrologue(storage, keys, () => "must-not-create", adapter);
+    const reloadedPort: ExtensionLearningRuntimePort = Object.freeze({
+      read: (bridge: GameSessionRuntimeBridge | null, activeSceneId: string) =>
+        reloaded.coordinator.readExtensionLearningView(bridge, activeSceneId),
+      commit: (corpusId: string, actionId: string, bridge: GameSessionRuntimeBridge) =>
+        reloaded.coordinator.commitExtensionLearningAction(corpusId, actionId, bridge),
+    });
+    reloaded.flow.attachExtensionLearningRuntimePort(reloadedPort);
     const collection = reloaded.coordinator.readExtensionLearningCollection();
     expect(collection.partitions[0]!.learning.words.testword).toMatchObject({
       discoveryState: "discovered",
     });
-    expect(reloaded.coordinator.commitExtensionLearningAction(CORPUS_ID, "csp1.testword.discover",
-      createExtensionLearningBridge(reloaded.coordinator.readSession())))
-      .toMatchObject({ applied: false, duplicate: true });
+    expect(reloaded.flow.performExtensionLearningAction(CORPUS_ID, "csp1.testword.discover"))
+      .toMatchObject({ accepted: true, result: { applied: false, duplicate: true } });
   });
 });

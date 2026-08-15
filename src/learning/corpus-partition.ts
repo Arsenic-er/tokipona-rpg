@@ -58,6 +58,12 @@ export interface LearningCorpusPartitionActionResult {
   readonly reason: LearningCorpusPartitionActionReason;
 }
 
+export interface LearningCorpusPartitionActionStatus {
+  readonly actionId: string;
+  readonly completed: boolean;
+  readonly prerequisitesSatisfied: boolean;
+}
+
 const EVIDENCE_TYPES = new Set([
   "glyph_discovered", "glyph_attunement_completed", "grounding_trial_resolved",
   "active_retrieval_submitted", "noncombat_action_completed", "repair_completed",
@@ -206,6 +212,28 @@ export function isLearningCorpusWordComplete(
       corpus.words[wordId] === undefined) return false;
   return LEARNING_CORPUS_ACTION_KINDS.every((kind) =>
     actionEvidencePresent(corpus, state, wordId, kind));
+}
+
+/**
+ * Projects the reducer's exact completion and prerequisite rules for semantic
+ * runtime views. Callers cannot use this helper to apply evidence.
+ */
+export function learningCorpusPartitionActionStatus(
+  corpus: RuntimeLearningCorpusPackage,
+  state: LearningCorpusPartitionState,
+  actionId: string,
+): LearningCorpusPartitionActionStatus | null {
+  if (!isVerifiedRuntimeLearningCorpusPackage(corpus) ||
+      !isVerifiedLearningCorpusPartitionState(state) || !partitionMatchesCorpus(state, corpus)) {
+    return null;
+  }
+  const parsed = parseAction(corpus, actionId);
+  if (parsed === null) return null;
+  return Object.freeze({
+    actionId,
+    completed: actionEvidencePresent(corpus, state, parsed.word.wordId, parsed.kind),
+    prerequisitesSatisfied: actionPrerequisitesSatisfied(corpus, state, parsed.word, parsed.kind),
+  });
 }
 
 function parseAction(corpus: RuntimeLearningCorpusPackage, actionId: string): {

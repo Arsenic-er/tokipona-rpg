@@ -25,7 +25,9 @@ import {
   PROLOGUE_ARRIVAL_SCENE_ID,
   PROLOGUE_STREAM_SCENE_ID,
 } from "./game/prologue-arrival-stream";
-import { WORLD_TILE_SIZE_PX, type CameraState, type RuntimeInput, type RuntimeSnapshot } from "./runtime";
+import { WORLD_TILE_SIZE_PX, type CameraState, type GameSessionRuntimeBridge,
+  type RuntimeInput, type RuntimeSnapshot } from "./runtime";
+import type { ExtensionLearningRuntimePort } from "./learning/extension-learning-runtime";
 import { projectPortraitCamera } from "./runtime/portrait-camera";
 import type {
   BrowserExtensionLearningAdapter,
@@ -87,11 +89,13 @@ interface UiResult {
 }
 
 const CAMERA_PROFILE = readRuntimePortraitCameraProfile(generatedRuntimeArtifact);
-const EXTENSION_LEARNING_ADAPTER: BrowserExtensionLearningAdapter | undefined =
+const EXTENSION_LEARNING_FEATURE =
   __TOKIPONA_EXTENSION_LEARNING_ADMITTED__
     ? (await import("./persistence/browser-learning-corpus-loader"))
-      .loadBrowserLearningCorpusAdapter(generatedRuntimeArtifact)
+      .loadBrowserLearningCorpusFeature(generatedRuntimeArtifact)
     : undefined;
+const EXTENSION_LEARNING_ADAPTER: BrowserExtensionLearningAdapter | undefined =
+  EXTENSION_LEARNING_FEATURE?.adapter;
 const WIDTH = CAMERA_PROFILE.viewportPx.width;
 const HEIGHT = CAMERA_PROFILE.viewportPx.height;
 const STORAGE_KEY = "tokipona.rpg.prologue.v0.3";
@@ -122,6 +126,13 @@ class FlowBrowserPort {
 
   private constructor(private readonly flow: PrologueFlowSession, private readonly coordinator: BrowserGameSessionWalCoordinator) {
     this.flow.attachCrossSaveTransactionCoordinator(coordinator);
+    const extensionPort: ExtensionLearningRuntimePort = Object.freeze({
+      read: (bridge: GameSessionRuntimeBridge | null, activeSceneId: string) =>
+        this.coordinator.readExtensionLearningView(bridge, activeSceneId),
+      commit: (corpusId: string, actionId: string, bridge: GameSessionRuntimeBridge) =>
+        this.coordinator.commitExtensionLearningAction(corpusId, actionId, bridge),
+    });
+    this.flow.attachExtensionLearningRuntimePort(extensionPort);
     this.persistedSessionRevision = coordinator.readSession().snapshot().revision;
   }
 
@@ -164,6 +175,10 @@ class FlowBrowserPort {
     return this.flow.core120LearningView();
   }
 
+  extensionLearningView() {
+    return this.flow.extensionLearningView();
+  }
+
   oldMineView(): PrologueFlowOldMineView {
     return this.flow.oldMineView();
   }
@@ -182,6 +197,12 @@ class FlowBrowserPort {
   core120Learning(command: Core120LearningUiCommand): UiResult {
     return flowResult(this.flow.performCore120LearningAction(nextId("core120-learning"), command.actionId),
       `Core-120 learning action committed: ${command.actionId}`);
+  }
+
+  extensionLearning(command: Readonly<{ kind: "perform_extension_learning_action";
+    corpusId: string; actionId: string }>): UiResult {
+    return flowResult(this.flow.performExtensionLearningAction(command.corpusId, command.actionId),
+      `Extension learning action committed: ${command.actionId}`);
   }
 
   interact(): UiResult {
@@ -672,6 +693,8 @@ const safeRangeUi = createRpgSafeRangeUi((command) => run(() => port.safeRange(c
 const p0LearningUi = createRpgP0LearningUi((command) => run(() => port.p0Learning(command)));
 const core120LearningUi = createRpgCore120LearningUi((command) => run(() => port.core120Learning(command)));
 const oldMineUi = createRpgOldMineUi((command) => run(() => port.oldMine(command)));
+const extensionLearningUi = EXTENSION_LEARNING_FEATURE?.createUi((command) =>
+  run(() => port.extensionLearning(command))) ?? null;
 let priorTime = performance.now();
 let activationStarted: number | null = null;
 let jumpQueued = false;
@@ -792,6 +815,7 @@ function render(snapshot: PrologueFlowSnapshot, now: number): void {
   p0LearningUi.render(port.p0LearningView());
   core120LearningUi.render(port.core120LearningView());
   oldMineUi.render(port.oldMineView());
+  extensionLearningUi?.render(port.extensionLearningView());
   const scene = requiredScene(snapshot.runtime.sceneId);
   drawWorld(snapshot, scene);
   sceneLabel.textContent = sceneTitle(snapshot.runtime.sceneId);

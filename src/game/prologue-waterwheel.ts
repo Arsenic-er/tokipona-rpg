@@ -32,6 +32,11 @@ import {
   type RuntimeSnapshot,
 } from "../runtime";
 import type { SceneDefinition } from "../runtime/scene";
+import type {
+  ExtensionLearningActionResult,
+  ExtensionLearningRuntimePort,
+  ExtensionLearningRuntimeView,
+} from "../learning/extension-learning-runtime";
 import {
   WATERWHEEL_STABLE_TICKS_REQUIRED,
   advanceWaterwheelPhysicalProgress,
@@ -446,6 +451,15 @@ const checkpointForEntrance = (
 export class PrologueWaterwheelSession {
   private authoritativeSession: GameSession;
   private bridge!: GameSessionRuntimeBridge;
+
+  readExtensionLearning(port: ExtensionLearningRuntimePort): ExtensionLearningRuntimeView {
+    return port.read(this.bridge, this.bridge.runtime.snapshot().sceneId);
+  }
+
+  commitExtensionLearning(port: ExtensionLearningRuntimePort, corpusId: string,
+    actionId: string): ExtensionLearningActionResult {
+    return port.commit(corpusId, actionId, this.bridge);
+  }
   private temporaryWaterwheelActive = false;
 
   constructor(session: GameSession) {

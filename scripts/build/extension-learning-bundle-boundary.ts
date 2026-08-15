@@ -1,5 +1,6 @@
 const EXTENSION_MODULE_SUFFIXES = Object.freeze([
   "/src/persistence/browser-learning-corpus-loader.ts",
+  "/src/rpg-extension-learning-ui.ts",
   "/src/generated/learning-corpus-packages.v0.1.json",
   "/src/persistence/browser-learning-corpus-adapter.ts",
   "/src/learning/corpus-partition-collection.ts",

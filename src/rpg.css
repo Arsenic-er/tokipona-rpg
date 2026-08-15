@@ -199,6 +199,22 @@ button:disabled { color: #625f59; cursor: not-allowed; }
 
 
 .economy-panel { margin-top: 6px; padding: 8px; border: 1px solid #514333; background: #100e0c; }
+.extension-learning-panel { margin-top: 6px; padding: 8px; border: 1px solid #4e5f3b; background: #0b1008; }
+.extension-learning-panel h2, .extension-learning-panel p { margin: 0; }
+.extension-learning-panel h2 { margin-top: 2px; color: #d3e8b7; font-size: 13px; }
+.extension-learning-panel [data-extension-authority], .extension-learning-panel [data-extension-live] {
+  margin-top: 5px; color: #9bac88; font-size: 7px; line-height: 1.5;
+}
+.extension-learning-action { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px;
+  align-items: center; margin-top: 4px; padding: 4px; border: 1px solid #35442b; background: #070a06; }
+.extension-learning-action span { overflow-wrap: anywhere; color: #c5d7af; font-size: 7px; }
+.extension-learning-action button { min-width: 56px; min-height: 28px; padding: 3px; font-size: 6px; }
+.extension-learning-panel button:focus-visible { outline: 2px solid #c6e29e; outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) {
+  .extension-learning-panel *, .extension-learning-panel *::before, .extension-learning-panel *::after {
+    scroll-behavior: auto !important; transition: none !important;
+  }
+}
 .p0-learning-panel { margin-top: 6px; padding: 8px; border: 1px solid #5c536f; background: #100d16; }
 .p0-learning-panel h2, .p0-learning-panel p { margin: 0; }
 .p0-learning-panel h2 { margin-top: 2px; color: #d7c3ef; font-size: 13px; }

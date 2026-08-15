@@ -15,6 +15,11 @@ import {
   type RuntimeSnapshot,
 } from "../runtime";
 import type { SceneDefinition } from "../runtime/scene";
+import type {
+  ExtensionLearningActionResult,
+  ExtensionLearningRuntimePort,
+  ExtensionLearningRuntimeView,
+} from "../learning/extension-learning-runtime";
 import {
   TELO_ATTUNEMENT_ITEMS,
   TeloLearningSlice,
@@ -285,6 +290,15 @@ export class PrologueArrivalStreamSession {
 
   get runtime(): GameSessionRuntimeBridge["runtime"] {
     return this.bridge.runtime;
+  }
+
+  readExtensionLearning(port: ExtensionLearningRuntimePort): ExtensionLearningRuntimeView {
+    return port.read(this.bridge, this.bridge.runtime.snapshot().sceneId);
+  }
+
+  commitExtensionLearning(port: ExtensionLearningRuntimePort, corpusId: string,
+    actionId: string): ExtensionLearningActionResult {
+    return port.commit(corpusId, actionId, this.bridge);
   }
 
   toSave(): GameSessionSave {

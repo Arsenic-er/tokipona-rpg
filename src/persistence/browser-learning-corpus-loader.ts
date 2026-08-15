@@ -3,6 +3,16 @@ import generatedPackageBundle from
   "../generated/learning-corpus-packages.v0.1.json" with { type: "json" };
 import { createBrowserLearningCorpusAdapter } from "./browser-learning-corpus-adapter";
 import type { BrowserExtensionLearningAdapter } from "./browser-game-session-wal";
+import {
+  createRpgExtensionLearningUi,
+  type RpgExtensionLearningUi,
+  type ExtensionLearningUiCommand,
+} from "../rpg-extension-learning-ui";
+
+export interface BrowserLearningCorpusFeature {
+  readonly adapter: BrowserExtensionLearningAdapter;
+  createUi(onCommand: (command: ExtensionLearningUiCommand) => void): RpgExtensionLearningUi;
+}
 
 /**
  * Full extension-corpus loading boundary. Keep this module behind a dynamic
@@ -21,5 +31,15 @@ export function loadBrowserLearningCorpusAdapter(
     registry: runtime.registry,
     packages: runtime.catalog.packages,
     scenes: runtime.scenes,
+  });
+}
+
+export function loadBrowserLearningCorpusFeature(
+  artifact: unknown,
+  packageBundle: unknown = generatedPackageBundle,
+): BrowserLearningCorpusFeature {
+  return Object.freeze({
+    adapter: loadBrowserLearningCorpusAdapter(artifact, packageBundle),
+    createUi: createRpgExtensionLearningUi,
   });
 }
