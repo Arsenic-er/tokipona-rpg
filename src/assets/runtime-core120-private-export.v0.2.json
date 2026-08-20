@@ -1,0 +1,15 @@
+{
+  "schemaVersion": "tokipona.pu120-private-asset-export.v0.2",
+  "status": "missing",
+  "manifestDigest": null,
+  "corpusId": "pu-120",
+  "wordIds": [],
+  "glyphBundle": null,
+  "entries": {},
+  "privacy": {
+    "containsPrivatePaths": false,
+    "containsPrivateAssets": false,
+    "containsSourceFonts": false,
+    "containsReviewMedia": false
+  }
+}
