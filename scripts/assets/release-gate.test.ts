@@ -120,7 +120,7 @@ describe("asset release gate", () => {
       ),
     ).toBe("runtime-atlas");
     expect(readPublicFiles(fixture.publicRoot)).toEqual([
-      `${PUBLIC_RUNTIME_ROOT.replaceAll("/", "\\")}\\test-glyph\\v1\\atlas.png`,
+      `${PUBLIC_RUNTIME_ROOT}/test-glyph/v1/atlas.png`,
     ]);
   });
 
@@ -148,7 +148,7 @@ describe("asset release gate", () => {
     const publicFiles = readPublicFilesAt(fixture.publicRoot, PUBLIC_PRONUNCIATION_ROOT);
     expect(publicFiles).toHaveLength(120);
     expect(publicFiles).toContain(
-      `${PUBLIC_PRONUNCIATION_ROOT.replaceAll("/", "\\")}\\telo.ogg`,
+      `${PUBLIC_PRONUNCIATION_ROOT}/telo.ogg`,
     );
   });
 
@@ -339,7 +339,9 @@ class BunLikeRecursiveFiles {
     const { readdirSync } = requireNodeFs();
     for (const path of readdirSync(this.#root, { recursive: true })) {
       const absolute = join(this.#root, String(path));
-      if (readFileStat(absolute).isFile()) yield join(this.#publicRuntimeRoot, String(path));
+      if (readFileStat(absolute).isFile()) {
+        yield join(this.#publicRuntimeRoot, String(path)).replaceAll("\\", "/");
+      }
     }
   }
 }
