@@ -125,10 +125,15 @@ async function moveRightUntilEnabled(page: Page, selector: string): Promise<void
   await page.locator("#rpg-canvas").focus();
   await page.keyboard.down("d");
   try {
-    await expect(control).toBeEnabled({ timeout: 20_000 });
+    await page.waitForFunction((candidateSelector) => {
+      const candidate = document.querySelector(candidateSelector);
+      return candidate instanceof HTMLButtonElement && !candidate.disabled;
+    }, selector, { polling: "raf", timeout: 20_000 });
   } finally {
     await page.keyboard.up("d");
   }
+  await page.waitForTimeout(120);
+  await expect(control).toBeEnabled();
 }
 
 async function settleAtSettlementControl(page: Page, selector: string): Promise<void> {
