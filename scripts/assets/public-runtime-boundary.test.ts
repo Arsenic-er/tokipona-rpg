@@ -1,11 +1,11 @@
 import { createHash } from "node:crypto";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { afterEach, describe, expect, it } from "vitest";
 import generated from "../../src/generated/content-runtime.v0.1.json";
 import currentRelease from "../../src/assets/runtime-release-contract.v0.1.json";
-import currentPrivateExport from "../../src/assets/runtime-core120-private-export.v0.1.json";
+import currentPrivateExport from "../../src/assets/runtime-core120-private-export.v0.2.json";
 import currentPronunciation from "../../src/assets/p0-pronunciation-manifest.v0.1.json";
 import currentCatalog from "../../data/language/pu-120-glyph-catalog.v0.2.json";
 import {
@@ -50,7 +50,7 @@ describe("public runtime asset boundary", () => {
       status: "approved_runtime_assets_verified",
       core120WordCount: 120,
       p0PronunciationWordCount: 12,
-      publicGlyphFileCount: 2,
+      publicGlyphFileCount: 7,
       publicPronunciationFileCount: 120,
       approvedPrivateExportPresent: true,
       missingExportPlaceholderPresent: false,
@@ -95,6 +95,23 @@ describe("public runtime asset boundary", () => {
     expect(() => checkPublicRuntimeAssetBoundary({ ...fixture.input, glyphCatalog: catalog }))
       .toThrow("glyph_catalog_entry_invalid");
   });
+
+  it("rejects a re-hashed public atlas whose coordinates diverge from the approved export", () => {
+    const fixture = approvedFixture();
+    const atlasPath = join(fixture.root,
+      "public/assets/magic-glyphs/pu120-v2/pu120-glyph-atlas.v0.2.json");
+    const atlas = JSON.parse(readFileSync(atlasPath, "utf8")) as any;
+    atlas.glyphs.a.activationFrames[0].x += 1;
+    const changedBytes = Buffer.from(`${JSON.stringify(atlas, null, 2)}\n`);
+    writeFileSync(atlasPath, changedBytes);
+    const privateExport = structuredClone(fixture.input.privateAssetExport) as any;
+    privateExport.glyphBundle.atlasManifest.sha256 = hash(changedBytes);
+    expect(() => checkPublicRuntimeAssetBoundary({
+      ...fixture.input,
+      privateAssetExport: privateExport,
+    }))
+      .toThrow("runtime_glyph_entry_mismatch");
+  });
 });
 
 function approvedFixture(options: { readonly omitWordId?: string } = {}): Readonly<{
@@ -106,12 +123,9 @@ function approvedFixture(options: { readonly omitWordId?: string } = {}): Readon
   mkdirSync(join(root, "public/assets/magic-glyphs"), { recursive: true });
   mkdirSync(join(root, "public/assets/pronunciation"), { recursive: true });
   writeFileSync(join(root, "public/assets/magic-glyphs/README.md"), "approved runtime assets\n");
-  const atlasBytes = Buffer.from("approved-pu120-atlas-v2");
-  writeFileSync(join(root, "public/assets/magic-glyphs/pu120-atlas.v2.png"), atlasBytes);
-
   const runtimeArtifact = approvedRuntimeArtifact();
   const manifest = readRuntimeCore120CurriculumManifest(runtimeArtifact);
-  const privateAssetExport = approvedPrivateExport(manifest, root, atlasBytes, options.omitWordId);
+  const privateAssetExport = approvedPrivateExport(manifest, root, options.omitWordId);
   const releaseContract = approvedRelease();
   const glyphCatalog = approvedCatalog();
   const p0PronunciationManifest = approvedP0Pronunciation(manifest, privateAssetExport);
@@ -160,10 +174,26 @@ function approvedCatalog(): any {
 function approvedPrivateExport(
   manifest: RuntimeCore120CurriculumManifest,
   root: string,
-  atlasBytes: Uint8Array,
   omitWordId?: string,
 ): any {
-  const entries = Object.fromEntries(manifest.scope.wordIds.map((wordId) => {
+  const glyphRoot = join(root, "public/assets/magic-glyphs/pu120-v2");
+  mkdirSync(glyphRoot, { recursive: true });
+  const pageFiles = [
+    ["pu120-activation-gray.page-0.png", Buffer.from("activation-page-0"), 0],
+    ["pu120-activation-gray.page-1.png", Buffer.from("activation-page-1"), 1],
+    ["pu120-role-patterns.page-0.png", Buffer.from("role-pattern-page-0"), 0],
+    ["pu120-inner-edge.page-0.png", Buffer.from("inner-edge-page-0"), 0],
+  ] as const;
+  for (const [filename, bytes] of pageFiles) writeFileSync(join(glyphRoot, filename), bytes);
+  const frameFor = (cell: number): { page: number; x: number; y: number; w: 32; h: 32 } => ({
+    page: Math.floor(cell / 900), x: 2 + (cell % 30) * 34,
+    y: 2 + Math.floor((cell % 900) / 30) * 34, w: 32, h: 32,
+  });
+
+  const glyphFrameFor = (index: number): { page: 0; x: number; y: number; w: 32; h: 32 } => ({
+    page: 0, x: 2 + (index % 30) * 34, y: 2 + Math.floor(index / 30) * 34, w: 32, h: 32,
+  });
+  const entries = Object.fromEntries(manifest.scope.wordIds.map((wordId, index) => {
     const bytes = Buffer.from(`approved-pronunciation-${wordId}`);
     if (wordId !== omitWordId) {
       writeFileSync(join(root, `public/assets/pronunciation/${wordId}.ogg`), bytes);
@@ -179,40 +209,70 @@ function approvedPrivateExport(
         durationMs: 750,
         sampleRateHz: 48_000,
         channels: 1,
-        redistributionApproved: true,
-        languageReviewApproved: true,
-        accessibilityReviewApproved: true,
-        communityReviewApproved: true,
-        hashReviewApproved: true,
+        approvals: {
+          redistribution: "approved",
+          language: "approved",
+          accessibility: "approved",
+          community: "approved",
+          hashes: "approved",
+        },
       },
       glyph: {
         assetId: word.assetBindings.glyphAssetId,
-        atlasFrameId: `pu120.${wordId}`,
         displayCodepoint: word.displayCodepoint,
+        activationFrames: Array.from({ length: 8 }, (_, frameIndex) => frameFor(index * 8 + frameIndex)),
+        rolePattern: glyphFrameFor(index),
+        innerEdge: glyphFrameFor(index),
       },
     }];
   }));
+  const activationPages = pageFiles.slice(0, 2).map(([filename, bytes, page]) => ({
+    page, publicPath: `assets/magic-glyphs/pu120-v2/${filename}`,
+    width: 1024, height: 1024, sha256: hash(bytes),
+  }));
+  const rolePatternPages = [{
+    page: 0, publicPath: "assets/magic-glyphs/pu120-v2/pu120-role-patterns.page-0.png",
+    width: 1024, height: 1024, sha256: hash(pageFiles[2][1]),
+  }];
+  const innerEdgePages = [{
+    page: 0, publicPath: "assets/magic-glyphs/pu120-v2/pu120-inner-edge.page-0.png",
+    width: 1024, height: 1024, sha256: hash(pageFiles[3][1]),
+  }];
+  const paletteBytes = Buffer.from(`${JSON.stringify({
+    schemaVersion: "pu120.magic-glyph-palettes.v0.1", palettes: { G_SYNTAX: { body: "#9AA3AA" } },
+  }, null, 2)}\n`);
+  writeFileSync(join(glyphRoot, "pu120-glyph-palettes.v0.1.json"), paletteBytes);
+  const atlasBytes = Buffer.from(`${JSON.stringify({
+    schemaVersion: "pu120.magic-glyph-atlas.runtime.v0.2",
+    sourceManifestDigest: manifest.sourceDigest,
+    frame: { width: 32, height: 32, count: 8 },
+    activationPages,
+    rolePatternPages,
+    innerEdgePages,
+    glyphOrder: [...manifest.scope.wordIds],
+    glyphs: Object.fromEntries(manifest.scope.wordIds.map((wordId) => [wordId, entries[wordId].glyph])),
+    privacy: { containsPrivatePaths: false, containsPrivateAssets: false, containsSourceFonts: false, containsReviewMedia: false },
+  }, null, 2)}\n`);
+  writeFileSync(join(glyphRoot, "pu120-glyph-atlas.v0.2.json"), atlasBytes);
+  const approved = Object.fromEntries([
+    "source", "license", "language", "pixel", "animation", "accessibility", "community", "hashes",
+  ].map((approval) => [approval, "approved"]));
   return {
-    schemaVersion: "tokipona.pu120-private-asset-export.v0.1",
+    schemaVersion: "tokipona.pu120-private-asset-export.v0.2",
     status: "approved",
     manifestDigest: manifest.sourceDigest,
     corpusId: "pu-120",
     wordIds: [...manifest.scope.wordIds],
-    glyphAtlas: {
-      assetId: "glyph.pu120.atlas.v2",
-      publicPath: "assets/magic-glyphs/pu120-atlas.v2.png",
-      sha256: hash(atlasBytes),
-      sourceUrl: "https://assets.example.invalid/glyphs/pu120-atlas.v2.png",
-      licenseSpdx: "CC-BY-4.0",
-      redistributionApproved: true,
-      sourceReviewApproved: true,
-      licenseReviewApproved: true,
-      languageReviewApproved: true,
-      pixelReviewApproved: true,
-      animationReviewApproved: true,
-      accessibilityReviewApproved: true,
-      communityReviewApproved: true,
-      hashReviewApproved: true,
+    glyphBundle: {
+      assetId: "glyph.pu120.bundle.v2",
+      sourceUrl: "https://assets.example.invalid/glyphs/pu120-v2",
+      licenseSpdx: "OFL-1.1",
+      approvals: approved,
+      atlasManifest: { publicPath: "assets/magic-glyphs/pu120-v2/pu120-glyph-atlas.v0.2.json", sha256: hash(atlasBytes) },
+      paletteManifest: { publicPath: "assets/magic-glyphs/pu120-v2/pu120-glyph-palettes.v0.1.json", sha256: hash(paletteBytes) },
+      activationPages,
+      rolePatternPages,
+      innerEdgePages,
     },
     entries,
     privacy: {

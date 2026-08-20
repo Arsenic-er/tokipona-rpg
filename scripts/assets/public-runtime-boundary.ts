@@ -4,6 +4,7 @@ import { relative, resolve, sep } from "node:path";
 import {
   readApprovedRuntimeCore120AssetExport,
   readRuntimeCore120AssetReadiness,
+  type RuntimeCore120ApprovedAssetExport,
 } from "../../src/assets/runtime-core120-assets.ts";
 import {
   readRuntimeCore120CurriculumManifest,
@@ -47,7 +48,7 @@ export function readRepositoryPublicRuntimeAssetBoundary(
     releaseContract: readJson("src/assets/runtime-release-contract.v0.1.json"),
     glyphCatalog: readJson("data/language/pu-120-glyph-catalog.v0.2.json"),
     p0PronunciationManifest: readJson("src/assets/p0-pronunciation-manifest.v0.1.json"),
-    privateAssetExport: readJson("src/assets/runtime-core120-private-export.v0.1.json"),
+    privateAssetExport: readJson("src/assets/runtime-core120-private-export.v0.2.json"),
   });
 }
 
@@ -82,9 +83,16 @@ export function checkPublicRuntimeAssetBoundary(
     "approved_asset_state_inconsistent");
     assert(p0.status === "approved", "p0_pronunciation_not_approved");
     const approved = readApprovedRuntimeCore120AssetExport(manifest, input.privateAssetExport);
+    const glyphRuntimeFiles = [
+      approved.glyphBundle.atlasManifest,
+      approved.glyphBundle.paletteManifest,
+      ...approved.glyphBundle.activationPages,
+      ...approved.glyphBundle.rolePatternPages,
+      ...approved.glyphBundle.innerEdgePages,
+    ];
     const expectedGlyphFiles = new Set<string>([
       ...REQUIRED_BLOCKED_GLYPH_FILES,
-      repositoryPathForPublicAsset(approved.glyphAtlas.publicPath),
+      ...glyphRuntimeFiles.map((file) => repositoryPathForPublicAsset(file.publicPath)),
     ]);
     const expectedPronunciationFiles = new Set<string>();
     for (const wordId of manifest.scope.wordIds) {
@@ -102,8 +110,10 @@ export function checkPublicRuntimeAssetBoundary(
         "p0_core120_pronunciation_mismatch");
       }
     }
-    assertFileHash(repositoryRoot, repositoryPathForPublicAsset(approved.glyphAtlas.publicPath),
-      approved.glyphAtlas.sha256);
+    for (const file of glyphRuntimeFiles) {
+      assertFileHash(repositoryRoot, repositoryPathForPublicAsset(file.publicPath), file.sha256);
+    }
+    assertRuntimeAtlasMatches(repositoryRoot, manifest, approved);
     assertSameFileSet(publicFiles.glyphFiles, expectedGlyphFiles, "public_glyph_file_set_invalid");
     assertSameFileSet(publicFiles.pronunciationFiles, expectedPronunciationFiles,
       "public_pronunciation_file_set_invalid");
@@ -136,6 +146,91 @@ export function checkPublicRuntimeAssetBoundary(
     approvedPrivateExportPresent: false,
     missingExportPlaceholderPresent: true,
   });
+}
+
+function assertRuntimeAtlasMatches(
+  repositoryRoot: string,
+  manifest: RuntimeCore120CurriculumManifest,
+  approved: RuntimeCore120ApprovedAssetExport,
+): void {
+  const atlasPath = repositoryPathForPublicAsset(approved.glyphBundle.atlasManifest.publicPath);
+  const atlas = record(JSON.parse(readFileSync(checkedPath(repositoryRoot, atlasPath), "utf8")) as unknown,
+    "runtime_glyph_atlas_invalid");
+  exactKeys(atlas, ["schemaVersion", "sourceManifestDigest", "frame", "activationPages",
+    "rolePatternPages", "innerEdgePages", "glyphOrder", "glyphs", "privacy"],
+  "runtime_glyph_atlas_fields_invalid");
+  assert(atlas.schemaVersion === "pu120.magic-glyph-atlas.runtime.v0.2" &&
+    atlas.sourceManifestDigest === manifest.sourceDigest,
+  "runtime_glyph_atlas_identity_invalid");
+  const frame = record(atlas.frame, "runtime_glyph_atlas_frame_invalid");
+  exactKeys(frame, ["width", "height", "count"], "runtime_glyph_atlas_frame_invalid");
+  assert(frame.width === 32 && frame.height === 32 && frame.count === 8,
+    "runtime_glyph_atlas_frame_invalid");
+  assertRuntimePages(atlas.activationPages, approved.glyphBundle.activationPages,
+    "runtime_glyph_activation_pages_invalid");
+  assertRuntimePages(atlas.rolePatternPages, approved.glyphBundle.rolePatternPages,
+    "runtime_glyph_pattern_pages_invalid");
+  assertRuntimePages(atlas.innerEdgePages, approved.glyphBundle.innerEdgePages,
+    "runtime_glyph_edge_pages_invalid");
+  assert(same(atlas.glyphOrder as readonly string[], manifest.scope.wordIds),
+    "runtime_glyph_order_invalid");
+  const glyphs = record(atlas.glyphs, "runtime_glyph_entries_invalid");
+  exactKeys(glyphs, manifest.scope.wordIds, "runtime_glyph_entries_invalid");
+  for (const wordId of manifest.scope.wordIds) {
+    const expected = approved.entries[wordId]?.glyph;
+    const word = manifest.words[wordId];
+    assert(expected !== undefined && word !== undefined, "runtime_glyph_entry_missing");
+    const glyph = record(glyphs[wordId], "runtime_glyph_entry_invalid");
+    exactKeys(glyph, ["assetId", "displayCodepoint", "activationFrames", "rolePattern", "innerEdge"],
+      "runtime_glyph_entry_fields_invalid");
+    assert(glyph.assetId === word.assetBindings.glyphAssetId &&
+      glyph.displayCodepoint === word.displayCodepoint &&
+      sameFrames(glyph.activationFrames, expected.activationFrames) &&
+      sameFrame(glyph.rolePattern, expected.rolePattern) &&
+      sameFrame(glyph.innerEdge, expected.innerEdge),
+    "runtime_glyph_entry_mismatch");
+  }
+  const privacy = record(atlas.privacy, "runtime_glyph_atlas_privacy_invalid");
+  exactKeys(privacy, ["containsPrivatePaths", "containsPrivateAssets", "containsSourceFonts",
+    "containsReviewMedia"], "runtime_glyph_atlas_privacy_invalid");
+  assert(Object.values(privacy).every((value) => value === false),
+    "runtime_glyph_atlas_privacy_invalid");
+}
+
+function assertRuntimePages(
+  candidate: unknown,
+  expected: readonly Readonly<{ page: number; publicPath: string; width: 1024; height: 1024;
+    sha256: `sha256:${string}` }>[],
+  reason: string,
+): void {
+  const pages = array(candidate, reason);
+  assert(pages.length === expected.length, reason);
+  for (let index = 0; index < expected.length; index += 1) {
+    const page = record(pages[index], reason);
+    exactKeys(page, ["page", "publicPath", "width", "height", "sha256"], reason);
+    const wanted = expected[index]!;
+    assert(page.page === wanted.page && page.publicPath === wanted.publicPath &&
+      page.width === wanted.width && page.height === wanted.height && page.sha256 === wanted.sha256,
+    reason);
+  }
+}
+
+function sameFrames(candidate: unknown, expected: readonly unknown[] | null): boolean {
+  return expected !== null && Array.isArray(candidate) && candidate.length === expected.length &&
+    candidate.every((frame, index) => sameFrame(frame, expected[index]));
+}
+
+function sameFrame(candidate: unknown, expected: unknown): boolean {
+  if (!isFrame(candidate) || !isFrame(expected)) return false;
+  return candidate.page === expected.page && candidate.x === expected.x && candidate.y === expected.y &&
+    candidate.w === expected.w && candidate.h === expected.h;
+}
+
+function isFrame(value: unknown): value is Readonly<{ page: number; x: number; y: number; w: number; h: number }> {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+  const frame = value as Record<string, unknown>;
+  return Object.keys(frame).length === 5 && ["page", "x", "y", "w", "h"].every((key) => key in frame) &&
+    [frame.page, frame.x, frame.y, frame.w, frame.h].every(Number.isSafeInteger);
 }
 
 function readCatalog(candidate: unknown, manifest: RuntimeCore120CurriculumManifest): void {
