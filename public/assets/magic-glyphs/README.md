@@ -23,13 +23,24 @@ Runtime contract:
 - destroying support removes the corresponding glyph pixels, while newly filled material does not inherit old inscription pixels;
 - all surface composition stays on integer coordinates with binary masks and no soft bloom.
 
-Planned layout:
+Approved Core-120 layout:
 
 ```text
 public/assets/magic-glyphs/
   README.md
-  v1/
-    atlases/
-    manifests/
-    surface-profiles/
+  pu120-v2/
+    pu120-glyph-atlas.v0.2.json
+    pu120-glyph-palettes.v0.1.json
+    pu120-activation-gray.page-0.png
+    pu120-activation-gray.page-1.png
+    pu120-role-patterns.page-0.png
+    pu120-inner-edge.page-0.png
 ```
+
+The private repository may produce a `review_candidate` containing these six
+runtime files and a safe, path-free export manifest. A review candidate is not
+runtime-ready and must not be copied here. Promotion requires the private
+release gate to report `approved`, all eight approval fields to be `approved`,
+verified redistribution evidence, exact file hashes, and a complete set of 120
+approved pronunciation bindings. Source fonts, strips, contact sheets, review
+renders, and private paths never cross this boundary.
