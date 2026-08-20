@@ -22,6 +22,8 @@ interface FixtureOptions {
   readonly role?: string;
   readonly declaredHash?: string;
   readonly licenseApproved?: boolean;
+  readonly licenseText?: string;
+  readonly declaredLicenseHash?: string;
   readonly destinationRoot?: string;
   readonly destination?: string;
   readonly pronunciationWordIds?: readonly string[];
@@ -83,6 +85,15 @@ describe("asset release gate", () => {
     expect(reasonCodes(result)).toEqual(
       expect.arrayContaining(["license_status_not_approved", "license_source_unverified", "license_redistribution_not_approved"]),
     );
+  });
+
+  it("uses canonical LF bytes for text license evidence across checkout platforms", () => {
+    const fixture = createFixture({
+      licenseText: "license\r\nevidence\r\n",
+      declaredLicenseHash: sha256("license\nevidence\n"),
+    });
+
+    expect(audit(fixture).decision).toBe("allow");
   });
 
   it("dry-runs an approved release without writing files", () => {
@@ -238,7 +249,7 @@ function createFixture(options: FixtureOptions = {}) {
 
   const licenseText = join(assetRoot, "provenance", "OFL.txt");
   const fontEvidence = join(assetRoot, "provenance", "font.bin");
-  writeFileSync(licenseText, "license-evidence");
+  writeFileSync(licenseText, options.licenseText ?? "license-evidence");
   writeFileSync(fontEvidence, "font-evidence");
   writeFileSync(
     join(assetRoot, "records", "license.yaml"),
@@ -250,7 +261,7 @@ function createFixture(options: FixtureOptions = {}) {
       license_spdx: "OFL-1.1",
       files: {
         font: { path: "provenance/font.bin", sha256: sha256("font-evidence") },
-        license: { path: "provenance/OFL.txt", sha256: sha256("license-evidence") },
+        license: { path: "provenance/OFL.txt", sha256: options.declaredLicenseHash ?? sha256("license-evidence") },
       },
     }),
   );

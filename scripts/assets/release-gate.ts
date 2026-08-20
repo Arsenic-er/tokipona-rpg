@@ -357,7 +357,7 @@ function auditLicenseFileHashes(
     }
     try {
       const absolutePath = resolveSafeExistingFile(assetRoot, path, "license_file_path_escape");
-      if (sha256File(absolutePath) !== sha256) {
+      if (sha256LicenseEvidence(absolutePath) !== sha256) {
         passed = false;
         reasonCode = "license_file_hash_mismatch";
         break;
@@ -529,6 +529,16 @@ function assertNoSymlinkComponents(root: string, target: string): void {
 
 function sha256File(path: string): string {
   return createHash("sha256").update(readFileSync(path)).digest("hex");
+}
+
+function sha256LicenseEvidence(path: string): string {
+  const extension = extname(path).toLowerCase();
+  if (![".json", ".md", ".txt", ".yaml", ".yml"].includes(extension)) return sha256File(path);
+  const bytes = readFileSync(path);
+  const text = bytes.toString("utf8");
+  if (text.includes("\uFFFD")) throw new Error("license_text_encoding_invalid");
+  const canonical = text.replaceAll("\r\n", "\n").replaceAll("\r", "\n");
+  return createHash("sha256").update(canonical, "utf8").digest("hex");
 }
 
 function recordValue(value: unknown): UnknownRecord | undefined {
