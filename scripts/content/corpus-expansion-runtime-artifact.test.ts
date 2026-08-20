@@ -38,7 +38,6 @@ const CORPUS_ID = "csp-tier1-rehearsal.v1";
 const CONTENT_VERSION = "csp-tier1.rehearsal.1";
 const REVIEW_RECEIPTS = {
   semantic: "review.semantic.csp1.v1",
-  pronunciation: "review.pronunciation.csp1.v1",
   glyph: "review.glyph.csp1.v1",
 } as const;
 
@@ -68,8 +67,7 @@ function reviewedPackage(): any {
         promptLevel: 1, semanticFacets: ["test-semantic-facet"],
         worldAuthority: extensionLearningAuthority("repair") },
     ],
-    assetBindings: { pronunciationAssetId: "audio.pronunciation.testword.v1",
-      glyphAssetId: "glyph.csp1.testword.v1" },
+    assetBindings: { glyphAssetId: "glyph.csp1.testword.v1" },
   };
   const semantic = {
     schemaVersion: "tokipona.runtime-learning-corpus.v0.2" as const,
@@ -175,7 +173,7 @@ describe("post-pu120 corpus expansion projector", () => {
         action_namespace: "csp1", save_partition_id: "learning.corpus.csp-tier1-rehearsal.v1",
         save_schema_version: "tokipona.learning-corpus-partition.v0.2",
         package_digest: `sha256:${"1".repeat(64)}`, semantic_digest: `sha256:${"2".repeat(64)}`,
-        word_ids: ["telo"], review_receipt_ids: { semantic: "r.s", pronunciation: "r.p", glyph: "r.g" },
+        word_ids: ["telo"], review_receipt_ids: { semantic: "r.s", glyph: "r.g" },
       },
     };
     expect(() => buildRuntimeContentArtifact(compileContent(overlap))).toThrow(/overlaps a prior corpus/);

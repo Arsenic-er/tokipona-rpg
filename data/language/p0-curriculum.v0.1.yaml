@@ -190,7 +190,11 @@ meditation_families:
 
 content_acceptance:
   all_words_recoverable: true
-  all_words_have_pronunciation_audio: required
+  audio_policy:
+    spoken_pronunciation_required: false
+    dialogue_feedback: procedural_nonsemantic
+    progress_may_depend_on_audio: false
+    captions_required: true
   contexts_per_word_minimum: 2
   misconception_counterexample_per_word_minimum: 1
   color_only_identification_forbidden: true

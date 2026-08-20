@@ -18,6 +18,7 @@ export interface ContentSource {
 export type ContentKind =
   | "attack_signatures"
   | "chapter"
+  | "dialogue_audio"
   | "ecology"
   | "glyph_catalog"
   | "glyph_progression"

@@ -12,14 +12,13 @@ import {
 } from "../../src/content/runtime-core120-curriculum-manifest.ts";
 
 export const PUBLIC_RUNTIME_ASSET_BOUNDARY_SCHEMA =
-  "tokipona.public-asset-boundary-check.v0.2" as const;
+  "tokipona.public-asset-boundary-check.v0.3" as const;
 
 export interface PublicRuntimeAssetBoundaryInput {
   readonly repositoryRoot: string;
   readonly runtimeArtifact: unknown;
   readonly releaseContract: unknown;
   readonly glyphCatalog: unknown;
-  readonly p0PronunciationManifest: unknown;
   readonly privateAssetExport: unknown;
 }
 
@@ -29,9 +28,7 @@ export interface PublicRuntimeAssetBoundaryReport {
     | "safe_blocked_pending_external_approval"
     | "approved_runtime_assets_verified";
   readonly core120WordCount: 120;
-  readonly p0PronunciationWordCount: 12;
   readonly publicGlyphFileCount: number;
-  readonly publicPronunciationFileCount: number;
   readonly approvedPrivateExportPresent: boolean;
   readonly missingExportPlaceholderPresent: boolean;
 }
@@ -47,13 +44,10 @@ export function readRepositoryPublicRuntimeAssetBoundary(
     runtimeArtifact: readJson("src/generated/content-runtime.v0.1.json"),
     releaseContract: readJson("src/assets/runtime-release-contract.v0.1.json"),
     glyphCatalog: readJson("data/language/pu-120-glyph-catalog.v0.2.json"),
-    p0PronunciationManifest: readJson("src/assets/p0-pronunciation-manifest.v0.1.json"),
-    privateAssetExport: readJson("src/assets/runtime-core120-private-export.v0.2.json"),
+    privateAssetExport: readJson("src/assets/runtime-core120-private-export.v0.3.json"),
   });
 }
 
-const P0_ENTRY_KEYS = ["audioAssetId", "publicPath", "sha256", "sourceUrl", "licenseSpdx",
-  "redistributionApproved", "languageReviewApproved", "communityReviewApproved"] as const;
 const REQUIRED_BLOCKED_GLYPH_FILES = ["public/assets/magic-glyphs/README.md"] as const;
 
 export function checkPublicRuntimeAssetBoundary(
@@ -67,21 +61,15 @@ export function checkPublicRuntimeAssetBoundary(
     input.releaseContract,
   );
   readCatalog(input.glyphCatalog, manifest);
-  const p0WordIds = manifest.scope.wordIds
-    .filter((wordId) => manifest.words[wordId]?.curriculumBand === "P0")
-    .sort(asciiCompare);
-  assert(p0WordIds.length === 12, "p0_scope_invalid");
-  const p0 = readP0Pronunciation(input.p0PronunciationManifest, p0WordIds);
   const publicFiles = readPublicAssetFiles(repositoryRoot);
+  assert(publicFiles.nonGlyphFiles.length === 0, "public_non_glyph_runtime_forbidden");
 
   if (readiness.playableContentMayClaimFullAssetAcceptance) {
     assert(readiness.privateAssetExport === "approved" &&
-      readiness.pronunciationAudio === "approved" &&
       readiness.glyphVisuals === "approved" &&
       readiness.glyphCatalog === "approved" &&
       readiness.blockingReasons.length === 0,
     "approved_asset_state_inconsistent");
-    assert(p0.status === "approved", "p0_pronunciation_not_approved");
     const approved = readApprovedRuntimeCore120AssetExport(manifest, input.privateAssetExport);
     const glyphRuntimeFiles = [
       approved.glyphBundle.atlasManifest,
@@ -94,55 +82,34 @@ export function checkPublicRuntimeAssetBoundary(
       ...REQUIRED_BLOCKED_GLYPH_FILES,
       ...glyphRuntimeFiles.map((file) => repositoryPathForPublicAsset(file.publicPath)),
     ]);
-    const expectedPronunciationFiles = new Set<string>();
     for (const wordId of manifest.scope.wordIds) {
-      const pronunciation = approved.entries[wordId]?.pronunciation;
-      assert(pronunciation !== undefined, "approved_export_word_missing");
-      const file = repositoryPathForPublicAsset(pronunciation.publicPath);
-      expectedPronunciationFiles.add(file);
-      assertFileHash(repositoryRoot, file, pronunciation.sha256);
-      if (p0WordIds.includes(wordId)) {
-        const p0Entry = p0.entries[wordId];
-        assert(p0Entry !== undefined &&
-          p0Entry.assetId === pronunciation.assetId &&
-          p0Entry.publicPath === pronunciation.publicPath &&
-          p0Entry.sha256 === pronunciation.sha256,
-        "p0_core120_pronunciation_mismatch");
-      }
+      assert(approved.entries[wordId]?.glyph !== undefined, "approved_export_word_missing");
     }
     for (const file of glyphRuntimeFiles) {
       assertFileHash(repositoryRoot, repositoryPathForPublicAsset(file.publicPath), file.sha256);
     }
     assertRuntimeAtlasMatches(repositoryRoot, manifest, approved);
     assertSameFileSet(publicFiles.glyphFiles, expectedGlyphFiles, "public_glyph_file_set_invalid");
-    assertSameFileSet(publicFiles.pronunciationFiles, expectedPronunciationFiles,
-      "public_pronunciation_file_set_invalid");
     return freezeReport({
       status: "approved_runtime_assets_verified",
       publicGlyphFileCount: publicFiles.glyphFiles.length,
-      publicPronunciationFileCount: publicFiles.pronunciationFiles.length,
       approvedPrivateExportPresent: true,
       missingExportPlaceholderPresent: false,
     });
   }
 
   assert(readiness.privateAssetExport === "missing" &&
-    readiness.pronunciationAudio === "blocked_pending_private_assets" &&
     readiness.glyphVisuals === "blocked_pending_private_approval" &&
     readiness.glyphCatalog === "draft" &&
     same(readiness.blockingReasons, [
       "private_asset_export_missing", "glyph_release_blocked", "glyph_catalog_not_approved",
     ]),
   "partial_asset_approval_state_forbidden");
-  assert(p0.status === "blocked", "partial_p0_pronunciation_approval_forbidden");
   assertSameFileSet(publicFiles.glyphFiles, new Set(REQUIRED_BLOCKED_GLYPH_FILES),
     "unapproved_glyph_runtime_present");
-  assert(publicFiles.pronunciationFiles.length === 0,
-    "unapproved_pronunciation_runtime_present");
   return freezeReport({
     status: "safe_blocked_pending_external_approval",
     publicGlyphFileCount: publicFiles.glyphFiles.length,
-    publicPronunciationFileCount: 0,
     approvedPrivateExportPresent: false,
     missingExportPlaceholderPresent: true,
   });
@@ -258,63 +225,14 @@ function readCatalog(candidate: unknown, manifest: RuntimeCore120CurriculumManif
   assert(sameSet([...observed], manifest.scope.wordIds), "glyph_catalog_word_set_invalid");
 }
 
-function readP0Pronunciation(candidate: unknown, expectedWordIds: readonly string[]): Readonly<{
-  status: "blocked" | "approved";
-  entries: Readonly<Record<string, Readonly<{
-    assetId: string;
-    publicPath: string;
-    sha256: `sha256:${string}`;
-  }>>>;
-}> {
-  const root = record(candidate, "p0_pronunciation_invalid");
-  exactKeys(root, ["schemaVersion", "status", "wordIds", "entries"],
-    "p0_pronunciation_fields_invalid");
-  assert(root.schemaVersion === "tokipona.p0-pronunciation-assets.v0.1" &&
-    sameSet(root.wordIds, expectedWordIds), "p0_pronunciation_identity_invalid");
-  const entries = record(root.entries, "p0_pronunciation_entries_invalid");
-  assert(sameSet(Object.keys(entries), expectedWordIds), "p0_pronunciation_entries_invalid");
-  const approvedEntries: Record<string, { assetId: string; publicPath: string;
-    sha256: `sha256:${string}` }> = {};
-  let approvedCount = 0;
-  for (const wordId of expectedWordIds) {
-    const entry = record(entries[wordId], "p0_pronunciation_entry_invalid");
-    exactKeys(entry, P0_ENTRY_KEYS, "p0_pronunciation_entry_fields_invalid");
-    const isEmpty = entry.audioAssetId === null && entry.publicPath === null &&
-      entry.sha256 === null && entry.sourceUrl === null && entry.licenseSpdx === null &&
-      entry.redistributionApproved === false && entry.languageReviewApproved === false &&
-      entry.communityReviewApproved === false;
-    const assetId = `audio.pronunciation.${wordId}.v1`;
-    const publicPath = `assets/pronunciation/${wordId}.ogg`;
-    const isApproved = entry.audioAssetId === assetId && entry.publicPath === publicPath &&
-      sha256(entry.sha256) && httpsUrl(entry.sourceUrl) && spdx(entry.licenseSpdx) &&
-      entry.redistributionApproved === true && entry.languageReviewApproved === true &&
-      entry.communityReviewApproved === true;
-    assert(isEmpty || isApproved, "p0_pronunciation_partial_entry_forbidden");
-    if (isApproved) {
-      approvedCount += 1;
-      approvedEntries[wordId] = {
-        assetId,
-        publicPath,
-        sha256: entry.sha256 as `sha256:${string}`,
-      };
-    }
-  }
-  if (root.status === "approved") {
-    assert(approvedCount === expectedWordIds.length, "p0_pronunciation_status_mismatch");
-    return Object.freeze({ status: "approved", entries: Object.freeze(approvedEntries) });
-  }
-  assert(root.status === "blocked_pending_private_assets" && approvedCount === 0,
-    "p0_pronunciation_status_mismatch");
-  return Object.freeze({ status: "blocked", entries: Object.freeze({}) });
-}
-
 function readPublicAssetFiles(repositoryRoot: string): Readonly<{
   glyphFiles: readonly string[];
-  pronunciationFiles: readonly string[];
+  nonGlyphFiles: readonly string[];
 }> {
+  const allFiles = filesBelow(repositoryRoot, "public/assets");
   return Object.freeze({
-    glyphFiles: filesBelow(repositoryRoot, "public/assets/magic-glyphs"),
-    pronunciationFiles: filesBelow(repositoryRoot, "public/assets/pronunciation"),
+    glyphFiles: allFiles.filter((file) => file.startsWith("public/assets/magic-glyphs/")),
+    nonGlyphFiles: allFiles.filter((file) => !file.startsWith("public/assets/magic-glyphs/")),
   });
 }
 
@@ -370,12 +288,11 @@ function assertSameFileSet(actual: readonly string[], expected: ReadonlySet<stri
 }
 
 function freezeReport(input: Omit<PublicRuntimeAssetBoundaryReport,
-  "schemaVersion" | "core120WordCount" | "p0PronunciationWordCount">):
+  "schemaVersion" | "core120WordCount">):
   PublicRuntimeAssetBoundaryReport {
   return Object.freeze({
     schemaVersion: PUBLIC_RUNTIME_ASSET_BOUNDARY_SCHEMA,
     core120WordCount: 120,
-    p0PronunciationWordCount: 12,
     ...input,
   });
 }
@@ -401,15 +318,6 @@ function same(value: readonly string[], expected: readonly string[]): boolean {
 function sameSet(value: unknown, expected: readonly string[]): boolean {
   return Array.isArray(value) && value.length === expected.length &&
     new Set(value).size === value.length && expected.every((entry) => value.includes(entry));
-}
-function sha256(value: unknown): value is `sha256:${string}` {
-  return typeof value === "string" && /^sha256:[0-9a-f]{64}$/.test(value);
-}
-function httpsUrl(value: unknown): value is string {
-  return typeof value === "string" && /^https:\/\/[^\s]+$/.test(value);
-}
-function spdx(value: unknown): value is string {
-  return typeof value === "string" && /^[A-Za-z0-9][A-Za-z0-9.+-]*$/.test(value);
 }
 function asciiCompare(left: string, right: string): number {
   return left < right ? -1 : left > right ? 1 : 0;

@@ -1,10 +1,10 @@
 # Private asset handoff
 
 The public repository never treats a copied file, a local path, or a manually edited status as an
-approval. Runtime glyph and pronunciation assets have two valid states only:
+approval. Runtime glyph assets have two valid states only:
 
-- `safe_blocked_pending_external_approval`: the checked-in default. No private export is present,
-  all runtime readiness flags remain blocked, and no pronunciation media is public.
+- `safe_blocked_pending_external_approval`: the checked-in default. No private export is present
+  and all runtime readiness flags remain blocked.
 - `approved_runtime_assets_verified`: every private review is approved, public metadata is
   internally consistent, and every declared runtime file exists with the declared SHA-256 digest.
 
@@ -47,45 +47,41 @@ pnpm run assets:release export `
 
 The exporter may copy only approved runtime roles and extensions. Source fonts, review images,
 engineering files, private paths, symlinks, and unapproved licenses remain private.
-The current public Core-120 contract admits exactly the six-file v0.2 glyph bundle (atlas manifest,
-palette manifest, two activation pages, one role-pattern page, and one inner-edge page) plus a
-separate atomic set of 120 pronunciation files. Extra masks, animations, review renders, or other
-runtime roles require an explicit public schema/version change before handoff; allowlisting a
+The current public Core-120 v0.3 contract admits exactly the six-file glyph bundle: an atlas
+manifest, a palette manifest, two activation pages, one role-pattern page, and one inner-edge page.
+It declares `destination_root: magic_glyphs` and `destination: pu120-v2`; the version change is in
+the handoff schema, not the public glyph paths. Extra masks, animations, review renders, or other
+runtime roles require an explicit public schema/version change before handoff. Allowlisting a
 private role alone does not make it part of this release.
 
-Glyph and pronunciation media use separate, atomic manifests. The v0.2 glyph manifest declares
-`destination_root: magic_glyphs` and `destination: pu120-v2`; its approved export contains only the
-six files documented in `public/assets/magic-glyphs/README.md`. The pronunciation manifest must
-declare the fixed pronunciation root and a flat target set:
+The private release manifest has one atomic public export:
 
 ```yaml
 public_export:
-  destination_root: pronunciation
-  destination: .
+  destination_root: magic_glyphs
+  destination: pu120-v2
   files:
-    - role: pronunciation_audio
-      source: runtime/pronunciation/telo.ogg
-      target: telo.ogg
+    - role: glyph_atlas_manifest
+      source: runtime/pu120-v2/pu120-glyph-atlas.v0.2.json
+      target: pu120-glyph-atlas.v0.2.json
       sha256: <64 lowercase hex characters>
 ```
 
-Only `.ogg` pronunciation files are admitted, and every public target must be exactly
-`<lowercase-word-id>.ogg`. Audio cannot be exported through the glyph root, glyph roles cannot be
-exported through the pronunciation root, and one manifest cannot span both roots. Put all 120
-approved pronunciation entries in the pronunciation manifest so the whole audio set is installed
-atomically. The later `assets:check` gate still requires the exact 120-file set and verifies every
-file against the public core-120 and P0 metadata.
+The complete manifest lists exactly the six files documented in
+`public/assets/magic-glyphs/README.md`. Recorded speech, pronunciation files, TTS output, speaker
+records, and any other audio are outside this handoff. NPC dialogue feedback is synthesized in the
+browser from the checked-in nonsemantic procedural contract; it is not a private asset export and
+never affects curriculum progress.
 
 The approved private pipeline must also provide the corresponding public metadata updates:
 
-- `src/assets/runtime-core120-private-export.v0.2.json`
+- `src/assets/runtime-core120-private-export.v0.3.json`
 - `src/assets/runtime-release-contract.v0.1.json`
-- `src/assets/p0-pronunciation-manifest.v0.1.json`
 - the approved `data/language/pu-120-glyph-catalog.v0.2.json`, followed by regenerated content
 
 Those files are public attestations, not substitutes for the private review records. Do not invent
-approval values in this repository. The P0 pronunciation subset must match the same paths and hashes
-declared by the core-120 export.
+approval values in this repository. The v0.3 export contains exactly one glyph binding per Core-120
+word and rejects legacy audio or pronunciation fields.
 
 ## Public repository verification
 
@@ -98,9 +94,9 @@ pnpm run verify
 ```
 
 `assets:check` verifies the approved catalog projection, release decision, privacy flags, exact
-public file sets, the glyph atlas hash, all 120 pronunciation hashes, and the P0/core-120 metadata
-cross-check. It emits `approved_runtime_assets_verified` only when all evidence agrees. Otherwise it
-fails closed or, for the intentional no-export state, emits
+public glyph file set, atlas hash, and Core-120 metadata cross-check. It emits
+`approved_runtime_assets_verified` only when all evidence agrees. Otherwise it fails closed or,
+for the intentional no-export state, emits
 `safe_blocked_pending_external_approval`.
 
 The ordinary `verify` command intentionally accepts that safe blocked state so code can continue to

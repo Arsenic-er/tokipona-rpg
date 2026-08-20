@@ -22,7 +22,7 @@ export const P0_LEARNING_UI_TEMPLATE = `
     <div class="panel-heading"><div><p class="eyebrow">P0 / 12-WORD RECOVERY</p><h2 id="p0-learning-title">公共刻印档案台</h2></div>
       <strong data-p0-learning-count>0 / 12</strong></div>
     <p class="p0-learning-copy">每个词按发现、调谐、双情境与误解修复推进；按钮只提交机器 action ID。</p>
-    <p class="p0-learning-assets" data-p0-learning-assets role="status">发音音频与正式字形仍等待私有素材审批，不会用占位素材冒充通过。</p>
+    <p class="p0-learning-assets" data-p0-learning-assets role="status">正式字形仍等待私有素材审批，不会用占位素材冒充通过。</p>
     <div class="p0-learning-grid" data-p0-learning-grid></div>
     <p class="p0-learning-live" data-p0-learning-live role="status" aria-live="polite" aria-atomic="true"></p>
   </section>`;
@@ -32,7 +32,7 @@ export function deriveP0LearningUiModel(view: PrologueFlowP0LearningView): P0Lea
     MANIFEST.scope.wordIds.every((wordId) => view.words.some((word) => word.wordId === wordId));
   return Object.freeze({ visible: view.mode === "settlement" && validWords, inRange: view.station.inRange,
     reachedWordCount: validWords ? view.reachedWordCount : 0, targetWordCount: 12,
-    externalAssetsBlocked: view.externalAssets.pronunciationAudio !== "approved" || view.externalAssets.approvedGlyphRelease !== "approved",
+    externalAssetsBlocked: view.externalAssets.approvedGlyphRelease !== "approved",
     words: validWords ? view.words : Object.freeze([]) });
 }
 

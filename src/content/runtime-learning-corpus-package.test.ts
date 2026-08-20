@@ -38,7 +38,6 @@ const ACTION_NAMESPACE = "csp1";
 const WORD_ID = "testword";
 const REVIEW_RECEIPTS = {
   semantic: "review.semantic.csp1.v1",
-  pronunciation: "review.pronunciation.csp1.v1",
   glyph: "review.glyph.csp1.v1",
 } as const;
 
@@ -69,7 +68,6 @@ function packageCandidate(glyphAssetId = "glyph.csp1.testword.v1"): any {
         semanticFacets: ["test-semantic-facet"], worldAuthority: extensionLearningAuthority("repair") },
     ],
     assetBindings: {
-      pronunciationAssetId: "audio.pronunciation.testword.v1",
       glyphAssetId,
     },
   };
@@ -155,6 +153,20 @@ describe("versioned extension learning corpus packages", () => {
     wrongPhase.phaseId = "invented-phase";
     resignPackage(wrongPhase);
     expect(() => readRuntimeLearningCorpusPackageCandidate(wrongPhase)).toThrow(/phaseId/);
+
+    const legacyAsset = structuredClone(candidate);
+    legacyAsset.words[WORD_ID].assetBindings.pronunciationAssetId =
+      "audio.pronunciation.testword.v1";
+    const legacyAssetSemantic = Object.fromEntries(Object.entries(legacyAsset).filter(([key]) =>
+      key !== "semanticDigest" && key !== "reviewReceiptIds" && key !== "sourceDigest"));
+    legacyAsset.semanticDigest = computeRuntimeLearningCorpusSemanticDigest(legacyAssetSemantic as any);
+    resignPackage(legacyAsset);
+    expect(() => readRuntimeLearningCorpusPackageCandidate(legacyAsset)).toThrow(/unknown or missing/);
+
+    const legacyReceipt = structuredClone(candidate);
+    legacyReceipt.reviewReceiptIds.pronunciation = "review.pronunciation.csp1.v1";
+    resignPackage(legacyReceipt);
+    expect(() => readRuntimeLearningCorpusPackageCandidate(legacyReceipt)).toThrow(/unknown or missing/);
   });
 
   it("keeps current pending phases unloadable", () => {

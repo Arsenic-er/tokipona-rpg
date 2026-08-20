@@ -6,9 +6,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { stringify } from "yaml";
 import {
   auditAssetRelease,
-  CORE120_PRONUNCIATION_WORD_IDS,
   exportApprovedAssetRelease,
-  PUBLIC_PRONUNCIATION_ROOT,
   PUBLIC_RUNTIME_ROOT,
   serializePublicAudit,
 } from "./release-gate";
@@ -26,7 +24,6 @@ interface FixtureOptions {
   readonly declaredLicenseHash?: string;
   readonly destinationRoot?: string;
   readonly destination?: string;
-  readonly pronunciationWordIds?: readonly string[];
 }
 
 const temporaryRoots: string[] = [];
@@ -124,83 +121,18 @@ describe("asset release gate", () => {
     ]);
   });
 
-  it("atomically exports approved pronunciation audio only to the flat pronunciation root", () => {
-    const fixture = createFixture({
-      source: "runtime/pronunciation/telo.ogg",
-      target: "telo.ogg",
-      role: "pronunciation_audio",
-      destinationRoot: "pronunciation",
-      destination: ".",
-      pronunciationWordIds: CORE120_PRONUNCIATION_WORD_IDS,
-    });
-    const dryRun = exportApprovedAssetRelease({ ...fixture.options, dryRun: true });
-
-    expect(dryRun.audit.decision).toBe("allow");
-    expect(dryRun.publicDestination).toBe(PUBLIC_PRONUNCIATION_ROOT);
-    expect(readPublicFilesAt(fixture.publicRoot, PUBLIC_PRONUNCIATION_ROOT)).toEqual([]);
-
-    const result = exportApprovedAssetRelease(fixture.options);
-    expect(result.audit.decision).toBe("allow");
-    expect(result.exported).toBe(true);
-    expect(
-      readFileSync(join(fixture.publicRoot, PUBLIC_PRONUNCIATION_ROOT, "telo.ogg"), "utf8"),
-    ).toBe("pronunciation-telo");
-    const publicFiles = readPublicFilesAt(fixture.publicRoot, PUBLIC_PRONUNCIATION_ROOT);
-    expect(publicFiles).toHaveLength(120);
-    expect(publicFiles).toContain(
-      `${PUBLIC_PRONUNCIATION_ROOT}/telo.ogg`,
-    );
-  });
-
-  it("rejects role/root confusion, non-OGG audio, nested audio targets and unknown roots", () => {
-    const audioInGlyphRoot = createFixture({
+  it("rejects the retired pronunciation root and audio role", () => {
+    const retiredRole = createFixture({
       source: "runtime/telo.ogg",
       target: "telo.ogg",
       role: "pronunciation_audio",
     });
-    const glyphInAudioRoot = createFixture({
-      destinationRoot: "pronunciation",
-      destination: ".",
-    });
-    const wavAudio = createFixture({
-      source: "runtime/telo.wav",
-      target: "telo.wav",
-      role: "pronunciation_audio",
-      destinationRoot: "pronunciation",
-      destination: ".",
-    });
-    const nestedAudio = createFixture({
-      source: "runtime/telo.ogg",
-      target: "nested/telo.ogg",
-      role: "pronunciation_audio",
-      destinationRoot: "pronunciation",
-      destination: ".",
-    });
+    const retiredRoot = createFixture({ destinationRoot: "pronunciation", destination: "." });
     const unknownRoot = createFixture({ destinationRoot: "arbitrary_public_path" });
 
-    expect(reasonCodes(audit(audioInGlyphRoot))).toContain("runtime_role_root_mismatch");
-    expect(reasonCodes(audit(glyphInAudioRoot))).toContain("runtime_role_root_mismatch");
-    expect(reasonCodes(audit(wavAudio))).toContain("runtime_extension_forbidden");
-    expect(reasonCodes(audit(nestedAudio))).toContain("pronunciation_target_invalid");
+    expect(reasonCodes(audit(retiredRole))).toContain("runtime_file_entry_invalid");
+    expect(reasonCodes(audit(retiredRoot))).toContain("destination_root_invalid");
     expect(reasonCodes(audit(unknownRoot))).toContain("destination_root_invalid");
-  });
-
-  it("rejects incomplete and substituted core-120 pronunciation packages before export", () => {
-    const incomplete = createFixture({
-      destinationRoot: "pronunciation",
-      destination: ".",
-      pronunciationWordIds: CORE120_PRONUNCIATION_WORD_IDS.slice(1),
-    });
-    const substituted = createFixture({
-      destinationRoot: "pronunciation",
-      destination: ".",
-      pronunciationWordIds: [...CORE120_PRONUNCIATION_WORD_IDS.slice(1), "notaword"],
-    });
-
-    expect(reasonCodes(audit(incomplete))).toContain("pronunciation_file_set_invalid");
-    expect(reasonCodes(audit(substituted))).toContain("pronunciation_file_set_invalid");
-    expect(readPublicFilesAt(incomplete.publicRoot, PUBLIC_PRONUNCIATION_ROOT)).toEqual([]);
-    expect(readPublicFilesAt(substituted.publicRoot, PUBLIC_PRONUNCIATION_ROOT)).toEqual([]);
   });
 
   it("serializes a public audit without leaking repository or private file paths", () => {
@@ -225,21 +157,13 @@ function createFixture(options: FixtureOptions = {}) {
   mkdirSync(publicRoot, { recursive: true });
 
   const source = options.source ?? "runtime/atlas.png";
-  const releaseFiles = options.pronunciationWordIds === undefined
-    ? [{
-        source,
-        target: options.target ?? "atlas.png",
-        role: options.role ?? "runtime_atlas",
-        sha256: options.declaredHash ?? sha256("runtime-atlas"),
-        content: "runtime-atlas",
-      }]
-    : options.pronunciationWordIds.map((wordId) => ({
-        source: `runtime/pronunciation/${wordId}.ogg`,
-        target: `${wordId}.ogg`,
-        role: "pronunciation_audio",
-        sha256: sha256(`pronunciation-${wordId}`),
-        content: `pronunciation-${wordId}`,
-      }));
+  const releaseFiles = [{
+    source,
+    target: options.target ?? "atlas.png",
+    role: options.role ?? "runtime_atlas",
+    sha256: options.declaredHash ?? sha256("runtime-atlas"),
+    content: "runtime-atlas",
+  }];
   for (const file of releaseFiles) {
     if (file.source.includes("..")) continue;
     const absoluteSource = join(assetRoot, ...file.source.split("/"));

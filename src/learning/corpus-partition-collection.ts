@@ -260,7 +260,6 @@ function exactRuntimePackages(
         pkg.sourceDigest !== contract.packageDigest || pkg.semanticDigest !== contract.semanticDigest ||
         !same(pkg.wordIds, contract.wordIds) ||
         pkg.reviewReceiptIds.semantic !== contract.reviewReceiptIds.semantic ||
-        pkg.reviewReceiptIds.pronunciation !== contract.reviewReceiptIds.pronunciation ||
         pkg.reviewReceiptIds.glyph !== contract.reviewReceiptIds.glyph) {
       throw new Error(`learning corpus package ${pkg.corpusId} does not match the active registry`);
     }

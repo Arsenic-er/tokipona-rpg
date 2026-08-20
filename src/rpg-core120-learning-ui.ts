@@ -43,7 +43,7 @@ export const CORE120_LEARNING_UI_TEMPLATE = `
     </div>
     <p class="core120-learning-copy">在公共档案台逐步完成发现、调谐、双情境与误解修复。界面只提交机器 action ID。</p>
     <p class="core120-learning-prerequisite" data-core120-prerequisite role="status"></p>
-    <p class="core120-learning-assets" data-core120-assets role="status">发音与正式字形素材尚未通过私有资产审批；当前只开放可验证语义进度。</p>
+    <p class="core120-learning-assets" data-core120-assets role="status">正式字形素材尚未通过私有资产审批；当前只开放可验证语义进度。</p>
     <label class="core120-learning-search">拉丁词检索
       <input type="search" data-core120-search autocomplete="off" autocapitalize="none" spellcheck="false"
         inputmode="search" maxlength="16" aria-controls="core120-learning-grid"
@@ -120,7 +120,6 @@ export function deriveCore120LearningUiModel(
     inRange: view.authorityInRange,
     p0PrerequisiteComplete: view.p0PrerequisiteComplete,
     externalAssetsBlocked: !view.externalAssets.fullAssetAcceptance ||
-      view.externalAssets.pronunciationAudio !== "approved" ||
       view.externalAssets.glyphVisuals !== "approved" ||
       view.externalAssets.glyphCatalog !== "approved",
     completedWordCount: countersValid ? derivedCompletedWordCount : 0,

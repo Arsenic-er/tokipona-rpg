@@ -8,7 +8,7 @@ try {
   process.stdout.write(`${JSON.stringify(report)}\n`);
 } catch (error) {
   process.stderr.write(`${JSON.stringify({
-    schemaVersion: "tokipona.public-asset-boundary-check.v0.2",
+    schemaVersion: "tokipona.public-asset-boundary-check.v0.3",
     status: "invalid",
     reasonCode: safeReason(error),
   })}\n`);

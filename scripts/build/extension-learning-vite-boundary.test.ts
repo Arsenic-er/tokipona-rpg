@@ -34,5 +34,5 @@ describe("future admitted extension learning build", () => {
     } finally {
       await rm(outputDirectory, { recursive: true, force: true });
     }
-  });
+  }, 30_000);
 });

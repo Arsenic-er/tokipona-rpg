@@ -1,4 +1,6 @@
 import { computeRuntimeManifestDigest } from "./runtime-manifest-digest.ts";
+import { readRuntimeSpeechlessAudioPolicy, type RuntimeSpeechlessAudioPolicy } from
+  "./runtime-speechless-audio-policy.ts";
 
 export const CORE120_BANDS = ["P0", "P1", "P2", "P3", "P4", "P5"] as const;
 export const CORE120_ACTION_KINDS = ["discover", "attune", "context_0", "context_1", "repair"] as const;
@@ -56,7 +58,6 @@ export interface RuntimeCore120WordManifest {
     readonly cueVariants: readonly [string, string];
   }>;
   readonly assetBindings: Readonly<{
-    readonly pronunciationAssetId: string;
     readonly glyphAssetId: string;
   }>;
 }
@@ -105,7 +106,7 @@ export interface RuntimeCore120CurriculumManifest {
     readonly contextsPerWord: 2;
     readonly misconceptionRepairsPerWord: 1;
     readonly distinctTaskFamilyPerContext: true;
-    readonly pronunciationAudioRequired: true;
+    readonly audioPolicy: RuntimeSpeechlessAudioPolicy;
     readonly communitySemanticReviewRequired: true;
     readonly rawStringEqualityAsSuccessForbidden: true;
     readonly colorOnlyIdentificationForbidden: true;
@@ -153,6 +154,7 @@ export function computeRuntimeCore120LearningSemanticDigest(
       misconceptionRepair: word.misconceptionRepair,
     }];
   }));
+  const { audioPolicy: _audioPolicy, ...semanticAcceptance } = source.acceptance;
   return computeRuntimeManifestDigest({
     evidenceIdentityVersion: "core120-learning-evidence.v0.2",
     sourcePath: source.sourcePath,
@@ -163,7 +165,9 @@ export function computeRuntimeCore120LearningSemanticDigest(
     worldContextAuthority: source.worldContextAuthority,
     domainRoutes: source.domainRoutes,
     words,
-    acceptance: source.acceptance,
+    // Preserve the v0.2 evidence identity: launch audio policy never affected
+    // semantic evidence, so the removed legacy marker remains digest-only.
+    acceptance: { ...semanticAcceptance, pronunciationAudioRequired: true },
   });
 }
 
@@ -272,14 +276,15 @@ export function readRuntimeCore120CurriculumManifest(candidate: unknown): Runtim
     exactKeys(repair, ["repairId", "kind", "cueVariants"], `${wordId}.misconceptionRepair`);
     if (repair.repairId !== `core120.${wordId}.single_cue_overreach` || repair.kind !== "single_cue_overreach" || !same(repair.cueVariants, contexts.map((context) => context.cueId))) throw new Error(`${wordId} misconception repair is invalid`);
     const assets = record(word.assetBindings, `${wordId}.assetBindings`);
-    exactKeys(assets, ["pronunciationAssetId", "glyphAssetId"], `${wordId}.assetBindings`);
-    if (assets.pronunciationAssetId !== `audio.pronunciation.${wordId}.v1` || assets.glyphAssetId !== `glyph.pu120.${wordId}.v2`) throw new Error(`${wordId} asset bindings are invalid`);
+    exactKeys(assets, ["glyphAssetId"], `${wordId}.assetBindings`);
+    if (assets.glyphAssetId !== `glyph.pu120.${wordId}.v2`) throw new Error(`${wordId} asset bindings are invalid`);
   }
   for (const band of CORE120_BANDS) if (observedBands[band] !== EXPECTED_BAND_COUNTS[band]) throw new Error(`core120 projected ${band} count is invalid`);
 
   const acceptance = record(raw.acceptance, "core120 acceptance");
-  exactKeys(acceptance, ["allWordsRecoverable", "contextsPerWord", "misconceptionRepairsPerWord", "distinctTaskFamilyPerContext", "pronunciationAudioRequired", "communitySemanticReviewRequired", "rawStringEqualityAsSuccessForbidden", "colorOnlyIdentificationForbidden", "fixedSlotOnlyProductionForbidden"], "core120 acceptance");
-  if (acceptance.allWordsRecoverable !== true || acceptance.contextsPerWord !== 2 || acceptance.misconceptionRepairsPerWord !== 1 || acceptance.distinctTaskFamilyPerContext !== true || acceptance.pronunciationAudioRequired !== true || acceptance.communitySemanticReviewRequired !== true || acceptance.rawStringEqualityAsSuccessForbidden !== true || acceptance.colorOnlyIdentificationForbidden !== true || acceptance.fixedSlotOnlyProductionForbidden !== true) throw new Error("core120 acceptance contract is invalid");
+  exactKeys(acceptance, ["allWordsRecoverable", "contextsPerWord", "misconceptionRepairsPerWord", "distinctTaskFamilyPerContext", "audioPolicy", "communitySemanticReviewRequired", "rawStringEqualityAsSuccessForbidden", "colorOnlyIdentificationForbidden", "fixedSlotOnlyProductionForbidden"], "core120 acceptance");
+  readRuntimeSpeechlessAudioPolicy(acceptance.audioPolicy, "core120 acceptance audio policy");
+  if (acceptance.allWordsRecoverable !== true || acceptance.contextsPerWord !== 2 || acceptance.misconceptionRepairsPerWord !== 1 || acceptance.distinctTaskFamilyPerContext !== true || acceptance.communitySemanticReviewRequired !== true || acceptance.rawStringEqualityAsSuccessForbidden !== true || acceptance.colorOnlyIdentificationForbidden !== true || acceptance.fixedSlotOnlyProductionForbidden !== true) throw new Error("core120 acceptance contract is invalid");
 
   if (computeRuntimeCore120LearningSemanticDigest(raw as unknown as RuntimeCore120SemanticSource) !==
       semanticDigest) throw new Error("core120 learning semantic digest mismatch");

@@ -17,8 +17,8 @@ const view = (overrides: Partial<PrologueFlowCore120LearningView> = {}): Prologu
   authorityInRange: true,
   station: { sceneId: manifest.recoveryStation.sceneId, targetId: manifest.recoveryStation.targetId,
     interactionId: manifest.recoveryStation.interactionId, inRange: true },
-  externalAssets: { pronunciationAudio: "blocked_pending_private_assets",
-    glyphVisuals: "blocked_pending_private_approval", glyphCatalog: "draft", fullAssetAcceptance: false },
+  externalAssets: { glyphVisuals: "blocked_pending_private_approval",
+    glyphCatalog: "draft", fullAssetAcceptance: false },
   words: manifest.scope.wordIds.map((wordId) => ({
     wordId,
     band: manifest.words[wordId]!.curriculumBand,
@@ -27,7 +27,6 @@ const view = (overrides: Partial<PrologueFlowCore120LearningView> = {}): Prologu
     completedActionIds: [],
     nextActionId: `core120.${wordId}.discover`,
     availableActionId: `core120.${wordId}.discover`,
-    audioReady: false,
     glyphReady: false,
   })),
   totalWordCount: 120,
@@ -50,6 +49,7 @@ describe("core-120 browser UI boundary", () => {
     expect(CORE120_LEARNING_UI_TEMPLATE).toContain('aria-controls="core120-learning-grid"');
     expect(CORE120_LEARNING_UI_TEMPLATE).toContain('aria-describedby="core120-search-status"');
     expect(CORE120_LEARNING_UI_TEMPLATE).not.toMatch(/private[/\\]|assetPath|semanticFacets/);
+    expect(CORE120_LEARNING_UI_TEMPLATE).not.toMatch(/发音|pronunciation/i);
   });
 
   it("emits only the canonical next action after P0 and proximity gates", () => {

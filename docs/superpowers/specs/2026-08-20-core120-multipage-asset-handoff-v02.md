@@ -1,5 +1,9 @@
 # Core-120 Multi-page Asset Handoff v0.2
 
+> Historical design only. The pronunciation-bearing v0.2 handoff was superseded on 2026-08-20 by
+> `2026-08-20-procedural-dialogue-audio-design.md`. The active v0.3 handoff is glyph-only; this file
+> remains solely as an implementation-history record and is not a release requirement.
+
 **Status:** Approved on 2026-08-20
 
 ## Goal

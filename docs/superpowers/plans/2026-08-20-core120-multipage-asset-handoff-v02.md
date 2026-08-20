@@ -1,5 +1,9 @@
 # Core-120 Multi-page Asset Handoff v0.2 Implementation Plan
 
+> Historical completed plan. Its pronunciation requirements are superseded by
+> `2026-08-20-speechless-curriculum-dialogue-audio.md`; current release policy uses the glyph-only
+> v0.3 handoff and optional procedural dialogue blips.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Align the public Core-120 asset reader and boundary with the private repository's real multi-page glyph bundle while preserving fail-closed approval and pronunciation gates.

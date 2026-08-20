@@ -34,7 +34,17 @@ describe("P0 curriculum runtime contract", () => {
     expect(Object.values(value.words)).toHaveLength(12);
     expect(value.words.telo).toMatchObject({ targetState: "produced", productionTaskFamilies: ["channel_routing", "washing_or_filling"], semanticFacets: ["water_or_liquid", "drinking_washing_or_containment"] });
     expect(value.words.soweli).toMatchObject({ targetState: "attuned", productionTaskFamilies: [], meditation: { contextContrast: ["animal_tracks", "peaceful_land_animal"] } });
-    expect(value.acceptance).toMatchObject({ allWordsRecoverable: true, pronunciationAudio: "required", contextsPerWordMinimum: 2, communitySemanticReviewRequired: true });
+    expect(value.acceptance).toMatchObject({
+      allWordsRecoverable: true,
+      audioPolicy: {
+        spokenPronunciationRequired: false,
+        dialogueFeedback: "procedural_nonsemantic",
+        progressMayDependOnAudio: false,
+        captionsRequired: true,
+      },
+      contextsPerWordMinimum: 2,
+      communitySemanticReviewRequired: true,
+    });
     expect(value.recoveryStation).toEqual({ sceneId: "scene.valley.settlement", targetId: "settlement.p0_inscription_archive", interactionId: "settlement.open_p0_inscription_archive", interactionPointTiles: [38, 28], maximumDistancePx: 16, recoveryRouteOnlyWhenBelowTarget: true });
   });
 
@@ -51,6 +61,16 @@ describe("P0 curriculum runtime contract", () => {
     const unknown = structuredClone(generated) as any;
     unknown.p0Curriculum.words.seli.runtimeOverride = true;
     expect(() => readRuntimeP0CurriculumManifest(resign(unknown))).toThrow(/unknown or missing/);
+
+    const legacyAudio = structuredClone(generated) as any;
+    legacyAudio.p0Curriculum.acceptance.audioPolicy = {
+      spokenPronunciationRequired: false,
+      dialogueFeedback: "procedural_nonsemantic",
+      progressMayDependOnAudio: false,
+      captionsRequired: true,
+      pronunciationAssetId: "audio.pronunciation.telo.v1",
+    };
+    expect(() => readRuntimeP0CurriculumManifest(resign(legacyAudio))).toThrow(/unknown or missing/);
   });
 
   it("fails content compilation when targets, contexts, recovery, or production families drift", () => {
@@ -65,6 +85,15 @@ describe("P0 curriculum runtime contract", () => {
     const noRecovery = sources(), acceptance = p0(noRecovery).content_acceptance as Record<string, unknown>;
     acceptance.all_words_recoverable = false;
     expectCompilerIssue(noRecovery, "contract.p0_acceptance");
+
+    const spokenRequired = sources();
+    (p0(spokenRequired).content_acceptance as Record<string, unknown>).audio_policy = {
+      spoken_pronunciation_required: true,
+      dialogue_feedback: "procedural_nonsemantic",
+      progress_may_depend_on_audio: false,
+      captions_required: true,
+    };
+    expectCompilerIssue(spokenRequired, "contract.speechless_audio_policy");
 
     const invalidFamily = sources(), familyWords = p0(invalidFamily).words as Record<string, unknown>[];
     familyWords.find((word) => word.word_id === "kiwen")!.production_task_families = ["invented"];

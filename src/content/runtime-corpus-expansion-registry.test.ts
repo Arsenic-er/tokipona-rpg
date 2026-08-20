@@ -38,6 +38,10 @@ describe("post-pu120 corpus expansion registry", () => {
   it("admits only the immutable pu-120 partition while future phases remain blocked", () => {
     const registry = readRuntimeCorpusExpansionRegistry(generated);
     expect(isVerifiedRuntimeCorpusExpansionRegistry(registry)).toBe(true);
+    expect(CORPUS_EXPANSION_ADMISSION_REQUIREMENTS).toEqual([
+      "corpus_id", "content_version", "action_namespace", "save_partition",
+      "reviewed_word_manifest", "semantic_review", "glyph_assets",
+    ]);
     expect(registry.policies.extensionOrder).toEqual(CORPUS_EXPANSION_PHASE_IDS);
     expect(registry.admittedCorpusIds).toEqual([]);
     expect(registry.phases.map((phase) => phase.status)).toEqual([

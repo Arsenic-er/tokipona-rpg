@@ -32,6 +32,7 @@ const REQUIRED_KINDS: readonly ContentKind[] = [
 const ALL_KINDS: readonly ContentKind[] = [
   "attack_signatures",
   "chapter",
+  "dialogue_audio",
   "ecology",
   "glyph_catalog",
   "glyph_progression",
@@ -214,6 +215,9 @@ function validateSource(
       validateArrayIds(source, "segments", "segment_id", issues);
       validatePrologueAcceptanceSource(source, issues);
       break;
+    case "dialogue_audio":
+      validateProceduralDialogueAudioSource(source, issues);
+      break;
     case "scene":
       validateSceneSource(source, issues);
       break;
@@ -291,6 +295,49 @@ function validateSource(
     case "learning_corpus":
       validateLearningCorpusPackageSource(source, issues);
       break;
+  }
+}
+
+function validateProceduralDialogueAudioSource(
+  source: CompiledSource,
+  issues: ContentIssue[],
+): void {
+  const root = source.content;
+  const cadence = isContentObject(root.cadence) ? root.cadence : null;
+  const synthesis = isContentObject(root.synthesis) ? root.synthesis : null;
+  const exactKeys = (value: ContentObject, expected: readonly string[]): boolean => {
+    const keys = Object.keys(value);
+    return keys.length === expected.length && expected.every((key) => key in value);
+  };
+  const pair = (value: ContentValue | undefined, expected: readonly number[]): boolean =>
+    Array.isArray(value) && value.length === expected.length &&
+    value.every((entry, index) => entry === expected[index]);
+  const numberAt = (value: ContentValue | undefined, index: number): number =>
+    Array.isArray(value) && typeof value[index] === "number" ? value[index] : Number.NaN;
+  const waveforms = synthesis?.waveforms;
+  const maximumLongDuration = cadence === null ? Number.POSITIVE_INFINITY :
+    numberAt(cadence.long_note_count, 1) * Number(cadence.note_duration_ms) +
+    (numberAt(cadence.long_note_count, 1) - 1) * Number(cadence.gap_ms);
+  const valid = exactKeys(root, [
+    "schema_version", "content_version", "semantic_content", "external_asset_required",
+    "progress_may_depend_on_audio", "captions_required", "explicit_interaction_only",
+    "cadence", "synthesis",
+  ]) && root.semantic_content === "none" && root.external_asset_required === false &&
+    root.progress_may_depend_on_audio === false && root.captions_required === true &&
+    root.explicit_interaction_only === true && cadence !== null && synthesis !== null &&
+    exactKeys(cadence, ["short_note_count", "long_note_count", "note_duration_ms", "gap_ms",
+      "maximum_sequence_ms"]) &&
+    pair(cadence.short_note_count, [2, 3]) && pair(cadence.long_note_count, [4, 6]) &&
+    cadence.note_duration_ms === 32 && cadence.gap_ms === 46 &&
+    cadence.maximum_sequence_ms === 600 && maximumLongDuration <= 600 &&
+    exactKeys(synthesis, ["frequency_range_hz", "maximum_gain", "waveforms", "attack_ms",
+      "release_ms"]) && pair(synthesis.frequency_range_hz, [180, 520]) &&
+    synthesis.maximum_gain === 0.03 && Array.isArray(waveforms) && waveforms.length === 2 &&
+    waveforms[0] === "square" && waveforms[1] === "triangle" &&
+    synthesis.attack_ms === 4 && synthesis.release_ms === 8;
+  if (!valid) {
+    addIssue(issues, "contract.procedural_dialogue_audio", source.path, "",
+      "procedural dialogue audio must remain bounded, nonsemantic, captioned, and asset-free");
   }
 }
 
@@ -438,7 +485,8 @@ function validateP0CurriculumSource(source: CompiledSource, issues: ContentIssue
   const stationPoint = station.interaction_point_tiles;
   if (readString(station, "scene_ref") !== "../scenes/valley-settlement.v0.1.yaml" || readString(station, "scene_id") !== "scene.valley.settlement" || readString(station, "target_id") !== "settlement.p0_inscription_archive" || readString(station, "interaction_id") !== "settlement.open_p0_inscription_archive" || !Array.isArray(stationPoint) || stationPoint.length !== 2 || stationPoint[0] !== 38 || stationPoint[1] !== 28 || readNumber(station, "maximum_distance_px") !== 16 || station.recovery_route_only_when_below_target !== true) addIssue(issues, "contract.p0_recovery_station", source.path, "runtime_recovery_station", "P0 recovery station binding is noncanonical");
   const acceptance = readObject(source.content, "content_acceptance");
-  if (acceptance.all_words_recoverable !== true || acceptance.all_words_have_pronunciation_audio !== "required" || acceptance.contexts_per_word_minimum !== 2 || acceptance.misconception_counterexample_per_word_minimum !== 1 || acceptance.color_only_identification_forbidden !== true || acceptance.fixed_slot_only_production_forbidden !== true || acceptance.raw_string_equality_as_success_forbidden !== true || acceptance.community_semantic_review_required !== true) addIssue(issues, "contract.p0_acceptance", source.path, "content_acceptance", "P0 recovery, audio, context, misconception, cue, and community-review requirements are noncanonical");
+  if (acceptance.all_words_recoverable !== true || acceptance.contexts_per_word_minimum !== 2 || acceptance.misconception_counterexample_per_word_minimum !== 1 || acceptance.color_only_identification_forbidden !== true || acceptance.fixed_slot_only_production_forbidden !== true || acceptance.raw_string_equality_as_success_forbidden !== true || acceptance.community_semantic_review_required !== true) addIssue(issues, "contract.p0_acceptance", source.path, "content_acceptance", "P0 recovery, context, misconception, cue, and community-review requirements are noncanonical");
+  if (!speechlessAudioPolicy(readObject(acceptance, "audio_policy"))) addIssue(issues, "contract.speechless_audio_policy", source.path, "content_acceptance.audio_policy", "P0 audio must be optional, non-semantic, and caption-authoritative");
 }
 
 function validateCore120RuntimeCurriculumSource(source: CompiledSource, issues: ContentIssue[]): void {
@@ -459,9 +507,12 @@ function validateCore120RuntimeCurriculumSource(source: CompiledSource, issues: 
     legacyContracts.every((contract, index) => Object.keys(contract).length === 2 &&
       readString(contract, "source_digest") === compatibleLegacyLearningContracts[index]!.sourceDigest &&
       readString(contract, "semantic_digest") === compatibleLegacyLearningContracts[index]!.semanticDigest);
-  if (readString(runtime, "catalog_ref") !== "./pu-120-glyph-catalog.v0.2.json" || readString(runtime, "target_state") !== "produced" || !same(readStringArray(runtime, "action_kinds"), actionKinds) || !legacyContractsValid || readNumber(runtime, "contexts_per_word") !== 2 || readNumber(runtime, "misconception_repairs_per_word") !== 1 || runtime.all_words_recoverable !== true || runtime.distinct_task_family_per_context !== true || runtime.raw_string_equality_as_success_forbidden !== true || runtime.color_only_identification_forbidden !== true || runtime.fixed_slot_only_production_forbidden !== true || runtime.pronunciation_audio_required !== true || runtime.community_semantic_review_required !== true) {
+  if (readString(runtime, "catalog_ref") !== "./pu-120-glyph-catalog.v0.2.json" || readString(runtime, "target_state") !== "produced" || !same(readStringArray(runtime, "action_kinds"), actionKinds) || !legacyContractsValid || readNumber(runtime, "contexts_per_word") !== 2 || readNumber(runtime, "misconception_repairs_per_word") !== 1 || runtime.all_words_recoverable !== true || runtime.distinct_task_family_per_context !== true || runtime.raw_string_equality_as_success_forbidden !== true || runtime.color_only_identification_forbidden !== true || runtime.fixed_slot_only_production_forbidden !== true || runtime.community_semantic_review_required !== true) {
     addIssue(issues, "contract.core120_policy", source.path, "runtime_curriculum", "core120 production, recovery, context, misconception, accessibility, and review policy is noncanonical");
   }
+  if (!speechlessAudioPolicy(readObject(runtime, "audio_policy"))) addIssue(issues, "contract.speechless_audio_policy", source.path, "runtime_curriculum.audio_policy", "Core-120 audio must be optional, non-semantic, and caption-authoritative");
+  const accessibility = readObject(source.content, "accessibility");
+  if (accessibility.dialogue_audio_optional !== true || accessibility.captions_required !== true || "pronunciation_audio" in accessibility) addIssue(issues, "contract.speechless_audio_policy", source.path, "accessibility", "Core-120 accessibility must keep captions authoritative and dialogue audio optional");
   const recovery = readObject(runtime, "recovery_station");
   const recoveryPoint = recovery.interaction_point_tiles;
   if (readString(recovery, "scene_ref") !== "../scenes/valley-settlement.v0.1.yaml" || readString(recovery, "scene_id") !== "scene.valley.settlement" || readString(recovery, "target_id") !== "settlement.p0_inscription_archive" || readString(recovery, "interaction_id") !== "settlement.open_p0_inscription_archive" || readNumber(recovery, "maximum_distance_px") !== 16 || !Array.isArray(recoveryPoint) || recoveryPoint.length !== 2 || recoveryPoint[0] !== 38 || recoveryPoint[1] !== 28) {
@@ -516,7 +567,7 @@ function validateCorpusExpansionRegistrySource(
   const phaseIds = ["csp-tier1-remainder", "csp-tier2", "csp-tier3"];
   const predecessors = ["pu-120", "csp-tier1-remainder", "csp-tier2"];
   const requirements = ["corpus_id", "content_version", "action_namespace", "save_partition",
-    "reviewed_word_manifest", "semantic_review", "pronunciation_assets", "glyph_assets"];
+    "reviewed_word_manifest", "semantic_review", "glyph_assets"];
   const same = (actual: readonly string[], expected: readonly string[]): boolean =>
     actual.length === expected.length && actual.every((entry, index) => entry === expected[index]);
   const baseValid = readString(registry, "registry_id") === "post-pu120.csp-expansion" &&
@@ -563,9 +614,9 @@ function validateCorpusExpansionRegistrySource(
       /^sha256:[0-9a-f]{64}$/.test(readString(contract, "package_digest")) &&
       /^sha256:[0-9a-f]{64}$/.test(readString(contract, "semantic_digest")) &&
       wordIds.length > 0 && wordIds.every((wordId) => /^[a-z]+$/.test(wordId)) &&
-      new Set(wordIds).size === wordIds.length && Object.keys(receipts).length === 3 &&
-      ["semantic", "pronunciation", "glyph"].every((key) => readString(receipts, key).length > 0) &&
-      new Set(["semantic", "pronunciation", "glyph"].map((key) => readString(receipts, key))).size === 3;
+      new Set(wordIds).size === wordIds.length && Object.keys(receipts).length === 2 &&
+      ["semantic", "glyph"].every((key) => readString(receipts, key).length > 0) &&
+      new Set(["semantic", "glyph"].map((key) => readString(receipts, key))).size === 2;
     if (contractValid) admittedCorpusIds.push(corpusId);
     return contractValid;
   });
@@ -576,6 +627,20 @@ function validateCorpusExpansionRegistrySource(
       "runtime_curriculum.corpus_expansion_registry",
       "post-pu120 corpora require distinct reviewed identities and must remain blocked until admitted");
   }
+}
+
+function speechlessAudioPolicy(policy: ContentObject): boolean {
+  const keys = [
+    "spoken_pronunciation_required",
+    "dialogue_feedback",
+    "progress_may_depend_on_audio",
+    "captions_required",
+  ];
+  return Object.keys(policy).length === keys.length && keys.every((key) => key in policy) &&
+    policy.spoken_pronunciation_required === false &&
+    policy.dialogue_feedback === "procedural_nonsemantic" &&
+    policy.progress_may_depend_on_audio === false &&
+    policy.captions_required === true;
 }
 
 function validateRequiredKinds(sources: readonly CompiledSource[], issues: ContentIssue[]): void {
@@ -591,6 +656,7 @@ function validateRequiredKinds(sources: readonly CompiledSource[], issues: Conte
     "length_profiles",
     "attack_signatures",
     "chapter",
+    "dialogue_audio",
     "region",
     "ecology",
     "wildlife_economy",
@@ -2089,6 +2155,7 @@ function classifySchema(schema: string): ContentKind | null {
   if (schema.startsWith("g02.length-profiles.")) return "length_profiles";
   if (schema.startsWith("g02.attack-signatures.")) return "attack_signatures";
   if (schema.startsWith("g01.chapter-flow.")) return "chapter";
+  if (schema.startsWith("audio.procedural-dialogue.")) return "dialogue_audio";
   if (schema.startsWith("g01.region.")) return "region";
   if (schema.startsWith("g01.scene.")) return "scene";
   if (schema.startsWith("w03.ecology.")) return "ecology";

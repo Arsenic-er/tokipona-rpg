@@ -1,5 +1,7 @@
 import { P0_WORD_IDS, type P0WordId } from "../learning/progression";
 import { sha256Canonical, type JsonValue } from "../persistence/cross-save-wal";
+import { readRuntimeSpeechlessAudioPolicy, type RuntimeSpeechlessAudioPolicy } from
+  "./runtime-speechless-audio-policy";
 
 export type RuntimeP0TargetState = "attuned" | "grounded" | "produced";
 
@@ -53,7 +55,7 @@ export interface RuntimeP0CurriculumManifest {
   readonly words: Readonly<Record<P0WordId, RuntimeP0WordManifest>>;
   readonly acceptance: Readonly<{
     allWordsRecoverable: true;
-    pronunciationAudio: "required";
+    audioPolicy: RuntimeSpeechlessAudioPolicy;
     contextsPerWordMinimum: 2;
     misconceptionCounterexamplePerWordMinimum: 1;
     colorOnlyIdentificationForbidden: true;
@@ -121,8 +123,9 @@ export function readRuntimeP0CurriculumManifest(candidate: unknown): RuntimeP0Cu
   }
 
   const acceptance = record(raw.acceptance, "P0 acceptance");
-  exactKeys(acceptance, ["allWordsRecoverable", "pronunciationAudio", "contextsPerWordMinimum", "misconceptionCounterexamplePerWordMinimum", "colorOnlyIdentificationForbidden", "fixedSlotOnlyProductionForbidden", "rawStringEqualityAsSuccessForbidden", "communitySemanticReviewRequired"], "P0 acceptance");
-  if (acceptance.allWordsRecoverable !== true || acceptance.pronunciationAudio !== "required" || acceptance.contextsPerWordMinimum !== 2 || acceptance.misconceptionCounterexamplePerWordMinimum !== 1 || acceptance.colorOnlyIdentificationForbidden !== true || acceptance.fixedSlotOnlyProductionForbidden !== true || acceptance.rawStringEqualityAsSuccessForbidden !== true || acceptance.communitySemanticReviewRequired !== true) throw new Error("P0 acceptance contract is invalid");
+  exactKeys(acceptance, ["allWordsRecoverable", "audioPolicy", "contextsPerWordMinimum", "misconceptionCounterexamplePerWordMinimum", "colorOnlyIdentificationForbidden", "fixedSlotOnlyProductionForbidden", "rawStringEqualityAsSuccessForbidden", "communitySemanticReviewRequired"], "P0 acceptance");
+  readRuntimeSpeechlessAudioPolicy(acceptance.audioPolicy, "P0 acceptance audio policy");
+  if (acceptance.allWordsRecoverable !== true || acceptance.contextsPerWordMinimum !== 2 || acceptance.misconceptionCounterexamplePerWordMinimum !== 1 || acceptance.colorOnlyIdentificationForbidden !== true || acceptance.fixedSlotOnlyProductionForbidden !== true || acceptance.rawStringEqualityAsSuccessForbidden !== true || acceptance.communitySemanticReviewRequired !== true) throw new Error("P0 acceptance contract is invalid");
   const result = deepFreeze(structuredClone(raw)) as unknown as RuntimeP0CurriculumManifest;
   verified.add(result);
   return result;

@@ -82,14 +82,34 @@ async function activateWhileMovingRightUntilDisabled(page: Page, selector: strin
 async function compileWhileScanningForTarget(page: Page): Promise<void> {
   const compile = page.locator('[data-safe-range-intent="compile"]');
   const execute = page.locator('[data-safe-range-intent="execute"]');
-  const deadline = Date.now() + 24_000;
+  // The safe range is 24 tiles wide and the real keyboard runner advances at
+  // roughly 20 px/s. Keep enough time for a complete continuous sweep instead
+  // of relying on many short key taps whose browser overhead dominates motion.
+  const deadline = Date.now() + 120_000;
   for (const direction of ["d", "a", "d"] as const) {
-    const sweepDeadline = Math.min(deadline, Date.now() + 8_000);
-    while (Date.now() < sweepDeadline && await execute.isDisabled()) {
-      await stepHorizontal(page, direction);
-      if (await compile.isDisabled()) continue;
-      await compile.click();
-      if (await execute.isEnabled()) return;
+    const sweepDeadline = Math.min(deadline, Date.now() + 40_000);
+    await page.locator("#rpg-canvas").focus();
+    await page.keyboard.down(direction);
+    let enteredRange = false;
+    try {
+      enteredRange = await page.waitForFunction(() => {
+        const candidate = document.querySelector('[data-safe-range-intent="compile"]');
+        return candidate instanceof HTMLButtonElement && !candidate.disabled;
+      }, undefined, { polling: "raf", timeout: Math.max(1, sweepDeadline - Date.now()) })
+        .then(() => true, (error: unknown) => {
+          if (error instanceof Error && error.name === "TimeoutError") return false;
+          throw error;
+        });
+    } finally {
+      await page.keyboard.up(direction);
+    }
+    if (enteredRange) {
+      // The RAF detector already proved near-target authority. Compile before
+      // residual velocity can carry the player through the one-tile radius.
+      if (await compile.isEnabled()) {
+        await compile.click();
+        if (await execute.isEnabled()) return;
+      }
     }
   }
   const status = await page.locator('[data-ui="status"]').textContent().catch(() => null);
@@ -140,29 +160,67 @@ async function settleAtSettlementControl(page: Page, selector: string): Promise<
   const control = page.locator(selector);
   await expect(control).toBeVisible();
   if (await control.isDisabled()) await page.waitForTimeout(1_000);
-  const deadline = Date.now() + 24_000;
+  // The return-channel entrance is at x=32 while the calibration/archive
+  // facilities are near the east edge. Settlement props on the ground are
+  // solid, so the real keyboard route must also hop while traversing them.
+  const deadline = Date.now() + 270_000;
   for (const direction of ["d", "a", "d"] as const) {
-    const sweepDeadline = Math.min(deadline, Date.now() + 8_000);
+    const sweepDeadline = Math.min(deadline, Date.now() + 90_000);
     const sceneId = await app(page).getAttribute("data-scene-id");
     expect(sceneId, `left settlement while approaching ${selector}`).toBe(SETTLEMENT);
     await page.locator("#rpg-canvas").focus();
-    await page.keyboard.down(direction);
+    let detectorFinished = false;
     let enteredRange = false;
+    const detector = page.waitForFunction((candidateSelector) => {
+      const candidate = document.querySelector(candidateSelector);
+      return candidate instanceof HTMLButtonElement && !candidate.disabled;
+    }, selector, { polling: "raf", timeout: Math.max(1, sweepDeadline - Date.now()) })
+      .then(() => { enteredRange = true; detectorFinished = true; }, (error: unknown) => {
+        detectorFinished = true;
+        if (!(error instanceof Error && error.name === "TimeoutError")) throw error;
+      });
+    await page.keyboard.down(direction);
     try {
-      enteredRange = await page.waitForFunction((candidateSelector) => {
-        const candidate = document.querySelector(candidateSelector);
-        return candidate instanceof HTMLButtonElement && !candidate.disabled;
-      }, selector, { polling: "raf", timeout: Math.max(1, sweepDeadline - Date.now()) })
-        .then(() => true, (error: unknown) => {
-          if (error instanceof Error && error.name === "TimeoutError") return false;
-          throw error;
-        });
+      while (!detectorFinished && Date.now() < sweepDeadline) {
+        // One jump clears a ground prop; the pause leaves a grounded interval
+        // before the next jump so the RAF detector can observe near-target
+        // authority instead of sampling only while airborne.
+        await page.keyboard.press("w");
+        await Promise.race([detector, page.waitForTimeout(1_800)]);
+      }
     } finally {
       await page.keyboard.up(direction);
     }
+    await detector;
+    if (!enteredRange) {
+      expect(await app(page).getAttribute("data-scene-id"),
+        `left settlement while approaching ${selector}`).toBe(SETTLEMENT);
+    }
     if (enteredRange) {
-      await page.waitForTimeout(120);
+      // Release immediately when the RAF detector observes authority; ground
+      // deceleration normally settles in range. Under a loaded browser the
+      // release can arrive a few frames late, so make bounded key-only
+      // corrections around the already-observed authority circle.
+      await page.waitForTimeout(80);
       if (await control.isEnabled()) return;
+      const opposite = direction === "d" ? "a" : "d";
+      for (const correction of [opposite, direction, opposite] as const) {
+        let corrected = false;
+        const correctionDetector = page.waitForFunction((candidateSelector) => {
+          const candidate = document.querySelector(candidateSelector);
+          return candidate instanceof HTMLButtonElement && !candidate.disabled;
+        }, selector, { polling: "raf", timeout: 2_500 })
+          .then(() => { corrected = true; }, (error: unknown) => {
+            if (!(error instanceof Error && error.name === "TimeoutError")) throw error;
+          });
+        await page.keyboard.down(correction);
+        try { await correctionDetector; }
+        finally { await page.keyboard.up(correction); }
+        if (corrected) {
+          await page.waitForTimeout(50);
+          if (await control.isEnabled()) return;
+        }
+      }
     }
   }
   const status = await page.locator('[data-ui="status"]').textContent().catch(() => null);
@@ -254,6 +312,39 @@ test("keeps corrupt startup data and offers an explicit recovery path", async ({
 
 test("runs the real keyboard/touch route and restores companion-first without manual save", async ({ page }) => {
   test.setTimeout(90_000);
+  await page.addInitScript(() => {
+    const browser = globalThis as typeof globalThis & { __dialogueStarts?: number;
+      AudioContext?: new () => unknown };
+    browser.__dialogueStarts = 0;
+    class FakeParam {
+      cancelScheduledValues(_time: number): void {}
+      setValueAtTime(_value: number, _time: number): void {}
+      linearRampToValueAtTime(_value: number, _time: number): void {}
+    }
+    class FakeOscillator {
+      type = "square";
+      readonly frequency = new FakeParam();
+      onended: (() => void) | null = null;
+      connect(_destination: unknown): void {}
+      disconnect(): void {}
+      start(_time: number): void { browser.__dialogueStarts = (browser.__dialogueStarts ?? 0) + 1; }
+      stop(_time: number): void { queueMicrotask(() => this.onended?.()); }
+    }
+    class FakeGain {
+      readonly gain = new FakeParam();
+      connect(_destination: unknown): void {}
+      disconnect(): void {}
+    }
+    browser.AudioContext = class {
+      readonly currentTime = 0;
+      readonly state = "running";
+      readonly destination = {};
+      createOscillator(): FakeOscillator { return new FakeOscillator(); }
+      createGain(): FakeGain { return new FakeGain(); }
+      resume(): Promise<void> { return Promise.resolve(); }
+      close(): Promise<void> { return Promise.resolve(); }
+    };
+  });
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await clearAndOpen(page);
@@ -275,9 +366,34 @@ test("runs the real keyboard/touch route and restores companion-first without ma
   await page.reload();
   await expect(app(page)).toHaveAttribute("data-scene-id", STREAM);
   await holdTouchRightUntil(page, SETTLEMENT);
+  const topic = page.locator("button[data-npc][data-topic]").first();
+  await expect(page.locator('[data-ui="dialogue-audio-toggle"]')).toHaveAttribute("aria-pressed", "true");
+  await topic.click();
+  await expect(page.locator('[data-ui="dialogue-title"]')).not.toHaveText("选择一名居民与一个主题");
+  await expect.poll(() => page.evaluate(() =>
+    (globalThis as typeof globalThis & { __dialogueStarts?: number }).__dialogueStarts ?? 0))
+    .toBeGreaterThan(0);
+  const firstSequenceStarts = await page.evaluate(() =>
+    (globalThis as typeof globalThis & { __dialogueStarts?: number }).__dialogueStarts ?? 0);
+  await page.locator('[data-ui="clarify"] button').first().click();
+  await expect.poll(() => page.evaluate(() =>
+    (globalThis as typeof globalThis & { __dialogueStarts?: number }).__dialogueStarts ?? 0))
+    .toBeGreaterThan(firstSequenceStarts);
+  await page.locator('[data-ui="dialogue-audio-toggle"]').click();
+  await expect(page.locator('[data-ui="dialogue-audio-toggle"]')).toHaveAttribute("aria-pressed", "false");
+  const mutedStarts = await page.evaluate(() =>
+    (globalThis as typeof globalThis & { __dialogueStarts?: number }).__dialogueStarts ?? 0);
+  await topic.click();
+  expect(await page.evaluate(() =>
+    (globalThis as typeof globalThis & { __dialogueStarts?: number }).__dialogueStarts ?? 0)).toBe(mutedStarts);
   await page.reload();
   await expect(app(page)).toHaveAttribute("data-scene-id", SETTLEMENT);
   await expect(app(page)).toHaveAttribute("data-mode", "settlement");
+  await expect(page.locator('[data-ui="dialogue-audio-toggle"]')).toHaveAttribute("aria-pressed", "false");
+  await page.locator("button[data-npc][data-topic]").first().click();
+  await expect(page.locator('[data-ui="dialogue-title"]')).not.toHaveText("选择一名居民与一个主题");
+  expect(await page.evaluate(() =>
+    (globalThis as typeof globalThis & { __dialogueStarts?: number }).__dialogueStarts ?? 0)).toBe(0);
   await expect(page.locator("[data-core120-learning-panel]")).toBeVisible();
   await expect(page.locator("[data-core120-learning-count]")).toHaveText("0 / 600");
   await expect(page.locator("[data-core120-assets]")).toBeVisible();
@@ -345,7 +461,10 @@ test("flushes a checked envelope on pagehide and keeps the touch controls labell
 });
 
 test("completes N07, the optional production N08 trial, and the old-mine threshold", async ({ page }) => {
-  test.setTimeout(180_000);
+  // This is the full keyboard-driven N07 -> N08 -> old-mine journey, not a
+  // single interaction check. Keep its budget separate from the short smoke
+  // tests so slower CI hosts do not terminate a healthy route mid-movement.
+  test.setTimeout(720_000);
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await clearAndOpen(page);

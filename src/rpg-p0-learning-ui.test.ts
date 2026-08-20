@@ -12,7 +12,7 @@ const view = (inRange = true): PrologueFlowP0LearningView => ({
   mode: "settlement",
   station: { sceneId: "scene.valley.settlement", targetId: "settlement.p0_inscription_archive",
     interactionId: "settlement.open_p0_inscription_archive", inRange },
-  externalAssets: { pronunciationAudio: "blocked_pending_private_assets", approvedGlyphRelease: "blocked_pending_private_approval" },
+  externalAssets: { approvedGlyphRelease: "blocked_pending_private_approval" },
   words: wordIds.map((wordId, index) => ({ wordId, targetState: index < 5 ? "attuned" : index < 8 ? "grounded" : "produced",
     currentState: "unknown", targetReached: false, completedActionIds: [], nextActionId: `p0.${wordId}.discover` as const })),
   targetWordCount: 12,
@@ -27,6 +27,7 @@ describe("P0 learning UI boundary", () => {
     expect(model.externalAssetsBlocked).toBe(true);
     expect(P0_LEARNING_UI_TEMPLATE).toContain('aria-live="polite"');
     expect(P0_LEARNING_UI_TEMPLATE).toContain("等待私有素材审批");
+    expect(P0_LEARNING_UI_TEMPLATE).not.toMatch(/发音|pronunciation/i);
   });
 
   it("emits only the generated next action while in authoritative range", () => {

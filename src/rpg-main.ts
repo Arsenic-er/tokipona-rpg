@@ -5,6 +5,12 @@ import {
   type RuntimeSceneNpcManifest,
 } from "./content/runtime-scene-manifest";
 import { readRuntimePortraitCameraProfile } from "./content/runtime-camera-profile";
+import { readRuntimeProceduralDialogueAudioManifest } from
+  "./content/runtime-dialogue-audio-manifest";
+import {
+  createBrowserDialogueAudio,
+  type DialogueAudioContextPort,
+} from "./audio/browser-dialogue-audio";
 import {
   PrologueFlowSession,
   type PrologueFlowAction,
@@ -89,6 +95,8 @@ interface UiResult {
 }
 
 const CAMERA_PROFILE = readRuntimePortraitCameraProfile(generatedRuntimeArtifact);
+const DIALOGUE_AUDIO_MANIFEST =
+  readRuntimeProceduralDialogueAudioManifest(generatedRuntimeArtifact);
 const EXTENSION_LEARNING_FEATURE =
   __TOKIPONA_EXTENSION_LEARNING_ADMITTED__
     ? (await import("./persistence/browser-learning-corpus-loader"))
@@ -264,6 +272,10 @@ class FlowBrowserPort {
       return flowResult(result, "");
     }
     renderDialogue(result.result.node);
+    dialogueAudio.play({
+      speakerId: result.result.node.npcId,
+      cadence: result.result.node.facts.length >= 3 ? "long" : "short",
+    });
     return ui(
       true,
       clarify ? "澄清内容已显示；这次问询不会写入存档。" : "对方回答了你的结构化问题。",
@@ -619,6 +631,8 @@ app.innerHTML = `
       <div class="npc-grid" data-ui="npcs">${SETTLEMENT_SCENE.npcs.map(npcCard).join("")}</div>
       <article class="dialogue-box" aria-live="polite">
         <p class="eyebrow">STRUCTURED DIALOGUE / READ ONLY</p>
+        <button type="button" class="dialogue-audio-toggle" data-ui="dialogue-audio-toggle"
+          aria-pressed="true">对话音：开</button>
         <strong data-ui="dialogue-title">选择一名居民与一个主题</strong>
         <ul data-ui="dialogue-facts"><li>问询与澄清不会写入存档。</li></ul>
         <div class="clarify-row" data-ui="clarify"></div>
@@ -679,6 +693,19 @@ const teloButton = required<HTMLButtonElement>('[data-action="telo"]');
 const settlementPanel = required<HTMLElement>(".settlement-panel");
 const taskStageLabel = required<HTMLElement>('[data-ui="task-stage"]');
 const statusLabel = required<HTMLElement>('[data-ui="status"]');
+const dialogueAudio = createBrowserDialogueAudio({
+  manifest: DIALOGUE_AUDIO_MANIFEST,
+  createContext: () => {
+    const Constructor = (globalThis as unknown as {
+      AudioContext?: new () => AudioContext;
+    }).AudioContext;
+    return Constructor ? new Constructor() as unknown as DialogueAudioContextPort : null;
+  },
+  storage: localStorage,
+  isDocumentVisible: () => document.visibilityState !== "hidden",
+});
+const dialogueAudioToggle = required<HTMLButtonElement>('[data-ui="dialogue-audio-toggle"]');
+renderDialogueAudioToggle();
 
 let lastTelemetryAtMs = 0;
 let port: FlowBrowserPort;
@@ -1126,6 +1153,10 @@ function bindInputs(): void {
     button.addEventListener("click", () => run(() => port.inspectSurveyMarker(requiredDataset(button, "marker"))));
   }
   required<HTMLButtonElement>("[data-trade-open]").addEventListener("click", () => run(() => port.openTrade()));
+  dialogueAudioToggle.addEventListener("click", () => {
+    dialogueAudio.toggle();
+    renderDialogueAudioToggle();
+  });
   required<HTMLButtonElement>('[data-action="save"]').addEventListener("click", save);
   required<HTMLButtonElement>('[data-action="load"]').addEventListener("click", load);
   required<HTMLButtonElement>('[data-action="export-playtest"]').addEventListener("click", exportPlaytest);
@@ -1302,6 +1333,11 @@ function renderDialogue(node: SettlementDialogueNode): void {
     button.addEventListener("click", () => run(() => port.talk(node.npcId, topic, true)));
     return button;
   }));
+}
+
+function renderDialogueAudioToggle(): void {
+  dialogueAudioToggle.setAttribute("aria-pressed", String(dialogueAudio.enabled));
+  dialogueAudioToggle.textContent = `对话音：${dialogueAudio.enabled ? "开" : "关"}`;
 }
 
 function npcCard(npc: RuntimeSceneNpcManifest): string {

@@ -237,10 +237,9 @@ function projectAdmissionContract(value: ContentValue | undefined,
   const semanticDigest = string(contract.semantic_digest, `${label}.semantic_digest`);
   const wordIds = strings(contract.word_ids, `${label}.word_ids`);
   const receipts = object(contract.review_receipt_ids, `${label}.review_receipt_ids`);
-  exactKeys(receipts, ["semantic", "pronunciation", "glyph"], `${label}.review_receipt_ids`);
+  exactKeys(receipts, ["semantic", "glyph"], `${label}.review_receipt_ids`);
   const reviewReceiptIds = {
     semantic: string(receipts.semantic, `${label}.semantic review receipt`),
-    pronunciation: string(receipts.pronunciation, `${label}.pronunciation review receipt`),
     glyph: string(receipts.glyph, `${label}.glyph review receipt`),
   };
   if (contract.schema_version !== "tokipona.learning-corpus-admission.v0.1" ||
@@ -252,7 +251,7 @@ function projectAdmissionContract(value: ContentValue | undefined,
       !/^sha256:[0-9a-f]{64}$/.test(packageDigest) ||
       !/^sha256:[0-9a-f]{64}$/.test(semanticDigest) ||
       !wordIds.every((wordId) => /^[a-z]+$/.test(wordId)) ||
-      new Set(Object.values(reviewReceiptIds)).size !== 3) {
+      new Set(Object.values(reviewReceiptIds)).size !== 2) {
     throw new Error(`${label} admission contract is invalid`);
   }
   return { schemaVersion: "tokipona.learning-corpus-admission.v0.1", corpusId, contentVersion,

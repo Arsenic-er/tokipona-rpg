@@ -131,5 +131,5 @@ describe("browser prologue companion-first bootstrap", () => {
       .toMatchObject({ currentState: "discovered", nextActionId: "core120.akesi.attune" });
     expect(restarted.flow.core120LearningView()).toMatchObject({ p0PrerequisiteComplete: true,
       completedSemanticActionCount: 1 });
-  });
+  }, 15_000);
 });

@@ -135,7 +135,6 @@ export function projectCore120Curriculum(manifest: ContentManifest): RuntimeCore
         cueVariants: cues,
       },
       assetBindings: {
-        pronunciationAssetId: `audio.pronunciation.${wordId}.v1`,
         glyphAssetId: `glyph.pu120.${wordId}.v2`,
       },
     };
@@ -148,7 +147,7 @@ export function projectCore120Curriculum(manifest: ContentManifest): RuntimeCore
     contextsPerWord: exact(runtime.contexts_per_word, 2, "contexts_per_word"),
     misconceptionRepairsPerWord: exact(runtime.misconception_repairs_per_word, 1, "misconception_repairs_per_word"),
     distinctTaskFamilyPerContext: exact(runtime.distinct_task_family_per_context, true, "distinct_task_family_per_context"),
-    pronunciationAudioRequired: exact(runtime.pronunciation_audio_required, true, "pronunciation_audio_required"),
+    audioPolicy: projectSpeechlessAudioPolicy(runtime.audio_policy, "runtime_curriculum.audio_policy"),
     communitySemanticReviewRequired: exact(runtime.community_semantic_review_required, true, "community_semantic_review_required"),
     rawStringEqualityAsSuccessForbidden: exact(runtime.raw_string_equality_as_success_forbidden, true, "raw_string_equality_as_success_forbidden"),
     colorOnlyIdentificationForbidden: exact(runtime.color_only_identification_forbidden, true, "color_only_identification_forbidden"),
@@ -221,6 +220,17 @@ function numericPair(value: ContentValue | undefined, label: string): readonly [
 function boolean(value: ContentValue | undefined, label: string): boolean { if (typeof value !== "boolean") throw new Error(`${label} must be a boolean`); return value; }
 function exact<T extends string | number | boolean>(value: ContentValue | undefined, expected: T, label: string): T { if (value !== expected) throw new Error(`${label} must equal ${String(expected)}`); return expected; }
 function exactOne<const T extends readonly string[]>(value: ContentValue | undefined, expected: T, label: string): T[number] { if (typeof value !== "string" || !expected.includes(value)) throw new Error(`${label} is invalid`); return value as T[number]; }
+function projectSpeechlessAudioPolicy(value: ContentValue | undefined, label: string) {
+  const policy = object(value, label);
+  const expectedKeys = ["spoken_pronunciation_required", "dialogue_feedback", "progress_may_depend_on_audio", "captions_required"];
+  if (!sameSet(Object.keys(policy), expectedKeys)) throw new Error(`${label} contains unknown or missing fields`);
+  return {
+    spokenPronunciationRequired: exact(policy.spoken_pronunciation_required, false, `${label}.spoken_pronunciation_required`),
+    dialogueFeedback: exact(policy.dialogue_feedback, "procedural_nonsemantic", `${label}.dialogue_feedback`),
+    progressMayDependOnAudio: exact(policy.progress_may_depend_on_audio, false, `${label}.progress_may_depend_on_audio`),
+    captionsRequired: exact(policy.captions_required, true, `${label}.captions_required`),
+  } as const;
+}
 function same(value: unknown, expected: readonly unknown[]): boolean { return Array.isArray(value) && value.length === expected.length && value.every((entry, index) => entry === expected[index]); }
 function sameSet(value: readonly string[], expected: readonly string[]): boolean { return value.length === expected.length && new Set(value).size === value.length && expected.every((entry) => value.includes(entry)); }
 function sameExact(value: readonly string[], expected: readonly string[], label: string): void { if (!same(value, expected)) throw new Error(`${label} is noncanonical`); }

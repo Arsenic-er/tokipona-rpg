@@ -85,7 +85,6 @@ function packageCandidate(spec: CorpusSpec): any {
       action("repair", "repair_completed", 1),
     ],
     assetBindings: {
-      pronunciationAssetId: `audio.pronunciation.${spec.wordId}.v1`,
       glyphAssetId: `glyph.${spec.actionNamespace}.${spec.wordId}.${spec.glyphVersion ?? "v1"}`,
     },
   };
@@ -106,7 +105,6 @@ function packageCandidate(spec: CorpusSpec): any {
     semanticDigest: computeRuntimeLearningCorpusSemanticDigest(semantic),
     reviewReceiptIds: {
       semantic: `review.semantic.${spec.actionNamespace}.v1`,
-      pronunciation: `review.pronunciation.${spec.actionNamespace}.v1`,
       glyph: `review.glyph.${spec.actionNamespace}.v1`,
     },
   };

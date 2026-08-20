@@ -42,5 +42,7 @@ runtime files and a safe, path-free export manifest. A review candidate is not
 runtime-ready and must not be copied here. Promotion requires the private
 release gate to report `approved`, all eight approval fields to be `approved`,
 verified redistribution evidence, exact file hashes, and a complete set of 120
-approved pronunciation bindings. Source fonts, strips, contact sheets, review
-renders, and private paths never cross this boundary.
+approved glyph bindings. Recorded speech and pronunciation files are not part
+of the v0.3 asset handoff; optional NPC dialogue blips are synthesized by the
+public browser runtime. Source fonts, strips, contact sheets, review renders,
+and private paths never cross this boundary.

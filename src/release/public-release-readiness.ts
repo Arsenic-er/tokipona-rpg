@@ -12,7 +12,6 @@ export interface PublicReleaseAssetEvidence {
     | "safe_blocked_pending_external_approval"
     | "approved_runtime_assets_verified";
   readonly core120WordCount: 120;
-  readonly p0PronunciationWordCount: 12;
 }
 
 export interface PublicReleaseReadinessReport {
@@ -30,7 +29,6 @@ export function evaluatePublicReleaseReadiness(input: Readonly<{
   observedPlaytest: ProloguePlaytestCohortFileReport;
 }>): PublicReleaseReadinessReport {
   if (input.runtimeAssets.core120WordCount !== 120 ||
-      input.runtimeAssets.p0PronunciationWordCount !== 12 ||
       (input.runtimeAssets.status !== "safe_blocked_pending_external_approval" &&
        input.runtimeAssets.status !== "approved_runtime_assets_verified")) {
     throw new Error("public release asset evidence is invalid");

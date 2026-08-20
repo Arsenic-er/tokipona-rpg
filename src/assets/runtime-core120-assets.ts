@@ -1,18 +1,15 @@
 import generated from "../generated/content-runtime.v0.1.json" with { type: "json" };
 import glyphReleaseContract from "./runtime-release-contract.v0.1.json" with { type: "json" };
-import privateAssetExport from "./runtime-core120-private-export.v0.2.json" with { type: "json" };
+import privateAssetExport from "./runtime-core120-private-export.v0.3.json" with { type: "json" };
 import {
   isVerifiedRuntimeCore120CurriculumManifest,
   readRuntimeCore120CurriculumManifest,
   type RuntimeCore120CurriculumManifest,
 } from "../content/runtime-core120-curriculum-manifest.ts";
 
-export const CORE120_PRIVATE_ASSET_EXPORT_SCHEMA_V1 = "tokipona.pu120-private-asset-export.v0.1" as const;
-export const CORE120_PRIVATE_ASSET_EXPORT_SCHEMA = "tokipona.pu120-private-asset-export.v0.2" as const;
+export const CORE120_PRIVATE_ASSET_EXPORT_SCHEMA = "tokipona.pu120-private-asset-export.v0.3" as const;
 
 export interface RuntimeCore120WordAssetReadiness {
-  readonly audioReady: boolean;
-  readonly audioPublicPath: string | null;
   readonly glyphReady: boolean;
   readonly glyphAtlasPublicPath: string | null;
   readonly glyphAtlasFrameId: string | null;
@@ -20,7 +17,6 @@ export interface RuntimeCore120WordAssetReadiness {
 
 export interface RuntimeCore120AssetReadiness {
   readonly privateAssetExport: "missing" | "review_candidate" | "approved";
-  readonly pronunciationAudio: "blocked_pending_private_assets" | "approved";
   readonly glyphVisuals: "blocked_pending_private_approval" | "approved";
   readonly glyphCatalog: "draft" | "approved";
   readonly playableContentMayClaimFullAssetAcceptance: boolean;
@@ -41,7 +37,6 @@ export function readRuntimeCore120AssetReadiness(
   const parsedExport = readPrivateExport(manifest, privateExport);
   const approvedExport = parsedExport?.status === "approved" ? parsedExport.approved : null;
   const catalogApproved = manifest.catalogReviewStatus === "approved" && manifest.catalogRuntimeReady;
-  const audioApproved = approvedExport !== null;
   const glyphApproved = approvedExport !== null && glyphReleaseApproved && catalogApproved;
   const wordAssets = Object.fromEntries(manifest.scope.wordIds.map((wordId) => {
     const entry = approvedExport?.entries[wordId];
@@ -49,8 +44,6 @@ export function readRuntimeCore120AssetReadiness(
     const activationPage = activationFrame === undefined ? undefined :
       approvedExport?.glyphBundle?.activationPages.find((page) => page.page === activationFrame.page);
     return [wordId, Object.freeze({
-      audioReady: audioApproved,
-      audioPublicPath: entry?.pronunciation.publicPath ?? null,
       glyphReady: glyphApproved,
       glyphAtlasPublicPath: glyphApproved ? activationPage?.publicPath ?? approvedExport!.glyphAtlas.publicPath : null,
       glyphAtlasFrameId: glyphApproved ? entry!.glyph.atlasFrameId : null,
@@ -63,10 +56,9 @@ export function readRuntimeCore120AssetReadiness(
   if (!catalogApproved) blockingReasons.push("glyph_catalog_not_approved");
   return deepFreeze({
     privateAssetExport: parsedExport?.status ?? "missing",
-    pronunciationAudio: audioApproved ? "approved" : "blocked_pending_private_assets",
     glyphVisuals: glyphApproved ? "approved" : "blocked_pending_private_approval",
     glyphCatalog: catalogApproved ? "approved" : "draft",
-    playableContentMayClaimFullAssetAcceptance: audioApproved && glyphApproved,
+    playableContentMayClaimFullAssetAcceptance: glyphApproved,
     blockingReasons,
     wordAssets,
   });
@@ -79,11 +71,6 @@ export interface RuntimeCore120ApprovedAssetExport {
   }>;
   readonly glyphBundle: RuntimeCore120GlyphBundle;
   readonly entries: Readonly<Record<string, Readonly<{
-    readonly pronunciation: Readonly<{
-      readonly assetId: string;
-      readonly publicPath: string;
-      readonly sha256: `sha256:${string}`;
-    }>;
     readonly glyph: Readonly<{
       readonly atlasFrameId: string;
       readonly activationFrames: readonly RuntimeCore120AtlasFrame[] | null;
@@ -174,44 +161,32 @@ function readPrivateExport(
   if (candidate === null) return null;
   const root = record(candidate, "core120 private asset export");
   if (root.schemaVersion === CORE120_PRIVATE_ASSET_EXPORT_SCHEMA) {
-    return readV2PrivateExport(manifest, root);
+    return readV3PrivateExport(manifest, root);
   }
-  if (root.status !== "missing") {
-    if (root.schemaVersion === CORE120_PRIVATE_ASSET_EXPORT_SCHEMA_V1) {
-      throw new Error("core120 legacy approved export is no longer supported");
-    }
-    throw new Error("core120 private asset export schema is invalid");
+  if (root.schemaVersion === "tokipona.pu120-private-asset-export.v0.1" ||
+      root.schemaVersion === "tokipona.pu120-private-asset-export.v0.2") {
+    throw new Error("core120 legacy private asset export is no longer supported");
   }
-  exactKeys(root, ["schemaVersion", "status", "manifestDigest", "corpusId", "wordIds", "glyphAtlas", "entries", "privacy"], "core120 missing private asset export");
-  const privacy = record(root.privacy, "core120 missing private export privacy");
-  exactKeys(privacy, ["containsPrivatePaths", "containsPrivateAssets", "containsSourceFonts", "containsReviewMedia"], "core120 missing private export privacy");
-  if (root.schemaVersion !== CORE120_PRIVATE_ASSET_EXPORT_SCHEMA_V1 || root.manifestDigest !== null ||
-      root.corpusId !== "pu-120" || !same(root.wordIds, []) || root.glyphAtlas !== null ||
-      !same(Object.keys(record(root.entries, "core120 missing private export entries")), []) ||
-      privacy.containsPrivatePaths !== false || privacy.containsPrivateAssets !== false ||
-      privacy.containsSourceFonts !== false || privacy.containsReviewMedia !== false) {
-    throw new Error("core120 missing private asset export is invalid");
-  }
-  return null;
+  throw new Error("core120 private asset export schema is invalid");
 }
 
-function readV2PrivateExport(
+function readV3PrivateExport(
   manifest: RuntimeCore120CurriculumManifest,
   root: Record<string, unknown>,
 ): ParsedPrivateExport | null {
-  exactKeys(root, ["schemaVersion", "status", "manifestDigest", "corpusId", "wordIds", "glyphBundle", "entries", "privacy"], "core120 v2 private asset export");
-  const privacy = readPrivacy(root.privacy, "core120 v2 private export privacy");
-  if (!privacy) throw new Error("core120 v2 private export leaks private material");
+  exactKeys(root, ["schemaVersion", "status", "manifestDigest", "corpusId", "wordIds", "glyphBundle", "entries", "privacy"], "core120 v3 private asset export");
+  const privacy = readPrivacy(root.privacy, "core120 v3 private export privacy");
+  if (!privacy) throw new Error("core120 v3 private export leaks private material");
   if (root.status === "missing") {
-    if (root.manifestDigest !== null || root.corpusId !== "pu-120" || !same(root.wordIds, []) || root.glyphBundle !== null || !same(Object.keys(record(root.entries, "core120 v2 missing entries")), [])) {
-      throw new Error("core120 v2 missing private asset export is invalid");
+    if (root.manifestDigest !== null || root.corpusId !== "pu-120" || !same(root.wordIds, []) || root.glyphBundle !== null || !same(Object.keys(record(root.entries, "core120 v3 missing entries")), [])) {
+      throw new Error("core120 v3 missing private asset export is invalid");
     }
     return null;
   }
   if ((root.status !== "review_candidate" && root.status !== "approved") ||
       root.manifestDigest !== manifest.sourceDigest || root.corpusId !== "pu-120" ||
       !same(root.wordIds, manifest.scope.wordIds)) {
-    throw new Error("core120 v2 private asset export identity is invalid");
+    throw new Error("core120 v3 private asset export identity is invalid");
   }
   const bundle = record(root.glyphBundle, "core120 v2 glyph bundle");
   exactKeys(bundle, ["assetId", "sourceUrl", "licenseSpdx", "approvals", "atlasManifest", "paletteManifest", "activationPages", "rolePatternPages", "innerEdgePages"], "core120 v2 glyph bundle");
@@ -251,7 +226,6 @@ function readV2PrivateExport(
   const patternRects = new Set<string>();
   const edgeRects = new Set<string>();
   const resultEntries: Record<string, {
-    pronunciation: { assetId: string; publicPath: string; sha256: `sha256:${string}` };
     glyph: { atlasFrameId: string; activationFrames: readonly RuntimeCore120AtlasFrame[]; rolePattern: RuntimeCore120AtlasFrame; innerEdge: RuntimeCore120AtlasFrame };
   }> = {};
   const candidateEntries: Record<string, {
@@ -259,11 +233,8 @@ function readV2PrivateExport(
   }> = {};
   for (const wordId of manifest.scope.wordIds) {
     const word = manifest.words[wordId]!;
-    const entry = record(entries[wordId], `core120 v2 entry ${wordId}`);
-    exactKeys(entry, ["pronunciation", "glyph"], `core120 v2 entry ${wordId}`);
-    if (root.status === "review_candidate" && entry.pronunciation !== null) {
-      throw new Error(`core120 v2 candidate pronunciation ${wordId} must be absent`);
-    }
+    const entry = record(entries[wordId], `core120 v3 entry ${wordId}`);
+    exactKeys(entry, ["glyph"], `core120 v3 entry ${wordId}`);
     const glyph = record(entry.glyph, `core120 v2 glyph ${wordId}`);
     exactKeys(glyph, ["assetId", "displayCodepoint", "activationFrames", "rolePattern", "innerEdge"], `core120 v2 glyph ${wordId}`);
     if (glyph.assetId !== word.assetBindings.glyphAssetId || glyph.displayCodepoint !== word.displayCodepoint) {
@@ -291,7 +262,6 @@ function readV2PrivateExport(
     };
     if (root.status === "approved") {
       resultEntries[wordId] = {
-        pronunciation: readApprovedV2Pronunciation(entry.pronunciation, wordId, word.assetBindings.pronunciationAssetId),
         glyph: { atlasFrameId: `pu120.${wordId}`, activationFrames: parsedFrames, rolePattern, innerEdge },
       };
     }
@@ -339,22 +309,6 @@ function runtimePages(value: unknown): readonly RuntimeCore120RuntimePage[] {
       sha256: page.sha256 as `sha256:${string}`,
     };
   });
-}
-
-function readApprovedV2Pronunciation(value: unknown, wordId: string, expectedAssetId: string): { assetId: string; publicPath: string; sha256: `sha256:${string}` } {
-  const pronunciation = record(value, `core120 v2 pronunciation ${wordId}`);
-  exactKeys(pronunciation, ["assetId", "publicPath", "sha256", "sourceUrl", "licenseSpdx", "durationMs", "sampleRateHz", "channels", "approvals"], `core120 v2 pronunciation ${wordId}`);
-  const approvals = record(pronunciation.approvals, `core120 v2 pronunciation approvals ${wordId}`);
-  exactKeys(approvals, ["redistribution", "language", "accessibility", "community", "hashes"], `core120 v2 pronunciation approvals ${wordId}`);
-  const publicPath = `assets/pronunciation/${wordId}.ogg`;
-  if (pronunciation.assetId !== expectedAssetId || pronunciation.publicPath !== publicPath || !sha256(pronunciation.sha256) ||
-      !httpsUrl(pronunciation.sourceUrl) || !spdx(pronunciation.licenseSpdx) ||
-      !positiveIntegerInRange(pronunciation.durationMs, 100, 10_000) ||
-      (pronunciation.sampleRateHz !== 44_100 && pronunciation.sampleRateHz !== 48_000) || pronunciation.channels !== 1 ||
-      !["redistribution", "language", "accessibility", "community", "hashes"].every((approval) => approvals[approval] === "approved")) {
-    throw new Error(`core120 v2 pronunciation ${wordId} approval is invalid`);
-  }
-  return { assetId: expectedAssetId, publicPath, sha256: pronunciation.sha256 as `sha256:${string}` };
 }
 
 function readAtlasPages(value: unknown, kind: "activation" | "role-patterns" | "inner-edge", count: number): ReadonlyMap<number, Readonly<{ width: number; height: number }>> {
@@ -413,7 +367,6 @@ export function readRuntimeGlyphReleaseApproval(candidate: unknown): boolean {
 function httpsUrl(value: unknown): value is string { return typeof value === "string" && /^https:\/\/[^\s]+$/.test(value); }
 function spdx(value: unknown): value is string { return typeof value === "string" && /^[A-Za-z0-9][A-Za-z0-9.+-]*$/.test(value); }
 function sha256(value: unknown): value is string { return typeof value === "string" && /^sha256:[0-9a-f]{64}$/.test(value); }
-function positiveIntegerInRange(value: unknown, minimum: number, maximum: number): value is number { return Number.isSafeInteger(value) && (value as number) >= minimum && (value as number) <= maximum; }
 function stringArray(value: unknown): value is readonly string[] { return Array.isArray(value) && value.every((entry) => typeof entry === "string"); }
 function array(value: unknown, label: string): readonly unknown[] { if (!Array.isArray(value)) throw new Error(`${label} must be an array`); return value; }
 function same(value: unknown, expected: readonly string[]): boolean { return Array.isArray(value) && value.length === expected.length && value.every((entry, index) => entry === expected[index]); }

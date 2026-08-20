@@ -50,7 +50,7 @@ describe("core-120 runtime curriculum contract", () => {
       expect(word.contexts[0].location).toEqual(value.domainRoutes[word.visualDomainId].primary);
       expect(word.contexts[1].location).toEqual(value.domainRoutes[word.visualDomainId].reinforcement);
       expect(word.misconceptionRepair.cueVariants).toEqual(word.contexts.map((context) => context.cueId));
-      expect(word.assetBindings).toEqual({ pronunciationAssetId: `audio.pronunciation.${word.wordId}.v1`, glyphAssetId: `glyph.pu120.${word.wordId}.v2` });
+      expect(word.assetBindings).toEqual({ glyphAssetId: `glyph.pu120.${word.wordId}.v2` });
     }
     expect(value.recoveryStation).toEqual({ sceneId: "scene.valley.settlement", targetId: "settlement.p0_inscription_archive", interactionPointTiles: [38, 28], interactionPointPx: { x: 608, y: 448 }, interactionId: "settlement.open_p0_inscription_archive", maximumDistancePx: 16 });
     expect(value.worldContextAuthority).toEqual({ maximumDistancePx: 16,
@@ -70,7 +70,18 @@ describe("core-120 runtime curriculum contract", () => {
       },
       ],
     });
-    expect(value.acceptance).toMatchObject({ allWordsRecoverable: true, contextsPerWord: 2, misconceptionRepairsPerWord: 1, pronunciationAudioRequired: true, communitySemanticReviewRequired: true });
+    expect(value.acceptance).toMatchObject({
+      allWordsRecoverable: true,
+      contextsPerWord: 2,
+      misconceptionRepairsPerWord: 1,
+      audioPolicy: {
+        spokenPronunciationRequired: false,
+        dialogueFeedback: "procedural_nonsemantic",
+        progressMayDependOnAudio: false,
+        captionsRequired: true,
+      },
+      communitySemanticReviewRequired: true,
+    });
   });
 
   it("isolates evidence semantics from catalog approval state", () => {
@@ -108,8 +119,18 @@ describe("core-120 runtime curriculum contract", () => {
     expect(() => readRuntimeCore120CurriculumManifest(resign(route))).toThrow(/context 0 is invalid/);
 
     const asset = structuredClone(generated) as any;
-    asset.core120Curriculum.words.wile.assetBindings.pronunciationAssetId = "audio.unreviewed.wile";
-    expect(() => readRuntimeCore120CurriculumManifest(resign(asset))).toThrow(/asset bindings/);
+    asset.core120Curriculum.words.wile.assetBindings.pronunciationAssetId = "audio.pronunciation.wile.v1";
+    expect(() => readRuntimeCore120CurriculumManifest(resign(asset))).toThrow(/unknown or missing/);
+
+    const legacyAudio = structuredClone(generated) as any;
+    legacyAudio.core120Curriculum.acceptance.audioPolicy = {
+      spokenPronunciationRequired: false,
+      dialogueFeedback: "procedural_nonsemantic",
+      progressMayDependOnAudio: false,
+      captionsRequired: true,
+      pronunciationAssetId: "audio.pronunciation.wile.v1",
+    };
+    expect(() => readRuntimeCore120CurriculumManifest(resign(legacyAudio))).toThrow(/unknown or missing/);
 
     const unknown = structuredClone(generated) as any;
     unknown.core120Curriculum.words.jan.runtimeOverride = true;
@@ -133,6 +154,15 @@ describe("core-120 runtime curriculum contract", () => {
     const actionDrift = sources();
     (progression(actionDrift).runtime_curriculum as Record<string, unknown>).action_kinds = ["discover", "attune"];
     expectCompilerIssue(actionDrift, "contract.core120_policy");
+
+    const spokenRequired = sources();
+    (progression(spokenRequired).runtime_curriculum as Record<string, unknown>).audio_policy = {
+      spoken_pronunciation_required: true,
+      dialogue_feedback: "procedural_nonsemantic",
+      progress_may_depend_on_audio: false,
+      captions_required: true,
+    };
+    expectCompilerIssue(spokenRequired, "contract.speechless_audio_policy");
 
     const legacyDigestDrift = sources();
     (progression(legacyDigestDrift).runtime_curriculum as Record<string, unknown>)

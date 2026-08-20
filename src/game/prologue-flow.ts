@@ -257,7 +257,6 @@ export interface PrologueFlowP0LearningView {
   readonly mode: "settlement" | "other";
   readonly station: Readonly<{ sceneId: string; targetId: string; interactionId: string; inRange: boolean }>;
   readonly externalAssets: Readonly<{
-    pronunciationAudio: "blocked_pending_private_assets" | "approved";
     approvedGlyphRelease: "blocked_pending_private_approval" | "approved";
   }>;
   readonly words: readonly Readonly<{
@@ -278,7 +277,6 @@ export interface PrologueFlowCore120LearningView {
   readonly authorityInRange: boolean;
   readonly station: Readonly<{ sceneId: string; targetId: string; interactionId: string; inRange: boolean }>;
   readonly externalAssets: Readonly<{
-    pronunciationAudio: "blocked_pending_private_assets" | "approved";
     glyphVisuals: "blocked_pending_private_approval" | "approved";
     glyphCatalog: "draft" | "approved";
     fullAssetAcceptance: boolean;
@@ -291,7 +289,6 @@ export interface PrologueFlowCore120LearningView {
     completedActionIds: readonly Core120LearningActionId[];
     nextActionId: Core120LearningActionId | null;
     availableActionId: Core120LearningActionId | null;
-    audioReady: boolean;
     glyphReady: boolean;
   }>[];
   readonly totalWordCount: 120;
@@ -823,8 +820,9 @@ export class PrologueFlowSession {
       station: Object.freeze({ sceneId: P0_CURRICULUM_MANIFEST.recoveryStation.sceneId,
         targetId: P0_CURRICULUM_MANIFEST.recoveryStation.targetId,
         interactionId: P0_CURRICULUM_MANIFEST.recoveryStation.interactionId, inRange }),
-      externalAssets: Object.freeze({ pronunciationAudio: runtimeP0AssetReadiness.pronunciationAudio,
-        approvedGlyphRelease: runtimeP0AssetReadiness.approvedGlyphRelease }),
+      externalAssets: Object.freeze({
+        approvedGlyphRelease: runtimeP0AssetReadiness.approvedGlyphRelease,
+      }),
       words, targetWordCount: 12, reachedWordCount: words.filter((word) => word.targetReached).length });
   }
 
@@ -885,7 +883,6 @@ export class PrologueFlowSession {
         completedActionIds,
         nextActionId: actions.find((actionId) => !completedActionIds.includes(actionId)) ?? null,
         availableActionId,
-        audioReady: assets.audioReady,
         glyphReady: assets.glyphReady,
       });
     }));
@@ -900,7 +897,6 @@ export class PrologueFlowSession {
         inRange: archiveInRange,
       }),
       externalAssets: Object.freeze({
-        pronunciationAudio: runtimeCore120AssetReadiness.pronunciationAudio,
         glyphVisuals: runtimeCore120AssetReadiness.glyphVisuals,
         glyphCatalog: runtimeCore120AssetReadiness.glyphCatalog,
         fullAssetAcceptance: runtimeCore120AssetReadiness.playableContentMayClaimFullAssetAcceptance,

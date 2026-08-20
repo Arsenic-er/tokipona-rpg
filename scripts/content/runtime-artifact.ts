@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { projectSafeRangeQualification } from "./safe-range-runtime-artifact.ts";
+import { projectProceduralDialogueAudio } from "./dialogue-audio-runtime-artifact.ts";
 import { projectP0Curriculum } from "./p0-runtime-artifact.ts";
 import { projectCore120Curriculum } from "./core120-runtime-artifact.ts";
 import {
@@ -20,6 +21,7 @@ import type { RuntimeLearningCorpusPackageBundle } from
   "../../src/content/runtime-learning-corpus-package-bundle.ts";
 import type { RuntimePortraitCameraProfile } from "../../src/content/runtime-camera-profile.ts";
 import type { RuntimePrologueAcceptanceManifest } from "../../src/content/runtime-prologue-acceptance-manifest.ts";
+import type { RuntimeProceduralDialogueAudioManifest } from "../../src/content/runtime-dialogue-audio-manifest.ts";
 import { posix } from "node:path";
 import type { ContentManifest, ContentObject, ContentValue } from "../../src/content/types.ts";
 import type { CapabilityMilestoneMachineProjection } from "../../src/session/capability-contract.ts";
@@ -85,6 +87,7 @@ export interface RuntimeContentArtifact {
   readonly scenes: RuntimeSceneManifestIndex;
   readonly infrastructureTasks: RuntimeInfrastructureTaskManifestIndex;
   readonly safeRangeQualification: RuntimeSafeRangeManifest;
+  readonly proceduralDialogueAudio: RuntimeProceduralDialogueAudioManifest;
   readonly p0Curriculum: RuntimeP0CurriculumManifest;
   readonly core120Curriculum: RuntimeCore120CurriculumManifest;
   readonly corpusExpansionRegistry: RuntimeCorpusExpansionRegistry;
@@ -387,6 +390,7 @@ export function buildRuntimeContentArtifact(manifest: ContentManifest): RuntimeC
     return [sceneId, result];
   }));
   const safeRangeQualification = projectSafeRangeQualification(manifest);
+  const proceduralDialogueAudio = projectProceduralDialogueAudio(manifest);
   const p0Curriculum = projectP0Curriculum(manifest);
   const core120Curriculum = projectCore120Curriculum(manifest);
   const corpusExpansionRegistry = projectCorpusExpansionRegistry(manifest);
@@ -627,6 +631,7 @@ export function buildRuntimeContentArtifact(manifest: ContentManifest): RuntimeC
       byId: infrastructureTasks,
     },
     safeRangeQualification,
+    proceduralDialogueAudio,
     p0Curriculum,
     core120Curriculum,
     corpusExpansionRegistry,

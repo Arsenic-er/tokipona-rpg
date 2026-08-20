@@ -63,7 +63,7 @@ describe("public release readiness", () => {
 });
 
 function assets(status: PublicReleaseAssetEvidence["status"]): PublicReleaseAssetEvidence {
-  return Object.freeze({ status, core120WordCount: 120, p0PronunciationWordCount: 12 });
+  return Object.freeze({ status, core120WordCount: 120 });
 }
 
 function playtest(

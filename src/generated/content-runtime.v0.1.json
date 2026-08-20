@@ -5843,8 +5843,43 @@
       ]
     }
   },
+  "proceduralDialogueAudio": {
+    "sourceDigest": "sha256:9d0e0f835f1345bda56e768d52447000d5fb682eeb985e10c3e8789fce3d9c15",
+    "sourcePath": "data/audio/procedural-dialogue.v0.1.yaml",
+    "semanticContent": "none",
+    "externalAssetRequired": false,
+    "progressMayDependOnAudio": false,
+    "captionsRequired": true,
+    "explicitInteractionOnly": true,
+    "cadence": {
+      "shortNoteCount": [
+        2,
+        3
+      ],
+      "longNoteCount": [
+        4,
+        6
+      ],
+      "noteDurationMs": 32,
+      "gapMs": 46,
+      "maximumSequenceMs": 600
+    },
+    "synthesis": {
+      "frequencyRangeHz": [
+        180,
+        520
+      ],
+      "maximumGain": 0.03,
+      "waveforms": [
+        "square",
+        "triangle"
+      ],
+      "attackMs": 4,
+      "releaseMs": 8
+    }
+  },
   "p0Curriculum": {
-    "sourceDigest": "sha256:5b0899b667a9d5093081f6f8399b2092a6ee580578ca77c841356ca5e72f14ee",
+    "sourceDigest": "sha256:9961c6fdf1e2a649fc7e05b7abdb7b9ca64fcf47a181606ce9d4bd89b65960fb",
     "sourcePath": "data/language/p0-curriculum.v0.1.yaml",
     "contentVersion": "prologue-12.vertical-slice.1",
     "progressionSourcePath": "data/language/learning-progression.v0.2.yaml",
@@ -6197,7 +6232,12 @@
     },
     "acceptance": {
       "allWordsRecoverable": true,
-      "pronunciationAudio": "required",
+      "audioPolicy": {
+        "spokenPronunciationRequired": false,
+        "dialogueFeedback": "procedural_nonsemantic",
+        "progressMayDependOnAudio": false,
+        "captionsRequired": true
+      },
       "contextsPerWordMinimum": 2,
       "misconceptionCounterexamplePerWordMinimum": 1,
       "colorOnlyIdentificationForbidden": true,
@@ -6207,7 +6247,7 @@
     }
   },
   "core120Curriculum": {
-    "sourceDigest": "sha256:9c50a88466db4f38775cbe04b3b8f5acdd65d78caf4fa40f741a96afce5de4fe",
+    "sourceDigest": "sha256:230f183d4b51c7d538de0be1ed9d25026d91e004951295207b3ba8e6641a49ca",
     "learningContract": {
       "evidenceIdentityVersion": "core120-learning-evidence.v0.2",
       "semanticDigest": "sha256:fba08cdb6158c93ccb08eef9d65fab06621c0c12f04f57ae72e71b194da3e0b8",
@@ -6716,7 +6756,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.a.v1",
           "glyphAssetId": "glyph.pu120.a.v2"
         }
       },
@@ -6784,7 +6823,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.akesi.v1",
           "glyphAssetId": "glyph.pu120.akesi.v2"
         }
       },
@@ -6852,7 +6890,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.ala.v1",
           "glyphAssetId": "glyph.pu120.ala.v2"
         }
       },
@@ -6920,7 +6957,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.alasa.v1",
           "glyphAssetId": "glyph.pu120.alasa.v2"
         }
       },
@@ -6988,7 +7024,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.ale.v1",
           "glyphAssetId": "glyph.pu120.ale.v2"
         }
       },
@@ -7056,7 +7091,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.anpa.v1",
           "glyphAssetId": "glyph.pu120.anpa.v2"
         }
       },
@@ -7124,7 +7158,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.ante.v1",
           "glyphAssetId": "glyph.pu120.ante.v2"
         }
       },
@@ -7191,7 +7224,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.anu.v1",
           "glyphAssetId": "glyph.pu120.anu.v2"
         }
       },
@@ -7258,7 +7290,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.awen.v1",
           "glyphAssetId": "glyph.pu120.awen.v2"
         }
       },
@@ -7321,7 +7352,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.e.v1",
           "glyphAssetId": "glyph.pu120.e.v2"
         }
       },
@@ -7385,7 +7415,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.en.v1",
           "glyphAssetId": "glyph.pu120.en.v2"
         }
       },
@@ -7453,7 +7482,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.esun.v1",
           "glyphAssetId": "glyph.pu120.esun.v2"
         }
       },
@@ -7521,7 +7549,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.ijo.v1",
           "glyphAssetId": "glyph.pu120.ijo.v2"
         }
       },
@@ -7589,7 +7616,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.ike.v1",
           "glyphAssetId": "glyph.pu120.ike.v2"
         }
       },
@@ -7657,7 +7683,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.ilo.v1",
           "glyphAssetId": "glyph.pu120.ilo.v2"
         }
       },
@@ -7725,7 +7750,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.insa.v1",
           "glyphAssetId": "glyph.pu120.insa.v2"
         }
       },
@@ -7793,7 +7817,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.jaki.v1",
           "glyphAssetId": "glyph.pu120.jaki.v2"
         }
       },
@@ -7861,7 +7884,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.jan.v1",
           "glyphAssetId": "glyph.pu120.jan.v2"
         }
       },
@@ -7929,7 +7951,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.jelo.v1",
           "glyphAssetId": "glyph.pu120.jelo.v2"
         }
       },
@@ -7996,7 +8017,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.jo.v1",
           "glyphAssetId": "glyph.pu120.jo.v2"
         }
       },
@@ -8064,7 +8084,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.kala.v1",
           "glyphAssetId": "glyph.pu120.kala.v2"
         }
       },
@@ -8132,7 +8151,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.kalama.v1",
           "glyphAssetId": "glyph.pu120.kalama.v2"
         }
       },
@@ -8200,7 +8218,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.kama.v1",
           "glyphAssetId": "glyph.pu120.kama.v2"
         }
       },
@@ -8268,7 +8285,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.kasi.v1",
           "glyphAssetId": "glyph.pu120.kasi.v2"
         }
       },
@@ -8336,7 +8352,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.ken.v1",
           "glyphAssetId": "glyph.pu120.ken.v2"
         }
       },
@@ -8404,7 +8419,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.kepeken.v1",
           "glyphAssetId": "glyph.pu120.kepeken.v2"
         }
       },
@@ -8472,7 +8486,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.kili.v1",
           "glyphAssetId": "glyph.pu120.kili.v2"
         }
       },
@@ -8540,7 +8553,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.kiwen.v1",
           "glyphAssetId": "glyph.pu120.kiwen.v2"
         }
       },
@@ -8608,7 +8620,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.ko.v1",
           "glyphAssetId": "glyph.pu120.ko.v2"
         }
       },
@@ -8676,7 +8687,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.kon.v1",
           "glyphAssetId": "glyph.pu120.kon.v2"
         }
       },
@@ -8744,7 +8754,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.kule.v1",
           "glyphAssetId": "glyph.pu120.kule.v2"
         }
       },
@@ -8812,7 +8821,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.kulupu.v1",
           "glyphAssetId": "glyph.pu120.kulupu.v2"
         }
       },
@@ -8880,7 +8888,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.kute.v1",
           "glyphAssetId": "glyph.pu120.kute.v2"
         }
       },
@@ -8944,7 +8951,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.la.v1",
           "glyphAssetId": "glyph.pu120.la.v2"
         }
       },
@@ -9012,7 +9018,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.lape.v1",
           "glyphAssetId": "glyph.pu120.lape.v2"
         }
       },
@@ -9080,7 +9085,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.laso.v1",
           "glyphAssetId": "glyph.pu120.laso.v2"
         }
       },
@@ -9148,7 +9152,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.lawa.v1",
           "glyphAssetId": "glyph.pu120.lawa.v2"
         }
       },
@@ -9216,7 +9219,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.len.v1",
           "glyphAssetId": "glyph.pu120.len.v2"
         }
       },
@@ -9284,7 +9286,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.lete.v1",
           "glyphAssetId": "glyph.pu120.lete.v2"
         }
       },
@@ -9347,7 +9348,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.li.v1",
           "glyphAssetId": "glyph.pu120.li.v2"
         }
       },
@@ -9416,7 +9416,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.lili.v1",
           "glyphAssetId": "glyph.pu120.lili.v2"
         }
       },
@@ -9484,7 +9483,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.linja.v1",
           "glyphAssetId": "glyph.pu120.linja.v2"
         }
       },
@@ -9552,7 +9550,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.lipu.v1",
           "glyphAssetId": "glyph.pu120.lipu.v2"
         }
       },
@@ -9620,7 +9617,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.loje.v1",
           "glyphAssetId": "glyph.pu120.loje.v2"
         }
       },
@@ -9688,7 +9684,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.lon.v1",
           "glyphAssetId": "glyph.pu120.lon.v2"
         }
       },
@@ -9756,7 +9751,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.luka.v1",
           "glyphAssetId": "glyph.pu120.luka.v2"
         }
       },
@@ -9824,7 +9818,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.lukin.v1",
           "glyphAssetId": "glyph.pu120.lukin.v2"
         }
       },
@@ -9892,7 +9885,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.lupa.v1",
           "glyphAssetId": "glyph.pu120.lupa.v2"
         }
       },
@@ -9960,7 +9952,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.ma.v1",
           "glyphAssetId": "glyph.pu120.ma.v2"
         }
       },
@@ -10028,7 +10019,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.mama.v1",
           "glyphAssetId": "glyph.pu120.mama.v2"
         }
       },
@@ -10096,7 +10086,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.mani.v1",
           "glyphAssetId": "glyph.pu120.mani.v2"
         }
       },
@@ -10164,7 +10153,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.meli.v1",
           "glyphAssetId": "glyph.pu120.meli.v2"
         }
       },
@@ -10230,7 +10218,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.mi.v1",
           "glyphAssetId": "glyph.pu120.mi.v2"
         }
       },
@@ -10298,7 +10285,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.mije.v1",
           "glyphAssetId": "glyph.pu120.mije.v2"
         }
       },
@@ -10365,7 +10351,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.moku.v1",
           "glyphAssetId": "glyph.pu120.moku.v2"
         }
       },
@@ -10433,7 +10418,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.moli.v1",
           "glyphAssetId": "glyph.pu120.moli.v2"
         }
       },
@@ -10501,7 +10485,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.monsi.v1",
           "glyphAssetId": "glyph.pu120.monsi.v2"
         }
       },
@@ -10569,7 +10552,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.mu.v1",
           "glyphAssetId": "glyph.pu120.mu.v2"
         }
       },
@@ -10637,7 +10619,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.mun.v1",
           "glyphAssetId": "glyph.pu120.mun.v2"
         }
       },
@@ -10705,7 +10686,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.musi.v1",
           "glyphAssetId": "glyph.pu120.musi.v2"
         }
       },
@@ -10773,7 +10753,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.mute.v1",
           "glyphAssetId": "glyph.pu120.mute.v2"
         }
       },
@@ -10840,7 +10819,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.nanpa.v1",
           "glyphAssetId": "glyph.pu120.nanpa.v2"
         }
       },
@@ -10908,7 +10886,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.nasa.v1",
           "glyphAssetId": "glyph.pu120.nasa.v2"
         }
       },
@@ -10976,7 +10953,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.nasin.v1",
           "glyphAssetId": "glyph.pu120.nasin.v2"
         }
       },
@@ -11044,7 +11020,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.nena.v1",
           "glyphAssetId": "glyph.pu120.nena.v2"
         }
       },
@@ -11111,7 +11086,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.ni.v1",
           "glyphAssetId": "glyph.pu120.ni.v2"
         }
       },
@@ -11179,7 +11153,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.nimi.v1",
           "glyphAssetId": "glyph.pu120.nimi.v2"
         }
       },
@@ -11247,7 +11220,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.noka.v1",
           "glyphAssetId": "glyph.pu120.noka.v2"
         }
       },
@@ -11312,7 +11284,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.o.v1",
           "glyphAssetId": "glyph.pu120.o.v2"
         }
       },
@@ -11380,7 +11351,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.olin.v1",
           "glyphAssetId": "glyph.pu120.olin.v2"
         }
       },
@@ -11446,7 +11416,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.ona.v1",
           "glyphAssetId": "glyph.pu120.ona.v2"
         }
       },
@@ -11513,7 +11482,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.open.v1",
           "glyphAssetId": "glyph.pu120.open.v2"
         }
       },
@@ -11581,7 +11549,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.pakala.v1",
           "glyphAssetId": "glyph.pu120.pakala.v2"
         }
       },
@@ -11648,7 +11615,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.pali.v1",
           "glyphAssetId": "glyph.pu120.pali.v2"
         }
       },
@@ -11716,7 +11682,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.palisa.v1",
           "glyphAssetId": "glyph.pu120.palisa.v2"
         }
       },
@@ -11784,7 +11749,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.pan.v1",
           "glyphAssetId": "glyph.pu120.pan.v2"
         }
       },
@@ -11852,7 +11816,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.pana.v1",
           "glyphAssetId": "glyph.pu120.pana.v2"
         }
       },
@@ -11916,7 +11879,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.pi.v1",
           "glyphAssetId": "glyph.pu120.pi.v2"
         }
       },
@@ -11984,7 +11946,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.pilin.v1",
           "glyphAssetId": "glyph.pu120.pilin.v2"
         }
       },
@@ -12052,7 +12013,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.pimeja.v1",
           "glyphAssetId": "glyph.pu120.pimeja.v2"
         }
       },
@@ -12119,7 +12079,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.pini.v1",
           "glyphAssetId": "glyph.pu120.pini.v2"
         }
       },
@@ -12187,7 +12146,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.pipi.v1",
           "glyphAssetId": "glyph.pu120.pipi.v2"
         }
       },
@@ -12255,7 +12213,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.poka.v1",
           "glyphAssetId": "glyph.pu120.poka.v2"
         }
       },
@@ -12323,7 +12280,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.poki.v1",
           "glyphAssetId": "glyph.pu120.poki.v2"
         }
       },
@@ -12391,7 +12347,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.pona.v1",
           "glyphAssetId": "glyph.pu120.pona.v2"
         }
       },
@@ -12458,7 +12413,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.pu.v1",
           "glyphAssetId": "glyph.pu120.pu.v2"
         }
       },
@@ -12526,7 +12480,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.sama.v1",
           "glyphAssetId": "glyph.pu120.sama.v2"
         }
       },
@@ -12594,7 +12547,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.seli.v1",
           "glyphAssetId": "glyph.pu120.seli.v2"
         }
       },
@@ -12662,7 +12614,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.selo.v1",
           "glyphAssetId": "glyph.pu120.selo.v2"
         }
       },
@@ -12729,7 +12680,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.seme.v1",
           "glyphAssetId": "glyph.pu120.seme.v2"
         }
       },
@@ -12797,7 +12747,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.sewi.v1",
           "glyphAssetId": "glyph.pu120.sewi.v2"
         }
       },
@@ -12865,7 +12814,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.sijelo.v1",
           "glyphAssetId": "glyph.pu120.sijelo.v2"
         }
       },
@@ -12933,7 +12881,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.sike.v1",
           "glyphAssetId": "glyph.pu120.sike.v2"
         }
       },
@@ -13001,7 +12948,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.sin.v1",
           "glyphAssetId": "glyph.pu120.sin.v2"
         }
       },
@@ -13067,7 +13013,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.sina.v1",
           "glyphAssetId": "glyph.pu120.sina.v2"
         }
       },
@@ -13135,7 +13080,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.sinpin.v1",
           "glyphAssetId": "glyph.pu120.sinpin.v2"
         }
       },
@@ -13203,7 +13147,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.sitelen.v1",
           "glyphAssetId": "glyph.pu120.sitelen.v2"
         }
       },
@@ -13271,7 +13214,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.sona.v1",
           "glyphAssetId": "glyph.pu120.sona.v2"
         }
       },
@@ -13339,7 +13281,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.soweli.v1",
           "glyphAssetId": "glyph.pu120.soweli.v2"
         }
       },
@@ -13408,7 +13349,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.suli.v1",
           "glyphAssetId": "glyph.pu120.suli.v2"
         }
       },
@@ -13476,7 +13416,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.suno.v1",
           "glyphAssetId": "glyph.pu120.suno.v2"
         }
       },
@@ -13544,7 +13483,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.supa.v1",
           "glyphAssetId": "glyph.pu120.supa.v2"
         }
       },
@@ -13612,7 +13550,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.suwi.v1",
           "glyphAssetId": "glyph.pu120.suwi.v2"
         }
       },
@@ -13680,7 +13617,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.tan.v1",
           "glyphAssetId": "glyph.pu120.tan.v2"
         }
       },
@@ -13748,7 +13684,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.taso.v1",
           "glyphAssetId": "glyph.pu120.taso.v2"
         }
       },
@@ -13816,7 +13751,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.tawa.v1",
           "glyphAssetId": "glyph.pu120.tawa.v2"
         }
       },
@@ -13884,7 +13818,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.telo.v1",
           "glyphAssetId": "glyph.pu120.telo.v2"
         }
       },
@@ -13952,7 +13885,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.tenpo.v1",
           "glyphAssetId": "glyph.pu120.tenpo.v2"
         }
       },
@@ -14020,7 +13952,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.toki.v1",
           "glyphAssetId": "glyph.pu120.toki.v2"
         }
       },
@@ -14088,7 +14019,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.tomo.v1",
           "glyphAssetId": "glyph.pu120.tomo.v2"
         }
       },
@@ -14156,7 +14086,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.tu.v1",
           "glyphAssetId": "glyph.pu120.tu.v2"
         }
       },
@@ -14224,7 +14153,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.unpa.v1",
           "glyphAssetId": "glyph.pu120.unpa.v2"
         }
       },
@@ -14292,7 +14220,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.uta.v1",
           "glyphAssetId": "glyph.pu120.uta.v2"
         }
       },
@@ -14360,7 +14287,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.utala.v1",
           "glyphAssetId": "glyph.pu120.utala.v2"
         }
       },
@@ -14428,7 +14354,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.walo.v1",
           "glyphAssetId": "glyph.pu120.walo.v2"
         }
       },
@@ -14496,7 +14421,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.wan.v1",
           "glyphAssetId": "glyph.pu120.wan.v2"
         }
       },
@@ -14564,7 +14488,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.waso.v1",
           "glyphAssetId": "glyph.pu120.waso.v2"
         }
       },
@@ -14632,7 +14555,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.wawa.v1",
           "glyphAssetId": "glyph.pu120.wawa.v2"
         }
       },
@@ -14700,7 +14622,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.weka.v1",
           "glyphAssetId": "glyph.pu120.weka.v2"
         }
       },
@@ -14768,7 +14689,6 @@
           ]
         },
         "assetBindings": {
-          "pronunciationAssetId": "audio.pronunciation.wile.v1",
           "glyphAssetId": "glyph.pu120.wile.v2"
         }
       }
@@ -14778,7 +14698,12 @@
       "contextsPerWord": 2,
       "misconceptionRepairsPerWord": 1,
       "distinctTaskFamilyPerContext": true,
-      "pronunciationAudioRequired": true,
+      "audioPolicy": {
+        "spokenPronunciationRequired": false,
+        "dialogueFeedback": "procedural_nonsemantic",
+        "progressMayDependOnAudio": false,
+        "captionsRequired": true
+      },
       "communitySemanticReviewRequired": true,
       "rawStringEqualityAsSuccessForbidden": true,
       "colorOnlyIdentificationForbidden": true,
@@ -14786,7 +14711,7 @@
     }
   },
   "corpusExpansionRegistry": {
-    "sourceDigest": "sha256:e59ad50c34d2908620a8e11febd4ee0dac86fead640a14c0291000aee1f91e65",
+    "sourceDigest": "sha256:dbf47a2f18321f60b93cc1197abf9830db3e713722bed146f19b018b9c531bf2",
     "sourcePath": "data/language/glyph-progression.v0.1.yaml",
     "contentVersion": "core-120.prologue-12",
     "registryId": "post-pu120.csp-expansion",
@@ -14819,7 +14744,6 @@
         "save_partition",
         "reviewed_word_manifest",
         "semantic_review",
-        "pronunciation_assets",
         "glyph_assets"
       ]
     },
@@ -14838,7 +14762,6 @@
           "save_partition",
           "reviewed_word_manifest",
           "semantic_review",
-          "pronunciation_assets",
           "glyph_assets"
         ]
       },
@@ -14855,7 +14778,6 @@
           "save_partition",
           "reviewed_word_manifest",
           "semantic_review",
-          "pronunciation_assets",
           "glyph_assets"
         ]
       },
@@ -14872,7 +14794,6 @@
           "save_partition",
           "reviewed_word_manifest",
           "semantic_review",
-          "pronunciation_assets",
           "glyph_assets"
         ]
       }

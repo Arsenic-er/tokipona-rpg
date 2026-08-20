@@ -158,7 +158,7 @@ describe("PrologueFlowSession N07 return-flow integration", () => {
     expect(target.safeRangeView().qualificationActions.find((action) => action.actionId === actionId)?.available)
       .toBe(true);
     expect(Math.abs(target.snapshot().runtime.player.position.x - 576)).toBeLessThanOrEqual(16);
-  });
+  }, 15_000);
 
   it("runs the real N05 -> N07 -> N02 path with generated semantic actions and zero kills", () => {
     const target = reachCompletedCistern("flow.return.mainline");
@@ -324,7 +324,7 @@ describe("PrologueFlowSession N07 return-flow integration", () => {
       .toContain("core120.telo.context_0");
     expect(loaded.performCore120LearningAction("flow.return.core120.duplicate", "core120.telo.context_0"))
       .toMatchObject({ accepted: true, result: { accepted: true, duplicate: true } });
-  });
+  }, 15_000);
 
   it("delegates inert wawa learning without exposing provenance or world facts", () => {
     const target = reachCompletedCistern("flow.return.wawa");

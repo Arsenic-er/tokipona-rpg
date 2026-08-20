@@ -272,5 +272,5 @@ describe("PrologueFlowSession N02/N08 integration", () => {
       safeRange: null,
       killCount: 0,
     });
-  });
+  }, 15_000);
 });

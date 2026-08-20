@@ -27,8 +27,7 @@ import { bootstrapBrowserPrologue, persistBrowserPrologueCheckpoint } from
 
 const CORPUS_ID = "csp-tier1-rehearsal.v1";
 const VERSION = "csp-tier1.rehearsal.1";
-const RECEIPTS = { semantic: "review.semantic.csp1.v1",
-  pronunciation: "review.pronunciation.csp1.v1", glyph: "review.glyph.csp1.v1" } as const;
+const RECEIPTS = { semantic: "review.semantic.csp1.v1", glyph: "review.glyph.csp1.v1" } as const;
 
 class MemoryStorage implements LocalStorageLike {
   private readonly values = new Map<string, string>();
@@ -62,8 +61,7 @@ function admittedArtifacts(): { artifact: any; packageBundle: any } {
         promptLevel: 1, semanticFacets: ["test-semantic-facet"],
         worldAuthority: extensionLearningAuthority("repair") },
     ],
-    assetBindings: { pronunciationAssetId: "audio.pronunciation.testword.v1",
-      glyphAssetId: "glyph.csp1.testword.v1" },
+    assetBindings: { glyphAssetId: "glyph.csp1.testword.v1" },
   };
   const semantic = {
     schemaVersion: "tokipona.runtime-learning-corpus.v0.2" as const,

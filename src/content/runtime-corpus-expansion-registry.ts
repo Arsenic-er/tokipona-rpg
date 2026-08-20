@@ -14,7 +14,6 @@ export const CORPUS_EXPANSION_ADMISSION_REQUIREMENTS = [
   "save_partition",
   "reviewed_word_manifest",
   "semantic_review",
-  "pronunciation_assets",
   "glyph_assets",
 ] as const;
 
@@ -32,7 +31,6 @@ export interface RuntimeLearningCorpusAdmissionContract {
   readonly wordIds: readonly string[];
   readonly reviewReceiptIds: Readonly<{
     readonly semantic: string;
-    readonly pronunciation: string;
     readonly glyph: string;
   }>;
 }
@@ -247,10 +245,9 @@ function readAdmissionContract(value: unknown, label: string): RuntimeLearningCo
   const semanticDigest = string(contract.semanticDigest, `${label}.semanticDigest`);
   const wordIds = uniqueStringArray(contract.wordIds, `${label}.wordIds`);
   const receipts = record(contract.reviewReceiptIds, `${label}.reviewReceiptIds`);
-  exactKeys(receipts, ["semantic", "pronunciation", "glyph"], `${label}.reviewReceiptIds`);
+  exactKeys(receipts, ["semantic", "glyph"], `${label}.reviewReceiptIds`);
   const reviewReceiptIds = {
     semantic: string(receipts.semantic, `${label}.semantic review receipt`),
-    pronunciation: string(receipts.pronunciation, `${label}.pronunciation review receipt`),
     glyph: string(receipts.glyph, `${label}.glyph review receipt`),
   };
   if (contract.schemaVersion !== "tokipona.learning-corpus-admission.v0.1" ||
@@ -261,7 +258,7 @@ function readAdmissionContract(value: unknown, label: string): RuntimeLearningCo
       contract.saveSchemaVersion !== "tokipona.learning-corpus-partition.v0.2" ||
       !/^sha256:[0-9a-f]{64}$/.test(packageDigest) ||
       !/^sha256:[0-9a-f]{64}$/.test(semanticDigest) ||
-      new Set(Object.values(reviewReceiptIds)).size !== 3) {
+      new Set(Object.values(reviewReceiptIds)).size !== 2) {
     throw new Error(`${label} admission contract is invalid`);
   }
   return Object.freeze({

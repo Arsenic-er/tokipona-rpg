@@ -100,11 +100,9 @@ const extensionRuntime = () => {
     canonicalWordKey: "latin_word_id" as const,
     wordIds: [wordId],
     words: { [wordId]: { wordId, targetState: "produced", semanticFacets: ["browser.facet"], actions,
-      assetBindings: { pronunciationAssetId: "audio.pronunciation.browserword.v1",
-        glyphAssetId: "glyph.browserext.browserword.v1" } } },
+      assetBindings: { glyphAssetId: "glyph.browserext.browserword.v1" } } },
   };
-  const reviewReceiptIds = { semantic: "review.browser.semantic", pronunciation: "review.browser.pronunciation",
-    glyph: "review.browser.glyph" };
+  const reviewReceiptIds = { semantic: "review.browser.semantic", glyph: "review.browser.glyph" };
   const payload = { ...semantic, semanticDigest: computeRuntimeLearningCorpusSemanticDigest(semantic as any),
     reviewReceiptIds };
   const candidate = { ...payload, sourceDigest: computeRuntimeLearningCorpusPackageDigest(payload) };

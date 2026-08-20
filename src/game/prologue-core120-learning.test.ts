@@ -252,7 +252,6 @@ describe("PrologueCore120LearningCoordinator", () => {
       completedSemanticActionCount: 0,
       station: { targetId: "settlement.p0_inscription_archive", inRange: true },
       externalAssets: {
-        pronunciationAudio: "blocked_pending_private_assets",
         glyphVisuals: "blocked_pending_private_approval",
         glyphCatalog: "draft",
         fullAssetAcceptance: false,
@@ -262,7 +261,7 @@ describe("PrologueCore120LearningCoordinator", () => {
       .toMatchObject({ accepted: true, result: { accepted: true } });
     expect(flow.core120LearningView().words.find((word) => word.wordId === "akesi"))
       .toMatchObject({ currentState: "discovered", nextActionId: "core120.akesi.attune",
-        audioReady: false, glyphReady: false });
+        glyphReady: false });
   });
 
   it("replays all 600 canonical actions through the unified GameSession and reloads the completed 120-word save", () => {

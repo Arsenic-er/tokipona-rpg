@@ -1,0 +1,19 @@
+schema_version: audio.procedural-dialogue.v0.1
+content_version: procedural-dialogue.0.1
+semantic_content: none
+external_asset_required: false
+progress_may_depend_on_audio: false
+captions_required: true
+explicit_interaction_only: true
+cadence:
+  short_note_count: [2, 3]
+  long_note_count: [4, 6]
+  note_duration_ms: 32
+  gap_ms: 46
+  maximum_sequence_ms: 600
+synthesis:
+  frequency_range_hz: [180, 520]
+  maximum_gain: 0.03
+  waveforms: [square, triangle]
+  attack_ms: 4
+  release_ms: 8

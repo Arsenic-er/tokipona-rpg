@@ -52,6 +52,8 @@ button:disabled { color: #625f59; cursor: not-allowed; }
 .topic-row { display: grid; gap: 3px; margin-top: 5px; }
 .topic-row button { min-height: 24px; padding: 3px; font-size: 7px; }
 .dialogue-box { margin-top: 6px; padding: 7px; border: 1px solid #343b36; background: #0c100f; }
+.dialogue-audio-toggle { float: right; min-height: 24px; padding: 3px 6px; font-size: 7px; }
+.dialogue-audio-toggle[aria-pressed="false"] { color: #878176; border-color: #49453d; }
 .dialogue-box strong { display: block; margin-top: 3px; color: #a8d2b0; font-size: 9px; }
 .dialogue-box ul { margin: 5px 0; padding-left: 16px; color: #aaa599; font-size: 8px; line-height: 1.5; }
 .clarify-row, .service-grid, .job-row { display: grid; gap: 4px; }

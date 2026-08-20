@@ -74,7 +74,7 @@ describe("PrologueP0LearningCoordinator", () => {
     for (let tick = 0; tick < 760 && !flow.p0LearningView().station.inRange; tick += 1) flow.advanceTicks(1, { moveX: 1 });
     expect(flow.p0LearningView()).toMatchObject({ mode: "settlement", reachedWordCount: 0,
       station: { targetId: "settlement.p0_inscription_archive", inRange: true },
-      externalAssets: { pronunciationAudio: "blocked_pending_private_assets" } });
+      externalAssets: { approvedGlyphRelease: "blocked_pending_private_approval" } });
     expect(flow.performP0LearningAction("flow.discover", "p0.weka.discover")).toMatchObject({ accepted: true, result: { accepted: true } });
     expect(flow.p0LearningView().words.find((word) => word.wordId === "weka")).toMatchObject({ currentState: "discovered", nextActionId: "p0.weka.attune" });
   });

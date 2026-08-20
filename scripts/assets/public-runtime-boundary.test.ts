@@ -5,8 +5,7 @@ import { tmpdir } from "node:os";
 import { afterEach, describe, expect, it } from "vitest";
 import generated from "../../src/generated/content-runtime.v0.1.json";
 import currentRelease from "../../src/assets/runtime-release-contract.v0.1.json";
-import currentPrivateExport from "../../src/assets/runtime-core120-private-export.v0.2.json";
-import currentPronunciation from "../../src/assets/p0-pronunciation-manifest.v0.1.json";
+import currentPrivateExport from "../../src/assets/runtime-core120-private-export.v0.3.json";
 import currentCatalog from "../../data/language/pu-120-glyph-catalog.v0.2.json";
 import {
   computeRuntimeCore120CurriculumDigest,
@@ -29,15 +28,12 @@ describe("public runtime asset boundary", () => {
       runtimeArtifact: generated,
       releaseContract: currentRelease,
       glyphCatalog: currentCatalog,
-      p0PronunciationManifest: currentPronunciation,
       privateAssetExport: currentPrivateExport,
     })).toEqual({
-      schemaVersion: "tokipona.public-asset-boundary-check.v0.2",
+      schemaVersion: "tokipona.public-asset-boundary-check.v0.3",
       status: "safe_blocked_pending_external_approval",
       core120WordCount: 120,
-      p0PronunciationWordCount: 12,
       publicGlyphFileCount: 1,
-      publicPronunciationFileCount: 0,
       approvedPrivateExportPresent: false,
       missingExportPlaceholderPresent: true,
     });
@@ -46,12 +42,10 @@ describe("public runtime asset boundary", () => {
   it("accepts a complete future approval only after every declared public file matches its hash", () => {
     const fixture = approvedFixture();
     expect(checkPublicRuntimeAssetBoundary(fixture.input)).toEqual({
-      schemaVersion: "tokipona.public-asset-boundary-check.v0.2",
+      schemaVersion: "tokipona.public-asset-boundary-check.v0.3",
       status: "approved_runtime_assets_verified",
       core120WordCount: 120,
-      p0PronunciationWordCount: 12,
       publicGlyphFileCount: 7,
-      publicPronunciationFileCount: 120,
       approvedPrivateExportPresent: true,
       missingExportPlaceholderPresent: false,
     });
@@ -59,11 +53,14 @@ describe("public runtime asset boundary", () => {
 
   it("rejects missing, changed, and undeclared runtime files", () => {
     const changed = approvedFixture();
-    writeFileSync(join(changed.root, "public/assets/pronunciation/telo.ogg"), "changed");
+    writeFileSync(join(changed.root,
+      "public/assets/magic-glyphs/pu120-v2/pu120-activation-gray.page-0.png"), "changed");
     expect(() => checkPublicRuntimeAssetBoundary(changed.input))
       .toThrow("approved_public_asset_hash_mismatch");
 
-    const missing = approvedFixture({ omitWordId: "weka" });
+    const missing = approvedFixture();
+    rmSync(join(missing.root,
+      "public/assets/magic-glyphs/pu120-v2/pu120-inner-edge.page-0.png"));
     expect(() => checkPublicRuntimeAssetBoundary(missing.input))
       .toThrow("approved_public_asset_missing");
 
@@ -71,21 +68,19 @@ describe("public runtime asset boundary", () => {
     writeFileSync(join(extra.root, "public/assets/magic-glyphs/private-review.png"), "private");
     expect(() => checkPublicRuntimeAssetBoundary(extra.input))
       .toThrow("public_glyph_file_set_invalid");
+
+    const retiredAudio = approvedFixture();
+    mkdirSync(join(retiredAudio.root, "public/assets/pronunciation"), { recursive: true });
+    writeFileSync(join(retiredAudio.root, "public/assets/pronunciation/telo.ogg"), "retired");
+    expect(() => checkPublicRuntimeAssetBoundary(retiredAudio.input))
+      .toThrow("public_non_glyph_runtime_forbidden");
   });
 
-  it("rejects partial approval states and P0 metadata that diverges from the core-120 export", () => {
+  it("rejects partial approval states", () => {
     const partial = approvedFixture();
     const blockedRelease = structuredClone(currentRelease);
     expect(() => checkPublicRuntimeAssetBoundary({ ...partial.input, releaseContract: blockedRelease }))
       .toThrow("partial_asset_approval_state_forbidden");
-
-    const mismatch = approvedFixture();
-    const pronunciation = structuredClone(mismatch.input.p0PronunciationManifest) as any;
-    pronunciation.entries.telo.sha256 = `sha256:${"0".repeat(64)}`;
-    expect(() => checkPublicRuntimeAssetBoundary({
-      ...mismatch.input,
-      p0PronunciationManifest: pronunciation,
-    })).toThrow("p0_core120_pronunciation_mismatch");
   });
 
   it("rejects catalog approval claims that are not complete for every glyph", () => {
@@ -114,21 +109,19 @@ describe("public runtime asset boundary", () => {
   });
 });
 
-function approvedFixture(options: { readonly omitWordId?: string } = {}): Readonly<{
+function approvedFixture(): Readonly<{
   root: string;
   input: Parameters<typeof checkPublicRuntimeAssetBoundary>[0];
 }> {
   const root = mkdtempSync(join(tmpdir(), "tokipona-public-assets-"));
   temporaryRoots.push(root);
   mkdirSync(join(root, "public/assets/magic-glyphs"), { recursive: true });
-  mkdirSync(join(root, "public/assets/pronunciation"), { recursive: true });
   writeFileSync(join(root, "public/assets/magic-glyphs/README.md"), "approved runtime assets\n");
   const runtimeArtifact = approvedRuntimeArtifact();
   const manifest = readRuntimeCore120CurriculumManifest(runtimeArtifact);
-  const privateAssetExport = approvedPrivateExport(manifest, root, options.omitWordId);
+  const privateAssetExport = approvedPrivateExport(manifest, root);
   const releaseContract = approvedRelease();
   const glyphCatalog = approvedCatalog();
-  const p0PronunciationManifest = approvedP0Pronunciation(manifest, privateAssetExport);
   return Object.freeze({
     root,
     input: {
@@ -136,7 +129,6 @@ function approvedFixture(options: { readonly omitWordId?: string } = {}): Readon
       runtimeArtifact,
       releaseContract,
       glyphCatalog,
-      p0PronunciationManifest,
       privateAssetExport,
     },
   });
@@ -174,7 +166,6 @@ function approvedCatalog(): any {
 function approvedPrivateExport(
   manifest: RuntimeCore120CurriculumManifest,
   root: string,
-  omitWordId?: string,
 ): any {
   const glyphRoot = join(root, "public/assets/magic-glyphs/pu120-v2");
   mkdirSync(glyphRoot, { recursive: true });
@@ -194,29 +185,8 @@ function approvedPrivateExport(
     page: 0, x: 2 + (index % 30) * 34, y: 2 + Math.floor(index / 30) * 34, w: 32, h: 32,
   });
   const entries = Object.fromEntries(manifest.scope.wordIds.map((wordId, index) => {
-    const bytes = Buffer.from(`approved-pronunciation-${wordId}`);
-    if (wordId !== omitWordId) {
-      writeFileSync(join(root, `public/assets/pronunciation/${wordId}.ogg`), bytes);
-    }
     const word = manifest.words[wordId]!;
     return [wordId, {
-      pronunciation: {
-        assetId: word.assetBindings.pronunciationAssetId,
-        publicPath: `assets/pronunciation/${wordId}.ogg`,
-        sha256: hash(bytes),
-        sourceUrl: `https://assets.example.invalid/pronunciation/${wordId}.ogg`,
-        licenseSpdx: "CC-BY-4.0",
-        durationMs: 750,
-        sampleRateHz: 48_000,
-        channels: 1,
-        approvals: {
-          redistribution: "approved",
-          language: "approved",
-          accessibility: "approved",
-          community: "approved",
-          hashes: "approved",
-        },
-      },
       glyph: {
         assetId: word.assetBindings.glyphAssetId,
         displayCodepoint: word.displayCodepoint,
@@ -258,7 +228,7 @@ function approvedPrivateExport(
     "source", "license", "language", "pixel", "animation", "accessibility", "community", "hashes",
   ].map((approval) => [approval, "approved"]));
   return {
-    schemaVersion: "tokipona.pu120-private-asset-export.v0.2",
+    schemaVersion: "tokipona.pu120-private-asset-export.v0.3",
     status: "approved",
     manifestDigest: manifest.sourceDigest,
     corpusId: "pu-120",
@@ -281,33 +251,6 @@ function approvedPrivateExport(
       containsSourceFonts: false,
       containsReviewMedia: false,
     },
-  };
-}
-
-function approvedP0Pronunciation(
-  manifest: RuntimeCore120CurriculumManifest,
-  privateAssetExport: any,
-): any {
-  const wordIds = manifest.scope.wordIds
-    .filter((wordId) => manifest.words[wordId]?.curriculumBand === "P0")
-    .sort();
-  return {
-    schemaVersion: "tokipona.p0-pronunciation-assets.v0.1",
-    status: "approved",
-    wordIds,
-    entries: Object.fromEntries(wordIds.map((wordId) => {
-      const pronunciation = privateAssetExport.entries[wordId].pronunciation;
-      return [wordId, {
-        audioAssetId: pronunciation.assetId,
-        publicPath: pronunciation.publicPath,
-        sha256: pronunciation.sha256,
-        sourceUrl: pronunciation.sourceUrl,
-        licenseSpdx: pronunciation.licenseSpdx,
-        redistributionApproved: true,
-        languageReviewApproved: true,
-        communityReviewApproved: true,
-      }];
-    })),
   };
 }
 

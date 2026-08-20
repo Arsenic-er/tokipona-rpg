@@ -114,7 +114,6 @@ runtime_curriculum:
         - save_partition
         - reviewed_word_manifest
         - semantic_review
-        - pronunciation_assets
         - glyph_assets
     admitted_corpus_ids: []
     phases:
@@ -123,19 +122,19 @@ runtime_curriculum:
         predecessor_id: "pu-120"
         status: "pending_review"
         admission_contract: null
-        blocked_reasons: [corpus_id, content_version, action_namespace, save_partition, reviewed_word_manifest, semantic_review, pronunciation_assets, glyph_assets]
+        blocked_reasons: [corpus_id, content_version, action_namespace, save_partition, reviewed_word_manifest, semantic_review, glyph_assets]
       - phase_id: "csp-tier2"
         sequence: 2
         predecessor_id: "csp-tier1-remainder"
         status: "pending_review"
         admission_contract: null
-        blocked_reasons: [corpus_id, content_version, action_namespace, save_partition, reviewed_word_manifest, semantic_review, pronunciation_assets, glyph_assets]
+        blocked_reasons: [corpus_id, content_version, action_namespace, save_partition, reviewed_word_manifest, semantic_review, glyph_assets]
       - phase_id: "csp-tier3"
         sequence: 3
         predecessor_id: "csp-tier2"
         status: "pending_review"
         admission_contract: null
-        blocked_reasons: [corpus_id, content_version, action_namespace, save_partition, reviewed_word_manifest, semantic_review, pronunciation_assets, glyph_assets]
+        blocked_reasons: [corpus_id, content_version, action_namespace, save_partition, reviewed_word_manifest, semantic_review, glyph_assets]
   # One-time reader for saves emitted before semantic and asset release digests
   # were separated. New saves bind the semantic digest below this projection.
   compatible_legacy_learning_contracts:
@@ -148,7 +147,11 @@ runtime_curriculum:
   raw_string_equality_as_success_forbidden: true
   color_only_identification_forbidden: true
   fixed_slot_only_production_forbidden: true
-  pronunciation_audio_required: true
+  audio_policy:
+    spoken_pronunciation_required: false
+    dialogue_feedback: procedural_nonsemantic
+    progress_may_depend_on_audio: false
+    captions_required: true
   community_semantic_review_required: true
   recovery_station:
     scene_ref: "../scenes/valley-settlement.v0.1.yaml"
@@ -200,7 +203,8 @@ runtime_curriculum:
 
 accessibility:
   display_modes: [glyph_only, glyph_plus_latin, glyph_plus_latin_plus_meaning]
-  pronunciation_audio: required
+  dialogue_audio_optional: true
+  captions_required: true
   high_contrast_glyph: required
   no_glow_mode: required
   reduced_flash_mode: required

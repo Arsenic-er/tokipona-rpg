@@ -45,7 +45,6 @@ export interface RuntimeLearningCorpusWord {
   readonly semanticFacets: readonly string[];
   readonly actions: readonly RuntimeLearningCorpusAction[];
   readonly assetBindings: Readonly<{
-    readonly pronunciationAssetId: string;
     readonly glyphAssetId: string;
   }>;
 }
@@ -65,7 +64,6 @@ export interface RuntimeLearningCorpusPackage {
   readonly words: Readonly<Record<string, RuntimeLearningCorpusWord>>;
   readonly reviewReceiptIds: Readonly<{
     readonly semantic: string;
-    readonly pronunciation: string;
     readonly glyph: string;
   }>;
 }
@@ -294,15 +292,13 @@ function readWord(value: unknown, wordId: string, namespace: string): RuntimeLea
     throw new Error(`learning corpus word ${wordId} contexts must be distinct`);
   }
   const assets = record(word.assetBindings, `${wordId}.assetBindings`);
-  exactKeys(assets, ["pronunciationAssetId", "glyphAssetId"], `${wordId}.assetBindings`);
-  const pronunciationAssetId = string(assets.pronunciationAssetId, `${wordId}.pronunciationAssetId`);
+  exactKeys(assets, ["glyphAssetId"], `${wordId}.assetBindings`);
   const glyphAssetId = string(assets.glyphAssetId, `${wordId}.glyphAssetId`);
-  if (!pronunciationAssetId.startsWith(`audio.pronunciation.${wordId}.`) ||
-      !glyphAssetId.startsWith(`glyph.${namespace}.${wordId}.`)) {
+  if (!glyphAssetId.startsWith(`glyph.${namespace}.${wordId}.`)) {
     throw new Error(`learning corpus word ${wordId} asset bindings are invalid`);
   }
   return Object.freeze({ wordId, targetState: "produced", semanticFacets: Object.freeze(semanticFacets),
-    actions: Object.freeze(actions), assetBindings: Object.freeze({ pronunciationAssetId, glyphAssetId }) });
+    actions: Object.freeze(actions), assetBindings: Object.freeze({ glyphAssetId }) });
 }
 
 function readWorldAuthority(value: unknown, label: string): RuntimeLearningCorpusWorldAuthority {
@@ -328,20 +324,18 @@ function readWorldAuthority(value: unknown, label: string): RuntimeLearningCorpu
 
 function readReviewReceipts(value: unknown, label: string): RuntimeLearningCorpusPackage["reviewReceiptIds"] {
   const receipts = record(value, label);
-  exactKeys(receipts, ["semantic", "pronunciation", "glyph"], label);
+  exactKeys(receipts, ["semantic", "glyph"], label);
   const result = {
     semantic: string(receipts.semantic, `${label}.semantic`),
-    pronunciation: string(receipts.pronunciation, `${label}.pronunciation`),
     glyph: string(receipts.glyph, `${label}.glyph`),
   };
-  if (new Set(Object.values(result)).size !== 3) throw new Error(`${label} must be distinct`);
+  if (new Set(Object.values(result)).size !== 2) throw new Error(`${label} must be distinct`);
   return Object.freeze(result);
 }
 
 function sameReviewReceipts(left: RuntimeLearningCorpusPackage["reviewReceiptIds"],
   right: RuntimeLearningCorpusPackage["reviewReceiptIds"]): boolean {
-  return left.semantic === right.semantic && left.pronunciation === right.pronunciation &&
-    left.glyph === right.glyph;
+  return left.semantic === right.semantic && left.glyph === right.glyph;
 }
 
 function record(value: unknown, label: string): Record<string, unknown> {
