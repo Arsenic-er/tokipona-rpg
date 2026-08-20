@@ -16,12 +16,12 @@ Run the release gate against an explicit private asset root and manifest. These 
 public-safe reason codes and aggregate metadata; they must not print private source paths.
 
 ```powershell
-pnpm assets:release audit `
+pnpm run assets:release audit `
   --asset-root C:\absolute\private-asset-root `
   --manifest manifests\pu120-release.yaml `
   --public-root C:\absolute\toki-pona
 
-pnpm assets:release dry-run `
+pnpm run assets:release dry-run `
   --asset-root C:\absolute\private-asset-root `
   --manifest manifests\pu120-release.yaml `
   --public-root C:\absolute\toki-pona
@@ -39,7 +39,7 @@ do not copy files manually to bypass it.
 After the dry run is allowed, export the allowlisted runtime files atomically:
 
 ```powershell
-pnpm assets:release export `
+pnpm run assets:release export `
   --asset-root C:\absolute\private-asset-root `
   --manifest manifests\pu120-release.yaml `
   --public-root C:\absolute\toki-pona
@@ -47,13 +47,16 @@ pnpm assets:release export `
 
 The exporter may copy only approved runtime roles and extensions. Source fonts, review images,
 engineering files, private paths, symlinks, and unapproved licenses remain private.
-The current public core-120 contract admits exactly the declared glyph atlas and 120 pronunciation
-files. Masks, animations, palettes, or other runtime roles require an explicit public schema/version
-change before handoff; allowlisting a private role alone does not make it part of this release.
+The current public Core-120 contract admits exactly the six-file v0.2 glyph bundle (atlas manifest,
+palette manifest, two activation pages, one role-pattern page, and one inner-edge page) plus a
+separate atomic set of 120 pronunciation files. Extra masks, animations, review renders, or other
+runtime roles require an explicit public schema/version change before handoff; allowlisting a
+private role alone does not make it part of this release.
 
-Glyph and pronunciation media use separate, atomic manifests. Existing glyph manifests omit
-`destination_root` (equivalent to `magic_glyphs`) and retain their versioned destination. The
-pronunciation manifest must declare the fixed pronunciation root and a flat target set:
+Glyph and pronunciation media use separate, atomic manifests. The v0.2 glyph manifest declares
+`destination_root: magic_glyphs` and `destination: pu120-v2`; its approved export contains only the
+six files documented in `public/assets/magic-glyphs/README.md`. The pronunciation manifest must
+declare the fixed pronunciation root and a flat target set:
 
 ```yaml
 public_export:
@@ -75,7 +78,7 @@ file against the public core-120 and P0 metadata.
 
 The approved private pipeline must also provide the corresponding public metadata updates:
 
-- `src/assets/runtime-core120-private-export.v0.1.json`
+- `src/assets/runtime-core120-private-export.v0.2.json`
 - `src/assets/runtime-release-contract.v0.1.json`
 - `src/assets/p0-pronunciation-manifest.v0.1.json`
 - the approved `data/language/pu-120-glyph-catalog.v0.2.json`, followed by regenerated content

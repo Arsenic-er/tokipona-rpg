@@ -32,8 +32,8 @@
 - Consumes: verified `RuntimeCore120CurriculumManifest`.
 - Produces: `readRuntimeCore120AssetExportCandidate()` and expanded approved bundle/frame types.
 
-- [ ] **Step 1: Write failing tests** for v0.2 missing, complete review candidate, approved data, v0.1 missing migration, and v0.1 approved rejection.
-- [ ] **Step 2: Verify RED.**
+- [x] **Step 1: Write failing tests** for v0.2 missing, complete review candidate, approved data, v0.1 missing migration, and v0.1 approved rejection.
+- [x] **Step 2: Verify RED.**
 
 ```powershell
 pnpm exec vitest run src/assets/runtime-core120-assets.test.ts
@@ -41,9 +41,9 @@ pnpm exec vitest run src/assets/runtime-core120-assets.test.ts
 
 Expected: failure because the v0.2 parser does not exist.
 
-- [ ] **Step 3: Implement minimal strict parsing** with exact keys, hashes, page/path/dimension validation, bounds, rectangle uniqueness, generated word bindings, privacy, and status-dependent pronunciation/approval rules.
-- [ ] **Step 4: Verify GREEN** with the focused command above.
-- [ ] **Step 5: Commit.**
+- [x] **Step 3: Implement minimal strict parsing** with exact keys, hashes, page/path/dimension validation, bounds, rectangle uniqueness, generated word bindings, privacy, and status-dependent pronunciation/approval rules.
+- [x] **Step 4: Verify GREEN** with the focused command above.
+- [x] **Step 5: Commit.**
 
 ```powershell
 git add src/assets/runtime-core120-assets.ts src/assets/runtime-core120-assets.test.ts src/assets/runtime-core120-private-export.v0.2.json
@@ -60,21 +60,21 @@ git commit -m "feat: add Core-120 multi-page asset export contract"
 - Consumes: approved `glyphBundle` plus files in `public/assets`.
 - Produces: approval only after all bundle hashes and atlas entries match.
 
-- [ ] **Step 1: Write a failing future fixture** with two activation PNGs, pattern/edge PNGs, palette JSON, atlas JSON, and 120 pronunciations. Assert seven glyph files including README.
-- [ ] **Step 2: Verify RED.**
+- [x] **Step 1: Write a failing future fixture** with two activation PNGs, pattern/edge PNGs, palette JSON, atlas JSON, and 120 pronunciations. Assert seven glyph files including README.
+- [x] **Step 2: Verify RED.**
 
 ```powershell
 pnpm exec vitest run scripts/assets/public-runtime-boundary.test.ts
 ```
 
-- [ ] **Step 3: Implement exact file-set/hash validation** and parse the atlas JSON to compare digest, pages, dimensions, and all 120 coordinate entries with the approved export.
-- [ ] **Step 4: Verify GREEN.**
+- [x] **Step 3: Implement exact file-set/hash validation** and parse the atlas JSON to compare digest, pages, dimensions, and all 120 coordinate entries with the approved export.
+- [x] **Step 4: Verify GREEN.**
 
 ```powershell
 pnpm exec vitest run src/assets/runtime-core120-assets.test.ts scripts/assets/public-runtime-boundary.test.ts scripts/assets/release-gate.test.ts
 ```
 
-- [ ] **Step 5: Commit.**
+- [x] **Step 5: Commit.**
 
 ```powershell
 git add scripts/assets/public-runtime-boundary.ts scripts/assets/public-runtime-boundary.test.ts
@@ -93,16 +93,16 @@ git commit -m "feat: audit Core-120 multi-page runtime bundle"
 - Consumes: public runtime artifact; private catalog, atlas, palette, license record, and asset files.
 - Produces: safe v0.2 review candidate, sanitized runtime manifests, and private release-gate candidate.
 
-- [ ] **Step 1: Write a failing standard-library unittest** asserting exact order/coordinates/hashes, pending approvals, null pronunciation, privacy, no absolute/private paths in the safe export, and byte-identical repeated output.
-- [ ] **Step 2: Verify RED.**
+- [x] **Step 1: Write a failing standard-library unittest** asserting exact order/coordinates/hashes, pending approvals, null pronunciation, privacy, no absolute/private paths in the safe export, and byte-identical repeated output.
+- [x] **Step 2: Verify RED.**
 
 ```powershell
 python -m unittest scripts.glyphs.test_build_core120_asset_handoff_v2 -v
 ```
 
-- [ ] **Step 3: Implement the generator** using `argparse`, `hashlib`, `json`, and `pathlib`; validate every declared hash; hardcode review-candidate/pending state with no approval option.
-- [ ] **Step 4: Verify GREEN and generate real candidates twice.** The second run must produce no diff.
-- [ ] **Step 5: Re-run existing private validators.**
+- [x] **Step 3: Implement the generator** using `argparse`, `hashlib`, `json`, and `pathlib`; validate every declared hash; hardcode review-candidate/pending state with no approval option.
+- [x] **Step 4: Verify GREEN and generate real candidates twice.** The second run must produce no diff.
+- [x] **Step 5: Re-run existing private validators.**
 
 ```powershell
 python scripts/glyphs/validate_pu120_glyph_atlas.py source/glyph-mapping/pu-120-glyph-catalog.v0.2.json work/magic-glyphs/sitelen-seli-kiwen-mono-juniko/background-independent/pu120/v001
@@ -111,7 +111,7 @@ python scripts/glyphs/validate_surface_composites_v2.py source/glyph-mapping/pu-
 
 Expected: 120 glyphs, 960 frames, 19,200 deterministic surface hash pairs, zero failures.
 
-- [ ] **Step 6: Commit.**
+- [x] **Step 6: Commit.**
 
 ```powershell
 git add scripts/glyphs work/runtime-candidates manifests/releases
@@ -129,12 +129,12 @@ git commit -m "assets: generate Core-120 v0.2 review candidate"
 - Consumes: real private candidate and public parser.
 - Produces: reproducible operator commands and explicit remaining blockers.
 
-- [ ] **Step 1: Add a public golden candidate test** using a deterministic digest/schema assertion, without depending on a private filesystem path.
-- [ ] **Step 2: Verify RED**, then wire the golden fixture and verify GREEN.
-- [ ] **Step 3: Document generation, audit, promotion, and later 120-OGG intake.** State that a current audit is expected to deny pending human approvals.
-- [ ] **Step 4: Run public focused gates and private deterministic gates.**
-- [ ] **Step 5: Search the public diff** for drive paths, `file://`, private repository names, source fonts, review media, and approval claims; require no matches.
-- [ ] **Step 6: Commit documentation.**
+- [x] **Step 1: Add a public golden candidate test** using a deterministic digest/schema assertion, without depending on a private filesystem path.
+- [x] **Step 2: Verify RED**, then wire the golden fixture and verify GREEN.
+- [x] **Step 3: Document generation, audit, promotion, and later 120-OGG intake.** State that a current audit is expected to deny pending human approvals.
+- [x] **Step 4: Run public focused gates and private deterministic gates.**
+- [x] **Step 5: Search the public diff** for drive paths, `file://`, private repository names, source fonts, review media, and approval claims; require no matches.
+- [x] **Step 6: Commit documentation.**
 
 ### Task 5: Final verification and branch publication
 
@@ -144,12 +144,12 @@ git commit -m "assets: generate Core-120 v0.2 review candidate"
 - Consumes: both completed branches.
 - Produces: verified pushed branches without claiming external approval.
 
-- [ ] **Step 1: Run full public verification.**
+- [x] **Step 1: Run full public verification.**
 
 ```powershell
 pnpm run verify
 ```
 
-- [ ] **Step 2: Re-run private generator idempotency, atlas validation, and surface validation.**
-- [ ] **Step 3: Require both worktrees clean** and confirm the public history contains no private binaries.
-- [ ] **Step 4: Push** `codex/core120-asset-export-v02` and `codex/glyph-activation-assets-v0.2`; do not claim release approval.
+- [x] **Step 2: Re-run private generator idempotency, atlas validation, and surface validation.**
+- [x] **Step 3: Require both worktrees clean** and confirm the public history contains no private binaries.
+- [x] **Step 4: Push** `codex/core120-asset-export-v02` and `codex/glyph-activation-assets-v0.2`; do not claim release approval.
