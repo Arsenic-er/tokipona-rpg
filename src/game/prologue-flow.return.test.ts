@@ -5,6 +5,11 @@ import { readRuntimeP0CurriculumManifest } from "../content/runtime-p0-curriculu
 import { commitSessionProposal, type SessionBatchCommitResult, type SessionProposalBatch } from "../session/adapters";
 import type { GameSession, GameSessionSave } from "../session/game-session";
 import type { CrossSaveWalRecovery, CrossSaveWalRecord } from "../persistence/cross-save-wal";
+import {
+  BrowserGameSessionWalCoordinator,
+  LocalStorageDurableJsonStore,
+  type LocalStorageLike,
+} from "../persistence/browser-game-session-wal";
 import { PROLOGUE_STREAM_SCENE_ID } from "./prologue-arrival-stream";
 import {
   PROLOGUE_CISTERN_SCENE_ID,
@@ -121,7 +126,40 @@ class RecordingCrossSaveCoordinator implements CrossSaveTransactionCoordinator {
   public toSessionSave(): GameSessionSave { return this.current.toSave(); }
 }
 
+class MemoryLocalStorage implements LocalStorageLike {
+  private readonly values = new Map<string, string>();
+  getItem(key: string): string | null { return this.values.get(key) ?? null; }
+  setItem(key: string, value: string): void { this.values.set(key, value); }
+}
+
 describe("PrologueFlowSession N07 return-flow integration", () => {
+  it("reaches the N02 qualification station after a durable N07 return", () => {
+    const target = reachCompletedCistern("flow.return.durable-station", (flow) =>
+      completeP0AndPrepareTelo(flow, "flow.return.durable-station"));
+    const coordinator = BrowserGameSessionWalCoordinator.fresh(
+      target.session,
+      new LocalStorageDurableJsonStore(new MemoryLocalStorage(), "companion"),
+    );
+    target.attachCrossSaveTransactionCoordinator(coordinator);
+    expect(target.enterReturnFlow("durable-station.entry").accepted).toBe(true);
+    const solution = PROLOGUE_RETURN_FLOW_SOLUTION_CONTRACTS[0]!;
+    for (const [index, actionId] of solution.requiredActions.entries()) {
+      expect(target.performReturnFlowAction(`durable-station.action.${index}`, actionId).accepted).toBe(true);
+    }
+    expect(target.completeReturnFlowSolution("durable-station.complete", solution.id).accepted).toBe(true);
+    expect(target.returnFlowToSettlement("durable-station.return").accepted).toBe(true);
+
+    const actionId = "settlement.calibration.unrelated_delivery_commit";
+    for (let tick = 0; tick < 700 &&
+      !target.safeRangeView().qualificationActions.find((action) => action.actionId === actionId)?.available;
+      tick += 1) {
+      target.advanceTicks(1, { moveX: 1 });
+    }
+    expect(target.safeRangeView().qualificationActions.find((action) => action.actionId === actionId)?.available)
+      .toBe(true);
+    expect(Math.abs(target.snapshot().runtime.player.position.x - 576)).toBeLessThanOrEqual(16);
+  });
+
   it("runs the real N05 -> N07 -> N02 path with generated semantic actions and zero kills", () => {
     const target = reachCompletedCistern("flow.return.mainline");
     expect(target.enterReturnFlow("flow.return.entry")).toMatchObject({

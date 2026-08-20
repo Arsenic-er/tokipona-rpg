@@ -136,17 +136,29 @@ async function settleAtSettlementControl(page: Page, selector: string): Promise<
   await expect(control).toBeVisible();
   if (await control.isDisabled()) await page.waitForTimeout(1_000);
   const deadline = Date.now() + 24_000;
-  let direction: "a" | "d" = "d";
-  while (Date.now() < deadline) {
+  for (const direction of ["d", "a", "d"] as const) {
+    const sweepDeadline = Math.min(deadline, Date.now() + 8_000);
     const sceneId = await app(page).getAttribute("data-scene-id");
     expect(sceneId, `left settlement while approaching ${selector}`).toBe(SETTLEMENT);
-    if (await control.isEnabled()) {
-      await page.waitForTimeout(200);
-      if (await control.isEnabled()) return;
-      direction = direction === "d" ? "a" : "d";
-      continue;
+    await page.locator("#rpg-canvas").focus();
+    await page.keyboard.down(direction);
+    let enteredRange = false;
+    try {
+      enteredRange = await page.waitForFunction((candidateSelector) => {
+        const candidate = document.querySelector(candidateSelector);
+        return candidate instanceof HTMLButtonElement && !candidate.disabled;
+      }, selector, { polling: "raf", timeout: Math.max(1, sweepDeadline - Date.now()) })
+        .then(() => true, (error: unknown) => {
+          if (error instanceof Error && error.name === "TimeoutError") return false;
+          throw error;
+        });
+    } finally {
+      await page.keyboard.up(direction);
     }
-    await stepHorizontalFor(page, direction, 40);
+    if (enteredRange) {
+      await page.waitForTimeout(120);
+      if (await control.isEnabled()) return;
+    }
   }
   const status = await page.locator('[data-ui="status"]').textContent().catch(() => null);
   await expect(control, `control never settled as enabled; last status: ${status ?? "unavailable"}`).toBeEnabled();
@@ -396,9 +408,24 @@ test("completes N07, the optional production N08 trial, and the old-mine thresho
   await expect(page.locator("[data-core120-learning-count]")).toHaveText("3 / 600");
   await clickEnabled(page, '[data-return-intent="return_settlement"]');
   await expectModeAndScene(page, "settlement", SETTLEMENT);
+  await expect(page.locator("[data-p0-learning-count]")).toHaveText("12 / 12");
+  const returnCheckpoint = await page.evaluate((storageKey) => {
+    const raw = localStorage.getItem(storageKey);
+    if (raw === null) return null;
+    const envelope = JSON.parse(raw) as { session?: { state?: { checkpoint?: unknown } } };
+    return envelope.session?.state?.checkpoint ?? null;
+  }, PRIMARY_KEY);
+  expect(returnCheckpoint).toMatchObject({
+    sceneId: SETTLEMENT,
+    position: { x: 32, y: 450 },
+  });
 
   const qualificationActions = page.locator("[data-safe-range-qualification-action]");
   await expect(qualificationActions).toHaveCount(8);
+  await settleAtSettlementControl(
+    page,
+    '[data-safe-range-qualification-action="settlement.calibration.unrelated_delivery_commit"]',
+  );
   const teloH0 = '[data-safe-range-qualification-action="settlement.telo.h0"]';
   await activateAtSettlementControl(page, teloH0);
   for (const actionId of [
