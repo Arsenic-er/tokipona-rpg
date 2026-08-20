@@ -39,6 +39,13 @@ describe("runtime content artifact generator", () => {
       generatedLearningCorpusPackagesText, expectedPackages)).not.toThrow();
   });
 
+  it("accepts an equivalent checked-in artifact after a Windows CRLF checkout", () => {
+    const expected = "{\n  \"schema\": \"runtime.v0.1\"\n}\n";
+    const windowsCheckout = expected.replaceAll("\n", "\r\n");
+
+    expect(() => assertRuntimeArtifactCurrent(windowsCheckout, expected)).not.toThrow();
+  });
+
   it("emits the validated N00 through N08 runtime scene manifest", () => {
     const artifact = buildRuntimeContentArtifact(compileContent(repositorySources()));
     expect(readRuntimePortraitCameraProfile(artifact)).toMatchObject({

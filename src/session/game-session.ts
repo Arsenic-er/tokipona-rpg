@@ -32,6 +32,7 @@ import {
 } from "../game/p0-learning-contract";
 import {
   core120LearningActionEvidencePresent,
+  core120LegacyLearningActionEvidencePresent,
   core120LearningActionPrerequisitesSatisfied,
   core120EvidenceMatches,
   materializeCore120LearningEvidence,
@@ -2056,9 +2057,13 @@ export class GameSession {
       case "core120_learning_action_committed": {
         const { actionId, receiptId, payloadHash, authority } = event.payload;
         const legacy = authority === undefined;
+        const legacyEvidenceAlreadyPresent = legacy && core120LegacyLearningActionEvidencePresent(
+          RUNTIME_CORE120_CURRICULUM_MANIFEST, this.state.learning, this.sessionId, actionId,
+        );
         const authorityValid = legacy
           ? this.state.world.currentSceneId === RUNTIME_CORE120_CURRICULUM_MANIFEST.recoveryStation.sceneId &&
-            core120LearningActionPayloadHashes(actionId).includes(payloadHash)
+            core120LearningActionPayloadHashes(actionId).slice(1).includes(payloadHash) &&
+            legacyEvidenceAlreadyPresent
           : core120LearningAuthorityMatchesAction(actionId, authority) &&
             authority.sceneId === this.state.world.currentSceneId &&
             authority.expectedWorldRevision === this.state.world.revision &&
@@ -2074,10 +2079,10 @@ export class GameSession {
           ? { reason: "duplicate_receipt", duplicate: true }
           : { reason: "receipt_payload_conflict", duplicate: false };
         let learning = this.state.learning;
-        const legacyEvidenceAlreadyPresent = core120LearningActionEvidencePresent(
+        const evidenceAlreadyPresent = legacy ? legacyEvidenceAlreadyPresent : core120LearningActionEvidencePresent(
           RUNTIME_CORE120_CURRICULUM_MANIFEST, learning, this.sessionId, actionId,
         );
-        if (!legacyEvidenceAlreadyPresent) {
+        if (!evidenceAlreadyPresent) {
           if (!core120LearningActionPrerequisitesSatisfied(
             RUNTIME_CORE120_CURRICULUM_MANIFEST, learning, this.sessionId, actionId,
           )) return { reason: "invalid_event", duplicate: false };

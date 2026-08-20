@@ -16,6 +16,7 @@ import {
   core120LearningActionReceiptId,
   PrologueCore120LearningCoordinator,
   PROLOGUE_CORE120_LEARNING_ACTION_IDS,
+  type Core120LearningAuthority,
 } from "./prologue-core120-learning";
 import { PrologueFlowSession } from "./prologue-flow";
 import { PrologueSettlementSession, createPrologueSettlementInitialSession } from "./prologue-settlement";
@@ -173,6 +174,20 @@ describe("PrologueCore120LearningCoordinator", () => {
     const p0Only = atArchive("core120.receipt-chain");
     completeP0(p0Only, "p0.receipt-chain");
     const p0Save = p0Only.toSave();
+    const authoritylessCurrentReceipt: GameSessionEvent = {
+      eventId: "forged.core120.current-receipt-only",
+      sequence: p0Save.eventLedger.length + 1,
+      type: "core120_learning_action_committed",
+      payload: {
+        actionId: "core120.akesi.discover",
+        receiptId: core120LearningActionReceiptId(p0Save.sessionId, "core120.akesi.discover"),
+        payloadHash: core120LearningActionPayloadHash("core120.akesi.discover"),
+      },
+    };
+    expect(replayGameSession(p0Save.sessionId, p0Save.origin,
+      [...p0Save.eventLedger, authoritylessCurrentReceipt]))
+      .toMatchObject({ ok: false, reason: "invalid_event" });
+
     const actionId = "core120.akesi.context_0" as const;
     const appended: GameSessionEvent = {
       eventId: "forged.core120.replay-prerequisite",
@@ -200,6 +215,15 @@ describe("PrologueCore120LearningCoordinator", () => {
       type: "learning_evidence_committed",
       payload: { evidence: entry, core120CurriculumActionId: actionId, core120EvidenceOrdinal: ordinal },
     }));
+    const currentReceiptWithoutAuthority: GameSessionEvent = {
+      eventId: `session.core120.learning.receipt.${actionId}`,
+      sequence: base.eventLedger.length + evidence.length + 1,
+      type: "core120_learning_action_committed",
+      payload: { actionId, receiptId: core120LearningActionReceiptId(base.sessionId, actionId),
+        payloadHash: core120LearningActionPayloadHash(actionId) },
+    };
+    expect(replayGameSession(base.sessionId, base.origin, [...base.eventLedger, ...appended,
+      currentReceiptWithoutAuthority])).toMatchObject({ ok: false, reason: "invalid_event" });
     appended.push({
       eventId: `session.core120.learning.receipt.${actionId}`,
       sequence: base.eventLedger.length + evidence.length + 1,
@@ -242,13 +266,38 @@ describe("PrologueCore120LearningCoordinator", () => {
   });
 
   it("replays all 600 canonical actions through the unified GameSession and reloads the completed 120-word save", () => {
-    const target = atArchive("core120.full-session");
+    const visitedScenes = [...new Set(manifest.scope.wordIds.flatMap((wordId) =>
+      manifest.words[wordId]!.contexts.map((context) => context.location.sceneId)))];
+    const target = atArchive("core120.full-session", visitedScenes);
     completeP0(target, "p0.full-session");
     const base = target.toSave();
     const ledger: GameSessionEvent[] = [...base.eventLedger];
     let sequence = ledger.at(-1)?.sequence ?? 0;
+    const expectedWorldRevision = target.session.snapshot().world.revision;
 
     for (const actionId of PROLOGUE_CORE120_LEARNING_ACTION_IDS) {
+      const [, wordId, kind] = /^core120\.([a-z]+)\.(discover|attune|context_0|context_1|repair)$/
+        .exec(actionId)!;
+      const contextIndex = kind === "context_0" ? 0 : kind === "context_1" ? 1 : null;
+      const authority: Core120LearningAuthority = contextIndex === null
+        ? {
+            mode: "archive_instruction",
+            sceneId: manifest.recoveryStation.sceneId,
+            targetId: manifest.recoveryStation.targetId,
+            playerPositionPx: manifest.recoveryStation.interactionPointPx,
+            expectedWorldRevision,
+            contextIndex: null,
+            recoveredSceneId: null,
+          }
+        : {
+            mode: "recovery_archive",
+            sceneId: manifest.recoveryStation.sceneId,
+            targetId: manifest.recoveryStation.targetId,
+            playerPositionPx: manifest.recoveryStation.interactionPointPx,
+            expectedWorldRevision,
+            contextIndex,
+            recoveredSceneId: manifest.words[wordId!]!.contexts[contextIndex].location.sceneId,
+          };
       ledger.push({
         eventId: `session.core120.learning.receipt.${actionId}`,
         sequence: ++sequence,
@@ -256,7 +305,8 @@ describe("PrologueCore120LearningCoordinator", () => {
         payload: {
           actionId,
           receiptId: core120LearningActionReceiptId(base.sessionId, actionId),
-          payloadHash: core120LearningActionPayloadHash(actionId),
+          payloadHash: core120LearningActionPayloadHash(actionId, authority),
+          authority,
         },
       });
     }

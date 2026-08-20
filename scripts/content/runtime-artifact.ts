@@ -929,7 +929,10 @@ export function serializeRuntimeLearningCorpusPackageBundle(
   bundle: RuntimeLearningCorpusPackageBundle,
 ): string { return `${JSON.stringify(bundle, null, 2)}\n`; }
 export function assertRuntimeArtifactCurrent(actual: string, expected: string): void {
-  if (actual !== expected) throw new Error("Generated runtime content is stale. Run the content runtime generator to refresh checked-in artifacts.");
+  const normalizeLineEndings = (value: string): string => value.replaceAll("\r\n", "\n");
+  if (normalizeLineEndings(actual) !== normalizeLineEndings(expected)) {
+    throw new Error("Generated runtime content is stale. Run the content runtime generator to refresh checked-in artifacts.");
+  }
 }
 function stableStringify(value: ContentValue): string {
   if (Array.isArray(value)) return `[${value.map(stableStringify).join(",")}]`;

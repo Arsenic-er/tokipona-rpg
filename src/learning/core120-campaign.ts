@@ -233,6 +233,23 @@ export function core120LearningActionEvidencePresent(
   );
 }
 
+export function core120LegacyLearningActionEvidencePresent(
+  manifest: RuntimeCore120CurriculumManifest,
+  learning: LearningProgressionSnapshot,
+  playerSaveId: string,
+  actionId: Core120LearningActionId,
+): boolean {
+  if (!isVerifiedRuntimeCore120CurriculumManifest(manifest) || !validPlayerSaveId(playerSaveId)) return false;
+  const parsed = parseAction(manifest, actionId);
+  const observed = parsed === null ? undefined : learning.words[parsed.word.wordId]?.evidence;
+  if (parsed === null || observed === undefined) return false;
+  return manifest.learningContract.compatibleLegacyContracts.some((contract) => {
+    const expected = materializeEvents(manifest, playerSaveId, parsed.word, parsed.kind, contract.sourceDigest)
+      .map((event) => event.eventId);
+    return expected.every((eventId) => observed.some((entry) => entry.eventId === eventId));
+  });
+}
+
 export function applyCore120LearningAction(
   manifest: RuntimeCore120CurriculumManifest,
   state: Core120CampaignState,
