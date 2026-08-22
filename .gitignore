@@ -6,6 +6,7 @@ playwright-report/
 test-results/
 .vite/
 tmp/
+/.codex-tmp/
 /private-input/
 /exports/
 *.tsbuildinfo

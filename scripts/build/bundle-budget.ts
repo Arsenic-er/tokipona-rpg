@@ -4,6 +4,7 @@ export const EXPECTED_BUILD_ENTRIES = Object.freeze([
   "trade.html",
   "cistern.html",
   "rpg.html",
+  "world-scale.html",
 ] as const);
 
 export const BUNDLE_BUDGETS = Object.freeze({
@@ -16,10 +17,10 @@ export const BUNDLE_BUDGETS = Object.freeze({
 const REQUIRED_RPG_CHUNK_NAMES = Object.freeze([
   "content-runtime.v0.1",
   "app-support~rpg",
-  "game-runtime~rpg",
+  "game-runtime~rpg~world-scale",
   "session-runtime~rpg",
   "rpg-ui~rpg",
-  "learning-runtime~rpg",
+  "learning-runtime~rpg~world-scale",
 ]);
 
 interface ManifestChunk {

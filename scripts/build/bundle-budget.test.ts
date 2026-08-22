@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { assertBundleBudget, BUNDLE_BUDGETS, EXPECTED_BUILD_ENTRIES } from "./bundle-budget";
 
 describe("production bundle budget", () => {
-  it("accepts the five-entry build with explicit RPG domain chunks", () => {
+  it("accepts the six-entry build with an isolated world-scale prototype", () => {
     const fixture = createFixture();
     const report = assertBundleBudget(fixture.manifest, (file) => fixture.sizes[file] ?? 0);
 
@@ -52,7 +52,7 @@ describe("production bundle budget", () => {
   it("rejects missing domain groups and reverse imports into an HTML entry", () => {
     const missingGroup = createFixture();
     missingGroup.manifest._learning.name = "wrong-learning-name";
-    expect(() => assertFixture(missingGroup)).toThrow("bundle_rpg_domain_chunk_missing:learning-runtime~rpg");
+    expect(() => assertFixture(missingGroup)).toThrow("bundle_rpg_domain_chunk_missing:learning-runtime~rpg~world-scale");
 
     const cycle = createFixture();
     cycle.manifest._game.imports = ["rpg.html"];
@@ -101,10 +101,10 @@ function createFixture(): Fixture {
     [key, entry(`assets/${key.replace(".html", ".js")}`)]));
   manifest._content = chunkRecord("assets/content.js", "content-runtime.v0.1");
   manifest._support = chunkRecord("assets/support.js", "app-support~rpg");
-  manifest._game = chunkRecord("assets/game.js", "game-runtime~rpg");
+  manifest._game = chunkRecord("assets/game.js", "game-runtime~rpg~world-scale");
   manifest._session = chunkRecord("assets/session.js", "session-runtime~rpg");
   manifest._ui = chunkRecord("assets/ui.js", "rpg-ui~rpg");
-  manifest._learning = chunkRecord("assets/learning.js", "learning-runtime~rpg");
+  manifest._learning = chunkRecord("assets/learning.js", "learning-runtime~rpg~world-scale");
   manifest["rpg.html"].imports = ["_content", "_support", "_game", "_session", "_ui", "_learning"];
 
   const sizes = Object.fromEntries(Object.values(manifest).flatMap((chunk) => [

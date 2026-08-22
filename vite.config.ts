@@ -35,7 +35,7 @@ export function createTokiponaViteConfig(
       target: "es2022",
       manifest: true,
       rolldownOptions: {
-        input: ["index.html", "survival.html", "trade.html", "cistern.html", "rpg.html"],
+        input: ["index.html", "survival.html", "trade.html", "cistern.html", "rpg.html", "world-scale.html"],
         output: {
           strictExecutionOrder: true,
           codeSplitting: {
