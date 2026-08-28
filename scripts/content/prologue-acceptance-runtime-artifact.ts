@@ -1,5 +1,5 @@
-import { createHash } from "node:crypto";
 import type { ContentManifest, ContentObject, ContentValue } from "../../src/content/types.ts";
+import { computeRuntimeManifestDigest } from "../../src/content/runtime-manifest-digest.ts";
 import type { RuntimePrologueAcceptanceManifest } from "../../src/content/runtime-prologue-acceptance-manifest.ts";
 
 const PROLOGUE_TELEMETRY_EVENT_IDS = [
@@ -155,12 +155,12 @@ export function projectPrologueAcceptance(manifest: ContentManifest): RuntimePro
       },
     },
   } as const;
-  return { sourceDigest: `sha256:${createHash("sha256").update(stable(body)).digest("hex")}`, ...body } as RuntimePrologueAcceptanceManifest;
+  return { sourceDigest: computeRuntimeManifestDigest(body), ...body } as RuntimePrologueAcceptanceManifest;
 }
 
-function object(value: ContentValue | undefined, label: string): ContentObject { if (typeof value !== "object" || value === null || Array.isArray(value)) throw new Error(`${label} must be an object`); return value; }
+function object(value: ContentValue | undefined, label: string): ContentObject { if (!isContentObject(value)) throw new Error(`${label} must be an object`); return value; }
+function isContentObject(value: ContentValue | undefined): value is ContentObject { return typeof value === "object" && value !== null && !Array.isArray(value); }
 function array(value: ContentValue | undefined, label: string): readonly ContentValue[] { if (!Array.isArray(value)) throw new Error(`${label} must be an array`); return value; }
 function exact<T extends string | number | boolean>(value: ContentValue | undefined, expected: T, label: string): T { if (value !== expected) throw new Error(`${label} must equal ${String(expected)}`); return expected; }
 function exactStrings<T extends readonly string[]>(value: ContentValue | undefined, expected: T, label: string): T { if (!Array.isArray(value) || value.length !== expected.length || value.some((entry, index) => entry !== expected[index])) throw new Error(`${label} is noncanonical`); return [...expected] as unknown as T; }
 function exactNumberPair(value: ContentValue | undefined, first: number, second: number, label: string): readonly [number, number] { if (!Array.isArray(value) || value.length !== 2 || value[0] !== first || value[1] !== second) throw new Error(`${label} is noncanonical`); return [first, second]; }
-function stable(value: unknown): string { if (value === null || typeof value !== "object") return JSON.stringify(value); if (Array.isArray(value)) return `[${value.map(stable).join(",")}]`; const entry = value as Record<string, unknown>; return `{${Object.keys(entry).sort().map((key) => `${JSON.stringify(key)}:${stable(entry[key])}`).join(",")}}`; }

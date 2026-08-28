@@ -117,8 +117,9 @@ function largeCreaturePersistent(manifest: ContentManifest): true {
 function one<T>(items: readonly T[], label: string): T { if (items.length !== 1 || !items[0]) throw new Error(`expected exactly one ${label}`); return items[0]; }
 function task(manifest: ContentManifest, id: string): ContentObject { const value = manifest.indexes.tasks[id]; if (!value) throw new Error(`missing task ${id}`); return value; }
 function scene(manifest: ContentManifest, id: string): ContentObject { const value = manifest.indexes.scenes[id]; if (!value) throw new Error(`missing scene ${id}`); return value; }
-function object(value: ContentValue | undefined, label: string): ContentObject { if (typeof value !== "object" || value === null || Array.isArray(value)) throw new Error(`${label} must be an object`); return value; }
+function object(value: ContentValue | undefined, label: string): ContentObject { if (!isContentObject(value)) throw new Error(`${label} must be an object`); return value; }
 function objectArray(value: ContentValue | undefined, label: string): ContentObject[] { if (!Array.isArray(value) || !value.every((entry) => typeof entry === "object" && entry !== null && !Array.isArray(entry))) throw new Error(`${label} must be an object array`); return value as ContentObject[]; }
+function isContentObject(value: ContentValue | undefined): value is ContentObject { return typeof value === "object" && value !== null && !Array.isArray(value); }
 function string(value: ContentValue | undefined, label: string): string { if (typeof value !== "string" || value.length === 0) throw new Error(`${label} must be a non-empty string`); return value; }
 function strings(value: ContentValue | undefined, label: string): string[] { if (!Array.isArray(value) || !value.every((entry) => typeof entry === "string" && entry.length > 0)) throw new Error(`${label} must be a string array`); return [...value] as string[]; }
 function exact<T extends string | number | boolean>(value: ContentValue | undefined, expected: T, label: string): T { if (value !== expected) throw new Error(`${label} must equal ${String(expected)}`); return expected; }

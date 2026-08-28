@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import { projectSafeRangeQualification } from "./safe-range-runtime-artifact.ts";
 import { projectProceduralDialogueAudio } from "./dialogue-audio-runtime-artifact.ts";
 import { projectP0Curriculum } from "./p0-runtime-artifact.ts";
@@ -24,8 +23,8 @@ import type { RuntimePortraitCameraProfile } from "../../src/content/runtime-cam
 import type { RuntimePrologueAcceptanceManifest } from "../../src/content/runtime-prologue-acceptance-manifest.ts";
 import type { RuntimeForestChapterManifest } from "../../src/content/runtime-forest-chapter-manifest.ts";
 import type { RuntimeProceduralDialogueAudioManifest } from "../../src/content/runtime-dialogue-audio-manifest.ts";
-import { posix } from "node:path";
 import type { ContentManifest, ContentObject, ContentValue } from "../../src/content/types.ts";
+import { computeRuntimeManifestDigest } from "../../src/content/runtime-manifest-digest.ts";
 import type { CapabilityMilestoneMachineProjection } from "../../src/session/capability-contract.ts";
 import type { RuntimeFreshnessState, RuntimeWildlifeProcessingManifest } from "../../src/content/runtime-wildlife-processing-manifest.ts";
 import type { RuntimeTradeManifest } from "../../src/content/runtime-trade-manifest.ts";
@@ -181,7 +180,7 @@ export function buildRuntimeContentArtifact(manifest: ContentManifest): RuntimeC
   }
   const capabilityProgression: CapabilityMilestoneMachineProjection = {
     sourcePath: chapterSource.path,
-    sourceDigest: `sha256:${createHash("sha256").update(stableStringify(requireObject(chapterSource.content, ["capacity_progression"]))).digest("hex")}`,
+    sourceDigest: computeRuntimeManifestDigest(requireObject(chapterSource.content, ["capacity_progression"])),
     contractRevision: chapterSource.contentVersion,
     capacityMilestones,
   };
@@ -271,7 +270,7 @@ export function buildRuntimeContentArtifact(manifest: ContentManifest): RuntimeC
     },
   };
   const ecology: RuntimeEcologyManifest = {
-    sourceDigest: `sha256:${createHash("sha256").update(stableStringify(ecologyBody)).digest("hex")}`,
+    sourceDigest: computeRuntimeManifestDigest(ecologyBody),
     ...ecologyBody,
   };
 
@@ -404,7 +403,7 @@ export function buildRuntimeContentArtifact(manifest: ContentManifest): RuntimeC
     corpusExpansionRegistry,
   });
   const runtimeScenes: RuntimeSceneManifestIndex = {
-    sourceDigest: `sha256:${createHash("sha256").update(stableStringify(sceneSources.map((item) => item.content))).digest("hex")}`,
+    sourceDigest: computeRuntimeManifestDigest(sceneSources.map((item) => item.content)),
     byId: scenes,
   };
   const learningCorpusCatalog = projectLearningCorpusArtifacts(
@@ -623,15 +622,15 @@ export function buildRuntimeContentArtifact(manifest: ContentManifest): RuntimeC
   } as const;
   const survivalConsumption = {
     ...survivalConsumptionBody,
-    sourceDigest: `sha256:${createHash("sha256").update(stableStringify(survivalConsumptionBody)).digest("hex")}` as `sha256:${string}`,
+    sourceDigest: computeRuntimeManifestDigest(survivalConsumptionBody),
   };  return {
     schemaVersion: RUNTIME_CONTENT_SCHEMA_VERSION,
-    sourceDigest: `sha256:${createHash("sha256").update(stableStringify(content)).digest("hex")}`,
+    sourceDigest: computeRuntimeManifestDigest(content),
     source: { path: source.path, schemaVersion: source.schemaVersion, contentVersion: source.contentVersion },
     telo: { pixelsPerTile, profiles },
     scenes: runtimeScenes,
     infrastructureTasks: {
-      sourceDigest: `sha256:${createHash("sha256").update(stableStringify(infrastructureTaskSources.map((item) => item.content))).digest("hex")}`,
+      sourceDigest: computeRuntimeManifestDigest(infrastructureTaskSources.map((item) => item.content)),
       byId: infrastructureTasks,
     },
     safeRangeQualification,
@@ -677,7 +676,7 @@ function projectPortraitCameraProfile(manifest: ContentManifest): RuntimePortrai
   } as const;
   return {
     ...body,
-    sourceDigest: `sha256:${createHash("sha256").update(stableStringify(body)).digest("hex")}`,
+    sourceDigest: computeRuntimeManifestDigest(body),
   };
 }
 
@@ -753,7 +752,7 @@ function projectSettlementTrade(
     quoteLifetimeActiveSeconds: requirePositiveInteger(content, ["flow", "quote_lifetime_active_seconds"]),
     quoteClock: requireExactString(content, ["flow", "quote_clock"], "session_monotonic_active_seconds"),
     transactionKind: requireExactString(sellContract, ["transaction_kind"], "sell"),
-    idempotencyKeyFields: requireStringArray(sellContract, ["idempotency_key_fields"]),
+    idempotencyKeyFields: requireExactStringArray(sellContract, ["idempotency_key_fields"], ["player_save_id", "merchant_id", "quote_id"]),
     quote: {
       requiredFields: requireStringArray(quoteContract, ["required_fields"]),
       lineItemFields: requireStringArray(quoteContract, ["line_item_fields"]),
@@ -777,7 +776,7 @@ function projectSettlementTrade(
     }; })(),
     walParticipants: requireStringArray(sellWal, ["participants"]),
   } as const;
-  return { sourceDigest: `sha256:${createHash("sha256").update(stableStringify(body)).digest("hex")}`, ...body } as RuntimeTradeManifest;
+  return { sourceDigest: computeRuntimeManifestDigest(body), ...body } as RuntimeTradeManifest;
 }
 function projectWildlifeProcessing(manifest: ContentManifest): RuntimeWildlifeProcessingManifest {
   const sources = manifest.byKind.wildlife_economy;
@@ -854,7 +853,7 @@ function projectWildlifeProcessing(manifest: ContentManifest): RuntimeWildlifePr
         outputs: readPath(entry, ["outputs"]) === undefined ? [] : requireObjectArray(entry, ["outputs"]).map((output) => ({
           itemId: requireString(output, ["item_id"]), quantity: requirePositiveInteger(output, ["quantity"]),
         })),
-        rejectInputStates: readPath(entry, ["reject_input_states"]) === undefined ? [] : requireStringArray(entry, ["reject_input_states"]),
+        rejectInputStates: readPath(entry, ["reject_input_states"]) === undefined ? [] : requireFreshnessStateArray(entry, ["reject_input_states"]),
         requiredDistinctEligibleEvents: readPath(entry, ["required_distinct_eligible_events"]) === undefined
           ? 0 : requireNonNegativeInteger(entry, ["required_distinct_eligible_events"]),
         eligibleEventFilter: readPath(entry, ["eligible_event_filter"]) === undefined ? [] : requireStringArray(entry, ["eligible_event_filter"]),
@@ -913,7 +912,7 @@ function projectWildlifeProcessing(manifest: ContentManifest): RuntimeWildlifePr
     items, harvestProfiles, damageQuality, decayProfiles, processingRecipes, stationBindings,
     wal: {
       sourcePath: walSource.path,
-      sourceDigest: `sha256:${createHash("sha256").update(stableStringify(walContent)).digest("hex")}` as `sha256:${string}`,
+      sourceDigest: computeRuntimeManifestDigest(walContent),
       coordinatorId: requireExactString(walContent, ["coordinator_id"], "cross_save_wal.v0.1"),
       transactionIdFormula: requireExactString(identity, ["transaction_id_formula"], "sha256(coordinator_id, transaction_kind, canonical_idempotency_key)"),
       outputIdFormula: requireExactString(identity, ["output_id_formula"], "sha256(transaction_id, output_kind, output_index)"),
@@ -922,7 +921,7 @@ function projectWildlifeProcessing(manifest: ContentManifest): RuntimeWildlifePr
     },
   };
   return {
-    sourceDigest: `sha256:${createHash("sha256").update(stableStringify(body)).digest("hex")}`,
+    sourceDigest: computeRuntimeManifestDigest(body),
     ...body,
   };
 }
@@ -944,11 +943,6 @@ export function assertRuntimeArtifactCurrent(actual: string, expected: string): 
     throw new Error("Generated runtime content is stale. Run the content runtime generator to refresh checked-in artifacts.");
   }
 }
-function stableStringify(value: ContentValue): string {
-  if (Array.isArray(value)) return `[${value.map(stableStringify).join(",")}]`;
-  if (typeof value !== "object" || value === null) return JSON.stringify(value);
-  return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${stableStringify(value[key] as ContentValue)}`).join(",")}}`;
-}
 function exactProduct(...valuesAndLabel: readonly (number | string)[]): number {
   const label = valuesAndLabel.at(-1); const values = valuesAndLabel.slice(0, -1) as number[];
   const result = values.reduce((product, value) => product * value, 1);
@@ -969,10 +963,10 @@ function optionalString(root: ContentObject, path: readonly string[]): string | 
 function requireBoolean(root: ContentObject, path: readonly string[]): boolean {
   const value = readPath(root, path); if (typeof value !== "boolean") throw new Error(`${path.join(".")} must be boolean.`); return value;
 }
-function requireExactBoolean(root: ContentObject, path: readonly string[], expected: boolean): boolean {
+function requireExactBoolean<const T extends boolean>(root: ContentObject, path: readonly string[], expected: T): T {
   const value = requireBoolean(root, path);
   if (value !== expected) throw new Error(`${path.join(".")} must equal ${expected}.`);
-  return value;
+  return expected;
 }
 function requireExactString<T extends string>(root: ContentObject, path: readonly string[], expected: T): T {
   const value = requireString(root, path);
@@ -1003,10 +997,20 @@ function requirePredicateMode(root: ContentObject, path: readonly string[]): "al
 }function requireRouteKind(root: ContentObject, path: readonly string[]): "non_magic" | "optional_magic" {
   const value = requireString(root, path); if (value !== "non_magic" && value !== "optional_magic") throw new Error(`${path.join(".")} has unknown route kind ${value}.`); return value;
 }
-function requireExactNumber(root: ContentObject, path: readonly string[], expected: number): number { const value = readPath(root, path); if (value !== expected) throw new Error(`${path.join(".")} must equal ${expected}.`); return value; }
+function requireExactNumber<const T extends number>(root: ContentObject, path: readonly string[], expected: T): T { const value = readPath(root, path); if (value !== expected) throw new Error(`${path.join(".")} must equal ${expected}.`); return expected; }
 function requireObjectArray(root: ContentObject, path: readonly string[]): ContentObject[] { const value = readPath(root, path); if (!Array.isArray(value) || !value.every(isContentObject)) throw new Error(`${path.join(".")} must be an object array.`); return value; }
 function optionalObjectArray(root: ContentObject, path: readonly string[]): ContentObject[] { const value = readPath(root, path); if (value === undefined) return []; if (!Array.isArray(value) || !value.every(isContentObject)) throw new Error(`${path.join(".")} must be an object array when provided.`); return value; }
 function requireStringArray(root: ContentObject, path: readonly string[]): string[] { const value = readPath(root, path); if (!Array.isArray(value) || !value.every((item) => typeof item === "string" && item.length > 0)) throw new Error(`${path.join(".")} must be a string array.`); return value; }
+function requireExactStringArray<const T extends readonly string[]>(root: ContentObject, path: readonly string[], expected: T): T { const value = requireStringArray(root, path); if (value.length !== expected.length || value.some((entry, index) => entry !== expected[index])) throw new Error(`${path.join(".")} is noncanonical.`); return expected; }
+function requireFreshnessStateArray(root: ContentObject, path: readonly string[]): RuntimeFreshnessState[] {
+  return requireStringArray(root, path).map((value) => {
+    switch (value) {
+      case "fresh": case "aging": case "spoiled": case "decomposed": case "raw":
+      case "slipping": case "rotten": case "cured": case "stable": return value;
+      default: throw new Error(`${path.join(".")} has an invalid freshness state.`);
+    }
+  });
+}
 function requireFiniteNumberPair(root: ContentObject, path: readonly string[]): readonly [number, number] { const value = readPath(root, path); if (!Array.isArray(value) || value.length !== 2 || !value.every((item) => typeof item === "number" && Number.isFinite(item) && item >= 0)) throw new Error(`${path.join(".")} must be a non-negative finite number pair.`); return [value[0] as number, value[1] as number]; }
 function requireNumberPair(root: ContentObject, path: readonly string[]): readonly [number, number] { const value = readPath(root, path); if (!Array.isArray(value) || value.length !== 2 || !value.every((item) => typeof item === "number" && Number.isInteger(item) && item >= 0)) throw new Error(`${path.join(".")} must be a non-negative integer pair.`); return [value[0] as number, value[1] as number]; }
 function requireTileRect(root: ContentObject, path: readonly string[]): RuntimeTileRect { const value = requireObject(root, path); return { x: requireNonNegativeInteger(value, ["x"]), y: requireNonNegativeInteger(value, ["y"]), width: requirePositiveInteger(value, ["width"]), height: requirePositiveInteger(value, ["height"]) }; }
@@ -1018,7 +1022,14 @@ function requireNonNegativeNumber(root: ContentObject, path: readonly string[]):
 function readPath(root: ContentObject, path: readonly string[]): ContentValue | undefined { let value: ContentValue | undefined = root; for (const key of path) { if (!isContentObject(value)) return undefined; value = value[key]; } return value; }
 function isContentObject(value: ContentValue | undefined): value is ContentObject { return typeof value === "object" && value !== null && !Array.isArray(value); }
 function resolveRepositoryContentPath(sourcePath: string, reference: string): string {
-  const resolved = posix.normalize(posix.join(posix.dirname(sourcePath), reference));
+  const parts = sourcePath.split("/");
+  parts.pop();
+  for (const part of reference.split("/")) {
+    if (part === "" || part === ".") continue;
+    if (part === "..") { if (parts.length === 0) throw new Error(`content reference escapes data/: ${reference}`); parts.pop(); }
+    else parts.push(part);
+  }
+  const resolved = parts.join("/");
   if (!resolved.startsWith("data/") || resolved.startsWith("../")) throw new Error(`content reference escapes data/: ${reference}`);
   return resolved;
 }

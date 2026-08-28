@@ -44,10 +44,13 @@ export function projectProceduralDialogueAudio(
 }
 
 function object(value: ContentValue | undefined, label: string): ContentObject {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+  if (!isContentObject(value)) {
     throw new Error(`${label} must be an object`);
   }
   return value;
+}
+function isContentObject(value: ContentValue | undefined): value is ContentObject {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function exact<T extends ContentValue>(value: ContentValue | undefined, expected: T, label: string): T {
   if (value !== expected) throw new Error(`${label} must equal ${String(expected)}`);

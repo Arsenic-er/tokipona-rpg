@@ -1,5 +1,3 @@
-import { createHash } from "node:crypto";
-import { posix } from "node:path";
 import type {
   Core120Band,
   Core120VisualDomain,
@@ -9,6 +7,7 @@ import type {
 } from "../../src/content/runtime-core120-curriculum-manifest.ts";
 import { computeRuntimeCore120LearningSemanticDigest } from
   "../../src/content/runtime-core120-curriculum-manifest.ts";
+import { computeRuntimeManifestDigest } from "../../src/content/runtime-manifest-digest.ts";
 import type { ContentManifest, ContentObject, ContentValue } from "../../src/content/types.ts";
 
 const CORE120_BANDS = ["P0", "P1", "P2", "P3", "P4", "P5"] as const;
@@ -181,7 +180,7 @@ export function projectCore120Curriculum(manifest: ContentManifest): RuntimeCore
     compatibleLegacyContracts: CORE120_COMPATIBLE_LEGACY_CONTRACTS,
   } as const;
   const projected = { learningContract, ...body } as const;
-  return { sourceDigest: `sha256:${createHash("sha256").update(stable(projected)).digest("hex")}`,
+  return { sourceDigest: computeRuntimeManifestDigest(projected),
     ...projected } as RuntimeCore120CurriculumManifest;
 }
 
@@ -210,9 +209,19 @@ function projectLocation(manifest: ContentManifest, sourcePath: string, value: C
   } };
 }
 
-function resolve(from: string, ref: string): string { return posix.normalize(posix.join(posix.dirname(from), ref)); }
-function object(value: ContentValue | undefined, label: string): ContentObject { if (typeof value !== "object" || value === null || Array.isArray(value)) throw new Error(`${label} must be an object`); return value as ContentObject; }
+function resolve(from: string, ref: string): string {
+  const parts = from.split("/");
+  parts.pop();
+  for (const part of ref.split("/")) {
+    if (part === "" || part === ".") continue;
+    if (part === "..") { if (parts.length === 0) throw new Error(`content reference escapes root: ${ref}`); parts.pop(); }
+    else parts.push(part);
+  }
+  return parts.join("/");
+}
+function object(value: ContentValue | undefined, label: string): ContentObject { if (!isContentObject(value)) throw new Error(`${label} must be an object`); return value; }
 function objects(value: ContentValue | undefined, label: string): ContentObject[] { if (!Array.isArray(value) || !value.every((entry) => typeof entry === "object" && entry !== null && !Array.isArray(entry))) throw new Error(`${label} must be an object array`); return value as ContentObject[]; }
+function isContentObject(value: ContentValue | undefined): value is ContentObject { return typeof value === "object" && value !== null && !Array.isArray(value); }
 function string(value: ContentValue | undefined, label: string): string { if (typeof value !== "string" || value.length === 0) throw new Error(`${label} must be a non-empty string`); return value; }
 function strings(value: ContentValue | undefined, label: string): string[] { if (!Array.isArray(value) || value.length === 0 || !value.every((entry) => typeof entry === "string" && entry.length > 0) || new Set(value).size !== value.length) throw new Error(`${label} must be a unique string array`); return [...value] as string[]; }
 function pair(value: ContentValue | undefined, label: string): [string, string] { const result = strings(value, label); if (result.length !== 2) throw new Error(`${label} must contain exactly two values`); return [result[0]!, result[1]!]; }
@@ -234,4 +243,3 @@ function projectSpeechlessAudioPolicy(value: ContentValue | undefined, label: st
 function same(value: unknown, expected: readonly unknown[]): boolean { return Array.isArray(value) && value.length === expected.length && value.every((entry, index) => entry === expected[index]); }
 function sameSet(value: readonly string[], expected: readonly string[]): boolean { return value.length === expected.length && new Set(value).size === value.length && expected.every((entry) => value.includes(entry)); }
 function sameExact(value: readonly string[], expected: readonly string[], label: string): void { if (!same(value, expected)) throw new Error(`${label} is noncanonical`); }
-function stable(value: unknown): string { if (value === null || typeof value !== "object") return JSON.stringify(value); if (Array.isArray(value)) return `[${value.map(stable).join(",")}]`; const entry = value as Record<string, unknown>; return `{${Object.keys(entry).sort().map((key) => `${JSON.stringify(key)}:${stable(entry[key])}`).join(",")}}`; }
