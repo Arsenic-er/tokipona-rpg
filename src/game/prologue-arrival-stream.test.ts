@@ -11,7 +11,6 @@ import {
   PROLOGUE_SOFT_LOCK_RECOVERY_TICKS,
   PROLOGUE_STREAM_SCENE,
   PROLOGUE_STREAM_SCENE_ID,
-  PROLOGUE_TELO_MP_COST,
   PrologueArrivalStreamSession,
   createPrologueArrivalStreamInitialSession,
 } from "./prologue-arrival-stream";
@@ -117,37 +116,64 @@ describe("canonical prologue arrival/stream coordinator", () => {
     expect(target.resetArea("reset.after-settlement").settlementEntranceReached).toBe(true);
   });
 
-  it("persists pending water atomically with MP/learning, resumes its fall, and settles durably", () => {
-    const target = createStream("telo");
-    expect(target.discoverTelo("occurrence.telo").accepted).toBe(true);
-    expect(target.attuneTelo("attune.telo", "occurrence.telo").accepted).toBe(true);
-    const beforeMp = target.snapshot().session.mp.currentMp;
-    expect(target.manifestTelo("cast.telo").accepted).toBe(true);
-    expect(target.snapshot()).toMatchObject({ routeReady: false, manifestedWater: [{ settled: false }] });
-    expect(target.snapshot().manifestedWater[0]!.velocity).toEqual({ x: 0, y: 0 });
-    expect(target.snapshot().session.mp.currentMp).toBe(beforeMp - PROLOGUE_TELO_MP_COST);
+  it("fails closed without mutation for all N00/N01 learning and casting entry points", () => {
+    const target = createStream("pre-hermit-closed");
+    const before = structuredClone(target.toSave());
+    const eventsBefore = target.session.events().length;
 
-    const pending = PrologueArrivalStreamSession.fromSave(JSON.parse(JSON.stringify(target.toSave())));
-    expect(pending.snapshot()).toMatchObject({ routeReady: false, manifestedWater: [{ settled: false }] });
-    const eventsBeforeRepeat = pending.session.events().length;
-    expect(pending.manifestTelo("cast.telo").accepted).toBe(true);
-    expect(pending.snapshot().session.mp.currentMp).toBe(beforeMp - PROLOGUE_TELO_MP_COST);
-    expect(pending.session.events()).toHaveLength(eventsBeforeRepeat);
-
-    pending.advanceTicks(1);
-    expect(pending.snapshot().manifestedWater[0]!.velocity.y).toBeGreaterThan(0);
-    pending.advanceTicks(90);
-    expect(pending.snapshot()).toMatchObject({ route: "telo", routeReady: true, manifestedWater: [{ settled: true }] });
-    const settled = PrologueArrivalStreamSession.fromSave(JSON.parse(JSON.stringify(pending.toSave())));
-    expect(settled.snapshot()).toMatchObject({ route: "telo", routeReady: true, manifestedWater: [{ settled: true }] });
+    expect(target.discoverTelo("occurrence.pre-hermit")).toMatchObject({
+      accepted: false,
+      reason: "prerequisite_missing",
+      learningProposal: null,
+    });
+    expect(target.attuneTelo("attune.pre-hermit", "occurrence.pre-hermit")).toMatchObject({
+      accepted: false,
+      reason: "prerequisite_missing",
+      learningProposal: null,
+    });
+    expect(target.manifestTelo("cast.pre-hermit")).toMatchObject({
+      accepted: false,
+      reason: "prerequisite_missing",
+      learningProposal: null,
+    });
+    expect(target.toSave()).toEqual(before);
+    expect(target.session.events()).toHaveLength(eventsBefore);
+    expect(target.snapshot()).toMatchObject({
+      route: "unresolved",
+      routeReady: false,
+      manifestedWater: [],
+      session: {
+        mp: { currentMp: before.state.mp.currentMp },
+        learning: { words: {} },
+        economy: { lots: [] },
+      },
+    });
   });
 
-  it("keeps pending manifested water across checkpoint reset and uses generated recovery timing", () => {
+  it("does not revive the deleted magic route from a legacy persisted flag", () => {
+    const session = createPrologueArrivalStreamInitialSession({ sessionId: "canonical.legacy-magic" });
+    const legacyFlagId = `runtime.value:${JSON.stringify([
+      PROLOGUE_STREAM_SCENE_ID,
+      "route.manifested-water-settled",
+    ])}`;
+    expect(session.apply({
+      eventId: "test.legacy.manifested-water",
+      sequence: session.nextSequence(),
+      type: "world_flag_set",
+      payload: { flagId: legacyFlagId, value: true, scope: "area", areaId: PROLOGUE_AREA_ID },
+    }).applied).toBe(true);
+    const target = enterStream(session);
+    const before = structuredClone(target.toSave());
+
+    expect(target.snapshot()).toMatchObject({ route: "unresolved", routeReady: false, manifestedWater: [] });
+    target.advanceTicks(90);
+    expect(target.snapshot()).toMatchObject({ route: "unresolved", routeReady: false, manifestedWater: [] });
+    expect(target.toSave()).toEqual(before);
+  });
+
+  it("keeps the non-magic checkpoint recovery timing generated from content", () => {
     const target = createStream("checkpoint");
-    target.discoverTelo("occurrence.checkpoint");
-    target.attuneTelo("attune.checkpoint", "occurrence.checkpoint");
-    target.manifestTelo("cast.checkpoint");
-    expect(target.resetToCheckpoint("reset.pending").manifestedWater).toMatchObject([{ settled: false }]);
+    expect(target.resetToCheckpoint("reset.checkpoint").manifestedWater).toEqual([]);
 
     target.pushLooseStone("route.checkpoint");
     target.damageCrossing("damage.checkpoint");

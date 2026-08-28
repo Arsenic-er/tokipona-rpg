@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { WorldScalePrototypeController } from "./visual/world-scale-controller";
+import { WORLD_SCALE_TELO_GLYPH_POSITION } from "./visual/world-interaction";
 
 describe("world scale browser controller", () => {
   it("uses the approved medium world scale as the audit baseline", () => {
@@ -64,22 +65,17 @@ describe("world scale browser controller", () => {
     expect(controller.snapshot().frame.sceneId).toBe("scene.valley.stream_section");
   });
 
-  it("delegates the in-world E interaction through the existing telo progression", () => {
+  it("does not expose pre-hermit telo learning or casting through the world UI controller", () => {
     const controller = WorldScalePrototypeController.fresh("world-scale.controller.telo", 12, 24);
-    moveToInteraction(controller);
+    moveToLegacyGlyphPosition(controller);
+    const before = structuredClone(controller.toSave());
 
-    const discovered = controller.interact();
-    const attuned = controller.interact();
-    const manifested = controller.interact();
-
-    expect([discovered.reason, attuned.reason, manifested.reason]).toEqual([
-      "discovered",
-      "attuned",
-      "manifested",
-    ]);
-    expect(controller.flowSnapshot().session.learning.words.telo?.discoveryState).toBe("discovered");
-    expect(controller.flowSnapshot().session.learning.words.telo?.attunementState).toBe("attuned");
-    expect(controller.flowSnapshot().arrival?.manifestedWater.length).toBeGreaterThan(0);
+    expect(controller.interactionView()).toMatchObject({ visible: false, actionable: false, prompt: null });
+    expect(controller.interact()).toMatchObject({ accepted: false, reason: "not_available" });
+    expect(controller.toSave()).toEqual(before);
+    expect(controller.flowSnapshot().session.learning.words.telo).toBeUndefined();
+    expect(controller.flowSnapshot().session.mp.currentMp).toBe(12);
+    expect(controller.flowSnapshot().arrival?.manifestedWater).toEqual([]);
   });
 
   it("rejects remote interaction without changing the save", () => {
@@ -93,24 +89,24 @@ describe("world scale browser controller", () => {
     expect(controller.toSave()).toEqual(before);
   });
 
-  it("does not report a manifestation as successful when the existing MP rule rejects it", () => {
+  it("keeps the pre-hermit route closed regardless of available MP", () => {
     const controller = WorldScalePrototypeController.fresh("world-scale.controller.no-mp", 0, 24);
-    moveToInteraction(controller);
-    expect(controller.interact().reason).toBe("discovered");
-    expect(controller.interact().reason).toBe("attuned");
-
+    moveToLegacyGlyphPosition(controller);
     expect(controller.interact()).toMatchObject({
       accepted: false,
-      reason: "rejected",
+      reason: "not_available",
     });
     expect(controller.flowSnapshot().arrival?.manifestedWater).toHaveLength(0);
   });
 });
 
-function moveToInteraction(controller: WorldScalePrototypeController): void {
+function moveToLegacyGlyphPosition(controller: WorldScalePrototypeController): void {
   for (let index = 0; index < 700; index += 1) {
-    if (controller.interactionView().visible) return;
+    const runtime = controller.flowSnapshot().runtime;
+    const centerX = runtime.player.position.x + runtime.player.body.width / 2;
+    if (runtime.sceneId === "scene.valley.stream_section" &&
+        Math.abs(centerX - WORLD_SCALE_TELO_GLYPH_POSITION.x) <= 4) return;
     controller.advanceTicks(1, { moveX: 1 });
   }
-  throw new Error("test could not reach world-scale interaction");
+  throw new Error("test could not reach the legacy N01 glyph position");
 }

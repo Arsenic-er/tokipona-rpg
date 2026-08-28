@@ -33,7 +33,7 @@
     }
   },
   "scenes": {
-    "sourceDigest": "sha256:696fa50fbaa4a97f40c6c28db8cc893dccc0b067770144476df29d5c442e57ea",
+    "sourceDigest": "sha256:2b221e111696727a20641a75d8abe30499ee5554f5f23f37906d7eec8a7a36f8",
     "byId": {
       "scene.valley.arrival_shelf": {
         "sceneId": "scene.valley.arrival_shelf",
@@ -186,16 +186,6 @@
               "arrival.reach_stream",
               "arrival.observe_material_fall"
             ]
-          },
-          {
-            "id": "arrival.telo_optional",
-            "kind": "optional_magic",
-            "solutionFamily": "manifest_water_into_old_flume",
-            "fromEntranceId": "arrival.spawn",
-            "toExitId": "arrival.to_stream",
-            "objectiveIds": [
-              "arrival.reach_stream"
-            ]
           }
         ],
         "nonMagicAlternativeRouteIds": [
@@ -257,16 +247,6 @@
             "verb": "dig",
             "toolOrMagicRequired": false,
             "optionalWordId": null,
-            "npcId": null,
-            "facilityId": null,
-            "taskId": null
-          },
-          {
-            "id": "arrival.fill_flume",
-            "targetId": "arrival.old_flume",
-            "verb": "fill",
-            "toolOrMagicRequired": null,
-            "optionalWordId": "word.telo",
             "npcId": null,
             "facilityId": null,
             "taskId": null
@@ -3201,16 +3181,6 @@
               "stream.reach_settlement",
               "stream.stabilize_foothold"
             ]
-          },
-          {
-            "id": "stream.telo_observation",
-            "kind": "optional_magic",
-            "solutionFamily": "manifest_water_into_shallow_basin",
-            "fromEntranceId": "stream.from_arrival",
-            "toExitId": "stream.to_settlement",
-            "objectiveIds": [
-              "stream.observe_water_path"
-            ]
           }
         ],
         "nonMagicAlternativeRouteIds": [
@@ -3275,16 +3245,6 @@
             "verb": "observe",
             "toolOrMagicRequired": false,
             "optionalWordId": null,
-            "npcId": null,
-            "facilityId": null,
-            "taskId": null
-          },
-          {
-            "id": "stream.fill_basin",
-            "targetId": "stream.shallow_basin",
-            "verb": "fill",
-            "toolOrMagicRequired": null,
-            "optionalWordId": "word.telo",
             "npcId": null,
             "facilityId": null,
             "taskId": null

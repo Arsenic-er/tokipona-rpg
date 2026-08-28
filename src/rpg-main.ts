@@ -70,6 +70,10 @@ import {
 import { createRpgP0LearningUi, type P0LearningUiCommand } from "./rpg-p0-learning-ui";
 import { createRpgCore120LearningUi, type Core120LearningUiCommand } from "./rpg-core120-learning-ui";
 import type { OldMineUiCommand, RpgOldMineUi } from "./rpg-old-mine-ui";
+import {
+  createRetryableLazyLoader,
+  projectRetryableLazyLoaderState,
+} from "./retryable-lazy-loader";
 import { BrowserPrologueTelemetry } from "./acceptance/browser-prologue-telemetry";
 import {
   BrowserProloguePlaytest,
@@ -123,7 +127,6 @@ const RECOVERY_STORAGE_KEYS = Object.freeze([
   PLAYTEST_STORAGE_KEY,
 ]);
 const GLYPH_POSITION = Object.freeze({ x: 144, y: 100 });
-const GLYPH_RADIUS = 40;
 const SCENES = readRuntimeSceneManifestIndex(generatedRuntimeArtifact).byId;
 const SETTLEMENT_SCENE = requiredScene(PROLOGUE_SETTLEMENT_SCENE_ID);
 
@@ -218,34 +221,7 @@ class FlowBrowserPort {
     if (snapshot.mode === "settlement") {
       return ui(true, "聚落中的交谈与设施操作在下方的 N02 面板中进行。", "neutral");
     }
-    if (!isNearGlyph(snapshot.runtime)) return ui(false, "附近没有可互动的词语遗迹。", "warning");
-    const phase = glyphPhase(snapshot);
-    if (phase === "undiscovered") {
-      return flowResult(
-        this.flow.discoverTelo("browser.n01.glyph.telo"),
-        "你辨认出了 telo（水）；它仍需调谐才能用于魔法。",
-      );
-    }
-    return ui(true, phase === "discovered" ? "telo 正等待调谐。" : "telo 已完成调谐。", "neutral");
-  }
-
-  attuneOrManifest(): UiResult {
-    const snapshot = this.snapshot();
-    if (snapshot.mode !== "arrival_stream" || snapshot.runtime.sceneId !== PROLOGUE_STREAM_SCENE_ID) {
-      return ui(false, "这项 telo 操作只在 N01 林缘浅溪可用。", "warning");
-    }
-    const phase = glyphPhase(snapshot);
-    if (phase === "undiscovered") return ui(false, "先靠近浅溪中的词语遗迹并辨认 telo。", "warning");
-    if (phase === "discovered") {
-      return flowResult(
-        this.flow.attuneTelo(nextId("attune-telo"), "browser.n01.glyph.telo"),
-        "调谐完成；正式 sitelen pona 字形仍在素材审批门禁之后。",
-      );
-    }
-    return flowResult(
-      this.flow.manifestTelo(nextId("manifest-telo")),
-      "显化 telo：水从静止开始下落，并在重力作用下流入浅溪（消耗 5 MP）。",
-    );
+    return ui(false, "此处词形仅供观察；取得媒介并完成隐士引导前不会产生学习或施法。", "neutral");
   }
 
   tool(action: ToolAction): UiResult {
@@ -617,11 +593,11 @@ app.innerHTML = `
       <div class="scene-shade" aria-hidden="true"></div>
       <div class="interaction-hint" data-ui="hint">继续探索</div>
     </section>
-    <section class="telo-panel arrival-only" data-phase="undiscovered" aria-label="telo 学习状态">
+    <section class="telo-panel arrival-only" data-phase="undiscovered" aria-label="telo 只读遗迹状态" hidden>
       <div class="glyph-placeholder" aria-hidden="true"><span>TELO</span></div>
-      <div><p class="eyebrow">WORD RELIC / WATER TYPE</p><strong data-ui="glyph-state">尚未发现</strong>
-        <small>发现 → 调谐 → 主动显化 → 环境验证；正式字形尚未导出</small></div>
-      <button type="button" data-action="telo" disabled>调谐 telo</button>
+      <div><p class="eyebrow">WORD RELIC / OBSERVATION ONLY</p><strong data-ui="glyph-state">媒介尚未取得</strong>
+        <small>当前只能观察遗迹词形；完成水轮媒介发现与隐士引导后才会开放学习。</small></div>
+      <button type="button" data-action="telo" disabled hidden>媒介尚未取得</button>
     </section>
     <section class="settlement-panel settlement-only" hidden aria-label="N02 聚落服务与工作">
       <div class="panel-heading">
@@ -654,6 +630,10 @@ app.innerHTML = `
       </div>
       <p class="trade-authorization" data-ui="trade-authorization">交易尚未打开；灰盒不会执行购买或售卖。</p>
       <small class="learning-separation">基础 MP 恢复与学习证据严格分离：回答正确或错误都不会在本次引导中生成证据。</small>
+    </section>
+    <section data-ui="old-mine-load-state" hidden role="status" aria-live="polite" aria-atomic="true">
+      <span data-ui="old-mine-load-message"></span>
+      <button type="button" data-action="old-mine-retry" hidden>重试加载旧矿界面</button>
     </section>
     <p class="status" data-ui="status" data-tone="neutral" aria-live="polite">方向键或 A/D 移动，空格/W 跳跃，E 互动。</p>
     <section class="command-row command-row-tools arrival-only" aria-label="三条独立非魔法路线">
@@ -693,6 +673,9 @@ const teloButton = required<HTMLButtonElement>('[data-action="telo"]');
 const settlementPanel = required<HTMLElement>(".settlement-panel");
 const taskStageLabel = required<HTMLElement>('[data-ui="task-stage"]');
 const statusLabel = required<HTMLElement>('[data-ui="status"]');
+const oldMineLoadState = required<HTMLElement>('[data-ui="old-mine-load-state"]');
+const oldMineLoadMessage = required<HTMLElement>('[data-ui="old-mine-load-message"]');
+const oldMineRetryButton = required<HTMLButtonElement>('[data-action="old-mine-retry"]');
 const dialogueAudio = createBrowserDialogueAudio({
   manifest: DIALOGUE_AUDIO_MANIFEST,
   createContext: () => {
@@ -720,7 +703,7 @@ const safeRangeUi = createRpgSafeRangeUi((command) => run(() => port.safeRange(c
 const p0LearningUi = createRpgP0LearningUi((command) => run(() => port.p0Learning(command)));
 const core120LearningUi = createRpgCore120LearningUi((command) => run(() => port.core120Learning(command)));
 let oldMineUi: RpgOldMineUi | null = null;
-let oldMineUiLoad: Promise<void> | null = null;
+const oldMineUiLoader = createRetryableLazyLoader(() => import("./rpg-old-mine-ui"));
 const extensionLearningUi = EXTENSION_LEARNING_FEATURE?.createUi((command) =>
   run(() => port.extensionLearning(command))) ?? null;
 let priorTime = performance.now();
@@ -900,13 +883,14 @@ function render(snapshot: PrologueFlowSnapshot, now: number): void {
   }
 
   const phase = glyphPhase(snapshot);
-  const nearGlyph = isNearGlyph(snapshot.runtime);
-  hintLabel.textContent = nearGlyph ? "E / 互动：观察潮湿的词语遗迹" : "继续探索";
-  hintLabel.dataset.active = String(nearGlyph);
+  hintLabel.textContent = snapshot.runtime.sceneId === PROLOGUE_STREAM_SCENE_ID
+    ? "遗迹词形目前只可观察；使用工具路线继续前往聚落。" : "继续探索";
+  hintLabel.dataset.active = "false";
   glyphPanel.dataset.phase = phase;
-  glyphState.textContent = phaseLabel(phase);
-  teloButton.disabled = phase === "undiscovered" || snapshot.runtime.sceneId !== PROLOGUE_STREAM_SCENE_ID;
-  teloButton.textContent = phase === "activated" ? "显化 telo · 5 MP" : "调谐 telo";
+  glyphPanel.hidden = true;
+  glyphState.textContent = "媒介尚未取得";
+  teloButton.disabled = true;
+  teloButton.textContent = "媒介尚未取得";
   for (const button of document.querySelectorAll<HTMLButtonElement>("[data-tool]")) {
     button.disabled = snapshot.runtime.sceneId !== PROLOGUE_STREAM_SCENE_ID || Boolean(snapshot.arrival?.routeReady);
   }
@@ -924,15 +908,22 @@ function render(snapshot: PrologueFlowSnapshot, now: number): void {
 
 function renderOldMineUi(): void {
   const view = port.oldMineView();
+  const eligible = view.entryAvailable || view.mode === "old_mine";
+  const loadState = oldMineUiLoader.snapshot();
+  if (loadState.status === "ready" && oldMineUi === null) {
+    oldMineUi = loadState.value.createRpgOldMineUi((command) => run(() => port.oldMine(command)));
+  }
   if (oldMineUi) {
     oldMineUi.render(view);
-    return;
   }
-  if (!view.entryAvailable && view.mode !== "old_mine") return;
-  oldMineUiLoad ??= import("./rpg-old-mine-ui").then(({ createRpgOldMineUi }) => {
-    oldMineUi = createRpgOldMineUi((command) => run(() => port.oldMine(command)));
-    oldMineUi.render(port.oldMineView());
-  });
+  const presentation = projectRetryableLazyLoaderState(loadState);
+  oldMineLoadState.hidden = !eligible || !presentation.visible;
+  oldMineLoadMessage.textContent = eligible ? presentation.message : "";
+  oldMineRetryButton.hidden = !eligible || !presentation.retryAvailable;
+  oldMineRetryButton.disabled = !presentation.retryAvailable;
+  if (eligible && loadState.status === "idle") {
+    void oldMineUiLoader.load().then(() => renderOldMineUi());
+  }
 }
 
 function drawWorld(snapshot: PrologueFlowSnapshot, scene: RuntimeSceneManifest): void {
@@ -1138,14 +1129,10 @@ function bindInputs(): void {
   required<HTMLButtonElement>('[data-action="checkpoint"]').addEventListener("click", () => run(() => port.setCheckpoint()));
   required<HTMLButtonElement>('[data-action="reset"]').addEventListener("click", () => run(() => port.resetToCheckpoint()));
   required<HTMLButtonElement>('[data-action="area-reset"]').addEventListener("click", () => run(() => port.resetArea()));
-  teloButton.addEventListener("click", () => {
-    const before = glyphPhase(port.snapshot());
-    const result = port.attuneOrManifest();
-    const after = glyphPhase(port.snapshot());
-    if (before === "discovered" && after === "activated" && !reducedMotion.matches) {
-      activationStarted = performance.now();
-    }
-    show(result);
+  oldMineRetryButton.addEventListener("click", () => {
+    oldMineRetryButton.disabled = true;
+    void oldMineUiLoader.load().then(() => renderOldMineUi());
+    renderOldMineUi();
   });
   for (const button of document.querySelectorAll<HTMLButtonElement>("[data-tool]")) {
     button.addEventListener("click", () => run(() => port.tool(requiredDataset(button, "tool") as ToolAction)));
@@ -1415,25 +1402,15 @@ function objective(snapshot: PrologueFlowSnapshot): string {
     return "向右穿过山谷抵达台，进入林缘浅溪。";
   }
   if (snapshot.arrival?.routeReady) {
-    return `${snapshot.arrival.route === "telo" ? "telo" : "工具"}路线已稳定；向右抵达聚落入口。`;
+    return "工具路线已稳定；向右抵达聚落入口。";
   }
-  const phase = glyphPhase(snapshot);
-  if (phase === "undiscovered") return "寻找 telo 遗迹，或从松石、朽木、软土中选择一条独立工具路线。";
-  if (phase === "discovered") return "调谐 telo，或选择任一独立工具路线。";
-  return "显化 telo 让水落入浅溪，或选择任一独立工具路线。";
+  return "观察环境后，从松石、朽木、软土中选择一条独立工具路线。";
 }
 
 function glyphPhase(snapshot: PrologueFlowSnapshot): GlyphPhase {
   const telo = snapshot.session.learning.words.telo;
   if (telo?.attunementState === "attuned") return "activated";
   return telo?.discoveryState === "discovered" ? "discovered" : "undiscovered";
-}
-
-function isNearGlyph(runtime: RuntimeSnapshot): boolean {
-  if (runtime.sceneId !== PROLOGUE_STREAM_SCENE_ID) return false;
-  const centerX = runtime.player.position.x + runtime.player.body.width / 2;
-  const centerY = runtime.player.position.y + runtime.player.body.height / 2;
-  return Math.hypot(centerX - GLYPH_POSITION.x, centerY - GLYPH_POSITION.y) <= GLYPH_RADIUS;
 }
 
 function flowResult<T>(
@@ -1482,12 +1459,6 @@ function renderTradeAuthorization(tradeEntryId: string | null, merchantIds: read
   required<HTMLElement>('[data-ui="trade-authorization"]').textContent = tradeEntryId === null
     ? "交易入口未获授权。"
     : `授权入口：${tradeEntryId}；merchant allowlist：${merchantIds.join("、") || "（空）"}。当前不执行成交。`;
-}
-
-function phaseLabel(phase: GlyphPhase): string {
-  if (phase === "activated") return "已激活 · 尚待正式字形";
-  if (phase === "discovered") return "已发现 · 等待调谐";
-  return "尚未发现";
 }
 
 function stageLabel(stage: "available" | "accepted" | "surveyed" | "completed"): string {

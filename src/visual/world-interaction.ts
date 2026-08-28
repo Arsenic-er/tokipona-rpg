@@ -14,7 +14,7 @@ export const WORLD_SCALE_TELO_GLYPH_RADIUS = 40;
 
 export function projectWorldInteraction(
   snapshot: PrologueFlowSnapshot,
-  engaged = false,
+  _engaged = false,
 ): WorldInteractionView {
   const telo = snapshot.session.learning.words.telo;
   const phase: WorldInteractionPhase = telo?.attunementState === "attuned"
@@ -22,24 +22,5 @@ export function projectWorldInteraction(
     : telo?.discoveryState === "discovered"
       ? "discovered"
       : "undiscovered";
-  const runtime = snapshot.runtime;
-  const centerX = runtime.player.position.x + runtime.player.body.width / 2;
-  const centerY = runtime.player.position.y + runtime.player.body.height / 2;
-  const inRange = runtime.sceneId === "scene.valley.stream_section" && (
-    engaged || Math.hypot(
-      centerX - WORLD_SCALE_TELO_GLYPH_POSITION.x,
-      centerY - WORLD_SCALE_TELO_GLYPH_POSITION.y,
-    ) <= WORLD_SCALE_TELO_GLYPH_RADIUS
-  );
-  if (!inRange) return Object.freeze({ visible: false, actionable: false, phase, prompt: null });
-  return Object.freeze({
-    visible: true,
-    actionable: true,
-    phase,
-    prompt: phase === "undiscovered"
-      ? "E · 观察 telo"
-      : phase === "discovered"
-        ? "E · 调谐 telo"
-        : "E · 显化 telo",
-  });
+  return Object.freeze({ visible: false, actionable: false, phase, prompt: null });
 }

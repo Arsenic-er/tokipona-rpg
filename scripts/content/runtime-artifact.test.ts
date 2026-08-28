@@ -79,6 +79,8 @@ describe("runtime content artifact generator", () => {
       recovery: { entryEntranceId: "arrival.spawn", maximumSoftlockRecoverySeconds: 60 },
     });
     const arrival = artifact.scenes.byId["scene.valley.arrival_shelf"]!;
+    expect(arrival.routes.every((route) => route.kind === "non_magic")).toBe(true);
+    expect(arrival.interactions.map((interaction) => interaction.id)).not.toContain("arrival.fill_flume");
     expect(arrival.collisionRows).toHaveLength(20);
     expect(arrival.entrances.find((entry) => entry.id === "arrival.spawn")).toMatchObject({
       spawnTile: [3, 16], spawnPx: { x: 48, y: 50 }, recoveryEntry: true,
@@ -99,7 +101,9 @@ describe("runtime content artifact generator", () => {
       firstTraverseCommit: "settlement_entry_crossed",
     });
     expect(stream.routeObjectives.map((objective) => objective.id)).toContain("stream.reach_settlement");
-    expect(stream.interactions.map((interaction) => interaction.id)).toContain("stream.fill_basin");
+    expect(stream.routes.every((route) => route.kind === "non_magic")).toBe(true);
+    expect(stream.interactions.map((interaction) => interaction.id)).not.toContain("stream.fill_basin");
+    expect(stream.interactions.map((interaction) => interaction.id)).toContain("stream.perform_low_mp_telo");
     const settlement = artifact.scenes.byId["scene.valley.settlement"]!;
     expect(settlement.entrances.find((entry) => entry.id === "settlement.from_stream")).toMatchObject({
       spawnTile: [2, 1], spawnPx: { x: 32, y: 450 }, recoveryEntry: true,

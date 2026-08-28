@@ -32,6 +32,12 @@ function objectArray(root: MutableObject, key: string): MutableObject[] {
   return value as MutableObject[];
 }
 
+function object(root: MutableObject, key: string): MutableObject {
+  const value = root[key];
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error(`${key} must be an object`);
+  return value as MutableObject;
+}
+
 function expectIssue(run: () => unknown, code: string): void {
   try {
     run();
@@ -100,6 +106,25 @@ describe("N03/N04 infrastructure content contracts", () => {
     const task = mutableSource(sources, "tasks/ch01-service-channel.v0.1.yaml");
     objectArray(task, "grammar_contacts")[0]!.automatic_state_grant = true;
     expectIssue(() => compileContent(sources), "task.o_contact_only");
+  });
+
+  it("binds receptive o contact to the canonical waterwheel lower-maintenance context", () => {
+    const manifest = compileContent(repositorySources());
+    const glyphProgression = manifest.byKind.glyph_progression[0]!.content as MutableObject;
+    expect(object(object(glyphProgression, "prologue_route"), "tutorial_guaranteed_particle")).toEqual({
+      word_id: "o",
+      chapter_segment_id: "waterwheel_discovery",
+      scene_id: "scene.valley.waterwheel",
+      subarea_entrance_id: "waterwheel.lower_maintenance.entry",
+      chapter_role: "receptive",
+    });
+  });
+
+  it("rejects glyph progression drift away from the waterwheel receptive-only authority", () => {
+    const sources = repositorySources();
+    const progression = mutableSource(sources, "language/glyph-progression.v0.1.yaml");
+    object(object(progression, "prologue_route"), "tutorial_guaranteed_particle").chapter_role = "active";
+    expectIssue(() => compileContent(sources), "ref.glyph_waterwheel_particle");
   });
 
   it("rejects task guards that diverge from the authoritative region topology", () => {

@@ -1,7 +1,5 @@
 import {
   commitSessionProposal,
-  type SessionEventDraft,
-  type SessionProposalBatch,
 } from "../session/adapters";
 import {
   GameSession,
@@ -21,8 +19,6 @@ import type {
   ExtensionLearningRuntimeView,
 } from "../learning/extension-learning-runtime";
 import {
-  TELO_ATTUNEMENT_ITEMS,
-  TeloLearningSlice,
   type TeloProposalResult,
 } from "../learning/telo-slice";
 
@@ -33,7 +29,6 @@ import {
   type RuntimeSceneManifest,
   type RuntimeSceneRouteManifest,
 } from "../content/runtime-scene-manifest";
-import { getTeloLengthProfile } from "../spells/content-profiles";
 const SCENE_MANIFEST_INDEX = readRuntimeSceneManifestIndex(generatedRuntimeArtifact);
 
 const requiredManifestByRegionNode = (regionNodeId: string): RuntimeSceneManifest => {
@@ -101,7 +96,6 @@ export const PROLOGUE_ROUTE_FLAGS = Object.freeze({
   looseStonePushed: routeCompletionFlag(TOOL_ROUTE_IDS.looseStone),
   rottenLogPlaced: routeCompletionFlag(TOOL_ROUTE_IDS.rottenLog),
   softSoilDug: routeCompletionFlag(TOOL_ROUTE_IDS.softSoil),
-  manifestedWaterSettled: "route.manifested-water-settled",
   crossingDamaged: "route.crossing-damaged",
   crossingRepaired: "route.crossing-repaired",
   settlementReached: SETTLEMENT_EXIT.firstTraverseCommit,
@@ -110,8 +104,6 @@ export const PROLOGUE_ROUTE_FLAGS = Object.freeze({
 const STREAM_WATER_LEFT_PX = Math.floor(STREAM_MANIFEST.sizeTiles.width * 0.375) * STREAM_MANIFEST.tileSizePx;
 const STREAM_WATER_RIGHT_PX = Math.floor(STREAM_MANIFEST.sizeTiles.width * 0.6) * STREAM_MANIFEST.tileSizePx;
 const STREAM_WATER_SURFACE_Y_PX = (STREAM_MANIFEST.sizeTiles.height - 2) * STREAM_MANIFEST.tileSizePx;
-const TELO_MP_COST = getTeloLengthProfile("default").activationMp;
-const WATER_GRAVITY_PX_PER_SECOND_SQUARED = 560;
 const FIXED_HZ = 60;
 const SOFT_LOCK_RECOVERY_TICKS = STREAM_MANIFEST.recovery.maximumSoftlockRecoverySeconds * FIXED_HZ;
 
@@ -154,7 +146,7 @@ export const PROLOGUE_ARRIVAL_STREAM_SCENES = Object.freeze([
   PROLOGUE_UNDERGROUND_RUNTIME_SCENE,
   PROLOGUE_OLD_MINE_RUNTIME_SCENE,
 ]);
-export type PrologueRoute = "unresolved" | "tools" | "telo";
+export type PrologueRoute = "unresolved" | "tools";
 
 export interface ManifestedWaterSnapshot {
   readonly id: string;
@@ -200,15 +192,6 @@ export interface PrologueActionResult {
   readonly snapshot: PrologueArrivalStreamSnapshot;
 }
 
-interface MutableWaterParticle {
-  id: string;
-  x: number;
-  y: number;
-  velocityX: number;
-  velocityY: number;
-  settled: boolean;
-}
-
 const requiredId = (value: string, label: string): string => {
   const normalized = value.trim();
   if (!normalized) throw new Error(`${label} is required`);
@@ -229,34 +212,11 @@ const regionFlag = (state: GameSessionState, key: string): boolean =>
     flag.flagId === key && flag.value === true
   );
 
-const MANIFESTED_WATER_INSTANCE_PREFIX = "manifested-water.instance:";
-
 const initialEconomy = (): SessionEconomySummary => ({
   coin: 0,
   walletRevision: 0,
   inventoryRevision: 0,
-  lots: [
-    {
-      lotId: "prologue.resonance-pebble",
-      itemId: TELO_ATTUNEMENT_ITEMS.commonResonance,
-      quantity: 1,
-      ownershipRevision: 0,
-      freshnessRevision: 0,
-    },
-    {
-      lotId: "prologue.clean-stream-sample",
-      itemId: TELO_ATTUNEMENT_ITEMS.waterSample,
-      quantity: 1,
-      ownershipRevision: 0,
-      freshnessRevision: 0,
-    },
-  ],
-});
-
-const receiptDraft = (eventId: string, receiptId: string, payloadHash: string): SessionEventDraft => ({
-  eventId,
-  type: "receipt_recorded",
-  payload: { receiptId, domain: "cast", payloadHash },
+  lots: [],
 });
 
 /**
@@ -268,8 +228,6 @@ const receiptDraft = (eventId: string, receiptId: string, payloadHash: string): 
 export class PrologueArrivalStreamSession {
   private authoritativeSession: GameSession;
   private bridge!: GameSessionRuntimeBridge;
-  private learning!: TeloLearningSlice;
-  private readonly waterParticles = new Map<string, MutableWaterParticle>();
   private damageStartedAtTick: number | null = null;
 
   constructor(session: GameSession) {
@@ -313,15 +271,14 @@ export class PrologueArrivalStreamSession {
     const session = this.authoritativeSession.snapshot();
     const runtime = this.bridge.runtime.snapshot();
     const toolReady = this.toolRouteReady(session);
-    const teloReady = runtimeFlag(session, PROLOGUE_ROUTE_FLAGS.manifestedWaterSettled);
     const damaged = runtimeFlag(session, PROLOGUE_ROUTE_FLAGS.crossingDamaged) &&
       !runtimeFlag(session, PROLOGUE_ROUTE_FLAGS.crossingRepaired);
     const playerCenterX = runtime.player.position.x + runtime.player.body.width / 2;
     return Object.freeze({
       session,
       runtime,
-      route: toolReady ? "tools" : teloReady ? "telo" : "unresolved",
-      routeReady: (toolReady || teloReady) && !damaged,
+      route: toolReady ? "tools" : "unresolved",
+      routeReady: toolReady && !damaged,
       shallowWater: Object.freeze({
         leftPx: STREAM_WATER_LEFT_PX,
         rightPx: STREAM_WATER_RIGHT_PX,
@@ -329,14 +286,7 @@ export class PrologueArrivalStreamSession {
         playerWading: runtime.sceneId === PROLOGUE_STREAM_SCENE_ID &&
           playerCenterX >= STREAM_WATER_LEFT_PX && playerCenterX <= STREAM_WATER_RIGHT_PX,
       }),
-      manifestedWater: Object.freeze([...this.waterParticles.values()]
-        .sort((left, right) => left.id.localeCompare(right.id))
-        .map((particle) => Object.freeze({
-          id: particle.id,
-          position: Object.freeze({ x: particle.x, y: particle.y }),
-          velocity: Object.freeze({ x: particle.velocityX, y: particle.velocityY }),
-          settled: particle.settled,
-        }))),
+      manifestedWater: Object.freeze([]),
       softLock: Object.freeze({
         damaged,
         recoveryTicksRemaining: damaged && this.damageStartedAtTick !== null
@@ -365,7 +315,6 @@ export class PrologueArrivalStreamSession {
         this.bridge.resetToCheckpoint(`runtime.scene.blocked.${this.authoritativeSession.nextSequence()}`);
         this.authoritativeSession = this.bridge.session;
       }
-      this.advanceWaterOneTick();
       this.recoverSoftLockIfDue();
     }
     return this.snapshot();
@@ -387,88 +336,22 @@ export class PrologueArrivalStreamSession {
   }
 
   discoverTelo(occurrenceId: string): PrologueActionResult {
+    requiredId(occurrenceId, "occurrenceId");
     if (!this.inStream()) return this.result(false, "wrong_scene");
-    const proposal = this.learning.proposeDiscovery(this.authoritativeSession.snapshot(), {
-      occurrenceId,
-      locationId: `${PROLOGUE_STREAM_SCENE_ID}:glyph-wall`,
-    });
-    return this.commitLearning(proposal);
+    return this.result(false, "prerequisite_missing");
   }
 
   attuneTelo(attemptId: string, occurrenceId: string): PrologueActionResult {
+    requiredId(attemptId, "attemptId");
+    requiredId(occurrenceId, "occurrenceId");
     if (!this.inStream()) return this.result(false, "wrong_scene");
-    const proposal = this.learning.proposeAttunement(this.authoritativeSession.snapshot(), {
-      attemptId,
-      occurrenceId,
-      environmentalWitnessId: "witness.n01.clean-running-water",
-      outcome: "success",
-    });
-    return this.commitLearning(proposal);
+    return this.result(false, "prerequisite_missing");
   }
 
   manifestTelo(transactionId: string): PrologueActionResult {
-    const id = requiredId(transactionId, "transactionId");
+    requiredId(transactionId, "transactionId");
     if (!this.inStream()) return this.result(false, "wrong_scene");
-    const state = this.authoritativeSession.snapshot();
-    const existingReceipt = state.receiptIndex[id];
-    if (existingReceipt) {
-      return existingReceipt.domain === "cast" && existingReceipt.payloadHash === `prologue:telo:${TELO_MP_COST}`
-        ? this.result(true, "committed")
-        : this.result(false, "session_rejected");
-    }
-    if (state.learning.words.telo?.attunementState !== "attuned") {
-      return this.result(false, "not_attuned");
-    }
-    if (state.mp.currentMp < TELO_MP_COST) return this.result(false, "insufficient_mp");
-
-    const proposal = this.learning.proposeGrounding(state, {
-      attemptId: id,
-      task: "streamRecognition",
-      promptLevel: 0,
-      variantHash: "n01.manifest-telo.zero-initial-velocity.v1",
-      normalizedEnvironmentFingerprint: "env.n01.shallow-stream",
-      interpretationStatus: "executed_legal",
-      worldOutcomeContribution: true,
-      toolBypass: false,
-      answerVisible: false,
-      fixedSlotOnly: false,
-      colorOnlyCue: false,
-    });
-    if (!proposal.accepted) return this.result(false, "proposal_rejected", proposal);
-    const batch: SessionProposalBatch = {
-      transactionId: proposal.batch.transactionId,
-      drafts: [
-        ...proposal.batch.drafts,
-        {
-          eventId: `session.prologue.telo.mp.${id}`,
-          type: "mp_replaced",
-          payload: {
-            mp: {
-              currentMp: state.mp.currentMp - TELO_MP_COST,
-              maxMp: state.mp.maxMp,
-              worldVersion: state.mp.worldVersion + 1,
-            },
-          },
-        },
-        {
-          eventId: `session.prologue.telo.water.${id}`,
-          type: "world_flag_set",
-          payload: {
-            flagId: runtimeValueFlagId(PROLOGUE_STREAM_SCENE_ID, `${MANIFESTED_WATER_INSTANCE_PREFIX}${id}`),
-            value: "pending",
-            scope: "area",
-            areaId: PROLOGUE_AREA_ID,
-          },
-        },
-        receiptDraft(`session.prologue.telo.receipt.${id}`, id, `prologue:telo:${TELO_MP_COST}`),
-      ],
-    };
-    const commit = commitSessionProposal(this.authoritativeSession, batch);
-    if (!commit.committed) return this.result(false, "session_rejected", proposal);
-    this.authoritativeSession = commit.session;
-    this.rebuildActors();
-
-    return this.result(true, "committed", proposal);
+    return this.result(false, "prerequisite_missing");
   }
 
   damageCrossing(transactionId: string): PrologueActionResult {
@@ -490,7 +373,6 @@ export class PrologueArrivalStreamSession {
   resetArea(transactionId: string): PrologueArrivalStreamSnapshot {
     this.bridge.resetArea(requiredId(transactionId, "transactionId"), PROLOGUE_AREA_ID);
     this.authoritativeSession = this.bridge.session;
-    this.waterParticles.clear();
     this.damageStartedAtTick = null;
     return this.snapshot();
   }
@@ -507,7 +389,6 @@ export class PrologueArrivalStreamSession {
   resetToCheckpoint(transactionId: string): PrologueArrivalStreamSnapshot {
     this.bridge.resetToCheckpoint(requiredId(transactionId, "transactionId"));
     this.authoritativeSession = this.bridge.session;
-    this.restorePersistedWater(this.authoritativeSession.snapshot());
     return this.snapshot();
   }
 
@@ -534,33 +415,6 @@ export class PrologueArrivalStreamSession {
     const exit = SETTLEMENT_EXIT.boundsPx;
     return player.x < exit.x + exit.width && player.x + player.width > exit.x &&
       player.y < exit.y + exit.height && player.y + player.height > exit.y;
-  }
-
-  private advanceWaterOneTick(): void {
-    const seconds = 1 / FIXED_HZ;
-    for (const particle of this.waterParticles.values()) {
-      if (particle.settled) continue;
-      particle.velocityY += WATER_GRAVITY_PX_PER_SECOND_SQUARED * seconds;
-      particle.x += particle.velocityX * seconds;
-      particle.y += particle.velocityY * seconds;
-      if (particle.y < STREAM_WATER_SURFACE_Y_PX) continue;
-      particle.y = STREAM_WATER_SURFACE_Y_PX;
-      particle.velocityY = 0;
-      particle.settled = true;
-      this.bridge.setPersistentValue(
-        `event.prologue.telo.water-settled.${particle.id}`,
-        PROLOGUE_STREAM_SCENE_ID,
-        `${MANIFESTED_WATER_INSTANCE_PREFIX}${particle.id}`,
-        "settled",
-      );
-      this.bridge.setPersistentValue(
-        `event.prologue.telo.route-settled.${particle.id}`,
-        PROLOGUE_STREAM_SCENE_ID,
-        PROLOGUE_ROUTE_FLAGS.manifestedWaterSettled,
-        true,
-      );
-      this.authoritativeSession = this.bridge.session;
-    }
   }
 
   private recoverSoftLockIfDue(): void {
@@ -617,15 +471,6 @@ export class PrologueArrivalStreamSession {
     return this.result(true, "committed");
   }
 
-  private commitLearning(proposal: TeloProposalResult): PrologueActionResult {
-    if (!proposal.accepted) return this.result(false, "proposal_rejected", proposal);
-    const commit = commitSessionProposal(this.authoritativeSession, proposal.batch);
-    if (!commit.committed) return this.result(false, "session_rejected", proposal);
-    this.authoritativeSession = commit.session;
-    this.rebuildActors();
-    return this.result(true, "committed", proposal);
-  }
-
   private result(
     accepted: boolean,
     reason: PrologueActionResult["reason"],
@@ -634,28 +479,7 @@ export class PrologueArrivalStreamSession {
     return { accepted, reason, learningProposal, snapshot: this.snapshot() };
   }
 
-  private restorePersistedWater(state: GameSessionState): void {
-    this.waterParticles.clear();
-    for (const flag of Object.values(state.world.flags)) {
-      if (flag.scope !== "area" || flag.areaId !== PROLOGUE_AREA_ID) continue;
-      const marker = flag.flagId.indexOf(MANIFESTED_WATER_INSTANCE_PREFIX);
-      if (marker < 0 || (flag.value !== "pending" && flag.value !== "settled")) continue;
-      const id = flag.flagId.slice(marker + MANIFESTED_WATER_INSTANCE_PREFIX.length, -2);
-      if (!id) continue;
-      const settled = flag.value === "settled";
-      this.waterParticles.set(id, {
-        id,
-        x: STREAM_WATER_LEFT_PX,
-        y: settled ? STREAM_WATER_SURFACE_Y_PX : 2 * STREAM_MANIFEST.tileSizePx,
-        velocityX: 0,
-        velocityY: 0,
-        settled,
-      });
-    }
-  }
   private rebuildActors(): void {
-    this.learning = new TeloLearningSlice(this.authoritativeSession.sessionId);
-    this.restorePersistedWater(this.authoritativeSession.snapshot());
     this.bridge = new GameSessionRuntimeBridge({
       session: this.authoritativeSession,
       scenes: PROLOGUE_ARRIVAL_STREAM_SCENES,
@@ -704,7 +528,6 @@ export const createPrologueArrivalStreamInitialSession = (options: Readonly<{
 };
 
 export const PROLOGUE_SOFT_LOCK_RECOVERY_TICKS = SOFT_LOCK_RECOVERY_TICKS;
-export const PROLOGUE_TELO_MP_COST = TELO_MP_COST;
 
 
 

@@ -72,7 +72,7 @@ prologue_route:
   first_environmental_deterrence_contract: {direct_attack: false, living_target_lock: false, purpose: block_path_or_make_warning_noise}
   first_qualified_attack_signature_candidate: "telo o tawa wawa"
   direct_attack_gate: {minimum_meaningful_tokens: 4, approved_signature_required: true}
-  tutorial_guaranteed_particle: {word_id: o, segment: service_channel, chapter_role: active}
+  tutorial_guaranteed_particle: {word_id: o, chapter_segment_id: waterwheel_discovery, scene_id: scene.valley.waterwheel, subarea_entrance_id: waterwheel.lower_maintenance.entry, chapter_role: receptive}
   natural_language_transfer_example_receptive_only: "kiwen lili li tawa."
   spell_notation_example: "telo kon"
   natural_language_example_receptive_only: "telo li lon kon."

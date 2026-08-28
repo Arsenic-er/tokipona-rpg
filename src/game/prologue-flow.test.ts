@@ -55,6 +55,21 @@ const enterSettlementByTools = (target: PrologueFlowSession): void => {
 };
 
 describe("PrologueFlowSession", () => {
+  it("does not expose pre-hermit learning, attunement, MP use, or casting through Flow", () => {
+    const target = PrologueFlowSession.fresh({ sessionId: "flow.pre-hermit-closed", currentMp: 13, maxMp: 24 });
+    enterStream(target);
+    const before = structuredClone(target.toSave());
+
+    expect(target.discoverTelo("flow.pre-hermit.discovery")).toMatchObject({ accepted: false });
+    expect(target.attuneTelo("flow.pre-hermit.attune", "flow.pre-hermit.discovery"))
+      .toMatchObject({ accepted: false });
+    expect(target.manifestTelo("flow.pre-hermit.cast")).toMatchObject({ accepted: false });
+    expect(target.toSave()).toEqual(before);
+    expect(target.snapshot().session.learning.words.telo).toBeUndefined();
+    expect(target.snapshot().session.mp.currentMp).toBe(13);
+    expect(target.snapshot().arrival?.manifestedWater).toEqual([]);
+  });
+
   it("uses one GameSession through N00 -> N01 -> N02 -> N01 without replaying entry receipts", () => {
     const target = PrologueFlowSession.fresh({ sessionId: "flow.roundtrip", currentMp: 13, maxMp: 24 });
     expect(target.snapshot()).toMatchObject({

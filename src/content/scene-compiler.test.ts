@@ -96,4 +96,45 @@ describe("scene content compiler", () => {
     for (const route of objectArray(stream, "routes")) route.route_kind = "optional_magic";
     expectIssue(() => compileContent(sources), "scene.non_magic_route_missing");
   });
+
+  it("keeps N00/N01 navigation free of pre-hermit magic authority", () => {
+    const manifest = compileContent(repositorySources());
+    const arrival = manifest.indexes.scenes["scene.valley.arrival_shelf"] as Record<string, unknown>;
+    const stream = manifest.indexes.scenes["scene.valley.stream_section"] as Record<string, unknown>;
+
+    expect(objectArray(arrival, "routes").every((route) => route.route_kind === "non_magic")).toBe(true);
+    expect(objectArray(arrival, "interactions").every((interaction) => interaction.optional_word_id === undefined))
+      .toBe(true);
+    expect(objectArray(stream, "routes").every((route) => route.route_kind === "non_magic")).toBe(true);
+    expect(objectArray(stream, "interactions").filter((interaction) => interaction.optional_word_id !== undefined))
+      .toEqual([expect.objectContaining({
+        interaction_id: "stream.perform_low_mp_telo",
+        verb: "perform_low_mp_telo",
+        optional_word_id: "word.telo",
+      })]);
+  });
+
+  it("rejects reintroducing a pre-hermit magic route or interaction", () => {
+    const routeSources = repositorySources();
+    const arrival = mutableScene(routeSources, "scenes/valley-arrival-shelf.v0.1.yaml");
+    objectArray(arrival, "routes").push({
+      route_id: "arrival.forged_magic",
+      route_kind: "optional_magic",
+      solution_family: "manifest_water_into_old_flume",
+      from_entrance_id: "arrival.spawn",
+      to_exit_id: "arrival.to_stream",
+      objective_ids: ["arrival.reach_stream"],
+    });
+    expectIssue(() => compileContent(routeSources), "scene.pre_hermit_magic_forbidden");
+
+    const interactionSources = repositorySources();
+    const stream = mutableScene(interactionSources, "scenes/valley-stream-section.v0.1.yaml");
+    objectArray(stream, "interactions").push({
+      interaction_id: "stream.forged_fill_basin",
+      target_id: "stream.shallow_basin",
+      verb: "fill",
+      optional_word_id: "word.telo",
+    });
+    expectIssue(() => compileContent(interactionSources), "scene.pre_hermit_magic_forbidden");
+  });
 });

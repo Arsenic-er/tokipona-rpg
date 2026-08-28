@@ -82,13 +82,6 @@ routes:
     from_entrance_id: "stream.from_arrival"
     to_exit_id: "stream.to_settlement"
     objective_ids: [stream.reach_settlement, stream.stabilize_foothold]
-  - route_id: "stream.telo_observation"
-    route_kind: "optional_magic"
-    solution_family: "manifest_water_into_shallow_basin"
-    from_entrance_id: "stream.from_arrival"
-    to_exit_id: "stream.to_settlement"
-    objective_ids: [stream.observe_water_path]
-
 targets:
   - {target_id: "stream.natural_cascade", target_kind: "natural_water_source", material: "water"}
   - {target_id: "stream.shallow_basin", target_kind: "container", material: "stone"}
@@ -101,7 +94,6 @@ targets:
 
 interactions:
   - {interaction_id: "stream.observe_cascade", target_id: "stream.natural_cascade", verb: "observe", tool_or_magic_required: false}
-  - {interaction_id: "stream.fill_basin", target_id: "stream.shallow_basin", verb: "fill", optional_word_id: "word.telo"}
   - {interaction_id: "stream.dig_bank", target_id: "stream.soil_bank", verb: "dig", tool_or_magic_required: false}
   - {interaction_id: "stream.place_foothold", target_id: "stream.loose_foothold", verb: "place", tool_or_magic_required: false}
   - {interaction_id: "stream.guide_existing_water", target_id: "stream.old_channel", verb: "align", tool_or_magic_required: false}

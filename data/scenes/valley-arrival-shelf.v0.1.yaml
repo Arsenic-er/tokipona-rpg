@@ -77,13 +77,6 @@ routes:
     from_entrance_id: "arrival.spawn"
     to_exit_id: "arrival.to_stream"
     objective_ids: [arrival.reach_stream, arrival.observe_material_fall]
-  - route_id: "arrival.telo_optional"
-    route_kind: "optional_magic"
-    solution_family: "manifest_water_into_old_flume"
-    from_entrance_id: "arrival.spawn"
-    to_exit_id: "arrival.to_stream"
-    objective_ids: [arrival.reach_stream]
-
 targets:
   - {target_id: "arrival.loose_stone", target_kind: "movable_material", material: "loose_stone"}
   - {target_id: "arrival.rotten_wood", target_kind: "movable_material", material: "rotten_wood"}
@@ -94,8 +87,6 @@ interactions:
   - {interaction_id: "arrival.move_stone", target_id: "arrival.loose_stone", verb: "move", tool_or_magic_required: false}
   - {interaction_id: "arrival.place_wood", target_id: "arrival.rotten_wood", verb: "place", tool_or_magic_required: false}
   - {interaction_id: "arrival.dig_soil", target_id: "arrival.wet_soil", verb: "dig", tool_or_magic_required: false}
-  - {interaction_id: "arrival.fill_flume", target_id: "arrival.old_flume", verb: "fill", optional_word_id: "word.telo"}
-
 material_patches:
   - patch_id: "scene.patch.arrival.foothold"
     patch_record_ref: "patch.valley.arrival_route.v0.1"

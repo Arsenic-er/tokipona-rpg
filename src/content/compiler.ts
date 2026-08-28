@@ -903,7 +903,49 @@ function validateCrossDomainReferences(
         const word = readString(entry, "word_id");
         if (glyphIds.size > 0 && !glyphIds.has(word)) addIssue(issues, "ref.missing", source.path, `prologue_first_12[${index}].word_id`, `unknown glyph ${word}`);
       }
+      validateGlyphWaterwheelParticleAuthority(source, sources, issues);
     }
+  }
+}
+
+function validateGlyphWaterwheelParticleAuthority(
+  source: CompiledSource,
+  sources: readonly CompiledSource[],
+  issues: ContentIssue[],
+): void {
+  const particle = readObject(readObject(source.content, "prologue_route"), "tutorial_guaranteed_particle");
+  const chapter = sources.find((candidate) => candidate.kind === "chapter" &&
+    readString(candidate.content, "chapter_flow_id") === "ch01_world_literacy_prologue");
+  const segment = chapter && readObjectArray(chapter.content, "segments")
+    .find((candidate) => readString(candidate, "segment_id") === "waterwheel_discovery");
+  const scene = sources.find((candidate) => candidate.kind === "scene" &&
+    readString(candidate.content, "scene_id") === "scene.valley.waterwheel");
+  const task = sources.find((candidate) => candidate.kind === "task" &&
+    readString(candidate.content, "task_id") === "ch01_service_channel");
+  const grammarContact = task && readObjectArray(task.content, "grammar_contacts")
+    .find((candidate) => readString(candidate, "token") === "o");
+  const canonical =
+    sameStringArray(Object.keys(particle).sort(), [
+      "chapter_role", "chapter_segment_id", "scene_id", "subarea_entrance_id", "word_id",
+    ]) &&
+    readString(particle, "word_id") === "o" &&
+    readString(particle, "chapter_segment_id") === "waterwheel_discovery" &&
+    readString(particle, "scene_id") === "scene.valley.waterwheel" &&
+    readString(particle, "subarea_entrance_id") === "waterwheel.lower_maintenance.entry" &&
+    readString(particle, "chapter_role") === "receptive" &&
+    segment !== undefined && readStringArray(segment, "map_nodes").includes("valley.waterwheel") &&
+    scene !== undefined && readObjectArray(scene.content, "entrances")
+      .some((entrance) => readString(entrance, "entrance_id") === "waterwheel.lower_maintenance.entry") &&
+    task !== undefined && readString(task.content, "chapter_segment_id") === "waterwheel_discovery" &&
+    readString(task.content, "region_node_id") === "valley.waterwheel" &&
+    readString(task.content, "scene_ref") === "../scenes/valley-waterwheel.v0.1.yaml" &&
+    grammarContact !== undefined && readString(grammarContact, "contact_kind") === "receptive_command_particle" &&
+    grammarContact.automatic_state_grant === false && grammarContact.production_required === false &&
+    grammarContact.mastery_evidence_allowed === false;
+  if (!canonical) {
+    addIssue(issues, "ref.glyph_waterwheel_particle", source.path,
+      "prologue_route.tutorial_guaranteed_particle",
+      "tutorial o contact must remain receptive-only in the canonical waterwheel lower-maintenance subarea");
   }
 }
 
@@ -1222,6 +1264,23 @@ function validateSceneSource(source: CompiledSource, issues: ContentIssue[]): vo
   validateArrayIds(source, "inbound_route_refs", "inbound_ref_id", issues, false);
   validateArrayIds(source, "soft_failure_recoveries", "failure_id", issues, false);
   const sceneId = readString(source.content, "scene_id");
+  const authoredRoutes = readObjectArray(source.content, "routes");
+  const authoredInteractions = readObjectArray(source.content, "interactions");
+  const preHermitMagicInvalid = sceneId === "scene.valley.arrival_shelf"
+    ? authoredRoutes.some((route) => readString(route, "route_kind") !== "non_magic") ||
+      authoredInteractions.some((interaction) => readString(interaction, "optional_word_id") !== "")
+    : sceneId === "scene.valley.stream_section"
+      ? authoredRoutes.some((route) => readString(route, "route_kind") !== "non_magic") ||
+        authoredInteractions.filter((interaction) => readString(interaction, "optional_word_id") !== "")
+          .some((interaction) => readString(interaction, "interaction_id") !== "stream.perform_low_mp_telo" ||
+            readString(interaction, "verb") !== "perform_low_mp_telo" ||
+            readString(interaction, "optional_word_id") !== "word.telo") ||
+        authoredInteractions.filter((interaction) => readString(interaction, "optional_word_id") !== "").length !== 1
+      : false;
+  if (preHermitMagicInvalid) {
+    addIssue(issues, "scene.pre_hermit_magic_forbidden", source.path, "routes",
+      "N00/N01 navigation cannot author active magic; N01 may retain only the guarded hermit-practice interaction");
+  }
   if (!sceneId.startsWith("scene.")) addIssue(issues, "scene.id", source.path, "scene_id", "scene_id must start with scene.");
   if (readNumber(source.content, "tile_size_px") !== 16) addIssue(issues, "scene.tile_size", source.path, "tile_size_px", "scene tile size must be exactly 16 logical pixels");
   const size = readObject(source.content, "size_tiles");
