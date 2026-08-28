@@ -49,10 +49,10 @@ entrances:
     spawn_tile: [37, 1]
     recovery_entry: true
     checkpoint_policy: "return_route"
-  - entrance_id: "settlement.from_return"
+  - entrance_id: "settlement.from_underground_order"
     spawn_tile: [2, 1]
     recovery_entry: true
-    checkpoint_policy: "return_flow_completion_route"
+    checkpoint_policy: "underground_order_completion_route"
   - entrance_id: "settlement.from_safe_range"
     spawn_tile: [37, 1]
     recovery_entry: true
@@ -67,10 +67,10 @@ inbound_route_refs:
     source_scene_id: "scene.valley.stream_section"
     source_exit_id: "stream.to_settlement"
     entrance_id: "settlement.from_stream"
-  - inbound_ref_id: "settlement.inbound_from_return"
-    source_scene_id: "scene.valley.return_channel"
-    source_exit_id: "return.to_settlement"
-    entrance_id: "settlement.from_return"
+  - inbound_ref_id: "settlement.inbound_from_underground_order"
+    source_scene_id: "scene.valley.underground_order_node"
+    source_exit_id: "underground.to_settlement"
+    entrance_id: "settlement.from_underground_order"
   - inbound_ref_id: "settlement.inbound_from_safe_range"
     source_scene_id: "scene.valley.safe_range"
     source_exit_id: "safe_range.to_settlement"
@@ -97,7 +97,7 @@ exits:
     trigger_rect_tiles: {x: 0, y: 8, width: 2, height: 7}
     target_scene_id: "scene.valley.old_mine_threshold"
     target_entrance_id: "old_mine.from_settlement"
-    traversal_guard: {predicate: "prologue_return_observed == true"}
+    traversal_guard: {predicate: "forest_chapter_epilogue_committed == true"}
 
 route_objectives:
   - objective_id: "settlement.use_public_relief"

@@ -33,7 +33,7 @@
     }
   },
   "scenes": {
-    "sourceDigest": "sha256:45a7dd66fa7bbd0d2012fab0267c7fd6be47878d3486c20db91c371d33a158b6",
+    "sourceDigest": "sha256:0103bb628396d28ff9d3f2068c86b1ab4b087b30102be8757a4401ebdd170a5d",
     "byId": {
       "scene.valley.arrival_shelf": {
         "sceneId": "scene.valley.arrival_shelf",
@@ -1274,7 +1274,7 @@
             },
             "firstTraverseCommit": null,
             "traversalGuardAny": [
-              "prologue_return_observed == true"
+              "forest_chapter_epilogue_committed == true"
             ]
           }
         ],
@@ -1424,11 +1424,24 @@
             },
             "recoveryEntry": true,
             "checkpointPolicy": "scene_entry_and_softlock_recovery"
+          },
+          {
+            "id": "return.from_underground_order",
+            "spawnTile": [
+              27,
+              1
+            ],
+            "spawnPx": {
+              "x": 432,
+              "y": 386
+            },
+            "recoveryEntry": true,
+            "checkpointPolicy": "order_node_return_route"
           }
         ],
         "exits": [
           {
-            "id": "return.to_settlement",
+            "id": "return.to_underground_order",
             "boundsTiles": {
               "x": 28,
               "y": 0,
@@ -1443,8 +1456,8 @@
             },
             "target": {
               "kind": "scene",
-              "sceneId": "scene.valley.settlement",
-              "entranceId": "settlement.from_return"
+              "sceneId": "scene.valley.underground_order_node",
+              "entranceId": "underground.from_return_wetland"
             },
             "firstTraverseCommit": null,
             "traversalGuardAny": [
@@ -1481,8 +1494,8 @@
             "predicate": "wet_meadow_restored == true"
           },
           {
-            "id": "return.reach_settlement",
-            "predicate": "player_reaches_exit(return.to_settlement)"
+            "id": "return.reach_underground_order",
+            "predicate": "player_reaches_exit(return.to_underground_order)"
           }
         ],
         "routes": [
@@ -1491,11 +1504,11 @@
             "kind": "non_magic",
             "solutionFamily": "return_flow.repair_overflow",
             "fromEntranceId": "return.from_cistern",
-            "toExitId": "return.to_settlement",
+            "toExitId": "return.to_underground_order",
             "objectiveIds": [
               "return_flow.settlement_delivery",
               "return_flow.wet_meadow",
-              "return.reach_settlement"
+              "return.reach_underground_order"
             ]
           },
           {
@@ -1503,11 +1516,11 @@
             "kind": "non_magic",
             "solutionFamily": "return_flow.clear_mud",
             "fromEntranceId": "return.from_cistern",
-            "toExitId": "return.to_settlement",
+            "toExitId": "return.to_underground_order",
             "objectiveIds": [
               "return_flow.settlement_delivery",
               "return_flow.wet_meadow",
-              "return.reach_settlement"
+              "return.reach_underground_order"
             ]
           },
           {
@@ -1515,11 +1528,11 @@
             "kind": "non_magic",
             "solutionFamily": "return_flow.reuse_old_channel",
             "fromEntranceId": "return.from_cistern",
-            "toExitId": "return.to_settlement",
+            "toExitId": "return.to_underground_order",
             "objectiveIds": [
               "return_flow.settlement_delivery",
               "return_flow.wet_meadow",
-              "return.reach_settlement"
+              "return.reach_underground_order"
             ]
           }
         ],
@@ -2635,7 +2648,7 @@
             "checkpointPolicy": "return_route"
           },
           {
-            "id": "settlement.from_return",
+            "id": "settlement.from_underground_order",
             "spawnTile": [
               2,
               1
@@ -2645,7 +2658,7 @@
               "y": 450
             },
             "recoveryEntry": true,
-            "checkpointPolicy": "return_flow_completion_route"
+            "checkpointPolicy": "underground_order_completion_route"
           },
           {
             "id": "settlement.from_safe_range",
@@ -2763,7 +2776,7 @@
             },
             "firstTraverseCommit": null,
             "traversalGuardAny": [
-              "prologue_return_observed == true"
+              "forest_chapter_epilogue_committed == true"
             ]
           }
         ],
@@ -3491,10 +3504,10 @@
             "entranceId": "settlement.from_stream"
           },
           {
-            "id": "settlement.inbound_from_return",
-            "sourceSceneId": "scene.valley.return_channel",
-            "sourceExitId": "return.to_settlement",
-            "entranceId": "settlement.from_return"
+            "id": "settlement.inbound_from_underground_order",
+            "sourceSceneId": "scene.valley.underground_order_node",
+            "sourceExitId": "underground.to_settlement",
+            "entranceId": "settlement.from_underground_order"
           },
           {
             "id": "settlement.inbound_from_safe_range",
@@ -3901,6 +3914,366 @@
         "materialPatchRecordRefs": [
           "patch.valley.arrival_route.v0.1"
         ]
+      },
+      "scene.valley.underground_order_node": {
+        "sceneId": "scene.valley.underground_order_node",
+        "sourcePath": "data/scenes/valley-underground-order-node.v0.1.yaml",
+        "regionId": "valley_prologue",
+        "regionNodeId": "valley.underground_order_node",
+        "chapterFlowId": "ch01_world_literacy_prologue",
+        "chapterSegmentId": "den_and_return_flow",
+        "tileSizePx": 16,
+        "sizeTiles": {
+          "width": 28,
+          "height": 22
+        },
+        "collisionRows": [
+          "............................",
+          "............................",
+          "............................",
+          "............................",
+          "............................",
+          "............................",
+          "............................",
+          "............................",
+          "............................",
+          "............................",
+          "............................",
+          "............................",
+          "............................",
+          "............................",
+          "............................",
+          "............................",
+          "............................",
+          "............................",
+          "............................",
+          "............................",
+          "............................",
+          "############################"
+        ],
+        "entrances": [
+          {
+            "id": "underground.from_return_wetland",
+            "spawnTile": [
+              2,
+              1
+            ],
+            "spawnPx": {
+              "x": 32,
+              "y": 322
+            },
+            "recoveryEntry": true,
+            "checkpointPolicy": "order_node_entry_and_softlock_recovery"
+          },
+          {
+            "id": "underground.from_settlement",
+            "spawnTile": [
+              25,
+              1
+            ],
+            "spawnPx": {
+              "x": 400,
+              "y": 322
+            },
+            "recoveryEntry": true,
+            "checkpointPolicy": "epilogue_return_route"
+          }
+        ],
+        "exits": [
+          {
+            "id": "underground.to_return_wetland",
+            "boundsTiles": {
+              "x": 0,
+              "y": 0,
+              "width": 2,
+              "height": 7
+            },
+            "boundsPx": {
+              "x": 0,
+              "y": 240,
+              "width": 32,
+              "height": 112
+            },
+            "target": {
+              "kind": "scene",
+              "sceneId": "scene.valley.return_channel",
+              "entranceId": "return.from_underground_order"
+            },
+            "firstTraverseCommit": null,
+            "traversalGuardAny": [
+              "settlement_supply_stable == true"
+            ]
+          },
+          {
+            "id": "underground.to_settlement",
+            "boundsTiles": {
+              "x": 26,
+              "y": 0,
+              "width": 2,
+              "height": 7
+            },
+            "boundsPx": {
+              "x": 416,
+              "y": 240,
+              "width": 32,
+              "height": 112
+            },
+            "target": {
+              "kind": "scene",
+              "sceneId": "scene.valley.settlement",
+              "entranceId": "settlement.from_underground_order"
+            },
+            "firstTraverseCommit": null,
+            "traversalGuardAny": [
+              "forest_chapter_epilogue_committed == true"
+            ]
+          }
+        ],
+        "recovery": {
+          "entryEntranceId": "underground.from_return_wetland",
+          "maximumSoftlockRecoverySeconds": 60,
+          "actions": [
+            "reopen_public_archive_index",
+            "restore_existing_fragment_to_cradle",
+            "discard_uncommitted_allocation_preview",
+            "expose_nonmagic_return_route"
+          ],
+          "preserves": [
+            "learning_evidence",
+            "region_commits",
+            "artifact_inventory",
+            "survival_state"
+          ]
+        },
+        "routeObjectives": [
+          {
+            "id": "underground.synchronize_shard",
+            "predicate": "forest_site_synchronized == true"
+          },
+          {
+            "id": "underground.commit_allocation",
+            "predicate": "forest_water_allocation != unassigned"
+          },
+          {
+            "id": "underground.reveal_site_lead",
+            "predicate": "forest_site_lead_revealed == true"
+          },
+          {
+            "id": "underground.commit_epilogue",
+            "predicate": "forest_chapter_epilogue_committed == true"
+          },
+          {
+            "id": "underground.reach_settlement",
+            "predicate": "player_reaches_exit(underground.to_settlement)"
+          }
+        ],
+        "routes": [
+          {
+            "id": "underground.order_node_nonmagic",
+            "kind": "non_magic",
+            "solutionFamily": "observe_archive_synchronize_shard_choose_allocation",
+            "fromEntranceId": "underground.from_return_wetland",
+            "toExitId": "underground.to_settlement",
+            "objectiveIds": [
+              "underground.synchronize_shard",
+              "underground.commit_allocation",
+              "underground.reveal_site_lead",
+              "underground.commit_epilogue",
+              "underground.reach_settlement"
+            ]
+          }
+        ],
+        "nonMagicAlternativeRouteIds": [
+          "underground.order_node_nonmagic"
+        ],
+        "targets": [
+          {
+            "id": "underground.gravity_plumb",
+            "kind": "gravity_anomaly_demonstration",
+            "material": "stone_brass_and_string",
+            "interactionPointTiles": [
+              4,
+              1
+            ]
+          },
+          {
+            "id": "underground.time_pendulum",
+            "kind": "time_anomaly_demonstration",
+            "material": "brass_stone_and_water",
+            "interactionPointTiles": [
+              7,
+              1
+            ]
+          },
+          {
+            "id": "underground.material_ledger",
+            "kind": "material_anomaly_demonstration",
+            "material": "clay_stone_and_ink",
+            "interactionPointTiles": [
+              10,
+              1
+            ]
+          },
+          {
+            "id": "underground.conservation_spillway",
+            "kind": "conservation_anomaly_demonstration",
+            "material": "stone_copper_and_water",
+            "interactionPointTiles": [
+              13,
+              1
+            ]
+          },
+          {
+            "id": "underground.record_archive",
+            "kind": "record_archive",
+            "material": "stone_clay_and_ink",
+            "interactionPointTiles": [
+              16,
+              1
+            ]
+          },
+          {
+            "id": "underground.shard_synchronization_cradle",
+            "kind": "shard_synchronization_cradle",
+            "material": "stone_brass_and_artifact_fragment",
+            "interactionPointTiles": [
+              19,
+              1
+            ]
+          },
+          {
+            "id": "underground.three_channel_allocation_console",
+            "kind": "three_channel_allocation_console",
+            "material": "stone_copper_and_water",
+            "interactionPointTiles": [
+              22,
+              1
+            ]
+          }
+        ],
+        "interactions": [
+          {
+            "id": "underground.observe_gravity_plumb",
+            "targetId": "underground.gravity_plumb",
+            "verb": "observe_gravity_relation",
+            "toolOrMagicRequired": false,
+            "optionalWordId": null,
+            "npcId": null,
+            "facilityId": null,
+            "taskId": null
+          },
+          {
+            "id": "underground.observe_time_pendulum",
+            "targetId": "underground.time_pendulum",
+            "verb": "observe_time_relation",
+            "toolOrMagicRequired": false,
+            "optionalWordId": null,
+            "npcId": null,
+            "facilityId": null,
+            "taskId": null
+          },
+          {
+            "id": "underground.inspect_material_ledger",
+            "targetId": "underground.material_ledger",
+            "verb": "read_material_accounting",
+            "toolOrMagicRequired": false,
+            "optionalWordId": null,
+            "npcId": null,
+            "facilityId": null,
+            "taskId": null
+          },
+          {
+            "id": "underground.inspect_conservation_spillway",
+            "targetId": "underground.conservation_spillway",
+            "verb": "observe_conservation_relation",
+            "toolOrMagicRequired": false,
+            "optionalWordId": null,
+            "npcId": null,
+            "facilityId": null,
+            "taskId": null
+          },
+          {
+            "id": "underground.read_record_archive",
+            "targetId": "underground.record_archive",
+            "verb": "read_archived_site_record",
+            "toolOrMagicRequired": false,
+            "optionalWordId": null,
+            "npcId": null,
+            "facilityId": null,
+            "taskId": null
+          },
+          {
+            "id": "underground.synchronize_forest_shard",
+            "targetId": "underground.shard_synchronization_cradle",
+            "verb": "seat_existing_fragment_and_confirm_alignment",
+            "toolOrMagicRequired": false,
+            "optionalWordId": null,
+            "npcId": null,
+            "facilityId": null,
+            "taskId": null
+          },
+          {
+            "id": "underground.commit_three_channel_allocation",
+            "targetId": "underground.three_channel_allocation_console",
+            "verb": "set_one_initial_channel_priority",
+            "toolOrMagicRequired": false,
+            "optionalWordId": null,
+            "npcId": null,
+            "facilityId": null,
+            "taskId": null
+          }
+        ],
+        "npcs": [],
+        "facilities": [],
+        "tasks": [],
+        "taskRefs": [
+          {
+            "id": "ch01_underground_water_allocation",
+            "authoritativeTaskSourcePath": "data/tasks/ch01-underground-water-allocation.v0.1.yaml",
+            "objectiveIds": [
+              "underground.synchronize_shard",
+              "underground.commit_allocation",
+              "underground.reveal_site_lead",
+              "underground.commit_epilogue"
+            ]
+          }
+        ],
+        "tradeEntries": [],
+        "inboundRoutes": [
+          {
+            "id": "underground.inbound_from_return_wetland",
+            "sourceSceneId": "scene.valley.return_channel",
+            "sourceExitId": "return.to_underground_order",
+            "entranceId": "underground.from_return_wetland"
+          }
+        ],
+        "softFailureRecoveries": [
+          {
+            "id": "underground.archive_misread",
+            "action": "reopen_public_archive_index",
+            "preserves": [
+              "learning_evidence",
+              "region_commits"
+            ]
+          },
+          {
+            "id": "underground.shard_alignment_lost",
+            "action": "restore_existing_fragment_to_cradle",
+            "preserves": [
+              "learning_evidence",
+              "region_commits"
+            ]
+          },
+          {
+            "id": "underground.allocation_preview_abandoned",
+            "action": "discard_uncommitted_allocation_preview",
+            "preserves": [
+              "learning_evidence",
+              "region_commits"
+            ]
+          }
+        ],
+        "materialPatchRecordRefs": []
       },
       "scene.valley.waterwheel": {
         "sceneId": "scene.valley.waterwheel",
@@ -14977,7 +15350,7 @@
     "sourceDigest": "sha256:33b53f953c5771d7fbf7e10e89ce2b86b8d825c8cc090d9f61d42384f90ccda0"
   },
   "prologueAcceptance": {
-    "sourceDigest": "sha256:09558dfa615aa6c1b93443e6dbad1d9f94175139273103b4144cdb15fe74f6f3",
+    "sourceDigest": "sha256:89178e33516eab45000091b6c06a2d69ef3944c3f65cc01e0b6934805d002209",
     "sourcePath": "data/chapters/ch01-world-literacy-prologue.v0.1.yaml",
     "contentVersion": "chapter-01.prologue.1",
     "telemetry": {
@@ -15157,7 +15530,9 @@
           "segmentId": "den_and_return_flow",
           "mapNodeIds": [
             "valley.den_bypass",
-            "valley.return_channel"
+            "valley.return_channel",
+            "valley.underground_order_node",
+            "valley.settlement"
           ],
           "activeNewWordIds": [
             "wawa"

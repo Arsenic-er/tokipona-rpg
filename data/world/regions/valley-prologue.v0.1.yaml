@@ -45,6 +45,7 @@ survival_relief_contract:
     - {node_id: "valley.service_channel", mode: "emergency_maintenance_canteen_and_signed_return"}
     - {node_id: "valley.high_cistern", mode: "task_metabolism_frozen"}
     - {node_id: "valley.return_channel", mode: "potable_return_spout_and_root_foraging"}
+    - {node_id: "valley.underground_order_node", mode: "archive_shelter_and_existing_fragment_cradle"}
 
 nodes:
   - node_id: "valley.arrival_shelf"
@@ -120,6 +121,15 @@ nodes:
     persistence_scope: "region_persistent"
     world_literacy_tags: [persistent_consequence, ecology_return, community_route_change]
 
+  - node_id: "valley.underground_order_node"
+    scene_id: "scene.valley.underground_order_node"
+    implementation_status: "machine_contract_ready"
+    task_ref: "../../tasks/ch01-underground-water-allocation.v0.1.yaml"
+    suggested_size_tiles: [28, 22]
+    entry_condition: {predicate: "forest_large_creature_resolution_committed == true && forest_large_creature_resolution != unresolved"}
+    persistence_scope: "region_persistent"
+    world_literacy_tags: [gravity, time, material_conservation, record_archive, water_allocation]
+
   - node_id: "valley.safe_range"
     scene_id: "scene.valley.safe_range"
     implementation_status: "machine_contract_ready"
@@ -133,7 +143,7 @@ nodes:
     scene_id: "scene.valley.old_mine_threshold"
     implementation_status: "machine_contract_ready"
     suggested_size_tiles: [24, 20]
-    entry_condition: {predicate: "prologue_return_observed == true"}
+    entry_condition: {predicate: "forest_chapter_epilogue_committed == true"}
     persistence_scope: "region_persistent"
     world_literacy_tags: [peaceful_progress, chapter_transition]
 
@@ -162,11 +172,13 @@ connections:
   - {from: "valley.service_channel", to: "valley.den_bypass", traversal: {always: true}}
   - {from: "valley.den_bypass", to: "valley.high_cistern", traversal: {predicate: "den_route_open == true"}}
   - {from: "valley.high_cistern", to: "valley.return_channel", traversal: {predicate: "exit_ladder_lowered == true"}}
-  - {from: "valley.return_channel", to: "valley.settlement", traversal: {predicate: "settlement_supply_stable == true"}}
+  - {from: "valley.return_channel", to: "valley.underground_order_node", traversal: {predicate: "settlement_supply_stable == true"}}
+  - {from: "valley.underground_order_node", to: "valley.return_channel", traversal: {predicate: "settlement_supply_stable == true"}}
+  - {from: "valley.underground_order_node", to: "valley.settlement", traversal: {predicate: "forest_chapter_epilogue_committed == true"}}
   - {from: "valley.settlement", to: "valley.safe_range", traversal: {predicate: "range_trial_permission == true"}}
   - {from: "valley.safe_range", to: "valley.settlement", traversal: {predicate: "range_trial_permission == true"}}
-  - {from: "valley.settlement", to: "valley.old_mine_threshold", traversal: {predicate: "prologue_return_observed == true"}}
-  - {from: "valley.old_mine_threshold", to: "valley.settlement", traversal: {predicate: "prologue_return_observed == true"}}
+  - {from: "valley.settlement", to: "valley.old_mine_threshold", traversal: {predicate: "forest_chapter_epilogue_committed == true"}}
+  - {from: "valley.old_mine_threshold", to: "valley.settlement", traversal: {predicate: "forest_chapter_epilogue_committed == true"}}
 
 persistence_classes:
   ephemeral: [cosmetic_debris, transient_particles, temporary_manifested_matter, uncommitted_interaction_animation]
@@ -193,6 +205,10 @@ state_registry:
   - {state_id: "forest_telo_initiation_completed", type: boolean, initial: false, owner: "ch01_medium_hermit_initiation", persistence_scope: "global", save_owner: "player_learning_save", unique_writer_event: "forest_telo_initiation_committed"}
   - {state_id: "forest_large_creature_resolution", type: enum, values: [unresolved, migration_restored, guided, yielded, barrier, driven_away, killed], initial: unresolved, owner: "ch01_large_creature_crisis", persistence_scope: "region_persistent", save_owner: "valley_prologue_region_save", unique_writer_event: "forest_large_creature_resolution_committed"}
   - {state_id: "forest_large_creature_life_state", type: enum, values: [alive, injured, dead], initial: alive, owner: "ecology.valley_prologue", persistence_scope: "region_persistent", save_owner: "valley_ecology_save", unique_writer_events: [wildlife_damage_committed, wildlife_death_committed]}
+  - {state_id: "forest_site_synchronized", type: boolean, initial: false, owner: "ch01_underground_water_allocation", persistence_scope: "region_persistent", save_owner: "valley_prologue_region_save", unique_writer_event: "forest_site_synchronized"}
+  - {state_id: "forest_water_allocation", type: enum, values: [unassigned, settlement_priority, wetland_priority, road_trade_priority], initial: unassigned, owner: "ch01_underground_water_allocation", persistence_scope: "region_persistent", save_owner: "valley_prologue_region_save", unique_writer_event: "forest_water_allocation_committed"}
+  - {state_id: "forest_site_lead_revealed", type: boolean, initial: false, owner: "ch01_underground_water_allocation", persistence_scope: "region_persistent", save_owner: "valley_prologue_region_save", unique_writer_event: "forest_site_lead_revealed"}
+  - {state_id: "forest_chapter_epilogue_committed", type: boolean, initial: false, owner: "ch01_underground_water_allocation", persistence_scope: "region_persistent", save_owner: "valley_prologue_region_save", unique_writer_event: "forest_chapter_epilogue_committed"}
   - {state_id: "service_channel_reached", type: boolean, initial: false, owner: "region", persistence_scope: "region_persistent", save_owner: "valley_prologue_region_save", unique_writer_event: "service_channel_entry_crossed"}
   - {state_id: "service_gate_open", type: boolean, initial: false, owner: "ch01_service_channel", persistence_scope: "region_persistent", save_owner: "valley_prologue_region_save", unique_writer_event: "service_gate_solution_committed"}
   - {state_id: "service_bypass_open", type: boolean, initial: false, owner: "ch01_service_channel", persistence_scope: "region_persistent", save_owner: "valley_prologue_region_save", unique_writer_event: "service_bypass_solution_committed"}
@@ -241,6 +257,18 @@ event_commit_points:
     owner: "ch01_large_creature_crisis"
     source_task_ref: "../../tasks/ch01-large-creature-crisis.v0.1.yaml"
     writes_enum: {forest_large_creature_resolution: [migration_restored, guided, yielded, barrier, driven_away, killed]}
+  forest_site_synchronized:
+    owner: "ch01_underground_water_allocation"
+    atomic_writes: {forest_site_synchronized: true}
+  forest_water_allocation_committed:
+    owner: "ch01_underground_water_allocation"
+    writes_enum: {forest_water_allocation: [settlement_priority, wetland_priority, road_trade_priority]}
+  forest_site_lead_revealed:
+    owner: "ch01_underground_water_allocation"
+    atomic_writes: {forest_site_lead_revealed: true}
+  forest_chapter_epilogue_committed:
+    owner: "ch01_underground_water_allocation"
+    atomic_writes: {forest_chapter_epilogue_committed: true}
   wildlife_damage_committed:
     owner: "ecology.valley_prologue"
     writes_enum: {forest_large_creature_life_state: [injured]}
@@ -362,9 +390,10 @@ scene_state_bindings:
   - {scene_id: "scene.valley.stream_section", reads: "arrival_route_stabilized", binding: "reconstructed_route_patch"}
   - {scene_id: "scene.valley.den_bypass", reads: "fox_den_intact", binding: "den_geometry_and_fox_return"}
   - {scene_id: "scene.valley.return_channel", reads: "wet_meadow_restored", binding: "frog_rabbit_and_vegetation_return"}
+  - {scene_id: "scene.valley.underground_order_node", reads: "forest_water_allocation", binding: "allocation_console_and_channel_variants"}
 
 route_completion_contract:
-  required_loop: [valley.arrival_shelf, valley.stream_section, valley.settlement, valley.waterwheel, valley.service_channel, valley.high_cistern, valley.return_channel, valley.settlement]
+  required_loop: [valley.arrival_shelf, valley.stream_section, valley.settlement, valley.waterwheel, valley.service_channel, valley.high_cistern, valley.return_channel, valley.underground_order_node, valley.settlement]
   required_transition_alternatives:
     service_channel_to_high_cistern:
       - [valley.service_channel, valley.high_cistern]

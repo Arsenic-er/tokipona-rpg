@@ -1,0 +1,44 @@
+schema_version: "g01.task.forest-underground.v0.1"
+content_version: "chapter-01.underground-water-allocation.1"
+task_id: "ch01_underground_water_allocation"
+task_type: "forest_underground_water_allocation"
+task_family_id: "ecology_and_return_flow"
+chapter_flow_id: "ch01_world_literacy_prologue"
+chapter_segment_id: "den_and_return_flow"
+region_id: "valley_prologue"
+region_node_id: "valley.underground_order_node"
+scene_ref: "../scenes/valley-underground-order-node.v0.1.yaml"
+required_event_sequence:
+  - "forest_large_creature_resolution_committed"
+  - "forest_site_synchronized"
+  - "forest_water_allocation_committed"
+  - "forest_site_lead_revealed"
+  - "forest_chapter_epilogue_committed"
+required_available_word_ids: [word.telo, word.tawa, word.wawa, word.lili, word.suli]
+required_artifact_id: "artifact.fragment.forest_site"
+allocation_modes:
+  - mode_id: "settlement_priority"
+    benefit_ids: [resident_water_stable, crops_stable]
+    cost_ids: [wetland_decline_continues, creature_migration_pressure]
+    cost_projection: {horizon: immediate, visible_effect_ids: [wetland_decline_continues, creature_migration_pressure]}
+  - mode_id: "wetland_priority"
+    benefit_ids: [wetland_recovery_started, creature_habitat_stable]
+    cost_ids: [settlement_rationing, local_food_price_pressure]
+    cost_projection: {horizon: immediate, visible_effect_ids: [settlement_rationing, local_food_price_pressure]}
+  - mode_id: "road_trade_priority"
+    benefit_ids: [medicine_salt_metal_route_open, external_news_route_open]
+    cost_ids: [settlement_minimum_supply, wetland_minimum_supply]
+    cost_projection: {horizon: immediate, visible_effect_ids: [settlement_minimum_supply, wetland_minimum_supply]}
+perfect_initial_balance_forbidden: true
+later_upgrade_mode: "balanced_upgrade"
+scene_target_ids: [underground.gravity_plumb, underground.time_pendulum, underground.material_ledger, underground.conservation_spillway, underground.record_archive, underground.shard_synchronization_cradle, underground.three_channel_allocation_console]
+completion_events:
+  shard_synchronization: "forest_site_synchronized"
+  allocation_commit: "forest_water_allocation_committed"
+  site_lead_reveal: "forest_site_lead_revealed"
+  epilogue_commit: "forest_chapter_epilogue_committed"
+recovery:
+  maximum_softlock_recovery_seconds: 60
+  actions: [reopen_public_archive_index, restore_existing_fragment_to_cradle, discard_uncommitted_allocation_preview, expose_nonmagic_return_route]
+  preserves: [learning_evidence, region_commits, artifact_inventory, survival_state]
+golden_tests: []

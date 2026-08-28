@@ -282,6 +282,10 @@ function validateSource(
           readString(source.content, "task_type") === "forest_large_creature_crisis") {
         validateForestLargeCreatureTaskSource(source, issues);
       }
+      if (source.path === "data/tasks/ch01-underground-water-allocation.v0.1.yaml" ||
+          readString(source.content, "task_type") === "forest_underground_water_allocation") {
+        validateForestUndergroundTaskSource(source, issues);
+      }
       break;
     case "glyph_catalog":
       validateArrayIds(source, "glyphs", "canonicalWordId", issues);
@@ -380,7 +384,7 @@ function validatePrologueAcceptanceSource(source: CompiledSource, issues: Conten
     ["waterwheel", ["valley.waterwheel"], ["tawa"]],
     ["service_channel", ["valley.service_channel"], ["o"]],
     ["high_cistern", ["valley.high_cistern"], ["lili", "suli"]],
-    ["den_and_return_flow", ["valley.den_bypass", "valley.return_channel"], ["wawa"]],
+    ["den_and_return_flow", ["valley.den_bypass", "valley.return_channel", "valley.underground_order_node", "valley.settlement"], ["wawa"]],
     ["return_and_safe_range", ["valley.settlement", "valley.safe_range", "valley.old_mine_threshold"], []],
   ] as const;
   const focusSegments = readObjectArray(source.content, "segments");
@@ -848,6 +852,10 @@ function validateCrossDomainReferences(
           readString(source.content, "task_type") === "forest_large_creature_crisis") {
         validateForestLargeCreatureTaskReferences(source, sources, issues);
       }
+      if (source.path === "data/tasks/ch01-underground-water-allocation.v0.1.yaml" ||
+          readString(source.content, "task_type") === "forest_underground_water_allocation") {
+        validateForestUndergroundTaskReferences(source, sources, issues);
+      }
     }
     if (source.kind === "p0_curriculum") {
       for (const wordId of p0Ids) {
@@ -966,7 +974,7 @@ function validateSafeRangeTaskReferences(source: CompiledSource, sources: readon
   const regionNodes = arr(regionContent.nodes), safeNode = regionNodes.find((item) => str(item.node_id) === "valley.safe_range"), oldMine = regionNodes.find((item) => str(item.node_id) === "valley.old_mine_threshold"), connection = arr(regionContent.connections).find((item) => str(item.from) === "valley.settlement" && str(item.to) === "valley.safe_range"), reciprocalConnection = arr(regionContent.connections).find((item) => str(item.from) === "valley.safe_range" && str(item.to) === "valley.settlement");
   const settlementExit = arr(settlementContent.exits).find((item) => str(item.exit_id) === "settlement.to_safe_range"), settlementEntrance = arr(settlementContent.entrances).find((item) => str(item.entrance_id) === "settlement.from_safe_range"), safeExit = arr(sceneContent.exits).find((item) => str(item.exit_id) === "safe_range.to_settlement"), safeEntrance = arr(sceneContent.entrances).find((item) => str(item.entrance_id) === "safe_range.from_settlement");
   if (guard(safeNode) !== "range_trial_permission == true" || guardConnection(connection) !== "range_trial_permission == true" || guardConnection(reciprocalConnection) !== "range_trial_permission == true" || guardExit(settlementExit) !== "range_trial_permission == true" || guardExit(safeExit) !== "range_trial_permission == true" || str(settlementExit?.target_scene_id) !== "scene.valley.safe_range" || str(settlementExit?.target_entrance_id) !== "safe_range.from_settlement" || !settlementEntrance || str(safeExit?.target_scene_id) !== "scene.valley.settlement" || str(safeExit?.target_entrance_id) !== "settlement.from_safe_range" || !safeEntrance) fail("task.safe_range_topology", "scene_ref", "N02 <-> N08 must be direct and guarded by range_trial_permission on both directions");
-  if (guard(oldMine) !== "prologue_return_observed == true") fail("task.safe_range_old_mine_guard", "region_id", "old mine must remain guarded only by prologue_return_observed");
+  if (guard(oldMine) !== "forest_chapter_epilogue_committed == true") fail("task.safe_range_old_mine_guard", "region_id", "old mine must remain guarded only by the forest chapter epilogue");
   const segment = arr(chapterContent.segments).find((item) => str(item.segment_id) === "return_and_safe_range");
   if (!segment || !arrStrings(segment.optional_task_ids).includes("ch01_first_attack_qualification")) fail("task.safe_range_optional", "chapter_segment_id", "N08 qualification must remain optional");
   const commits = obj(regionContent.event_commit_points), returnWriter = obj(commits.return_observation_committed), transferWriter = obj(commits.safe_range_transfer_passed), tableWriter = obj(commits.safe_range_material_table_completed);
@@ -1077,9 +1085,9 @@ function validateReturnFlowTaskReferences(source: CompiledSource, sources: reado
   else { const graphContract=readObjectArray(graph.content,"prerequisite_graphs").find(x=>readString(x,"graph_id")==="attack.water.forceful_motion.prerequisite_graph"), node=graphContract?readObjectArray(graphContract,"required_nodes").find(x=>readString(x,"node_id")==="use.intensity.inert"):undefined; if(!node || readString(node,"evidence_type")!=="noncombat_intensity" || readString(node,"concept")!=="word.wawa" || readString(node,"source_object_class")!=="inert_return_flow_mechanism" || readNumber(node,"minimum")!==1 || readNumber(node,"max_hint_level")!==1) addIssue(issues,"task.return_flow_wawa",source.path,"evidence_graph_ref","authoritative inert wawa graph node is invalid"); }
   if (region) { const writer=readNestedObject(region,["event_commit_points","return_flow_committed"]), writes=readObject(writer,"atomic_writes"), contract=readObject(region,"contracts"); if (readString(writer,"owner")!=="ch01_return_flow" || writes.settlement_supply_stable!==true || writes.wet_meadow_restored!==true || Object.keys(writes).length!==2 || !sameStringArray(readStringArray(writer,"atomic_patch_records"),["patch.valley.return_flow.v0.1"]) || contract.zero_attack_mainline!==true) addIssue(issues,"task.return_flow_region",source.path,"completion","N07 region commit and zero-attack contract are invalid"); }
   const chapter=sources.find(item=>item.kind==="chapter"); const chapterContracts=chapter?readObject(chapter.content,"prologue_contract"):{}; if(readNumber(chapterContracts,"mandatory_combat_encounters")!==0 || readString(chapterContracts,"formal_attack_first_validation_target")!=="safe_range_inert_targets") addIssue(issues,"task.return_flow_zero_attack",source.path,"chapter_flow_id","N07 must remain before zero-combat safe-range-only attack validation");
-  const cistern=sources.find(item=>item.kind==="scene"&&readString(item.content,"scene_id")==="scene.valley.high_cistern"), settlement=sources.find(item=>item.kind==="scene"&&readString(item.content,"scene_id")==="scene.valley.settlement");
-  const cisternExit=cistern?readObjectArray(cistern.content,"exits").find(x=>readString(x,"exit_id")==="cistern.to_return_channel"):undefined, settlementInbound=settlement?readObjectArray(settlement.content,"inbound_route_refs").find(x=>readString(x,"inbound_ref_id")==="settlement.inbound_from_return"):undefined;
-  if(!cisternExit || readString(cisternExit,"target_scene_id")!=="scene.valley.return_channel" || readString(cisternExit,"target_entrance_id")!=="return.from_cistern" || !settlementInbound || readString(settlementInbound,"source_scene_id")!=="scene.valley.return_channel" || readString(settlementInbound,"source_exit_id")!=="return.to_settlement" || readString(settlementInbound,"entrance_id")!=="settlement.from_return") addIssue(issues,"task.return_flow_topology",source.path,"scene_ref","N05 -> N07 -> N02 direct topology is noncanonical");
+  const cistern=sources.find(item=>item.kind==="scene"&&readString(item.content,"scene_id")==="scene.valley.high_cistern"), underground=sources.find(item=>item.kind==="scene"&&readString(item.content,"scene_id")==="scene.valley.underground_order_node");
+  const cisternExit=cistern?readObjectArray(cistern.content,"exits").find(x=>readString(x,"exit_id")==="cistern.to_return_channel"):undefined, undergroundInbound=underground?readObjectArray(underground.content,"inbound_route_refs").find(x=>readString(x,"inbound_ref_id")==="underground.inbound_from_return_wetland"):undefined;
+  if(!cisternExit || readString(cisternExit,"target_scene_id")!=="scene.valley.return_channel" || readString(cisternExit,"target_entrance_id")!=="return.from_cistern" || !undergroundInbound || readString(undergroundInbound,"source_scene_id")!=="scene.valley.return_channel" || readString(undergroundInbound,"source_exit_id")!=="return.to_underground_order" || readString(undergroundInbound,"entrance_id")!=="underground.from_return_wetland") addIssue(issues,"task.return_flow_topology",source.path,"scene_ref","N05 -> N07 -> underground order-node topology is noncanonical");
   if(sceneSource){const preserves=new Set(readStringArray(readObject(sceneSource.content,"recovery"),"preserves")); for(const required of ["survival_state","life_state","corpse_ledger","processing_ledger"]){if(!preserves.has(required))addIssue(issues,"task.return_flow_recovery",source.path,"scene_ref",`N07 recovery must preserve ${required}`);} const taskRef=readObjectArray(sceneSource.content,"task_refs").find(x=>readString(x,"task_id")==="ch01_return_flow"); if(!taskRef || !sameStringArray(readStringArray(taskRef,"objective_ids"),["return_flow.settlement_delivery","return_flow.wet_meadow"])) addIssue(issues,"task.return_flow_scene",source.path,"scene_ref","N07 task objectives are noncanonical");}
 }
 
@@ -1588,7 +1596,7 @@ function validateOldMineThresholdSource(
   }
   if (readString(exit ?? {}, "target_scene_id") !== "scene.valley.settlement" ||
       readString(exit ?? {}, "target_entrance_id") !== "settlement.from_old_mine" ||
-      readString(readObject(exit ?? {}, "traversal_guard"), "predicate") !== "prologue_return_observed == true" ||
+      readString(readObject(exit ?? {}, "traversal_guard"), "predicate") !== "forest_chapter_epilogue_committed == true" ||
       readString(route ?? {}, "route_kind") !== "non_magic" ||
       readString(route ?? {}, "solution_family") !== "peaceful_chapter_transition" ||
       readString(route ?? {}, "from_entrance_id") !== "old_mine.from_settlement" ||
@@ -1607,8 +1615,8 @@ function validateOldMineThresholdSource(
   if (!settlementEntrance || !settlementExit ||
       readString(settlementExit, "target_scene_id") !== "scene.valley.old_mine_threshold" ||
       readString(settlementExit, "target_entrance_id") !== "old_mine.from_settlement" ||
-      readString(readObject(settlementExit, "traversal_guard"), "predicate") !== "prologue_return_observed == true") {
-    addIssue(issues, "scene.old_mine_topology", source.path, "inbound_route_refs", "N02 and the old-mine threshold require reciprocal authored scene bindings with the return-observed guard");
+      readString(readObject(settlementExit, "traversal_guard"), "predicate") !== "forest_chapter_epilogue_committed == true") {
+    addIssue(issues, "scene.old_mine_topology", source.path, "inbound_route_refs", "N02 and the old-mine threshold require reciprocal authored scene bindings with the epilogue guard");
   }
   const region = sources.find((item) => item.kind === "region" &&
     readString(item.content, "region_id") === "valley_prologue");
@@ -1619,9 +1627,9 @@ function validateOldMineThresholdSource(
     readString(item, "to") === "valley.settlement");
   const connectionGuard = (item: ContentObject | undefined): string =>
     readString(readObject(item ?? {}, "traversal"), "predicate");
-  if (connectionGuard(outbound) !== "prologue_return_observed == true" ||
-      connectionGuard(inbound) !== "prologue_return_observed == true") {
-    addIssue(issues, "scene.old_mine_region_topology", source.path, "region_node_id", "old-mine region edges must be explicit, reciprocal, and guarded by prologue return observation");
+  if (connectionGuard(outbound) !== "forest_chapter_epilogue_committed == true" ||
+      connectionGuard(inbound) !== "forest_chapter_epilogue_committed == true") {
+    addIssue(issues, "scene.old_mine_region_topology", source.path, "region_node_id", "old-mine region edges must be explicit, reciprocal, and guarded by the forest chapter epilogue");
   }
 }
 function validateSingleWordSource(source: CompiledSource, issues: ContentIssue[]): void {
@@ -1992,6 +2000,128 @@ function validateForestLargeCreatureTaskReferences(
       !ecologyHasCreature || referencedTargets.length === 0 || referencedTargets.some((targetId) => !targetIds.has(targetId)) ||
       !stateContractsValid) {
     addIssue(issues, "ref.forest_large_creature", source.path, "scene_ref", "forest large-creature crisis must reference its ecology entity, all authored return-wetland targets, state registries, and writer events");
+  }
+}
+
+function validateForestUndergroundTaskSource(source: CompiledSource, issues: ContentIssue[]): void {
+  const allocationModes = readObjectArray(source.content, "allocation_modes");
+  const expectedModes = [
+    ["settlement_priority", ["resident_water_stable", "crops_stable"], ["wetland_decline_continues", "creature_migration_pressure"]],
+    ["wetland_priority", ["wetland_recovery_started", "creature_habitat_stable"], ["settlement_rationing", "local_food_price_pressure"]],
+    ["road_trade_priority", ["medicine_salt_metal_route_open", "external_news_route_open"], ["settlement_minimum_supply", "wetland_minimum_supply"]],
+  ] as const;
+  const expectedEvents = [
+    "forest_large_creature_resolution_committed",
+    "forest_site_synchronized",
+    "forest_water_allocation_committed",
+    "forest_site_lead_revealed",
+    "forest_chapter_epilogue_committed",
+  ];
+  const expectedTargets = [
+    "underground.gravity_plumb", "underground.time_pendulum", "underground.material_ledger",
+    "underground.conservation_spillway", "underground.record_archive", "underground.shard_synchronization_cradle",
+    "underground.three_channel_allocation_console",
+  ];
+  const canonical =
+    source.schemaVersion === "g01.task.forest-underground.v0.1" &&
+    readString(source.content, "content_version") === "chapter-01.underground-water-allocation.1" &&
+    readString(source.content, "task_id") === "ch01_underground_water_allocation" &&
+    readString(source.content, "task_type") === "forest_underground_water_allocation" &&
+    readString(source.content, "task_family_id") === "ecology_and_return_flow" &&
+    readString(source.content, "chapter_flow_id") === "ch01_world_literacy_prologue" &&
+    readString(source.content, "chapter_segment_id") === "den_and_return_flow" &&
+    readString(source.content, "region_id") === "valley_prologue" &&
+    readString(source.content, "region_node_id") === "valley.underground_order_node" &&
+    readString(source.content, "scene_ref") === "../scenes/valley-underground-order-node.v0.1.yaml" &&
+    sameStringArray(readStringArray(source.content, "required_event_sequence"), expectedEvents) &&
+    sameStringArray(readStringArray(source.content, "required_available_word_ids"), ["word.telo", "word.tawa", "word.wawa", "word.lili", "word.suli"]) &&
+    readString(source.content, "required_artifact_id") === "artifact.fragment.forest_site" &&
+    source.content.perfect_initial_balance_forbidden === true &&
+    readString(source.content, "later_upgrade_mode") === "balanced_upgrade" &&
+    sameStringArray(readStringArray(source.content, "scene_target_ids"), expectedTargets) &&
+    allocationModes.length === expectedModes.length &&
+    allocationModes.every((mode, index) => {
+      const [modeId, benefits, costs] = expectedModes[index]!;
+      const projection = readObject(mode, "cost_projection");
+      return readString(mode, "mode_id") === modeId &&
+        sameStringArray(readStringArray(mode, "benefit_ids"), benefits) &&
+        sameStringArray(readStringArray(mode, "cost_ids"), costs) &&
+        readString(projection, "horizon") === "immediate" &&
+        sameStringArray(readStringArray(projection, "visible_effect_ids"), costs);
+    }) &&
+    readString(readObject(source.content, "completion_events"), "shard_synchronization") === "forest_site_synchronized" &&
+    readString(readObject(source.content, "completion_events"), "allocation_commit") === "forest_water_allocation_committed" &&
+    readString(readObject(source.content, "completion_events"), "site_lead_reveal") === "forest_site_lead_revealed" &&
+    readString(readObject(source.content, "completion_events"), "epilogue_commit") === "forest_chapter_epilogue_committed" &&
+    readNumber(readObject(source.content, "recovery"), "maximum_softlock_recovery_seconds") === 60 &&
+    sameStringArray(readStringArray(readObject(source.content, "recovery"), "actions"), ["reopen_public_archive_index", "restore_existing_fragment_to_cradle", "discard_uncommitted_allocation_preview", "expose_nonmagic_return_route"]);
+  if (!canonical) {
+    addIssue(issues, "task.forest_underground_contract", source.path, "", "forest underground allocation must retain the canonical sequence, three immediate tradeoffs, and later-only balanced upgrade");
+  }
+}
+
+function validateForestUndergroundTaskReferences(
+  source: CompiledSource,
+  sources: readonly CompiledSource[],
+  issues: ContentIssue[],
+): void {
+  const scene = resolveReferencedSource(source, readString(source.content, "scene_ref"), sources);
+  const region = sources.find((candidate) => candidate.kind === "region" && readString(candidate.content, "region_id") === "valley_prologue");
+  const returnScene = sources.find((candidate) => candidate.kind === "scene" && readString(candidate.content, "scene_id") === "scene.valley.return_channel");
+  const settlement = sources.find((candidate) => candidate.kind === "scene" && readString(candidate.content, "scene_id") === "scene.valley.settlement");
+  const oldMine = sources.find((candidate) => candidate.kind === "scene" && readString(candidate.content, "scene_id") === "scene.valley.old_mine_threshold");
+  const expectedTargets = [
+    "underground.gravity_plumb", "underground.time_pendulum", "underground.material_ledger",
+    "underground.conservation_spillway", "underground.record_archive", "underground.shard_synchronization_cradle",
+    "underground.three_channel_allocation_console",
+  ];
+  const sceneTargets = scene?.kind === "scene" ? readObjectArray(scene.content, "targets").map((target) => readString(target, "target_id")) : [];
+  const sceneRoutes = scene?.kind === "scene" ? readObjectArray(scene.content, "routes") : [];
+  const states = new Map(region ? readObjectArray(region.content, "state_registry").map((state) => [readString(state, "state_id"), state]) : []);
+  const commits = region ? readObject(region.content, "event_commit_points") : {};
+  const stateContract = (stateId: string, eventId: string): boolean => {
+    const state = states.get(stateId);
+    const writer = readObject(commits, eventId);
+    return state !== undefined && readString(state, "owner") === "ch01_underground_water_allocation" &&
+      readString(state, "unique_writer_event") === eventId && readString(writer, "owner") === "ch01_underground_water_allocation";
+  };
+  const allocationWriter = readObject(commits, "forest_water_allocation_committed");
+  const allocationState = states.get("forest_water_allocation");
+  const statesValid =
+    stateContract("forest_site_synchronized", "forest_site_synchronized") &&
+    stateContract("forest_site_lead_revealed", "forest_site_lead_revealed") &&
+    stateContract("forest_chapter_epilogue_committed", "forest_chapter_epilogue_committed") &&
+    allocationState !== undefined && readString(allocationState, "owner") === "ch01_underground_water_allocation" &&
+    readString(allocationState, "unique_writer_event") === "forest_water_allocation_committed" &&
+    sameStringArray(readStringArray(allocationState, "values"), ["unassigned", "settlement_priority", "wetland_priority", "road_trade_priority"]) &&
+    allocationState.initial === "unassigned" && readString(allocationWriter, "owner") === "ch01_underground_water_allocation" &&
+    sameStringArray(readStringArray(readObject(allocationWriter, "writes_enum"), "forest_water_allocation"), ["settlement_priority", "wetland_priority", "road_trade_priority"]);
+  const node = region ? readObjectArray(region.content, "nodes").find((item) => readString(item, "node_id") === "valley.underground_order_node") : undefined;
+  const connections = region ? readObjectArray(region.content, "connections") : [];
+  const connectionPredicate = (from: string, to: string): string => readString(readObject(connections.find((item) => readString(item, "from") === from && readString(item, "to") === to) ?? {}, "traversal"), "predicate");
+  const creatureGate = "forest_large_creature_resolution_committed == true && forest_large_creature_resolution != unresolved";
+  const returnExit = returnScene ? readObjectArray(returnScene.content, "exits").find((item) => readString(item, "exit_id") === "return.to_underground_order") : undefined;
+  const settlementInbound = settlement ? readObjectArray(settlement.content, "inbound_route_refs").find((item) => readString(item, "inbound_ref_id") === "settlement.inbound_from_underground_order") : undefined;
+  const oldMineExit = oldMine ? readObjectArray(oldMine.content, "exits").find((item) => readString(item, "exit_id") === "old_mine.to_settlement") : undefined;
+  const wordIds = new Set(sources.filter((candidate) => candidate.kind === "single_word_spells").flatMap((candidate) => readObjectArray(candidate.content, "entries").map((entry) => readString(entry, "id"))));
+  const wordsAvailable = readStringArray(source.content, "required_available_word_ids").every((wordId) => wordIds.has(wordId));
+  const referencesValid =
+    scene?.kind === "scene" && readString(scene.content, "scene_id") === "scene.valley.underground_order_node" &&
+    sameStringArray(sceneTargets, expectedTargets) && sceneRoutes.length === 1 && sceneRoutes.every((route) => readString(route, "route_kind") === "non_magic") &&
+    node !== undefined && readString(node, "scene_id") === "scene.valley.underground_order_node" &&
+    readString(readObject(node, "entry_condition"), "predicate") === creatureGate &&
+    connectionPredicate("valley.return_channel", "valley.underground_order_node") === "settlement_supply_stable == true" &&
+    connectionPredicate("valley.underground_order_node", "valley.return_channel") === "settlement_supply_stable == true" &&
+    connectionPredicate("valley.underground_order_node", "valley.settlement") === "forest_chapter_epilogue_committed == true" &&
+    !connections.some((item) => readString(item, "from") === "valley.return_channel" && readString(item, "to") === "valley.settlement") &&
+    returnExit !== undefined && readString(returnExit, "target_scene_id") === "scene.valley.underground_order_node" && readString(returnExit, "target_entrance_id") === "underground.from_return_wetland" && readString(readObject(returnExit, "traversal_guard"), "predicate") === "settlement_supply_stable == true" &&
+    settlementInbound !== undefined && readString(settlementInbound, "source_scene_id") === "scene.valley.underground_order_node" && readString(settlementInbound, "source_exit_id") === "underground.to_settlement" && readString(settlementInbound, "entrance_id") === "settlement.from_underground_order" &&
+    oldMineExit !== undefined && readString(readObject(oldMineExit, "traversal_guard"), "predicate") === "forest_chapter_epilogue_committed == true" &&
+    connectionPredicate("valley.settlement", "valley.old_mine_threshold") === "forest_chapter_epilogue_committed == true" &&
+    connectionPredicate("valley.old_mine_threshold", "valley.settlement") === "forest_chapter_epilogue_committed == true" &&
+    !states.has("forest_large_creature_completed") && statesValid && wordsAvailable;
+  if (!referencesValid) {
+    addIssue(issues, "ref.forest_underground_topology", source.path, "scene_ref", "underground order-node must consume the shared creature-resolution event, preserve every completed outcome, and gate settlement and old mine through the epilogue");
   }
 }
 

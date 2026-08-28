@@ -41,6 +41,10 @@ entrances:
     spawn_tile: [2, 1]
     recovery_entry: true
     checkpoint_policy: "scene_entry_and_softlock_recovery"
+  - entrance_id: "return.from_underground_order"
+    spawn_tile: [27, 1]
+    recovery_entry: true
+    checkpoint_policy: "order_node_return_route"
 
 inbound_route_refs:
   - inbound_ref_id: "return.inbound_from_cistern"
@@ -49,10 +53,10 @@ inbound_route_refs:
     entrance_id: "return.from_cistern"
 
 exits:
-  - exit_id: "return.to_settlement"
+  - exit_id: "return.to_underground_order"
     trigger_rect_tiles: {x: 28, y: 0, width: 2, height: 7}
-    target_scene_id: "scene.valley.settlement"
-    target_entrance_id: "settlement.from_return"
+    target_scene_id: "scene.valley.underground_order_node"
+    target_entrance_id: "underground.from_return_wetland"
     traversal_guard: {predicate: "settlement_supply_stable == true"}
 
 route_objectives:
@@ -60,28 +64,28 @@ route_objectives:
     predicate: "settlement_supply_stable == true"
   - objective_id: "return_flow.wet_meadow"
     predicate: "wet_meadow_restored == true"
-  - objective_id: "return.reach_settlement"
-    predicate: "player_reaches_exit(return.to_settlement)"
+  - objective_id: "return.reach_underground_order"
+    predicate: "player_reaches_exit(return.to_underground_order)"
 
 routes:
   - route_id: "return.repair_overflow_route"
     route_kind: "non_magic"
     solution_family: "return_flow.repair_overflow"
     from_entrance_id: "return.from_cistern"
-    to_exit_id: "return.to_settlement"
-    objective_ids: [return_flow.settlement_delivery, return_flow.wet_meadow, return.reach_settlement]
+    to_exit_id: "return.to_underground_order"
+    objective_ids: [return_flow.settlement_delivery, return_flow.wet_meadow, return.reach_underground_order]
   - route_id: "return.clear_mud_route"
     route_kind: "non_magic"
     solution_family: "return_flow.clear_mud"
     from_entrance_id: "return.from_cistern"
-    to_exit_id: "return.to_settlement"
-    objective_ids: [return_flow.settlement_delivery, return_flow.wet_meadow, return.reach_settlement]
+    to_exit_id: "return.to_underground_order"
+    objective_ids: [return_flow.settlement_delivery, return_flow.wet_meadow, return.reach_underground_order]
   - route_id: "return.reuse_old_channel_route"
     route_kind: "non_magic"
     solution_family: "return_flow.reuse_old_channel"
     from_entrance_id: "return.from_cistern"
-    to_exit_id: "return.to_settlement"
-    objective_ids: [return_flow.settlement_delivery, return_flow.wet_meadow, return.reach_settlement]
+    to_exit_id: "return.to_underground_order"
+    objective_ids: [return_flow.settlement_delivery, return_flow.wet_meadow, return.reach_underground_order]
 
 targets:
   - {target_id: "return_flow.inert_force_indicator", target_kind: "inert_return_flow_mechanism", material: "wood_copper_and_stone", interaction_point_tiles: [5, 1]}

@@ -35,7 +35,7 @@ const PROLOGUE_SEGMENT_FOCUS = [
   { segmentId: "waterwheel", mapNodeIds: ["valley.waterwheel"], activeNewWordIds: ["tawa"] },
   { segmentId: "service_channel", mapNodeIds: ["valley.service_channel"], activeNewWordIds: ["o"] },
   { segmentId: "high_cistern", mapNodeIds: ["valley.high_cistern"], activeNewWordIds: ["lili", "suli"] },
-  { segmentId: "den_and_return_flow", mapNodeIds: ["valley.den_bypass", "valley.return_channel"], activeNewWordIds: ["wawa"] },
+  { segmentId: "den_and_return_flow", mapNodeIds: ["valley.den_bypass", "valley.return_channel", "valley.underground_order_node", "valley.settlement"], activeNewWordIds: ["wawa"] },
   { segmentId: "return_and_safe_range", mapNodeIds: ["valley.settlement", "valley.safe_range", "valley.old_mine_threshold"], activeNewWordIds: [] },
 ] as const;
 

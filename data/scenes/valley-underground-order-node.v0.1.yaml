@@ -1,0 +1,112 @@
+schema_version: "g01.scene.v0.1"
+content_version: "chapter-01.underground-order-node.1"
+scene_id: "scene.valley.underground_order_node"
+region_id: "valley_prologue"
+region_node_id: "valley.underground_order_node"
+chapter_flow_id: "ch01_world_literacy_prologue"
+chapter_segment_id: "den_and_return_flow"
+status: "machine_contract_ready"
+tile_size_px: 16
+size_tiles: {width: 28, height: 22}
+collision_rows_top_down:
+  - "............................"
+  - "............................"
+  - "............................"
+  - "............................"
+  - "............................"
+  - "............................"
+  - "............................"
+  - "............................"
+  - "............................"
+  - "............................"
+  - "............................"
+  - "............................"
+  - "............................"
+  - "............................"
+  - "............................"
+  - "............................"
+  - "............................"
+  - "............................"
+  - "............................"
+  - "............................"
+  - "............................"
+  - "############################"
+
+entrances:
+  - entrance_id: "underground.from_return_wetland"
+    spawn_tile: [2, 1]
+    recovery_entry: true
+    checkpoint_policy: "order_node_entry_and_softlock_recovery"
+  - entrance_id: "underground.from_settlement"
+    spawn_tile: [25, 1]
+    recovery_entry: true
+    checkpoint_policy: "epilogue_return_route"
+
+inbound_route_refs:
+  - inbound_ref_id: "underground.inbound_from_return_wetland"
+    source_scene_id: "scene.valley.return_channel"
+    source_exit_id: "return.to_underground_order"
+    entrance_id: "underground.from_return_wetland"
+
+exits:
+  - exit_id: "underground.to_return_wetland"
+    trigger_rect_tiles: {x: 0, y: 0, width: 2, height: 7}
+    target_scene_id: "scene.valley.return_channel"
+    target_entrance_id: "return.from_underground_order"
+    traversal_guard: {predicate: "settlement_supply_stable == true"}
+  - exit_id: "underground.to_settlement"
+    trigger_rect_tiles: {x: 26, y: 0, width: 2, height: 7}
+    target_scene_id: "scene.valley.settlement"
+    target_entrance_id: "settlement.from_underground_order"
+    traversal_guard: {predicate: "forest_chapter_epilogue_committed == true"}
+
+route_objectives:
+  - {objective_id: "underground.synchronize_shard", predicate: "forest_site_synchronized == true"}
+  - {objective_id: "underground.commit_allocation", predicate: "forest_water_allocation != unassigned"}
+  - {objective_id: "underground.reveal_site_lead", predicate: "forest_site_lead_revealed == true"}
+  - {objective_id: "underground.commit_epilogue", predicate: "forest_chapter_epilogue_committed == true"}
+  - {objective_id: "underground.reach_settlement", predicate: "player_reaches_exit(underground.to_settlement)"}
+
+routes:
+  - route_id: "underground.order_node_nonmagic"
+    route_kind: "non_magic"
+    solution_family: "observe_archive_synchronize_shard_choose_allocation"
+    from_entrance_id: "underground.from_return_wetland"
+    to_exit_id: "underground.to_settlement"
+    objective_ids: [underground.synchronize_shard, underground.commit_allocation, underground.reveal_site_lead, underground.commit_epilogue, underground.reach_settlement]
+
+targets:
+  - {target_id: "underground.gravity_plumb", target_kind: "gravity_anomaly_demonstration", material: "stone_brass_and_string", interaction_point_tiles: [4, 1]}
+  - {target_id: "underground.time_pendulum", target_kind: "time_anomaly_demonstration", material: "brass_stone_and_water", interaction_point_tiles: [7, 1]}
+  - {target_id: "underground.material_ledger", target_kind: "material_anomaly_demonstration", material: "clay_stone_and_ink", interaction_point_tiles: [10, 1]}
+  - {target_id: "underground.conservation_spillway", target_kind: "conservation_anomaly_demonstration", material: "stone_copper_and_water", interaction_point_tiles: [13, 1]}
+  - {target_id: "underground.record_archive", target_kind: "record_archive", material: "stone_clay_and_ink", interaction_point_tiles: [16, 1]}
+  - {target_id: "underground.shard_synchronization_cradle", target_kind: "shard_synchronization_cradle", material: "stone_brass_and_artifact_fragment", interaction_point_tiles: [19, 1]}
+  - {target_id: "underground.three_channel_allocation_console", target_kind: "three_channel_allocation_console", material: "stone_copper_and_water", interaction_point_tiles: [22, 1]}
+
+interactions:
+  - {interaction_id: "underground.observe_gravity_plumb", target_id: "underground.gravity_plumb", verb: "observe_gravity_relation", tool_or_magic_required: false}
+  - {interaction_id: "underground.observe_time_pendulum", target_id: "underground.time_pendulum", verb: "observe_time_relation", tool_or_magic_required: false}
+  - {interaction_id: "underground.inspect_material_ledger", target_id: "underground.material_ledger", verb: "read_material_accounting", tool_or_magic_required: false}
+  - {interaction_id: "underground.inspect_conservation_spillway", target_id: "underground.conservation_spillway", verb: "observe_conservation_relation", tool_or_magic_required: false}
+  - {interaction_id: "underground.read_record_archive", target_id: "underground.record_archive", verb: "read_archived_site_record", tool_or_magic_required: false}
+  - {interaction_id: "underground.synchronize_forest_shard", target_id: "underground.shard_synchronization_cradle", verb: "seat_existing_fragment_and_confirm_alignment", tool_or_magic_required: false}
+  - {interaction_id: "underground.commit_three_channel_allocation", target_id: "underground.three_channel_allocation_console", verb: "set_one_initial_channel_priority", tool_or_magic_required: false}
+
+task_refs:
+  - task_id: "ch01_underground_water_allocation"
+    task_ref: "../tasks/ch01-underground-water-allocation.v0.1.yaml"
+    objective_ids: [underground.synchronize_shard, underground.commit_allocation, underground.reveal_site_lead, underground.commit_epilogue]
+
+material_patches: []
+
+soft_failure_recoveries:
+  - {failure_id: "underground.archive_misread", action: "reopen_public_archive_index", preserves: [learning_evidence, region_commits]}
+  - {failure_id: "underground.shard_alignment_lost", action: "restore_existing_fragment_to_cradle", preserves: [learning_evidence, region_commits]}
+  - {failure_id: "underground.allocation_preview_abandoned", action: "discard_uncommitted_allocation_preview", preserves: [learning_evidence, region_commits]}
+
+recovery:
+  entry_entrance_id: "underground.from_return_wetland"
+  maximum_softlock_recovery_seconds: 60
+  actions: [reopen_public_archive_index, restore_existing_fragment_to_cradle, discard_uncommitted_allocation_preview, expose_nonmagic_return_route]
+  preserves: [learning_evidence, region_commits, artifact_inventory, survival_state]

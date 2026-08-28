@@ -29,7 +29,7 @@ describe("old-mine threshold content contract", () => {
       exit_id: "old_mine.to_settlement",
       target_scene_id: "scene.valley.settlement",
       target_entrance_id: "settlement.from_old_mine",
-      traversal_guard: { predicate: "prologue_return_observed == true" },
+      traversal_guard: { predicate: "forest_chapter_epilogue_committed == true" },
     });
   });
 

@@ -47,7 +47,7 @@ exits:
     trigger_rect_tiles: {x: 22, y: 0, width: 2, height: 7}
     target_scene_id: "scene.valley.settlement"
     target_entrance_id: "settlement.from_old_mine"
-    traversal_guard: {predicate: "prologue_return_observed == true"}
+    traversal_guard: {predicate: "forest_chapter_epilogue_committed == true"}
 
 route_objectives:
   - objective_id: "old_mine.peaceful_threshold_reached"
