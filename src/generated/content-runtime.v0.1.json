@@ -15283,6 +15283,244 @@
       }
     }
   },
+  "forestChapter": {
+    "sourceDigest": "sha256:b3c4367a0ae1e811f12689c2edc7057715063ee3ab8211e8542e933587d0ca56",
+    "chapterFlowId": "ch01_world_literacy_prologue",
+    "contentVersion": "chapter-01.forest.2",
+    "workingTitleZh": "水往何处",
+    "targetMedianMinutes": 180,
+    "firstPlayRangeMinutes": [
+      150,
+      240
+    ],
+    "mainSceneIds": [
+      "scene.valley.arrival_shelf",
+      "scene.valley.stream_section",
+      "scene.valley.settlement",
+      "scene.valley.waterwheel",
+      "scene.valley.high_cistern",
+      "scene.valley.return_channel",
+      "scene.valley.underground_order_node"
+    ],
+    "optionalSceneIds": [
+      "scene.valley.den_bypass",
+      "scene.valley.safe_range"
+    ],
+    "postChapterBoundarySceneId": "scene.valley.old_mine_threshold",
+    "postChapterBoundaryRequiresEpilogue": true,
+    "activeWordIds": [
+      "word.telo",
+      "word.tawa",
+      "word.lili",
+      "word.suli",
+      "word.wawa"
+    ],
+    "segments": [
+      {
+        "segmentId": "arrival_tools",
+        "minuteRange": [
+          0,
+          30
+        ],
+        "sceneIds": [
+          "scene.valley.arrival_shelf",
+          "scene.valley.stream_section"
+        ],
+        "activeNewWordIds": []
+      },
+      {
+        "segmentId": "settlement_work",
+        "minuteRange": [
+          30,
+          55
+        ],
+        "sceneIds": [
+          "scene.valley.settlement"
+        ],
+        "activeNewWordIds": []
+      },
+      {
+        "segmentId": "waterwheel_discovery",
+        "minuteRange": [
+          55,
+          75
+        ],
+        "sceneIds": [
+          "scene.valley.waterwheel"
+        ],
+        "activeNewWordIds": []
+      },
+      {
+        "segmentId": "hermit_initiation",
+        "minuteRange": [
+          75,
+          95
+        ],
+        "sceneIds": [
+          "scene.valley.stream_section"
+        ],
+        "activeNewWordIds": [
+          "word.telo"
+        ]
+      },
+      {
+        "segmentId": "cistern_motion",
+        "minuteRange": [
+          95,
+          105
+        ],
+        "sceneIds": [
+          "scene.valley.high_cistern"
+        ],
+        "activeNewWordIds": [
+          "word.tawa"
+        ]
+      },
+      {
+        "segmentId": "cistern_scale",
+        "minuteRange": [
+          105,
+          120
+        ],
+        "sceneIds": [
+          "scene.valley.high_cistern"
+        ],
+        "activeNewWordIds": [
+          "word.lili",
+          "word.suli"
+        ]
+      },
+      {
+        "segmentId": "wetland_crisis",
+        "minuteRange": [
+          120,
+          148
+        ],
+        "sceneIds": [
+          "scene.valley.return_channel"
+        ],
+        "activeNewWordIds": [
+          "word.wawa"
+        ]
+      },
+      {
+        "segmentId": "underground_node",
+        "minuteRange": [
+          148,
+          173
+        ],
+        "sceneIds": [
+          "scene.valley.underground_order_node"
+        ],
+        "activeNewWordIds": []
+      },
+      {
+        "segmentId": "allocation_epilogue",
+        "minuteRange": [
+          173,
+          180
+        ],
+        "sceneIds": [
+          "scene.valley.settlement"
+        ],
+        "activeNewWordIds": []
+      }
+    ],
+    "medium": {
+      "mediumId": "artifact.ancient_medium_frame",
+      "shardId": "artifact.fragment.forest_site",
+      "discoveryEventId": "forest_medium_discovered",
+      "initiationEventId": "forest_telo_initiation_committed",
+      "requiredEventIds": [
+        "waterwheel_goal_committed",
+        "forest_medium_discovered",
+        "forest_hermit_route_committed",
+        "forest_telo_initiation_committed"
+      ],
+      "hermitRouteIds": [
+        "medium.tell_facility_worker",
+        "medium.follow_fragment_markers",
+        "medium.ask_external_trader"
+      ],
+      "practiceSceneId": "scene.valley.stream_section",
+      "practiceActionIds": [
+        "observe_natural_water",
+        "predict_manifest_path",
+        "perform_low_mp_telo",
+        "stabilize_with_tool"
+      ],
+      "automaticWordMasteryForbidden": true,
+      "automaticMpIncreaseForbidden": true
+    },
+    "largeCreature": {
+      "entityId": "wildlife.valley.large_semiaquatic_nester",
+      "resolutionEventId": "forest_large_creature_resolution_committed",
+      "resolutionIds": [
+        "restore_migration_channel",
+        "guide_with_food_and_scent",
+        "wait_and_yield",
+        "install_nonlethal_barrier",
+        "drive_away_by_combat",
+        "kill"
+      ],
+      "persistent": true,
+      "mandatoryKill": false,
+      "languageEvidenceFromHarm": false
+    },
+    "allocation": {
+      "commitEventId": "forest_water_allocation_committed",
+      "requiredEventIds": [
+        "forest_large_creature_resolution_committed",
+        "forest_site_synchronized",
+        "forest_water_allocation_committed",
+        "forest_site_lead_revealed",
+        "forest_chapter_epilogue_committed"
+      ],
+      "shardId": "artifact.fragment.forest_site",
+      "shardSynchronizationNoGrantFlags": {
+        "automaticWordMeaningGrantForbidden": true,
+        "automaticWordMasteryForbidden": true,
+        "automaticMpIncreaseForbidden": true,
+        "automaticCastingGrantForbidden": true,
+        "automaticUsableSpellGrantForbidden": true
+      },
+      "modeIds": [
+        "settlement_priority",
+        "wetland_priority",
+        "road_trade_priority"
+      ],
+      "benefitIdsByMode": {
+        "settlement_priority": [
+          "resident_water_stable",
+          "crops_stable"
+        ],
+        "wetland_priority": [
+          "wetland_recovery_started",
+          "creature_habitat_stable"
+        ],
+        "road_trade_priority": [
+          "medicine_salt_metal_route_open",
+          "external_news_route_open"
+        ]
+      },
+      "costIdsByMode": {
+        "settlement_priority": [
+          "wetland_decline_continues",
+          "creature_migration_pressure"
+        ],
+        "wetland_priority": [
+          "settlement_rationing",
+          "local_food_price_pressure"
+        ],
+        "road_trade_priority": [
+          "settlement_minimum_supply",
+          "wetland_minimum_supply"
+        ]
+      },
+      "perfectInitialBalanceForbidden": true,
+      "laterUpgradeMode": "balanced_upgrade"
+    }
+  },
   "capabilityProgression": {
     "sourcePath": "data/chapters/ch01-world-literacy-prologue.v0.1.yaml",
     "sourceDigest": "sha256:f1b6ec610915f8d963cbca3a8643b13949dfa26a028502122bed66d900c9bd88",

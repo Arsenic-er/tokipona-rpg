@@ -8,6 +8,7 @@ import {
   projectLearningCorpusArtifacts,
 } from "./corpus-expansion-runtime-artifact.ts";
 import { projectPrologueAcceptance } from "./prologue-acceptance-runtime-artifact.ts";
+import { projectForestChapterRuntimeManifest } from "./forest-chapter-runtime-artifact.ts";
 import type { RuntimeSafeRangeManifest } from "../../src/content/runtime-safe-range-manifest.ts";
 import type { RuntimeP0CurriculumManifest } from "../../src/content/runtime-p0-curriculum-manifest.ts";
 import type { RuntimeCore120CurriculumManifest } from "../../src/content/runtime-core120-curriculum-manifest.ts";
@@ -21,6 +22,7 @@ import type { RuntimeLearningCorpusPackageBundle } from
   "../../src/content/runtime-learning-corpus-package-bundle.ts";
 import type { RuntimePortraitCameraProfile } from "../../src/content/runtime-camera-profile.ts";
 import type { RuntimePrologueAcceptanceManifest } from "../../src/content/runtime-prologue-acceptance-manifest.ts";
+import type { RuntimeForestChapterManifest } from "../../src/content/runtime-forest-chapter-manifest.ts";
 import type { RuntimeProceduralDialogueAudioManifest } from "../../src/content/runtime-dialogue-audio-manifest.ts";
 import { posix } from "node:path";
 import type { ContentManifest, ContentObject, ContentValue } from "../../src/content/types.ts";
@@ -95,6 +97,7 @@ export interface RuntimeContentArtifact {
     "registry" | "packageCount">;
   readonly cameraProfile: RuntimePortraitCameraProfile;
   readonly prologueAcceptance: RuntimePrologueAcceptanceManifest;
+  readonly forestChapter: RuntimeForestChapterManifest;
   readonly capabilityProgression: CapabilityMilestoneMachineProjection;
   readonly ecology: RuntimeEcologyManifest;
   readonly wildlifeProcessing: RuntimeWildlifeProcessingManifest;
@@ -149,6 +152,7 @@ export function buildRuntimeContentArtifact(manifest: ContentManifest): RuntimeC
   const chapterSource = chapterSources[0];
   if (!chapterSource) throw new Error("Validated chapter source is unavailable.");
   const prologueAcceptance = projectPrologueAcceptance(manifest);
+  const forestChapter = projectForestChapterRuntimeManifest(manifest);
   const authoredMilestones = requireObjectArray(chapterSource.content, ["capacity_progression", "milestones"]);
   const capacityMilestones = authoredMilestones.flatMap((milestone) => {
     const resultingState = requireObject(milestone, ["resulting_state"]);
@@ -638,6 +642,7 @@ export function buildRuntimeContentArtifact(manifest: ContentManifest): RuntimeC
     learningCorpusCatalog,
     cameraProfile,
     prologueAcceptance,
+    forestChapter,
     capabilityProgression,
     ecology,
     wildlifeProcessing,
