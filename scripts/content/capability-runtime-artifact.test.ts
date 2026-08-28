@@ -24,7 +24,7 @@ describe("capability progression runtime artifact", () => {
     expect(artifact.capabilityProgression).toEqual({
       sourcePath: "data/chapters/ch01-world-literacy-prologue.v0.1.yaml",
       sourceDigest: expect.stringMatching(/^sha256:[0-9a-f]{64}$/),
-      contractRevision: "chapter-01.prologue.1",
+      contractRevision: "chapter-01.forest.2",
       capacityMilestones: [
         {
           milestoneId: "arrival_single_word",

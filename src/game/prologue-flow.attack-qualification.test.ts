@@ -11,6 +11,7 @@ import {
   PROLOGUE_RETURN_FLOW_SOLUTION_CONTRACTS,
   PrologueReturnFlowSession,
 } from "./prologue-return-flow";
+import { authoritativePostEpilogueSettlement } from "./test-helpers/authoritative-post-epilogue-settlement";
 
 const progress = (wordId: string, learningState: WordLearningProgress["learningState"]): WordLearningProgress => ({
   wordId, discoveryState: "discovered", attunementState: "attuned", learningState, evidence: [],
@@ -54,9 +55,7 @@ const settlementFlowAfterRealN07Grounding = (): PrologueFlowSession => {
     solutionId: solution.id, promptLevel: 0, predictedForceContrastCorrect: true,
     worldOutcomeContribution: true,
   }).accepted).toBe(true);
-  const returned = returnFlow.returnToSettlement("catalog.return.settlement");
-  if (!returned.accepted || !returned.session) throw new Error(`N07 return rejected: ${returned.reason}`);
-  return PrologueFlowSession.fromSave(returned.session.toSave());
+  return PrologueFlowSession.fromSave(authoritativePostEpilogueSettlement(returnFlow.session).toSave());
 };
 const moveToTable = (flow: PrologueFlowSession): void => {
   for (let tick = 0; tick < 700 && flow.snapshot().runtime.player.position.x < 576; tick += 1) {

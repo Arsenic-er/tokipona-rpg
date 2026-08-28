@@ -149,6 +149,7 @@ export type PrologueReturnFlowActionReason =
   | "ineligible_evidence"
   | "learning_prerequisite_missing"
   | "duplicate_evidence"
+  | "underground_handoff_required"
   | "session_rejected";
 
 export interface PrologueReturnFlowSnapshot {
@@ -509,19 +510,10 @@ export class PrologueReturnFlowSession {
         !regionTrue(state, RETURN_FLOW_CONTRACT.exitPrerequisiteFlag)) {
       return Object.freeze({ accepted: false, duplicate: false, reason: "prerequisite_missing", session: null });
     }
-    const committed = commitTrustedReturnFlowQualificationProposal(this.authoritativeSession, createReturnFlowQualificationProof("observation", { transactionId: id, drafts: [
-      { eventId: `session.return-flow.return.${id}.${RETURN_FLOW_SCENE.sceneId}->${SETTLEMENT_SCENE.sceneId}`,
-        type: "scene_entered", payload: { sceneId: SETTLEMENT_SCENE.sceneId } },
-      { eventId: `session.return-flow.return_observation_committed.${id}`,
-        type: "prologue_return_observation_committed",
-        payload: { transactionId: id, writerEvent: "return_observation_committed" } },
-      { eventId: `session.return-flow.return.checkpoint.${id}`, type: "checkpoint_set",
-        payload: { checkpoint: checkpointFor(state, PROLOGUE_RETURN_FLOW_RETURN_CHECKPOINT_ID, SETTLEMENT_SCENE, SETTLEMENT_ENTRY) } },
-      operationReceiptDraft(this.authoritativeSession.sessionId, id, payloadHash),
-    ] }));
-    if (!committed.committed) return Object.freeze({ accepted: false, duplicate: false, reason: "session_rejected", session: null });
-    this.authoritativeSession = committed.session;
-    return Object.freeze({ accepted: true, duplicate: false, reason: "committed", session: committed.session });
+    // The authored forest chapter now routes N07 through the underground order node.
+    // Its allocation and epilogue coordinator is intentionally not implemented yet;
+    // never recreate the retired direct N07 -> N02 transition here.
+    return Object.freeze({ accepted: false, duplicate: false, reason: "underground_handoff_required", session: null });
   }
 
   public resetToCheckpoint(transactionId: string): PrologueReturnFlowActionResult {

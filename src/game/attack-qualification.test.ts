@@ -7,6 +7,7 @@ import { commitSessionProposal, proposeAttackCapacityCalibration, proposeAttackP
 import { GameSession, type GameSessionEvent } from "../session/game-session";
 import { PrologueSettlementSession } from "./prologue-settlement";
 import { PrologueReturnFlowSession, PROLOGUE_RETURN_FLOW_SOLUTION_CONTRACTS } from "./prologue-return-flow";
+import { authoritativePostEpilogueSettlement } from "./test-helpers/authoritative-post-epilogue-settlement";
 import { ATTACK_CAPACITY_CALIBRATION_FLAG_ID, FIRST_ATTACK_SIGNATURE_AVAILABLE_FLAG_ID,
   RANGE_TRIAL_PERMISSION_FLAG_ID, RUNTIME_ATTACK_QUALIFICATION_CONTRACT,
   evaluateAttackQualification, readRuntimeAttackQualificationContract,
@@ -91,9 +92,7 @@ const buildQualifiedEvidence = (skip: string | null = null): GameSession => {
     solutionId: solution.id, promptLevel: 0, predictedForceContrastCorrect: true,
     worldOutcomeContribution: true,
   }).accepted).toBe(true);
-  const returned = flow.returnToSettlement("qualification.return.settlement");
-  if (!returned.accepted || !returned.session) throw new Error(`return settlement: ${returned.reason}`);
-  session = returned.session;
+  session = authoritativePostEpilogueSettlement(flow.session);
   if (skip !== "return_flow.wawa.inert_h0") {
     const source = [...session.events()].reverse().find((event) => event.type === "learning_evidence_committed" &&
       event.payload.evidence?.eventType === "grounding_trial_resolved" && event.payload.evidence.wordId === "wawa");

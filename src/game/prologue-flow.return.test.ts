@@ -16,11 +16,10 @@ import {
 } from "./prologue-cistern";
 import {
   PROLOGUE_RETURN_FLOW_FLAGS,
-  PROLOGUE_RETURN_FLOW_RETURN_CHECKPOINT_ID,
   PROLOGUE_RETURN_FLOW_SCENE_ID,
   PROLOGUE_RETURN_FLOW_SOLUTION_CONTRACTS,
 } from "./prologue-return-flow";
-import { PROLOGUE_SETTLEMENT_SCENE_ID, PrologueSettlementSession } from "./prologue-settlement";
+import { PROLOGUE_SETTLEMENT_SCENE_ID } from "./prologue-settlement";
 import {
   PROLOGUE_SERVICE_CHANNEL_SCENE_ID,
   PROLOGUE_WATERWHEEL_SCENE_ID,
@@ -133,7 +132,7 @@ class MemoryLocalStorage implements LocalStorageLike {
 }
 
 describe("PrologueFlowSession N07 return-flow integration", () => {
-  it("reaches the N02 qualification station after a durable N07 return", () => {
+  it("keeps the completed N07 aggregate intact while the underground handoff is unavailable", () => {
     const target = reachCompletedCistern("flow.return.durable-station", (flow) =>
       completeP0AndPrepareTelo(flow, "flow.return.durable-station"));
     const coordinator = BrowserGameSessionWalCoordinator.fresh(
@@ -147,20 +146,13 @@ describe("PrologueFlowSession N07 return-flow integration", () => {
       expect(target.performReturnFlowAction(`durable-station.action.${index}`, actionId).accepted).toBe(true);
     }
     expect(target.completeReturnFlowSolution("durable-station.complete", solution.id).accepted).toBe(true);
-    expect(target.returnFlowToSettlement("durable-station.return").accepted).toBe(true);
-
-    const actionId = "settlement.calibration.unrelated_delivery_commit";
-    for (let tick = 0; tick < 700 &&
-      !target.safeRangeView().qualificationActions.find((action) => action.actionId === actionId)?.available;
-      tick += 1) {
-      target.advanceTicks(1, { moveX: 1 });
-    }
-    expect(target.safeRangeView().qualificationActions.find((action) => action.actionId === actionId)?.available)
-      .toBe(true);
-    expect(Math.abs(target.snapshot().runtime.player.position.x - 576)).toBeLessThanOrEqual(16);
+    const before = target.toSave();
+    expect(target.returnFlowToSettlement("durable-station.return"))
+      .toMatchObject({ accepted: false, result: { reason: "underground_handoff_required" } });
+    expect(target.toSave()).toEqual(before);
   }, 15_000);
 
-  it("runs the real N05 -> N07 -> N02 path with generated semantic actions and zero kills", () => {
+  it("preserves the completed N07 route and rejects the deferred underground handoff", () => {
     const target = reachCompletedCistern("flow.return.mainline");
     expect(target.enterReturnFlow("flow.return.entry")).toMatchObject({
       accepted: true,
@@ -226,30 +218,11 @@ describe("PrologueFlowSession N07 return-flow integration", () => {
       killCount: 0,
     });
     expect(globalTrue(reloaded, PROLOGUE_RETURN_FLOW_FLAGS.prologueReturnObserved)).toBe(false);
-    expect(reloaded.returnFlowToSettlement("return.to-settlement")).toMatchObject({
-      accepted: true,
-      result: { reason: "committed" },
-      snapshot: {
-        mode: "settlement",
-        runtime: { sceneId: PROLOGUE_SETTLEMENT_SCENE_ID },
-        settlement: {},
-        returnFlow: null,
-        returnFlowProgress: null,
-        session: { checkpoint: { id: PROLOGUE_RETURN_FLOW_RETURN_CHECKPOINT_ID } },
-        killCount: 0,
-      },
-    });
-    expect(globalTrue(reloaded, PROLOGUE_RETURN_FLOW_FLAGS.prologueReturnObserved)).toBe(true);
-    const returnCheckpoint = reloaded.snapshot().session.checkpoint;
-    const settlement = new PrologueSettlementSession(reloaded.session);
-    const recovered = settlement.recoverSoftLock("return.settlement.recover");
-    expect(recovered).toMatchObject({ accepted: true });
-    expect(recovered.snapshot.session.checkpoint).toMatchObject({
-      id: PROLOGUE_RETURN_FLOW_RETURN_CHECKPOINT_ID,
-      sceneId: PROLOGUE_SETTLEMENT_SCENE_ID,
-      position: returnCheckpoint.position,
-      revision: returnCheckpoint.revision + 1,
-    });
+    const before = reloaded.toSave();
+    expect(reloaded.returnFlowToSettlement("return.to-settlement"))
+      .toMatchObject({ accepted: false, result: { reason: "underground_handoff_required" } });
+    expect(reloaded.toSave()).toEqual(before);
+    expect(globalTrue(reloaded, PROLOGUE_RETURN_FLOW_FLAGS.prologueReturnObserved)).toBe(false);
   });
 
   it("keeps incomplete task-local progress ephemeral across reload and accepted resets", () => {
@@ -354,7 +327,7 @@ describe("PrologueFlowSession N07 return-flow integration", () => {
     expect(target.snapshot().killCount).toBe(0);
   });
 
-  it("synchronizes formal N07 commits and brackets both region transitions with barriers", () => {
+  it("synchronizes formal N07 commits without emitting the unavailable underground exit barrier", () => {
     const target = reachCompletedCistern("flow.return.cross-save");
     const coordinator = new RecordingCrossSaveCoordinator(target.session);
     target.attachCrossSaveTransactionCoordinator(coordinator);
@@ -367,8 +340,9 @@ describe("PrologueFlowSession N07 return-flow integration", () => {
     const synchronizedBefore = coordinator.synchronizeCalls;
     expect(target.completeReturnFlowSolution("cross-save.complete", solution.id).accepted).toBe(true);
     expect(coordinator.synchronizeCalls).toBeGreaterThan(synchronizedBefore);
-    expect(target.returnFlowToSettlement("cross-save.return").accepted).toBe(true);
-    expect(coordinator.regionExitCalls).toBe(2);
-    expect(target.snapshot()).toMatchObject({ mode: "settlement", killCount: 0 });
+    expect(target.returnFlowToSettlement("cross-save.return"))
+      .toMatchObject({ accepted: false, result: { reason: "underground_handoff_required" } });
+    expect(coordinator.regionExitCalls).toBe(1);
+    expect(target.snapshot()).toMatchObject({ mode: "return_flow", killCount: 0 });
   });
 });

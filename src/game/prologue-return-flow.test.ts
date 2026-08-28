@@ -5,7 +5,6 @@ import {
   PROLOGUE_RETURN_FLOW_ENTRY_CHECKPOINT_ID,
   PROLOGUE_RETURN_FLOW_FLAGS,
   PROLOGUE_RETURN_FLOW_PATCH_ID,
-  PROLOGUE_RETURN_FLOW_RETURN_CHECKPOINT_ID,
   PROLOGUE_RETURN_FLOW_SCENE_ID,
   PROLOGUE_RETURN_FLOW_SOLUTION_CONTRACTS,
   PROLOGUE_RETURN_FLOW_TASK_ID,
@@ -16,7 +15,6 @@ import {
 import type { ReturnFlowSolutionId, ReturnFlowWorldFacts } from "./return-flow-predicates";
 
 const CISTERN_SCENE_ID = "scene.valley.high_cistern";
-const SETTLEMENT_SCENE_ID = "scene.valley.settlement";
 
 const allWorldFacts = (): ReturnFlowWorldFacts => ({
   settlementSupplyFlowInBand: true,
@@ -246,29 +244,20 @@ describe("production prologue return-flow coordinator", () => {
     expect(reloaded.snapshot().wawa.discoveryState).toBe("discovered");
   });
 
-  it("atomically returns to N02, writes the separate observation, checkpoint, and retry receipt", () => {
+  it("fails closed at the authored underground handoff without mutating the completed N07 session", () => {
     const flow = enter("return.exit");
     expect(flow.returnToSettlement("return.exit.early"))
       .toMatchObject({ accepted: false, reason: "prerequisite_missing" });
     expect(flow.snapshot().prologueReturnObserved).toBe(false);
     expect(flow.completeSolution("return.exit.complete", "return_flow.reuse_old_channel",
       evidenceFor("return_flow.reuse_old_channel")).accepted).toBe(true);
-    const before = flow.session.events().length;
+    const before = flow.toSave();
     const returned = flow.returnToSettlement("return.exit.ok");
-    expect(returned).toMatchObject({ accepted: true, duplicate: false, reason: "committed" });
-    expect(returned.session?.snapshot().world.currentSceneId).toBe(SETTLEMENT_SCENE_ID);
-    expect(returned.session?.snapshot().checkpoint.id).toBe(PROLOGUE_RETURN_FLOW_RETURN_CHECKPOINT_ID);
-    expect(flow.snapshot().prologueReturnObserved).toBe(true);
-    expect(flow.session.events().slice(before).map((event) => event.type)).toEqual([
-      "scene_entered", "prologue_return_observation_committed", "checkpoint_set", "receipt_recorded",
-    ]);
-    const observation = Object.values(returned.session!.snapshot().world.flags).find((flag) =>
-      flag.scope === "global" && flag.flagId === PROLOGUE_RETURN_FLOW_FLAGS.prologueReturnObserved);
-    expect(observation?.value).toBe(true);
-    expect(flow.returnToSettlement("return.exit.ok"))
-      .toMatchObject({ accepted: true, duplicate: true, reason: "duplicate" });
-    const reloaded = GameSession.fromSave(JSON.parse(JSON.stringify(returned.session!.toSave())));
-    expect(reloaded.snapshot().world.currentSceneId).toBe(SETTLEMENT_SCENE_ID);
-    expect(reloaded.snapshot().checkpoint.id).toBe(PROLOGUE_RETURN_FLOW_RETURN_CHECKPOINT_ID);
+    expect(returned).toMatchObject({ accepted: false, duplicate: false, reason: "underground_handoff_required", session: null });
+    expect(flow.toSave()).toEqual(before);
+    expect(flow.snapshot()).toMatchObject({ sceneId: PROLOGUE_RETURN_FLOW_SCENE_ID, prologueReturnObserved: false });
+    const reloaded = GameSession.fromSave(JSON.parse(JSON.stringify(flow.toSave())));
+    expect(reloaded.snapshot().world.currentSceneId).toBe(PROLOGUE_RETURN_FLOW_SCENE_ID);
+    expect(reloaded.snapshot().world.flags[`global:${PROLOGUE_RETURN_FLOW_FLAGS.prologueReturnObserved}`]).toBeUndefined();
   });
 });

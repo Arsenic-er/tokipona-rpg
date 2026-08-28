@@ -801,7 +801,7 @@ export const commitTrustedReturnFlowQualificationProposal = (
         (draft.payload as Extract<GameSessionEvent, { type: "learning_evidence_committed" }>["payload"]).evidence !== undefined)
     : protectedDrafts.length === 1 && protectedDrafts[0]?.type === "prologue_return_observation_committed" &&
       proof.batch.drafts.some((draft) => draft.type === "scene_entered" &&
-        (draft.payload as { sceneId: string }).sceneId === "scene.valley.settlement");
+        (draft.payload as { sceneId: string }).sceneId === "scene.valley.underground_order_node");
   if (!valid) return { committed: false, failedDraftId: protectedDrafts[0]?.eventId ?? null,
     reason: "invalid_event", session: authoritative };
   const working = authoritative.forkForProposal();

@@ -4,6 +4,7 @@ import { GameSession, type GameSessionEvent } from "../session/game-session";
 import { commitSessionProposal } from "../session/adapters";
 import { PrologueSettlementSession } from "./prologue-settlement";
 import { PrologueReturnFlowSession, PROLOGUE_RETURN_FLOW_SOLUTION_CONTRACTS } from "./prologue-return-flow";
+import { authoritativePostEpilogueSettlement } from "./test-helpers/authoritative-post-epilogue-settlement";
 import {
   PROLOGUE_SAFE_RANGE_SCENE_ID,
   PROLOGUE_SAFE_RANGE_SETTLEMENT_SCENE_ID,
@@ -95,10 +96,7 @@ const qualifiedSettlementSession = (permission = true,
     predictedForceContrastCorrect: true,
     worldOutcomeContribution: true,
   }).accepted).toBe(true);
-  const returned = returnFlow.returnToSettlement("fixture.return.settlement");
-  if (!returned.accepted || !returned.session) throw new Error(`return rejected: ${returned.reason}`);
-
-  const settlement = new PrologueSettlementSession(returned.session);
+  const settlement = new PrologueSettlementSession(authoritativePostEpilogueSettlement(returnFlow.session));
   for (let tick = 0; tick < 700 && settlement.snapshot().runtime.player.position.x < 576; tick += 1) {
     settlement.advanceTicks(1, { moveX: 1 });
   }

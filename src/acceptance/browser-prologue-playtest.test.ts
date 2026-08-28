@@ -121,7 +121,7 @@ describe("browser prologue playtest observation", () => {
     });
     const finalActivity = activity(126 * MINUTE, 36 * MINUTE, 18 * MINUTE);
     target.observeFrame(frame(
-      "scene.valley.safe_range",
+      "scene.valley.underground_order_node",
       [accepted, language, relief, completed, permission, signature],
       finalActivity,
       false,
@@ -160,7 +160,7 @@ describe("browser prologue playtest observation", () => {
       storage,
       key,
       sessionId: "playtest.browser.session",
-      frame: frame("scene.valley.safe_range", [accepted, language, relief, completed, permission, signature], finalActivity),
+      frame: frame("scene.valley.underground_order_node", [accepted, language, relief, completed, permission, signature], finalActivity),
     });
     expect(loaded.toSample(finalActivity)).toEqual(sample);
   });
@@ -282,9 +282,9 @@ describe("browser prologue playtest observation", () => {
   });
 
   it("derives active-word focus only from verified scene and segment manifests", () => {
-    expect(prologueActiveNewWordCountForScene("scene.valley.arrival_shelf")).toBe(1);
+    expect(prologueActiveNewWordCountForScene("scene.valley.arrival_shelf")).toBe(0);
     expect(prologueActiveNewWordCountForScene("scene.valley.high_cistern")).toBe(2);
-    expect(prologueActiveNewWordCountForScene("scene.valley.safe_range")).toBe(0);
+    expect(() => prologueActiveNewWordCountForScene("scene.valley.safe_range")).toThrow(/no authored segment focus/);
     expect(() => prologueActiveNewWordCountForScene("scene.valley.unknown")).toThrow(/absent/);
     expect(anonymizedProloguePlaytestSessionId("browser-prologue-raw-player-id"))
       .toMatch(/^session\.sha256\.[0-9a-f]{64}$/);

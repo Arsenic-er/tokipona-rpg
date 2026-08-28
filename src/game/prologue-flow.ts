@@ -349,7 +349,6 @@ const RETURN_FLOW_RUNTIME_SCENE = Object.freeze({
 });
 const PROLOGUE_FLOW_RUNTIME_SCENES: readonly SceneDefinition[] = Object.freeze([
   ...PROLOGUE_ARRIVAL_STREAM_SCENES,
-  PROLOGUE_RETURN_FLOW_RUNTIME_SCENE,
 ]);
 const isolatedRegionScenes = (replacement: SceneDefinition): readonly SceneDefinition[] => Object.freeze(
   PROLOGUE_FLOW_RUNTIME_SCENES.map((scene) => scene.id === replacement.id ? replacement : scene),

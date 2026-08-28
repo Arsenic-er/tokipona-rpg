@@ -8,6 +8,7 @@ import {
 } from "./prologue-return-flow";
 import { PROLOGUE_SETTLEMENT_SCENE_ID } from "./prologue-settlement";
 import { PrologueFlowSession } from "./prologue-flow";
+import { authoritativePostEpilogueSettlement } from "./test-helpers/authoritative-post-epilogue-settlement";
 import type { ReturnFlowWorldFacts } from "./return-flow-predicates";
 
 const facts: ReturnFlowWorldFacts = {
@@ -39,9 +40,7 @@ function settlementAfterReturn(sessionId: string): GameSession {
   const completed = entered.returnFlow.completeSolution(`${sessionId}.return.complete`, solution.id,
     { completedActionIds: solution.requiredActions, world: facts });
   if (!completed.accepted) throw new Error(`return completion rejected: ${completed.reason}`);
-  const returned = entered.returnFlow.returnToSettlement(`${sessionId}.return.settlement`);
-  if (!returned.accepted || !returned.session) throw new Error(`return handoff rejected: ${returned.reason}`);
-  return returned.session;
+  return authoritativePostEpilogueSettlement(entered.returnFlow.session);
 }
 
 describe("PrologueFlowSession peaceful old-mine threshold", () => {

@@ -12,6 +12,7 @@ import {
   PROLOGUE_RETURN_FLOW_SOLUTION_CONTRACTS,
   PrologueReturnFlowSession,
 } from "./prologue-return-flow";
+import { authoritativePostEpilogueSettlement } from "./test-helpers/authoritative-post-epilogue-settlement";
 import {
   PROLOGUE_SAFE_RANGE_SCENE_ID,
   PROLOGUE_SAFE_RANGE_SETTLEMENT_SCENE_ID,
@@ -106,12 +107,7 @@ const qualifiedSettlement = (permission = true): GameSession => {
     predictedForceContrastCorrect: true,
     worldOutcomeContribution: true,
   }).accepted).toBe(true);
-  const returned = returnFlow.returnToSettlement("fixture.return.settlement");
-  if (!returned.accepted || !returned.session) {
-    throw new Error(`fixture N07 return rejected: ${returned.reason}`);
-  }
-
-  const flow = PrologueFlowSession.fromSave(returned.session.toSave());
+  const flow = PrologueFlowSession.fromSave(authoritativePostEpilogueSettlement(returnFlow.session).toSave());
   for (let tick = 0; tick < 700 && flow.snapshot().runtime.player.position.x < 576; tick += 1) {
     flow.advanceTicks(1, { moveX: 1 });
   }
