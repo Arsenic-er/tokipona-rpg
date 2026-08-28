@@ -6091,7 +6091,7 @@
     }
   },
   "p0Curriculum": {
-    "sourceDigest": "sha256:9961c6fdf1e2a649fc7e05b7abdb7b9ca64fcf47a181606ce9d4bd89b65960fb",
+    "sourceDigest": "sha256:58692f4b68f9276067c511785d7b9de14a7c53ad739a8d88d61c6408b0e1f65a",
     "sourcePath": "data/language/p0-curriculum.v0.1.yaml",
     "contentVersion": "prologue-12.vertical-slice.1",
     "progressionSourcePath": "data/language/learning-progression.v0.2.yaml",
@@ -6115,6 +6115,29 @@
       ],
       "firstThreeHoursIsContentBudgetNotRealTimeGate": true
     },
+    "firstChapterActiveMasteryWordIds": [
+      "word.telo",
+      "word.tawa",
+      "word.lili",
+      "word.suli",
+      "word.wawa"
+    ],
+    "firstChapterStructureParticleIds": [
+      "o",
+      "li",
+      "e"
+    ],
+    "additionalReceptiveWordIds": [
+      "word.awen",
+      "word.kasi",
+      "word.kiwen",
+      "word.kon",
+      "word.lukin",
+      "word.seli",
+      "word.soweli",
+      "word.weka"
+    ],
+    "firstChapterCompletionRequiresAllP0Words": false,
     "targetStateCeiling": {
       "produced": [
         "telo",

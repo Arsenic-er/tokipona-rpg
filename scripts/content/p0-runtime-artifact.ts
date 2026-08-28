@@ -20,6 +20,11 @@ export function projectP0Curriculum(manifest: ContentManifest): RuntimeP0Curricu
   if (progressionSourcePath !== "data/language/learning-progression.v0.2.yaml" || manifest.sources[progressionSourcePath]?.kind !== "learning_progression") throw new Error("P0 progression_ref is invalid");
   if (glyphCatalogSourcePath !== "data/language/pu-120-glyph-catalog.v0.2.json" || manifest.sources[glyphCatalogSourcePath]?.kind !== "glyph_catalog") throw new Error("P0 glyph_catalog_ref is invalid");
   const scope = object(source.content.scope, "scope");
+  const firstChapterActiveMasteryWordIds = strings(scope.first_chapter_active_mastery_word_ids, "scope.first_chapter_active_mastery_word_ids");
+  if (firstChapterActiveMasteryWordIds.length !== 5) throw new Error("P0 first chapter active mastery words are invalid");
+  const firstChapterStructureParticleIds = strings(scope.first_chapter_structure_particle_ids, "scope.first_chapter_structure_particle_ids");
+  if (!same(firstChapterStructureParticleIds, ["o", "li", "e"])) throw new Error("P0 first chapter structure particles are invalid");
+  const firstChapterCompletionRequiresAllP0Words = exact(scope.first_chapter_completion_requires_all_p0_words, false, "scope.first_chapter_completion_requires_all_p0_words");
   const target = object(source.content.target_state_ceiling_first_three_hours, "target_state_ceiling_first_three_hours");
   for (const key of Object.keys(TARGETS) as RuntimeP0TargetState[]) if (!same(strings(target[key], `target.${key}`), TARGETS[key])) throw new Error(`P0 ${key} target list is noncanonical`);
   const targetByWord = new Map<P0WordId, RuntimeP0TargetState>([
@@ -30,6 +35,9 @@ export function projectP0Curriculum(manifest: ContentManifest): RuntimeP0Curricu
   const authoredWords = objects(source.content.words, "words");
   const wordIds = authoredWords.map((word) => string(word.word_id, "word_id"));
   if (!sameSet(wordIds, P0_WORD_IDS)) throw new Error("P0 curriculum must author the exact 12 word IDs");
+  const additionalReceptiveWordIds = P0_WORD_IDS
+    .filter((wordId) => !firstChapterActiveMasteryWordIds.includes(`word.${wordId}`))
+    .map((wordId) => `word.${wordId}`);
   const words = Object.fromEntries(authoredWords.map((word) => {
     const wordId = string(word.word_id, "word_id") as P0WordId;
     const meditation = object(word.meditation, `${wordId}.meditation`);
@@ -62,6 +70,10 @@ export function projectP0Curriculum(manifest: ContentManifest): RuntimeP0Curricu
     progressionSourcePath,
     glyphCatalogSourcePath,
     scope: { band: exact(scope.band, "P0", "scope.band"), uniqueWordCount: exact(scope.unique_word_count, 12, "scope.unique_word_count"), wordIds: [...P0_WORD_IDS], firstThreeHoursIsContentBudgetNotRealTimeGate: exact(scope.first_three_hours_is_content_budget_not_real_time_gate, true, "scope.first_three_hours") },
+    firstChapterActiveMasteryWordIds,
+    firstChapterStructureParticleIds,
+    additionalReceptiveWordIds,
+    firstChapterCompletionRequiresAllP0Words,
     targetStateCeiling: TARGETS,
     activationMedium: { itemId: exact(medium.item_id, "learning.common_inscription_medium", "activation_medium.item_id"), scarcity: exact(medium.scarcity, "common", "activation_medium.scarcity"), tradeable: exact(medium.tradeable, false, "activation_medium.tradeable"), randomDropRequired: exact(medium.random_drop_required, false, "activation_medium.random_drop_required"), consumedOnFailedOrInterruptedActivation: exact(medium.consumed_on_failed_or_interrupted_activation, false, "activation_medium.consumed") },
     recoveryStation: { sceneId: exact(station.scene_id, "scene.valley.settlement", "recovery_station.scene_id"), targetId: exact(station.target_id, "settlement.p0_inscription_archive", "recovery_station.target_id"), interactionId: exact(station.interaction_id, "settlement.open_p0_inscription_archive", "recovery_station.interaction_id"), interactionPointTiles: numericPair(station.interaction_point_tiles, "recovery_station.interaction_point_tiles", [38, 28]), maximumDistancePx: exact(station.maximum_distance_px, 16, "recovery_station.maximum_distance_px"), recoveryRouteOnlyWhenBelowTarget: exact(station.recovery_route_only_when_below_target, true, "recovery_station.only_below_target") },

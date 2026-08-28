@@ -8,6 +8,9 @@ scope:
   band: P0
   unique_word_count: 12
   first_three_hours_is_content_budget_not_real_time_gate: true
+  first_chapter_active_mastery_word_ids: [word.telo, word.tawa, word.lili, word.suli, word.wawa]
+  first_chapter_structure_particle_ids: [o, li, e]
+  first_chapter_completion_requires_all_p0_words: false
   spell_notation_and_natural_sentence_are_separate: true
   chapter_tokens_outside_p0: [o, wawa]
   chapter_tokens_outside_p0_count_toward_p0: false

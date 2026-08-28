@@ -54,5 +54,10 @@ describe("forest chapter content contract", () => {
       post_chapter_boundary_scene_id: "scene.valley.old_mine_threshold", mandatory_kills: 0,
       mandatory_wildlife_products: 0, medium_usable_before_hermit_initiation: false,
     });
+
+    const p0Scope = manifest.byKind.p0_curriculum[0]!.content.scope as Record<string, unknown>;
+    expect(p0Scope.first_chapter_active_mastery_word_ids).toEqual(["word.telo", "word.tawa", "word.lili", "word.suli", "word.wawa"]);
+    expect(p0Scope.first_chapter_structure_particle_ids).toEqual(["o", "li", "e"]);
+    expect(p0Scope.first_chapter_completion_requires_all_p0_words).toBe(false);
   });
 });

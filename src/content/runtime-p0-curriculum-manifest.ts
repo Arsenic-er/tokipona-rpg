@@ -2,6 +2,10 @@ import { P0_WORD_IDS, type P0WordId } from "../learning/progression";
 import { sha256Canonical, type JsonValue } from "../persistence/cross-save-wal";
 import { readRuntimeSpeechlessAudioPolicy, type RuntimeSpeechlessAudioPolicy } from
   "./runtime-speechless-audio-policy";
+import {
+  readRuntimeForestChapterManifest,
+  type RuntimeForestChapterManifest,
+} from "./runtime-forest-chapter-manifest";
 
 export type RuntimeP0TargetState = "attuned" | "grounded" | "produced";
 
@@ -32,6 +36,10 @@ export interface RuntimeP0CurriculumManifest {
     wordIds: readonly P0WordId[];
     firstThreeHoursIsContentBudgetNotRealTimeGate: true;
   }>;
+  readonly firstChapterActiveMasteryWordIds: RuntimeForestChapterManifest["activeWordIds"];
+  readonly firstChapterStructureParticleIds: readonly ["o", "li", "e"];
+  readonly additionalReceptiveWordIds: readonly ["word.awen", "word.kasi", "word.kiwen", "word.kon", "word.lukin", "word.seli", "word.soweli", "word.weka"];
+  readonly firstChapterCompletionRequiresAllP0Words: false;
   readonly targetStateCeiling: Readonly<{
     produced: readonly ["telo", "tawa", "lili", "suli"];
     grounded: readonly ["seli", "kiwen", "awen"];
@@ -87,12 +95,17 @@ export function readRuntimeP0CurriculumManifest(candidate: unknown): RuntimeP0Cu
   if (!/^sha256:[0-9a-f]{64}$/.test(digest)) throw new Error("P0 curriculum sourceDigest must be sha256");
   const payload = Object.fromEntries(Object.entries(raw).filter(([key]) => key !== "sourceDigest"));
   if (computeRuntimeP0CurriculumDigest(payload) !== digest) throw new Error("P0 curriculum projection digest mismatch");
-  exactKeys(raw, ["sourceDigest", "sourcePath", "contentVersion", "progressionSourcePath", "glyphCatalogSourcePath", "scope", "targetStateCeiling", "activationMedium", "recoveryStation", "words", "acceptance"], "P0 curriculum");
+  exactKeys(raw, ["sourceDigest", "sourcePath", "contentVersion", "progressionSourcePath", "glyphCatalogSourcePath", "scope", "firstChapterActiveMasteryWordIds", "firstChapterStructureParticleIds", "additionalReceptiveWordIds", "firstChapterCompletionRequiresAllP0Words", "targetStateCeiling", "activationMedium", "recoveryStation", "words", "acceptance"], "P0 curriculum");
   if (raw.sourcePath !== "data/language/p0-curriculum.v0.1.yaml" || raw.contentVersion !== "prologue-12.vertical-slice.1" || raw.progressionSourcePath !== "data/language/learning-progression.v0.2.yaml" || raw.glyphCatalogSourcePath !== "data/language/pu-120-glyph-catalog.v0.2.json") throw new Error("P0 curriculum source identity is invalid");
 
   const scope = record(raw.scope, "P0 curriculum scope");
   exactKeys(scope, ["band", "uniqueWordCount", "wordIds", "firstThreeHoursIsContentBudgetNotRealTimeGate"], "P0 curriculum scope");
   if (scope.band !== "P0" || scope.uniqueWordCount !== 12 || scope.firstThreeHoursIsContentBudgetNotRealTimeGate !== true || !sameSet(scope.wordIds, P0_WORD_IDS)) throw new Error("P0 curriculum scope is invalid");
+  const forestChapter = readRuntimeForestChapterManifest(root);
+  if (!sameSet(raw.firstChapterActiveMasteryWordIds, forestChapter.activeWordIds)) throw new Error("P0 first chapter active mastery words must equal forest chapter active words");
+  if (!same(raw.firstChapterStructureParticleIds, ["o", "li", "e"])) throw new Error("P0 first chapter structure particles are invalid");
+  if (!same(raw.additionalReceptiveWordIds, ["word.awen", "word.kasi", "word.kiwen", "word.kon", "word.lukin", "word.seli", "word.soweli", "word.weka"])) throw new Error("P0 additional receptive words are invalid");
+  if (raw.firstChapterCompletionRequiresAllP0Words !== false) throw new Error("P0 first chapter completion must not require all P0 words");
   const target = record(raw.targetStateCeiling, "P0 target state ceiling");
   if (!same(target.produced, TARGETS.produced) || !same(target.grounded, TARGETS.grounded) || !same(target.attuned, TARGETS.attuned)) throw new Error("P0 target state ceiling is noncanonical");
   const medium = record(raw.activationMedium, "P0 activation medium");

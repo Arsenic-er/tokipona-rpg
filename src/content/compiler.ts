@@ -473,6 +473,11 @@ function validateP0CurriculumSource(source: CompiledSource, issues: ContentIssue
   if (readString(scope, "band") !== "P0" || readNumber(scope, "unique_word_count") !== 12 || scope.first_three_hours_is_content_budget_not_real_time_gate !== true) {
     addIssue(issues, "contract.p0_scope", source.path, "scope", "P0 scope and 12-word content budget are noncanonical");
   }
+  if (!sameStringArray(readStringArray(scope, "first_chapter_active_mastery_word_ids"), ["word.telo", "word.tawa", "word.lili", "word.suli", "word.wawa"]) ||
+      !sameStringArray(readStringArray(scope, "first_chapter_structure_particle_ids"), ["o", "li", "e"]) ||
+      scope.first_chapter_completion_requires_all_p0_words !== false) {
+    addIssue(issues, "contract.p0_first_chapter_scope", source.path, "scope", "P0 first chapter must use the five forest mastery words, preserve structural particles, and keep broader P0 content non-blocking");
+  }
   const target = readObject(source.content, "target_state_ceiling_first_three_hours");
   const targetByWord = new Map<string, string>();
   for (const [state, expected] of Object.entries(expectedTargets)) {

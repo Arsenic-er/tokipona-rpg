@@ -30,6 +30,10 @@ describe("P0 curriculum runtime contract", () => {
     const value = readRuntimeP0CurriculumManifest(generated);
     expect(isVerifiedRuntimeP0CurriculumManifest(value)).toBe(true);
     expect(value.scope).toMatchObject({ band: "P0", uniqueWordCount: 12, firstThreeHoursIsContentBudgetNotRealTimeGate: true });
+    expect(value.firstChapterActiveMasteryWordIds).toEqual(["word.telo", "word.tawa", "word.lili", "word.suli", "word.wawa"]);
+    expect(value.firstChapterStructureParticleIds).toEqual(["o", "li", "e"]);
+    expect(value.additionalReceptiveWordIds).toEqual(["word.awen", "word.kasi", "word.kiwen", "word.kon", "word.lukin", "word.seli", "word.soweli", "word.weka"]);
+    expect(value.firstChapterCompletionRequiresAllP0Words).toBe(false);
     expect(value.targetStateCeiling).toEqual({ produced: ["telo", "tawa", "lili", "suli"], grounded: ["seli", "kiwen", "awen"], attuned: ["kon", "kasi", "lukin", "weka", "soweli"] });
     expect(Object.values(value.words)).toHaveLength(12);
     expect(value.words.telo).toMatchObject({ targetState: "produced", productionTaskFamilies: ["channel_routing", "washing_or_filling"], semanticFacets: ["water_or_liquid", "drinking_washing_or_containment"] });
@@ -102,5 +106,39 @@ describe("P0 curriculum runtime contract", () => {
     const remoteStation = sources(), station = p0(remoteStation).runtime_recovery_station as Record<string, unknown>;
     station.interaction_point_tiles = [1, 1];
     expectCompilerIssue(remoteStation, "contract.p0_recovery_station");
+
+    const extraActiveMastery = sources(), extraActiveScope = p0(extraActiveMastery).scope as Record<string, unknown>;
+    extraActiveScope.first_chapter_active_mastery_word_ids = ["word.telo", "word.tawa", "word.lili", "word.suli", "word.wawa", "word.seli"];
+    expectCompilerIssue(extraActiveMastery, "contract.p0_first_chapter_scope");
+
+    const missingActiveMastery = sources(), missingActiveScope = p0(missingActiveMastery).scope as Record<string, unknown>;
+    missingActiveScope.first_chapter_active_mastery_word_ids = ["word.telo", "word.tawa", "word.lili", "word.suli"];
+    expectCompilerIssue(missingActiveMastery, "contract.p0_first_chapter_scope");
+
+    const particleAsActiveContent = sources(), particleScope = p0(particleAsActiveContent).scope as Record<string, unknown>;
+    particleScope.first_chapter_active_mastery_word_ids = ["word.telo", "word.tawa", "word.lili", "word.suli", "word.wawa", "o"];
+    expectCompilerIssue(particleAsActiveContent, "contract.p0_first_chapter_scope");
+
+    const allP0CompletionGate = sources(), completionScope = p0(allP0CompletionGate).scope as Record<string, unknown>;
+    completionScope.first_chapter_completion_requires_all_p0_words = true;
+    expectCompilerIssue(allP0CompletionGate, "contract.p0_first_chapter_scope");
+  });
+
+  it("rejects re-signed first-chapter scope drift", () => {
+    const extraActiveMastery = structuredClone(generated) as any;
+    extraActiveMastery.p0Curriculum.firstChapterActiveMasteryWordIds.push("word.seli");
+    expect(() => readRuntimeP0CurriculumManifest(resign(extraActiveMastery))).toThrow(/first chapter active mastery/);
+
+    const missingActiveMastery = structuredClone(generated) as any;
+    missingActiveMastery.p0Curriculum.firstChapterActiveMasteryWordIds = ["word.telo", "word.tawa", "word.lili", "word.suli"];
+    expect(() => readRuntimeP0CurriculumManifest(resign(missingActiveMastery))).toThrow(/first chapter active mastery/);
+
+    const particleAsActiveContent = structuredClone(generated) as any;
+    particleAsActiveContent.p0Curriculum.firstChapterActiveMasteryWordIds.push("o");
+    expect(() => readRuntimeP0CurriculumManifest(resign(particleAsActiveContent))).toThrow(/first chapter active mastery/);
+
+    const allP0CompletionGate = structuredClone(generated) as any;
+    allP0CompletionGate.p0Curriculum.firstChapterCompletionRequiresAllP0Words = true;
+    expect(() => readRuntimeP0CurriculumManifest(resign(allP0CompletionGate))).toThrow(/first chapter completion/);
   });
 });
