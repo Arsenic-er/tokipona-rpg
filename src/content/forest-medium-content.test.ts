@@ -76,6 +76,13 @@ describe("forest medium initiation contract", () => {
     expectIssue(() => compileContent(sources), "task.forest_medium_contract");
   });
 
+  it("rejects changing the canonical task type to bypass its validator", () => {
+    const sources = repositorySources();
+    const task = mutableSource(sources, "tasks/ch01-medium-hermit-initiation.v0.1.yaml");
+    task.task_type = "infrastructure_world_predicate";
+    expectIssue(() => compileContent(sources), "task.forest_medium_contract");
+  });
+
   it("rejects moving hermit practice authority away from the stream section", () => {
     const sources = repositorySources();
     const task = mutableSource(sources, "tasks/ch01-medium-hermit-initiation.v0.1.yaml");
@@ -103,4 +110,22 @@ describe("forest medium initiation contract", () => {
       expectIssue(() => compileContent(sources), "task.forest_medium_contract");
     },
   );
+
+  it("rejects redirecting a canonical medium writer event", () => {
+    const sources = repositorySources();
+    const region = mutableSource(sources, "world/regions/valley-prologue.v0.1.yaml");
+    object(object(region, "event_commit_points"), "forest_medium_discovered").atomic_writes = {
+      forest_hermit_route_committed: true,
+    };
+    expectIssue(() => compileContent(sources), "ref.forest_medium");
+  });
+
+  it("rejects removing a canonical medium state entry", () => {
+    const sources = repositorySources();
+    const region = mutableSource(sources, "world/regions/valley-prologue.v0.1.yaml");
+    region.state_registry = objects(region, "state_registry").filter(
+      (state) => state.state_id !== "forest_telo_initiation_completed",
+    );
+    expectIssue(() => compileContent(sources), "ref.forest_medium");
+  });
 });

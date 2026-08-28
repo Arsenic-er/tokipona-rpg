@@ -274,7 +274,8 @@ function validateSource(
       if (readString(source.content, "task_type") === "safe_range_attack_qualification") {
         validateSafeRangeTaskSource(source, issues);
       }
-      if (readString(source.content, "task_type") === "forest_medium_initiation") {
+      if (source.path === "data/tasks/ch01-medium-hermit-initiation.v0.1.yaml" ||
+          readString(source.content, "task_type") === "forest_medium_initiation") {
         validateForestMediumTaskSource(source, issues);
       }
       break;
@@ -835,7 +836,8 @@ function validateCrossDomainReferences(
       if (readString(source.content, "task_type") === "safe_range_attack_qualification") {
         validateSafeRangeTaskReferences(source, sources, indexes, issues);
       }
-      if (readString(source.content, "task_type") === "forest_medium_initiation") {
+      if (source.path === "data/tasks/ch01-medium-hermit-initiation.v0.1.yaml" ||
+          readString(source.content, "task_type") === "forest_medium_initiation") {
         validateForestMediumTaskReferences(source, sources, issues);
       }
     }
@@ -1890,6 +1892,7 @@ function validateForestMediumTaskSource(source: CompiledSource, issues: ContentI
     source.schemaVersion === "g01.task.infrastructure.v0.1" &&
     readString(source.content, "content_version") === "chapter-01.medium-hermit.1" &&
     readString(source.content, "task_id") === "ch01_medium_hermit_initiation" &&
+    readString(source.content, "task_type") === "forest_medium_initiation" &&
     readString(source.content, "chapter_flow_id") === "ch01_world_literacy_prologue" &&
     readString(source.content, "region_node_id") === "valley.stream_section" &&
     readString(source.content, "scene_ref") === "../scenes/valley-stream-section.v0.1.yaml" &&
@@ -1952,6 +1955,26 @@ function validateForestMediumTaskReferences(
     .every((route) => hasScene(readString(route, "authority_scene_id")));
   const region = sources.find((candidate) => candidate.kind === "region" && readString(candidate.content, "region_id") === "valley_prologue");
   const eventCommitPoints = region ? readObject(region.content, "event_commit_points") : {};
+  const states = new Map(
+    region ? readObjectArray(region.content, "state_registry")
+      .map((state) => [readString(state, "state_id"), state]) : [],
+  );
+  const canonicalStateEvents = [
+    ["forest_medium_discovered", "forest_medium_discovered"],
+    ["forest_medium_disclosure_committed", "forest_medium_disclosure_committed"],
+    ["forest_hermit_route_committed", "forest_hermit_route_committed"],
+    ["forest_telo_initiation_completed", "forest_telo_initiation_committed"],
+  ] as const;
+  const regionContractValid = canonicalStateEvents.every(([stateId, eventId]) => {
+    const state = states.get(stateId);
+    const writer = readObject(eventCommitPoints, eventId);
+    const atomicWrites = readObject(writer, "atomic_writes");
+    return state !== undefined &&
+      readString(state, "owner") === "ch01_medium_hermit_initiation" &&
+      readString(state, "unique_writer_event") === eventId &&
+      readString(writer, "owner") === "ch01_medium_hermit_initiation" &&
+      Object.keys(atomicWrites).length === 1 && atomicWrites[stateId] === true;
+  });
   const requiredEvents = readStringArray(source.content, "required_event_sequence");
   const waterwheelIndex = requiredEvents.indexOf("waterwheel_goal_committed");
   const discoveryIndex = requiredEvents.indexOf("forest_medium_discovered");
@@ -1965,7 +1988,7 @@ function validateForestMediumTaskReferences(
     routeScenesExist &&
     waterwheelIndex !== -1 && discoveryIndex === waterwheelIndex + 1 &&
     isContentObject(eventCommitPoints.waterwheel_goal_committed) &&
-    isContentObject(eventCommitPoints.forest_medium_discovered);
+    regionContractValid;
   if (!referencesValid) {
     addIssue(issues, "ref.forest_medium", source.path, "scene_ref", "forest medium initiation references are invalid");
   }
