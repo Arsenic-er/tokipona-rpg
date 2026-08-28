@@ -41,4 +41,18 @@ describe("runtime forest chapter manifest", () => {
     mutate(candidate.forestChapter);
     expect(() => readRuntimeForestChapterManifest(resign(candidate))).toThrow(message);
   });
+
+  it("rejects re-signed prototype-backed outer and nested manifest fields", () => {
+    const outer = structuredClone(generated) as Record<string, any>;
+    delete outer.forestChapter.targetMedianMinutes;
+    outer.forestChapter.padding = "attacker-controlled";
+    Object.setPrototypeOf(outer.forestChapter, { targetMedianMinutes: 180 });
+    expect(() => readRuntimeForestChapterManifest(resign(outer))).toThrow(/plain object|unknown or missing/);
+
+    const nested = structuredClone(generated) as Record<string, any>;
+    delete nested.forestChapter.medium.mediumId;
+    nested.forestChapter.medium.padding = "attacker-controlled";
+    Object.setPrototypeOf(nested.forestChapter.medium, { mediumId: "artifact.ancient_medium_frame" });
+    expect(() => readRuntimeForestChapterManifest(resign(nested))).toThrow(/plain object|unknown or missing/);
+  });
 });

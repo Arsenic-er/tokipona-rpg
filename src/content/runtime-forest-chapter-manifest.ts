@@ -80,8 +80,6 @@ export function readRuntimeForestChapterManifest(candidate: unknown): RuntimeFor
   exactKeys(raw, ["sourceDigest", "chapterFlowId", "contentVersion", "workingTitleZh", "targetMedianMinutes", "firstPlayRangeMinutes", "mainSceneIds", "optionalSceneIds", "postChapterBoundarySceneId", "postChapterBoundaryRequiresEpilogue", "activeWordIds", "segments", "medium", "largeCreature", "allocation"], "forest chapter");
   const sourceDigest = string(raw.sourceDigest, "forest chapter sourceDigest");
   if (!/^sha256:[0-9a-f]{64}$/.test(sourceDigest)) throw new Error("forest chapter sourceDigest must be sha256");
-  const payload = Object.fromEntries(Object.entries(raw).filter(([key]) => key !== "sourceDigest"));
-  if (computeRuntimeManifestDigest(payload) !== sourceDigest) throw new Error("forest chapter projection digest mismatch");
   if (raw.chapterFlowId !== "ch01_world_literacy_prologue" || raw.contentVersion !== "chapter-01.forest.2" || raw.workingTitleZh !== "水往何处" || raw.targetMedianMinutes !== 180 || !same(raw.firstPlayRangeMinutes, [150, 240])) throw new Error("forest chapter identity is invalid");
   if (!same(raw.mainSceneIds, MAIN_SCENE_IDS)) throw new Error("forest chapter main scene order is invalid");
   if (!same(raw.optionalSceneIds, OPTIONAL_SCENE_IDS)) throw new Error("forest chapter optional scenes are invalid");
@@ -91,6 +89,8 @@ export function readRuntimeForestChapterManifest(candidate: unknown): RuntimeFor
   validateMedium(raw.medium);
   validateLargeCreature(raw.largeCreature);
   validateAllocation(raw.allocation);
+  const payload = Object.fromEntries(Object.entries(raw).filter(([key]) => key !== "sourceDigest"));
+  if (computeRuntimeManifestDigest(payload) !== sourceDigest) throw new Error("forest chapter projection digest mismatch");
   const result = deepFreeze(structuredClone(raw)) as unknown as RuntimeForestChapterManifest;
   verified.add(result);
   return result;
@@ -126,8 +126,8 @@ function validateAllocation(value: unknown): void {
   validateStringRecord(allocation.costIdsByMode, COSTS, "forest chapter allocation costs");
 }
 function validateStringRecord(value: unknown, expected: Record<string, readonly string[]>, label: string): void { const recordValue = record(value, label); exactKeys(recordValue, Object.keys(expected), label); for (const [key, items] of Object.entries(expected)) if (!same(recordValue[key], items)) throw new Error(`${label} are invalid`); }
-function record(value: unknown, label: string): Record<string, unknown> { if (typeof value !== "object" || value === null || Array.isArray(value)) throw new Error(`${label} must be an object`); return value as Record<string, unknown>; }
+function record(value: unknown, label: string): Record<string, unknown> { if (typeof value !== "object" || value === null || Array.isArray(value)) throw new Error(`${label} must be an object`); const prototype = Object.getPrototypeOf(value); if (prototype !== Object.prototype && prototype !== null) throw new Error(`${label} must be a plain object`); return value as Record<string, unknown>; }
 function string(value: unknown, label: string): string { if (typeof value !== "string" || value.length === 0) throw new Error(`${label} must be a non-empty string`); return value; }
 function same(value: unknown, expected: readonly unknown[]): boolean { return Array.isArray(value) && value.length === expected.length && value.every((entry, index) => entry === expected[index]); }
-function exactKeys(value: Record<string, unknown>, expected: readonly string[], label: string): void { if (Object.keys(value).length !== expected.length || expected.some((key) => !(key in value))) throw new Error(`${label} contains unknown or missing fields`); }
+function exactKeys(value: Record<string, unknown>, expected: readonly string[], label: string): void { const keys = Object.keys(value); if (keys.length !== expected.length || expected.some((key) => !keys.includes(key))) throw new Error(`${label} contains unknown or missing fields`); }
 function deepFreeze<T>(value: T): T { if (typeof value !== "object" || value === null || Object.isFrozen(value)) return value; for (const child of Object.values(value as Record<string, unknown>)) deepFreeze(child); return Object.freeze(value); }
