@@ -6,6 +6,19 @@ import { readRuntimeReturnFlowTaskManifest } from "./runtime-task-manifest";
 import type { ContentSource } from "./types";
 
 type Obj = Record<string, unknown>;
+const canonicalReturnChannelTargetIds = [
+  "return_flow.inert_force_indicator",
+  "return_flow.overflow_gate",
+  "return_flow.mud_blockage",
+  "return_flow.old_channel",
+  "return_flow.split_flow_gauge",
+  "return_flow.return_spout",
+  "return_wetland.large_creature.nest_trace",
+  "return_wetland.large_creature.young_trace",
+  "return_wetland.large_creature.migration_channel",
+  "return_wetland.large_creature.food_scent_guide",
+  "return_wetland.large_creature.nonlethal_barrier",
+] as const;
 const raw = import.meta.glob("../../data/**/*.{yaml,yml,json}", { eager: true, import: "default", query: "?raw" }) as Record<string, string>;
 const sources = (): ContentSource[] => Object.entries(raw).map(([path, value]) => ({ path: path.replace(/^\.\.\/\.\.\//, ""), data: path.endsWith(".json") ? JSON.parse(value) : parse(value) }));
 const source = (all: ContentSource[], suffix: string): Obj => all.find(x => x.path.endsWith(suffix))!.data as Obj;
@@ -18,7 +31,7 @@ describe("N07 return-flow frozen content contract", () => {
     const scene = manifest.indexes.scenes["scene.valley.return_channel"]!;
     const task = manifest.indexes.tasks.ch01_return_flow!;
     expect(scene.size_tiles).toEqual({ width: 30, height: 26 });
-    expect(list(scene as Obj, "targets").map(x => x.target_id)).toEqual(["return_flow.inert_force_indicator", "return_flow.overflow_gate", "return_flow.mud_blockage", "return_flow.old_channel", "return_flow.split_flow_gauge", "return_flow.return_spout"]);
+    expect(list(scene as Obj, "targets").map(x => x.target_id)).toEqual(canonicalReturnChannelTargetIds);
     expect(list(task as Obj, "solution_families").map(x => [x.solution_id, x.route_kind, x.mainline])).toEqual([
       ["return_flow.repair_overflow", "non_magic", true], ["return_flow.clear_mud", "non_magic", true], ["return_flow.reuse_old_channel", "non_magic", true],
     ]);
@@ -53,6 +66,22 @@ describe("N07 return-flow frozen content contract", () => {
     evidence.source_object_class="wildlife"; evidence.prerequisite_node_id="use.motion.noncombat"; issue(() => compileContent(all), "task.return_flow_wawa");
   });
 
+  it("rejects unknown, reordered, or missing return-channel targets", () => {
+    const unknownSources = sources();
+    const unknownTargets = list(source(unknownSources, "scenes/valley-return-channel.v0.1.yaml"), "targets");
+    unknownTargets.push({ ...structuredClone(unknownTargets[10]!), target_id: "return_wetland.large_creature.unknown" });
+    issue(() => compileContent(unknownSources), "task.return_flow_scene");
+
+    const reorderedSources = sources();
+    const reorderedTargets = list(source(reorderedSources, "scenes/valley-return-channel.v0.1.yaml"), "targets");
+    [reorderedTargets[6], reorderedTargets[7]] = [reorderedTargets[7]!, reorderedTargets[6]!];
+    issue(() => compileContent(reorderedSources), "task.return_flow_scene");
+
+    const missingSources = sources();
+    list(source(missingSources, "scenes/valley-return-channel.v0.1.yaml"), "targets").pop();
+    issue(() => compileContent(missingSources), "task.return_flow_scene");
+  });
+
   it("rejects ecology attack evidence, region zero-attack drift and topology drift", () => {
     const a=sources(), ecology=source(a,"ecology/valley-prologue.v0.1.yaml"), event=list(ecology,"events").find(x=>x.event_id==="wildlife_return_after_flow")!;
     event.attack_qualification_evidence=true; issue(() => compileContent(a), "task.return_flow_ecology");
@@ -64,5 +93,20 @@ describe("N07 return-flow frozen content contract", () => {
     const a=structuredClone(generated) as any; a.infrastructureTasks.byId.ch01_return_flow.returnFlow.wawaEvidence.sourceTargetClass="wildlife"; expect(()=>readRuntimeReturnFlowTaskManifest(a)).toThrow(/wawa evidence/);
     const b=structuredClone(generated) as any; b.infrastructureTasks.byId.ch01_return_flow.returnFlow.ecologyReturn.persistentWrite={}; expect(()=>readRuntimeReturnFlowTaskManifest(b)).toThrow(/ecology-return/);
     const c=structuredClone(generated) as any; c.infrastructureTasks.byId.ch01_return_flow.returnFlow.zeroAttack.mandatoryKills=1; expect(()=>readRuntimeReturnFlowTaskManifest(c)).toThrow(/zero-attack/);
+  });
+
+  it("fails closed when generated return-channel targets drift", () => {
+    const unknown = structuredClone(generated) as any;
+    unknown.infrastructureTasks.byId.ch01_return_flow.returnFlow.targetIds.push("return_wetland.large_creature.unknown");
+    expect(() => readRuntimeReturnFlowTaskManifest(unknown)).toThrow(/return flow targets/);
+
+    const reordered = structuredClone(generated) as any;
+    const reorderedTargetIds = reordered.infrastructureTasks.byId.ch01_return_flow.returnFlow.targetIds;
+    [reorderedTargetIds[6], reorderedTargetIds[7]] = [reorderedTargetIds[7], reorderedTargetIds[6]];
+    expect(() => readRuntimeReturnFlowTaskManifest(reordered)).toThrow(/return flow targets/);
+
+    const missing = structuredClone(generated) as any;
+    missing.infrastructureTasks.byId.ch01_return_flow.returnFlow.targetIds.pop();
+    expect(() => readRuntimeReturnFlowTaskManifest(missing)).toThrow(/return flow targets/);
   });
 });

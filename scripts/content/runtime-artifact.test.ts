@@ -66,6 +66,7 @@ describe("runtime content artifact generator", () => {
       "scene.valley.service_channel",
       "scene.valley.settlement",
       "scene.valley.stream_section",
+      "scene.valley.underground_order_node",
       "scene.valley.waterwheel",
     ]);
     expect(artifact.scenes.byId["scene.valley.arrival_shelf"]).toMatchObject({
@@ -130,8 +131,8 @@ describe("runtime content artifact generator", () => {
         entranceId: "settlement.from_stream",
       }),
       expect.objectContaining({
-        sourceSceneId: "scene.valley.return_channel", sourceExitId: "return.to_settlement",
-        entranceId: "settlement.from_return",
+        sourceSceneId: "scene.valley.underground_order_node", sourceExitId: "underground.to_settlement",
+        entranceId: "settlement.from_underground_order",
       }),
       expect.objectContaining({
         sourceSceneId: "scene.valley.safe_range", sourceExitId: "safe_range.to_settlement",

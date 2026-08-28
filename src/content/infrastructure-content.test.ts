@@ -50,9 +50,12 @@ describe("N03/N04 infrastructure content contracts", () => {
     expect(Object.keys(manifest.indexes.tasks).sort()).toEqual([
       "ch01_den_bypass",
       "ch01_first_attack_qualification",
+      "ch01_large_creature_crisis",
       "ch01_length_cistern",
+      "ch01_medium_hermit_initiation",
       "ch01_return_flow",
       "ch01_service_channel",
+      "ch01_underground_water_allocation",
       "ch01_waterwheel",
     ]);
     expect(manifest.indexes.scenes["scene.valley.waterwheel"]?.size_tiles).toEqual({
