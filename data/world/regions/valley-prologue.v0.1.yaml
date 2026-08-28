@@ -187,6 +187,10 @@ state_registry:
   - {state_id: "waterwheel_mode", type: enum, values: [stopped, temporary_driven, structurally_restored], initial: stopped, owner: "ch01_waterwheel", persistence_scope: "region_persistent", save_owner: "valley_prologue_region_save", unique_writer_event: "waterwheel_result_committed"}
   - {state_id: "waterwheel_restored", type: boolean, initial: false, owner: "ch01_waterwheel", persistence_scope: "region_persistent", save_owner: "valley_prologue_region_save", derived_from: "waterwheel_mode == structurally_restored"}
   - {state_id: "maintenance_access_open", type: boolean, initial: false, owner: "ch01_waterwheel", persistence_scope: "region_persistent", save_owner: "valley_prologue_region_save", unique_writer_event: "waterwheel_goal_committed"}
+  - {state_id: "forest_medium_discovered", type: boolean, initial: false, owner: "ch01_medium_hermit_initiation", persistence_scope: "region_persistent", save_owner: "valley_prologue_region_save", unique_writer_event: "forest_medium_discovered"}
+  - {state_id: "forest_medium_disclosure_committed", type: boolean, initial: false, owner: "ch01_medium_hermit_initiation", persistence_scope: "region_persistent", save_owner: "valley_prologue_region_save", unique_writer_event: "forest_medium_disclosure_committed"}
+  - {state_id: "forest_hermit_route_committed", type: boolean, initial: false, owner: "ch01_medium_hermit_initiation", persistence_scope: "region_persistent", save_owner: "valley_prologue_region_save", unique_writer_event: "forest_hermit_route_committed"}
+  - {state_id: "forest_telo_initiation_completed", type: boolean, initial: false, owner: "ch01_medium_hermit_initiation", persistence_scope: "global", save_owner: "player_learning_save", unique_writer_event: "forest_telo_initiation_committed"}
   - {state_id: "service_channel_reached", type: boolean, initial: false, owner: "region", persistence_scope: "region_persistent", save_owner: "valley_prologue_region_save", unique_writer_event: "service_channel_entry_crossed"}
   - {state_id: "service_gate_open", type: boolean, initial: false, owner: "ch01_service_channel", persistence_scope: "region_persistent", save_owner: "valley_prologue_region_save", unique_writer_event: "service_gate_solution_committed"}
   - {state_id: "service_bypass_open", type: boolean, initial: false, owner: "ch01_service_channel", persistence_scope: "region_persistent", save_owner: "valley_prologue_region_save", unique_writer_event: "service_bypass_solution_committed"}
@@ -219,6 +223,18 @@ event_commit_points:
   waterwheel_goal_committed:
     owner: "ch01_waterwheel"
     atomic_writes: {waterwheel_stable: true, downstream_safe: true, maintenance_access_open: true}
+  forest_medium_discovered:
+    owner: "ch01_medium_hermit_initiation"
+    atomic_writes: {forest_medium_discovered: true}
+  forest_medium_disclosure_committed:
+    owner: "ch01_medium_hermit_initiation"
+    atomic_writes: {forest_medium_disclosure_committed: true}
+  forest_hermit_route_committed:
+    owner: "ch01_medium_hermit_initiation"
+    atomic_writes: {forest_hermit_route_committed: true}
+  forest_telo_initiation_committed:
+    owner: "ch01_medium_hermit_initiation"
+    atomic_writes: {forest_telo_initiation_completed: true}
   waterwheel_result_committed:
     owner: "ch01_waterwheel"
     writes_enum: {waterwheel_mode: [temporary_driven, structurally_restored]}

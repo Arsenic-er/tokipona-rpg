@@ -1,0 +1,37 @@
+schema_version: "g01.task.infrastructure.v0.1"
+content_version: "chapter-01.medium-hermit.1"
+task_id: "ch01_medium_hermit_initiation"
+task_type: "forest_medium_initiation"
+chapter_flow_id: "ch01_world_literacy_prologue"
+region_node_id: "valley.stream_section"
+scene_ref: "../scenes/valley-stream-section.v0.1.yaml"
+required_event_sequence:
+  - "waterwheel_goal_committed"
+  - "forest_medium_discovered"
+  - "forest_hermit_route_committed"
+  - "forest_telo_initiation_committed"
+medium:
+  medium_id: "artifact.ancient_medium_frame"
+  shard_id: "artifact.fragment.forest_site"
+  discovery_scene_id: "scene.valley.waterwheel"
+  discovery_target_id: "waterwheel.sealed_maintenance_room"
+  discovery_event: "forest_medium_discovered"
+  tradable: false
+  droppable: false
+  loss_on_defeat: false
+disclosure_event: "forest_medium_disclosure_committed"
+hermit_routes:
+  - {route_id: "medium.tell_facility_worker", authority_scene_id: "scene.valley.settlement"}
+  - {route_id: "medium.follow_fragment_markers", authority_scene_id: "scene.valley.stream_section"}
+  - {route_id: "medium.ask_external_trader", authority_scene_id: "scene.valley.settlement"}
+hermit_practice:
+  authority_scene_id: "scene.valley.stream_section"
+  hermit_target_id: "stream.hermit"
+  natural_water_target_id: "stream.hermit_water_basin"
+  stable_tool_target_id: "stream.hermit_wooden_channel"
+  focus_word_id: "word.telo"
+  required_actions: [observe_natural_water, predict_manifest_path, perform_low_mp_telo, stabilize_with_tool]
+  completion_event: "forest_telo_initiation_committed"
+automatic_word_mastery_forbidden: true
+automatic_mp_increase_forbidden: true
+golden_tests: []

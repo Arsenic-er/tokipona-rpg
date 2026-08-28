@@ -133,6 +133,7 @@ targets:
   - {target_id: "waterwheel.downstream", target_kind: "safety_receiver", material: "water_and_soil"}
   - {target_id: "waterwheel.hand_tools", target_kind: "task_tools", material: "wood_and_metal"}
   - {target_id: "waterwheel.maintenance_spout", target_kind: "public_relief", material: "stone_and_water"}
+  - {target_id: "waterwheel.sealed_maintenance_room", target_kind: "sealed_maintenance_room", material: "stone_wood_and_ancient_medium"}
 
 facilities:
   - facility_id: "waterwheel.facility.maintenance_spout"
@@ -152,6 +153,7 @@ interactions:
   - {interaction_id: "waterwheel.inspect_downstream", target_id: "waterwheel.downstream", verb: "inspect_safety", tool_or_magic_required: false}
   - {interaction_id: "waterwheel.recover_tools", target_id: "waterwheel.hand_tools", verb: "take_task_tools", tool_or_magic_required: false}
   - {interaction_id: "waterwheel.drink_maintenance_spout", target_id: "waterwheel.maintenance_spout", verb: "drink_or_fill", facility_id: "waterwheel.facility.maintenance_spout", tool_or_magic_required: false}
+  - {interaction_id: "waterwheel.discover_forest_medium", target_id: "waterwheel.sealed_maintenance_room", verb: "discover_artifact", tool_or_magic_required: false}
 
 task_refs:
   - task_id: "ch01_waterwheel"

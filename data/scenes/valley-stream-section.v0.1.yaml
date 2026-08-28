@@ -95,6 +95,9 @@ targets:
   - {target_id: "stream.soil_bank", target_kind: "destructible_material", material: "wet_soil"}
   - {target_id: "stream.loose_foothold", target_kind: "movable_material", material: "loose_stone"}
   - {target_id: "stream.old_channel", target_kind: "channel", material: "wood"}
+  - {target_id: "stream.hermit", target_kind: "npc", material: "living_noncombatant"}
+  - {target_id: "stream.hermit_water_basin", target_kind: "natural_water_source", material: "water_and_stone"}
+  - {target_id: "stream.hermit_wooden_channel", target_kind: "stable_tool", material: "wood"}
 
 interactions:
   - {interaction_id: "stream.observe_cascade", target_id: "stream.natural_cascade", verb: "observe", tool_or_magic_required: false}
@@ -102,6 +105,11 @@ interactions:
   - {interaction_id: "stream.dig_bank", target_id: "stream.soil_bank", verb: "dig", tool_or_magic_required: false}
   - {interaction_id: "stream.place_foothold", target_id: "stream.loose_foothold", verb: "place", tool_or_magic_required: false}
   - {interaction_id: "stream.guide_existing_water", target_id: "stream.old_channel", verb: "align", tool_or_magic_required: false}
+  - {interaction_id: "stream.talk_hermit", target_id: "stream.hermit", verb: "talk", tool_or_magic_required: false}
+  - {interaction_id: "stream.observe_hermit_water", target_id: "stream.hermit_water_basin", verb: "observe_natural_water", tool_or_magic_required: false}
+  - {interaction_id: "stream.predict_hermit_manifest_path", target_id: "stream.hermit_water_basin", verb: "predict_manifest_path", tool_or_magic_required: false}
+  - {interaction_id: "stream.perform_low_mp_telo", target_id: "stream.hermit_water_basin", verb: "perform_low_mp_telo", optional_word_id: "word.telo"}
+  - {interaction_id: "stream.stabilize_hermit_channel", target_id: "stream.hermit_wooden_channel", verb: "stabilize_with_tool", tool_or_magic_required: false}
 
 material_patches:
   - patch_id: "scene.patch.stream.arrival_route"

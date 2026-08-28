@@ -274,6 +274,9 @@ function validateSource(
       if (readString(source.content, "task_type") === "safe_range_attack_qualification") {
         validateSafeRangeTaskSource(source, issues);
       }
+      if (readString(source.content, "task_type") === "forest_medium_initiation") {
+        validateForestMediumTaskSource(source, issues);
+      }
       break;
     case "glyph_catalog":
       validateArrayIds(source, "glyphs", "canonicalWordId", issues);
@@ -831,6 +834,9 @@ function validateCrossDomainReferences(
       }
       if (readString(source.content, "task_type") === "safe_range_attack_qualification") {
         validateSafeRangeTaskReferences(source, sources, indexes, issues);
+      }
+      if (readString(source.content, "task_type") === "forest_medium_initiation") {
+        validateForestMediumTaskReferences(source, sources, issues);
       }
     }
     if (source.kind === "p0_curriculum") {
@@ -1872,6 +1878,96 @@ function validateEcologySource(source: CompiledSource, issues: ContentIssue[]): 
       readNestedNumber(fox, ["defensive_action", "guarding_young_damage_provisional"]) !== 8 || !readString(fox, "real_escape_exit") ||
       !readString(fox, "cross_scene_return_condition").includes("fox_den_intact")) {
     addIssue(issues, "ecology.fox_runtime_fields", source.path, "entities", "fox requires canonical defense, real escape, and den-aware return fields");
+  }
+}
+
+function validateForestMediumTaskSource(source: CompiledSource, issues: ContentIssue[]): void {
+  const medium = readObject(source.content, "medium");
+  const routes = readObjectArray(source.content, "hermit_routes");
+  const practice = readObject(source.content, "hermit_practice");
+  const routePairs = routes.map((route) => [readString(route, "route_id"), readString(route, "authority_scene_id")]);
+  const canonical =
+    source.schemaVersion === "g01.task.infrastructure.v0.1" &&
+    readString(source.content, "content_version") === "chapter-01.medium-hermit.1" &&
+    readString(source.content, "task_id") === "ch01_medium_hermit_initiation" &&
+    readString(source.content, "chapter_flow_id") === "ch01_world_literacy_prologue" &&
+    readString(source.content, "region_node_id") === "valley.stream_section" &&
+    readString(source.content, "scene_ref") === "../scenes/valley-stream-section.v0.1.yaml" &&
+    sameStringArray(readStringArray(source.content, "required_event_sequence"), [
+      "waterwheel_goal_committed",
+      "forest_medium_discovered",
+      "forest_hermit_route_committed",
+      "forest_telo_initiation_committed",
+    ]) &&
+    readString(medium, "medium_id") === "artifact.ancient_medium_frame" &&
+    readString(medium, "shard_id") === "artifact.fragment.forest_site" &&
+    readString(medium, "discovery_scene_id") === "scene.valley.waterwheel" &&
+    readString(medium, "discovery_target_id") === "waterwheel.sealed_maintenance_room" &&
+    readString(medium, "discovery_event") === "forest_medium_discovered" &&
+    medium.tradable === false && medium.droppable === false && medium.loss_on_defeat === false &&
+    readString(source.content, "disclosure_event") === "forest_medium_disclosure_committed" &&
+    routePairs.length === 3 &&
+    routePairs.every(([routeId, authoritySceneId], index) =>
+      routeId === ["medium.tell_facility_worker", "medium.follow_fragment_markers", "medium.ask_external_trader"][index] &&
+      authoritySceneId === ["scene.valley.settlement", "scene.valley.stream_section", "scene.valley.settlement"][index],
+    ) &&
+    readString(practice, "authority_scene_id") === "scene.valley.stream_section" &&
+    readString(practice, "hermit_target_id") === "stream.hermit" &&
+    readString(practice, "natural_water_target_id") === "stream.hermit_water_basin" &&
+    readString(practice, "stable_tool_target_id") === "stream.hermit_wooden_channel" &&
+    readString(practice, "focus_word_id") === "word.telo" &&
+    sameStringArray(readStringArray(practice, "required_actions"), [
+      "observe_natural_water",
+      "predict_manifest_path",
+      "perform_low_mp_telo",
+      "stabilize_with_tool",
+    ]) &&
+    readString(practice, "completion_event") === "forest_telo_initiation_committed" &&
+    source.content.automatic_word_mastery_forbidden === true &&
+    source.content.automatic_mp_increase_forbidden === true;
+  if (!canonical) {
+    addIssue(issues, "task.forest_medium_contract", source.path, "", "forest medium initiation contract is noncanonical");
+  }
+}
+
+function validateForestMediumTaskReferences(
+  source: CompiledSource,
+  sources: readonly CompiledSource[],
+  issues: ContentIssue[],
+): void {
+  const scenes = new Map(
+    sources
+      .filter((candidate) => candidate.kind === "scene")
+      .map((candidate) => [readString(candidate.content, "scene_id"), candidate]),
+  );
+  const medium = readObject(source.content, "medium");
+  const practice = readObject(source.content, "hermit_practice");
+  const hasTarget = (sceneId: string, targetId: string): boolean => {
+    const scene = scenes.get(sceneId);
+    return scene !== undefined && readObjectArray(scene.content, "targets")
+      .some((target) => readString(target, "target_id") === targetId);
+  };
+  const hasScene = (sceneId: string): boolean => scenes.has(sceneId);
+  const routeScenesExist = readObjectArray(source.content, "hermit_routes")
+    .every((route) => hasScene(readString(route, "authority_scene_id")));
+  const region = sources.find((candidate) => candidate.kind === "region" && readString(candidate.content, "region_id") === "valley_prologue");
+  const eventCommitPoints = region ? readObject(region.content, "event_commit_points") : {};
+  const requiredEvents = readStringArray(source.content, "required_event_sequence");
+  const waterwheelIndex = requiredEvents.indexOf("waterwheel_goal_committed");
+  const discoveryIndex = requiredEvents.indexOf("forest_medium_discovered");
+  const referencesValid =
+    resolveReferencedSource(source, readString(source.content, "scene_ref"), sources)?.content === scenes.get("scene.valley.stream_section")?.content &&
+    hasTarget(readString(medium, "discovery_scene_id"), readString(medium, "discovery_target_id")) &&
+    hasScene(readString(practice, "authority_scene_id")) &&
+    hasTarget(readString(practice, "authority_scene_id"), readString(practice, "hermit_target_id")) &&
+    hasTarget(readString(practice, "authority_scene_id"), readString(practice, "natural_water_target_id")) &&
+    hasTarget(readString(practice, "authority_scene_id"), readString(practice, "stable_tool_target_id")) &&
+    routeScenesExist &&
+    waterwheelIndex !== -1 && discoveryIndex === waterwheelIndex + 1 &&
+    isContentObject(eventCommitPoints.waterwheel_goal_committed) &&
+    isContentObject(eventCommitPoints.forest_medium_discovered);
+  if (!referencesValid) {
+    addIssue(issues, "ref.forest_medium", source.path, "scene_ref", "forest medium initiation references are invalid");
   }
 }
 

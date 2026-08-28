@@ -246,8 +246,10 @@ facilities:
 
 interactions:
   - {interaction_id: "settlement.talk_facility_manager", target_id: "settlement.npc.facility_manager", verb: "talk", npc_id: "settlement.npc.facility_manager", tool_or_magic_required: false}
+  - {interaction_id: "settlement.disclose_medium_to_facility_worker", target_id: "settlement.npc.facility_manager", verb: "disclose_medium", npc_id: "settlement.npc.facility_manager", tool_or_magic_required: false}
   - {interaction_id: "settlement.talk_repair_contractor", target_id: "settlement.npc.repair_contractor", verb: "talk", npc_id: "settlement.npc.repair_contractor", tool_or_magic_required: false}
   - {interaction_id: "settlement.talk_supply_trader", target_id: "settlement.npc.supply_trader", verb: "talk", npc_id: "settlement.npc.supply_trader", tool_or_magic_required: false}
+  - {interaction_id: "settlement.ask_external_trader_about_medium", target_id: "settlement.npc.supply_trader", verb: "ask_about_medium", npc_id: "settlement.npc.supply_trader", tool_or_magic_required: false}
   - {interaction_id: "settlement.talk_butcher", target_id: "settlement.npc.butcher", verb: "talk", npc_id: "settlement.npc.butcher", tool_or_magic_required: false}
   - {interaction_id: "settlement.talk_tanner", target_id: "settlement.npc.tanner", verb: "talk", npc_id: "settlement.npc.tanner", tool_or_magic_required: false}
   - {interaction_id: "settlement.draw_public_water", target_id: "settlement.public_well", verb: "drink_or_fill", facility_id: "settlement.facility.public_well", tool_or_magic_required: false}
