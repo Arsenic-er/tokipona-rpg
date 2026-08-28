@@ -4,21 +4,22 @@ This gate evaluates anonymized, observed playtest summaries against the authored
 three-hour prologue thresholds. It does not generate samples, infer human
 participation, or treat the deterministic acceptance runner as playtest data.
 
-## Run the deterministic release gate
+## Current release-certification boundary
 
-Before collecting or evaluating human observations, run the fixed release scenarios:
+The authored N07 return now enters the underground order node. Its runtime
+allocation/epilogue handoff is not implemented, so this command currently
+blocks certification with `underground_handoff_required` and exits `1`:
 
 ```powershell
 pnpm run acceptance:three-hour
 ```
 
-This command runs the primary and alternate non-attack routes with injected soft-lock recovery,
-plus the formal low-hint qualification route. It requires 180 content-active minutes per scenario,
-the authored exclusive activity shares and cadence, reloadable saves, the N07 return deltas, the
-old-mine peaceful exit, zero kills/harm, and qualification before the 180-minute deadline. Its JSON
-output is aggregate-only: it excludes saves, ledgers, telemetry events, receipts, raw text, and
-player/session identity. It is a deterministic software release gate, never a replacement for the
-observed cohort below.
+It is the release-facing certification gate, not a boundary/unit check. It must
+remain nonzero until the underground runtime handoff exists; it does not certify
+the old-mine threshold, formal qualification, a completed three-hour scenario,
+or human/public release today. Focused runtime tests separately verify that
+completed N07 returns fail closed without mutating the save. Those boundary tests
+are not completed certification and do not authorize release.
 
 ## Collect a browser sample
 
@@ -100,7 +101,11 @@ After the cohort report is accepted and the separate private-asset handoff is ap
 pnpm run release:check -- .\private-input\prologue-cohort.json
 ```
 
-This is stricter than `pnpm run verify`: it requires the deterministic three-hour predecessor gate,
-approved and hash-matched core-120 runtime assets, and a nonempty observed cohort whose authored
-thresholds all pass. The output contains only asset/cohort statuses, sample count, and blocker codes;
+This remains the final public-release command, but it is currently blocked before
+asset or cohort evaluation because its `acceptance:three-hour` predecessor exits
+with `underground_handoff_required`. Certification and human/public release must
+wait for the authored underground runtime handoff. Once that implementation
+exists, the command will additionally require approved and hash-matched Core-120
+runtime assets and a nonempty observed cohort whose authored thresholds all pass.
+Its output contains only asset/cohort statuses, sample count, and blocker codes;
 it does not echo the cohort ID or individual session data.

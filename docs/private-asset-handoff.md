@@ -99,17 +99,24 @@ public glyph file set, atlas hash, and Core-120 metadata cross-check. It emits
 for the intentional no-export state, emits
 `safe_blocked_pending_external_approval`.
 
-The ordinary `verify` command intentionally accepts that safe blocked state so code can continue to
-ship through CI without private assets. It is not a production-release approval. Once an anonymized
-observed cohort has also been collected, run the stricter final gate:
+The ordinary `verify` command is not a production-release approval. It currently
+also stops at the nonzero three-hour certification gate with
+`underground_handoff_required`, because the authored N07 return requires an
+unimplemented underground allocation/epilogue runtime handoff. Focused unit
+coverage of that fail-closed boundary is not completed certification and does
+not authorize human or public release. Once the runtime handoff and an
+anonymized observed cohort exist, run the stricter final gate:
 
 ```powershell
 pnpm run release:check -- .\private-input\prologue-cohort.json
 ```
 
-`release:check` first reruns the deterministic three-hour scenarios, then requires
-`approved_runtime_assets_verified` and an accepted, nonempty observed cohort. The current checked-in
-state must fail this command with `approved_runtime_assets_required`; do not weaken that result.
+`release:check` first runs the release-facing three-hour certification. The
+current checked-in state must fail at that predecessor with
+`underground_handoff_required`; it does not currently reach asset or cohort
+evaluation. After the underground runtime handoff is implemented, it will also
+require `approved_runtime_assets_verified` and an accepted, nonempty observed
+cohort. Do not weaken either readiness result.
 
 Remote push and release tagging remain separate approval-gated operations. Never push the private
 asset repository or its review/source material through the public code workflow.
