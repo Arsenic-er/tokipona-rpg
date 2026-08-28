@@ -33,7 +33,7 @@
     }
   },
   "scenes": {
-    "sourceDigest": "sha256:9df0459ea40243b7a40e8eb94a6ca81e2360eb95dc5fa17d8a00861435e40cb7",
+    "sourceDigest": "sha256:45a7dd66fa7bbd0d2012fab0267c7fd6be47878d3486c20db91c371d33a158b6",
     "byId": {
       "scene.valley.arrival_shelf": {
         "sceneId": "scene.valley.arrival_shelf",
@@ -1582,6 +1582,51 @@
               25,
               1
             ]
+          },
+          {
+            "id": "return_wetland.large_creature.nest_trace",
+            "kind": "large_creature_nest_trace",
+            "material": "reeds_mud_and_shell",
+            "interactionPointTiles": [
+              3,
+              8
+            ]
+          },
+          {
+            "id": "return_wetland.large_creature.young_trace",
+            "kind": "large_creature_young_trace",
+            "material": "wet_mud_and_reed_down",
+            "interactionPointTiles": [
+              7,
+              8
+            ]
+          },
+          {
+            "id": "return_wetland.large_creature.migration_channel",
+            "kind": "blocked_migration_channel",
+            "material": "water_mud_and_fallen_reeds",
+            "interactionPointTiles": [
+              11,
+              8
+            ]
+          },
+          {
+            "id": "return_wetland.large_creature.food_scent_guide",
+            "kind": "food_and_scent_guide",
+            "material": "reeds_roots_and_scent_marker",
+            "interactionPointTiles": [
+              15,
+              8
+            ]
+          },
+          {
+            "id": "return_wetland.large_creature.nonlethal_barrier",
+            "kind": "nonlethal_wetland_barrier",
+            "material": "wood_reed_and_stone",
+            "interactionPointTiles": [
+              19,
+              8
+            ]
           }
         ],
         "interactions": [
@@ -2955,6 +3000,16 @@
             "taskId": null
           },
           {
+            "id": "settlement.disclose_medium_to_facility_worker",
+            "targetId": "settlement.npc.facility_manager",
+            "verb": "disclose_medium",
+            "toolOrMagicRequired": false,
+            "optionalWordId": null,
+            "npcId": "settlement.npc.facility_manager",
+            "facilityId": null,
+            "taskId": null
+          },
+          {
             "id": "settlement.talk_repair_contractor",
             "targetId": "settlement.npc.repair_contractor",
             "verb": "talk",
@@ -2968,6 +3023,16 @@
             "id": "settlement.talk_supply_trader",
             "targetId": "settlement.npc.supply_trader",
             "verb": "talk",
+            "toolOrMagicRequired": false,
+            "optionalWordId": null,
+            "npcId": "settlement.npc.supply_trader",
+            "facilityId": null,
+            "taskId": null
+          },
+          {
+            "id": "settlement.ask_external_trader_about_medium",
+            "targetId": "settlement.npc.supply_trader",
+            "verb": "ask_about_medium",
             "toolOrMagicRequired": false,
             "optionalWordId": null,
             "npcId": "settlement.npc.supply_trader",
@@ -3704,6 +3769,24 @@
             "kind": "channel",
             "material": "wood",
             "interactionPointTiles": null
+          },
+          {
+            "id": "stream.hermit",
+            "kind": "npc",
+            "material": "living_noncombatant",
+            "interactionPointTiles": null
+          },
+          {
+            "id": "stream.hermit_water_basin",
+            "kind": "natural_water_source",
+            "material": "water_and_stone",
+            "interactionPointTiles": null
+          },
+          {
+            "id": "stream.hermit_wooden_channel",
+            "kind": "stable_tool",
+            "material": "wood",
+            "interactionPointTiles": null
           }
         ],
         "interactions": [
@@ -3751,6 +3834,56 @@
             "id": "stream.guide_existing_water",
             "targetId": "stream.old_channel",
             "verb": "align",
+            "toolOrMagicRequired": false,
+            "optionalWordId": null,
+            "npcId": null,
+            "facilityId": null,
+            "taskId": null
+          },
+          {
+            "id": "stream.talk_hermit",
+            "targetId": "stream.hermit",
+            "verb": "talk",
+            "toolOrMagicRequired": false,
+            "optionalWordId": null,
+            "npcId": null,
+            "facilityId": null,
+            "taskId": null
+          },
+          {
+            "id": "stream.observe_hermit_water",
+            "targetId": "stream.hermit_water_basin",
+            "verb": "observe_natural_water",
+            "toolOrMagicRequired": false,
+            "optionalWordId": null,
+            "npcId": null,
+            "facilityId": null,
+            "taskId": null
+          },
+          {
+            "id": "stream.predict_hermit_manifest_path",
+            "targetId": "stream.hermit_water_basin",
+            "verb": "predict_manifest_path",
+            "toolOrMagicRequired": false,
+            "optionalWordId": null,
+            "npcId": null,
+            "facilityId": null,
+            "taskId": null
+          },
+          {
+            "id": "stream.perform_low_mp_telo",
+            "targetId": "stream.hermit_water_basin",
+            "verb": "perform_low_mp_telo",
+            "toolOrMagicRequired": null,
+            "optionalWordId": "word.telo",
+            "npcId": null,
+            "facilityId": null,
+            "taskId": null
+          },
+          {
+            "id": "stream.stabilize_hermit_channel",
+            "targetId": "stream.hermit_wooden_channel",
+            "verb": "stabilize_with_tool",
             "toolOrMagicRequired": false,
             "optionalWordId": null,
             "npcId": null,
@@ -4062,6 +4195,12 @@
             "kind": "public_relief",
             "material": "stone_and_water",
             "interactionPointTiles": null
+          },
+          {
+            "id": "waterwheel.sealed_maintenance_room",
+            "kind": "sealed_maintenance_room",
+            "material": "stone_wood_and_ancient_medium",
+            "interactionPointTiles": null
           }
         ],
         "interactions": [
@@ -4153,6 +4292,16 @@
             "optionalWordId": null,
             "npcId": null,
             "facilityId": "waterwheel.facility.maintenance_spout",
+            "taskId": null
+          },
+          {
+            "id": "waterwheel.discover_forest_medium",
+            "targetId": "waterwheel.sealed_maintenance_room",
+            "verb": "discover_artifact",
+            "toolOrMagicRequired": false,
+            "optionalWordId": null,
+            "npcId": null,
+            "facilityId": null,
             "taskId": null
           }
         ],
@@ -4858,7 +5007,12 @@
             "return_flow.mud_blockage",
             "return_flow.old_channel",
             "return_flow.split_flow_gauge",
-            "return_flow.return_spout"
+            "return_flow.return_spout",
+            "return_wetland.large_creature.nest_trace",
+            "return_wetland.large_creature.young_trace",
+            "return_wetland.large_creature.migration_channel",
+            "return_wetland.large_creature.food_scent_guide",
+            "return_wetland.large_creature.nonlethal_barrier"
           ],
           "solutionIds": [
             "return_flow.repair_overflow",

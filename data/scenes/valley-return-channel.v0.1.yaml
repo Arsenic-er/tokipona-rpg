@@ -90,6 +90,11 @@ targets:
   - {target_id: "return_flow.old_channel", target_kind: "reusable_old_channel", material: "stone_wet_soil_and_wood", interaction_point_tiles: [17, 1]}
   - {target_id: "return_flow.split_flow_gauge", target_kind: "inert_flow_gauge", material: "copper_and_wood", interaction_point_tiles: [21, 1]}
   - {target_id: "return_flow.return_spout", target_kind: "potable_return_spout", material: "stone_copper_and_water", interaction_point_tiles: [25, 1]}
+  - {target_id: "return_wetland.large_creature.nest_trace", target_kind: "large_creature_nest_trace", material: "reeds_mud_and_shell", interaction_point_tiles: [3, 8]}
+  - {target_id: "return_wetland.large_creature.young_trace", target_kind: "large_creature_young_trace", material: "wet_mud_and_reed_down", interaction_point_tiles: [7, 8]}
+  - {target_id: "return_wetland.large_creature.migration_channel", target_kind: "blocked_migration_channel", material: "water_mud_and_fallen_reeds", interaction_point_tiles: [11, 8]}
+  - {target_id: "return_wetland.large_creature.food_scent_guide", target_kind: "food_and_scent_guide", material: "reeds_roots_and_scent_marker", interaction_point_tiles: [15, 8]}
+  - {target_id: "return_wetland.large_creature.nonlethal_barrier", target_kind: "nonlethal_wetland_barrier", material: "wood_reed_and_stone", interaction_point_tiles: [19, 8]}
 
 interactions:
   - {interaction_id: "return.inspect_inert_force_indicator", target_id: "return_flow.inert_force_indicator", verb: "observe_inert_force_response", optional_word_id: "word.wawa", tool_or_magic_required: false}

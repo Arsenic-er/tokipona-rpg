@@ -191,6 +191,8 @@ state_registry:
   - {state_id: "forest_medium_disclosure_committed", type: boolean, initial: false, owner: "ch01_medium_hermit_initiation", persistence_scope: "region_persistent", save_owner: "valley_prologue_region_save", unique_writer_event: "forest_medium_disclosure_committed"}
   - {state_id: "forest_hermit_route_committed", type: boolean, initial: false, owner: "ch01_medium_hermit_initiation", persistence_scope: "region_persistent", save_owner: "valley_prologue_region_save", unique_writer_event: "forest_hermit_route_committed"}
   - {state_id: "forest_telo_initiation_completed", type: boolean, initial: false, owner: "ch01_medium_hermit_initiation", persistence_scope: "global", save_owner: "player_learning_save", unique_writer_event: "forest_telo_initiation_committed"}
+  - {state_id: "forest_large_creature_resolution", type: enum, values: [unresolved, migration_restored, guided, yielded, barrier, driven_away, killed], initial: unresolved, owner: "ch01_large_creature_crisis", persistence_scope: "region_persistent", save_owner: "valley_prologue_region_save", unique_writer_event: "forest_large_creature_resolution_committed"}
+  - {state_id: "forest_large_creature_life_state", type: enum, values: [alive, injured, dead], initial: alive, owner: "ecology.valley_prologue", persistence_scope: "region_persistent", save_owner: "valley_ecology_save", unique_writer_events: [wildlife_damage_committed, wildlife_death_committed]}
   - {state_id: "service_channel_reached", type: boolean, initial: false, owner: "region", persistence_scope: "region_persistent", save_owner: "valley_prologue_region_save", unique_writer_event: "service_channel_entry_crossed"}
   - {state_id: "service_gate_open", type: boolean, initial: false, owner: "ch01_service_channel", persistence_scope: "region_persistent", save_owner: "valley_prologue_region_save", unique_writer_event: "service_gate_solution_committed"}
   - {state_id: "service_bypass_open", type: boolean, initial: false, owner: "ch01_service_channel", persistence_scope: "region_persistent", save_owner: "valley_prologue_region_save", unique_writer_event: "service_bypass_solution_committed"}
@@ -235,6 +237,16 @@ event_commit_points:
   forest_telo_initiation_committed:
     owner: "ch01_medium_hermit_initiation"
     atomic_writes: {forest_telo_initiation_completed: true}
+  forest_large_creature_resolution_committed:
+    owner: "ch01_large_creature_crisis"
+    source_task_ref: "../../tasks/ch01-large-creature-crisis.v0.1.yaml"
+    writes_enum: {forest_large_creature_resolution: [migration_restored, guided, yielded, barrier, driven_away, killed]}
+  wildlife_damage_committed:
+    owner: "ecology.valley_prologue"
+    writes_enum: {forest_large_creature_life_state: [injured]}
+  wildlife_death_committed:
+    owner: "ecology.valley_prologue"
+    writes_enum: {forest_large_creature_life_state: [dead]}
   waterwheel_result_committed:
     owner: "ch01_waterwheel"
     writes_enum: {waterwheel_mode: [temporary_driven, structurally_restored]}

@@ -278,6 +278,10 @@ function validateSource(
           readString(source.content, "task_type") === "forest_medium_initiation") {
         validateForestMediumTaskSource(source, issues);
       }
+      if (source.path === "data/tasks/ch01-large-creature-crisis.v0.1.yaml" ||
+          readString(source.content, "task_type") === "forest_large_creature_crisis") {
+        validateForestLargeCreatureTaskSource(source, issues);
+      }
       break;
     case "glyph_catalog":
       validateArrayIds(source, "glyphs", "canonicalWordId", issues);
@@ -840,6 +844,10 @@ function validateCrossDomainReferences(
           readString(source.content, "task_type") === "forest_medium_initiation") {
         validateForestMediumTaskReferences(source, sources, issues);
       }
+      if (source.path === "data/tasks/ch01-large-creature-crisis.v0.1.yaml" ||
+          readString(source.content, "task_type") === "forest_large_creature_crisis") {
+        validateForestLargeCreatureTaskReferences(source, sources, issues);
+      }
     }
     if (source.kind === "p0_curriculum") {
       for (const wordId of p0Ids) {
@@ -1061,7 +1069,7 @@ function validateInfrastructureTaskReferences(
 function validateReturnFlowTaskReferences(source: CompiledSource, sources: readonly CompiledSource[], sceneSource: CompiledSource | undefined, region: ContentObject | undefined, issues: ContentIssue[]): void {
   const targets = sceneSource ? readObjectArray(sceneSource.content, "targets").map(x => readString(x, "target_id")) : [];
   const sceneTargets=sceneSource?readObjectArray(sceneSource.content,"targets"):[]; const indicator=sceneTargets.find(x=>readString(x,"target_id")==="return_flow.inert_force_indicator");
-  if (!sceneSource || readString(sceneSource.content, "scene_id") !== "scene.valley.return_channel" || readString(indicator??{},"target_kind")!=="inert_return_flow_mechanism" || !sameStringArray(targets, ["return_flow.inert_force_indicator", "return_flow.overflow_gate", "return_flow.mud_blockage", "return_flow.old_channel", "return_flow.split_flow_gauge", "return_flow.return_spout"])) addIssue(issues, "task.return_flow_scene", source.path, "scene_ref", "N07 scene identity and six targets must remain canonical");
+  if (!sceneSource || readString(sceneSource.content, "scene_id") !== "scene.valley.return_channel" || readString(indicator??{},"target_kind")!=="inert_return_flow_mechanism" || !sameStringArray(targets.slice(0, 6), ["return_flow.inert_force_indicator", "return_flow.overflow_gate", "return_flow.mud_blockage", "return_flow.old_channel", "return_flow.split_flow_gauge", "return_flow.return_spout"])) addIssue(issues, "task.return_flow_scene", source.path, "scene_ref", "N07 scene identity and six targets must remain canonical");
   const ecology = resolveReferencedSource(source, readString(source.content, "ecology_ref"), sources), graph = resolveReferencedSource(source, readString(source.content, "evidence_graph_ref"), sources);
   const event = ecology?.kind === "ecology" ? readObjectArray(ecology.content, "events").find(x => readString(x, "event_id") === "wildlife_return_after_flow") : undefined;
   if (!ecology || ecology.kind !== "ecology" || !event || !sameStringArray(readStringArray(readObject(event, "trigger"), "all"), ["settlement_supply_stable == true", "wet_meadow_restored == true"]) || event.persistent_write !== null || event.attack_qualification_evidence !== false || event.attack_unlock !== false) addIssue(issues, "task.return_flow_ecology", source.path, "ecology_ref", "N07 ecology return event must be typed, zero-attack and nonpersistent");
@@ -1880,6 +1888,110 @@ function validateEcologySource(source: CompiledSource, issues: ContentIssue[]): 
       readNestedNumber(fox, ["defensive_action", "guarding_young_damage_provisional"]) !== 8 || !readString(fox, "real_escape_exit") ||
       !readString(fox, "cross_scene_return_condition").includes("fox_den_intact")) {
     addIssue(issues, "ecology.fox_runtime_fields", source.path, "entities", "fox requires canonical defense, real escape, and den-aware return fields");
+  }
+  const largeCreatures = entities.filter((entity) => readString(entity, "entity_id") === "wildlife.valley.large_semiaquatic_nester");
+  const largeCreature = largeCreatures[0];
+  const largeCreatureContractValid = largeCreatures.length === 1 && largeCreature !== undefined &&
+    readString(largeCreature, "species") === "large_semiaquatic_nester" &&
+    readString(largeCreature, "instance_id_strategy") === "life_instance_id_formula" &&
+    readString(largeCreature, "life_state_ref") === "valley_ecology_save.life_instances" &&
+    readString(largeCreature, "home_scene") === "scene.valley.return_channel" &&
+    readString(largeCreature, "spawn_anchor") === "return_wetland.large_creature.waterway" &&
+    readString(largeCreature, "nest_id") === "return_wetland.large_creature.nest" &&
+    readString(largeCreature, "young_id") === "return_wetland.large_creature.young" &&
+    readString(largeCreature, "food_need") === "wetland_reeds_and_rootbeds" &&
+    readString(largeCreature, "water_need") === "open_return_channel_water" &&
+    readString(largeCreature, "warning_telegraph") === "tail_slap_and_reed_parting" &&
+    readString(largeCreature, "real_escape_exit") === "return_wetland.large_creature.migration_outlet" &&
+    sameStringArray(readStringArray(largeCreature, "behavior_states"), [
+      "nesting", "searching_for_young", "warning", "defending", "fleeing", "resettling", "dead",
+    ]) &&
+    largeCreature.mainline_quest_drop_id === null &&
+    largeCreature.language_evidence_from_harm === false &&
+    largeCreature.attack_qualification_evidence_from_harm === false;
+  if (!largeCreatureContractValid) {
+    addIssue(issues, "ecology.forest_large_creature", source.path, "entities", "the forest large creature requires one persistent nest, young, warning, escape, no-drop, and no-harm-evidence contract");
+  }
+}
+
+function validateForestLargeCreatureTaskSource(source: CompiledSource, issues: ContentIssue[]): void {
+  const resolutionIds = [
+    "restore_migration_channel", "guide_with_food_and_scent", "wait_and_yield",
+    "install_nonlethal_barrier", "drive_away_by_combat", "kill",
+  ];
+  const expectedResults = ["migration_restored", "guided", "yielded", "barrier", "driven_away", "killed"];
+  const resolutions = readObjectArray(source.content, "resolutions");
+  const canonical =
+    source.schemaVersion === "g01.task.forest-large-creature.v0.1" &&
+    readString(source.content, "content_version") === "chapter-01.large-creature-crisis.1" &&
+    readString(source.content, "task_id") === "ch01_large_creature_crisis" &&
+    readString(source.content, "task_type") === "forest_large_creature_crisis" &&
+    readString(source.content, "chapter_flow_id") === "ch01_world_literacy_prologue" &&
+    readString(source.content, "region_id") === "valley_prologue" &&
+    readString(source.content, "region_node_id") === "valley.return_channel" &&
+    readString(source.content, "scene_ref") === "../scenes/valley-return-channel.v0.1.yaml" &&
+    readString(source.content, "ecology_ref") === "../ecology/valley-prologue.v0.1.yaml" &&
+    readString(source.content, "wildlife_entity_id") === "wildlife.valley.large_semiaquatic_nester" &&
+    readString(source.content, "resolution_event") === "forest_large_creature_resolution_committed" &&
+    sameStringArray(readStringArray(source.content, "resolution_ids"), resolutionIds) &&
+    source.content.mandatory_kill === false &&
+    source.content.mainline_quest_drop_id === null &&
+    source.content.language_evidence_from_harm === false &&
+    source.content.attack_qualification_evidence_from_harm === false &&
+    resolutions.length === resolutionIds.length &&
+    resolutions.every((resolution, index) =>
+      readString(resolution, "resolution_id") === resolutionIds[index] &&
+      readString(resolution, "result_state") === expectedResults[index] &&
+      readStringArray(resolution, "world_predicates").length > 0 &&
+      readStringArray(resolution, "target_ids").length > 0 &&
+      readString(resolution, "completion_event") === "forest_large_creature_resolution_committed",
+    );
+  if (!canonical) {
+    addIssue(issues, "task.forest_large_creature_contract", source.path, "", "forest large-creature crisis must retain its six resolutions, zero mandatory kill/drop, and zero harm-derived learning or qualification evidence");
+  }
+}
+
+function validateForestLargeCreatureTaskReferences(
+  source: CompiledSource,
+  sources: readonly CompiledSource[],
+  issues: ContentIssue[],
+): void {
+  const scene = resolveReferencedSource(source, readString(source.content, "scene_ref"), sources);
+  const ecology = resolveReferencedSource(source, readString(source.content, "ecology_ref"), sources);
+  const region = sources.find((candidate) => candidate.kind === "region" && readString(candidate.content, "region_id") === "valley_prologue");
+  const targetIds = new Set(scene?.kind === "scene" ? readObjectArray(scene.content, "targets").map((target) => readString(target, "target_id")) : []);
+  const referencedTargets = readObjectArray(source.content, "resolutions").flatMap((resolution) => readStringArray(resolution, "target_ids"));
+  const ecologyHasCreature = ecology?.kind === "ecology" && readObjectArray(ecology.content, "entities")
+    .some((entity) => readString(entity, "entity_id") === "wildlife.valley.large_semiaquatic_nester");
+  const states = new Map(region ? readObjectArray(region.content, "state_registry")
+    .map((state) => [readString(state, "state_id"), state]) : []);
+  const commitPoints = region ? readObject(region.content, "event_commit_points") : {};
+  const resolutionState = states.get("forest_large_creature_resolution");
+  const lifeState = states.get("forest_large_creature_life_state");
+  const resolutionWriter = readObject(commitPoints, "forest_large_creature_resolution_committed");
+  const damageWriter = readObject(commitPoints, "wildlife_damage_committed");
+  const deathWriter = readObject(commitPoints, "wildlife_death_committed");
+  const stateContractsValid =
+    resolutionState !== undefined &&
+    readString(resolutionState, "owner") === "ch01_large_creature_crisis" &&
+    readString(resolutionState, "unique_writer_event") === "forest_large_creature_resolution_committed" &&
+    sameStringArray(readStringArray(resolutionState, "values"), ["unresolved", "migration_restored", "guided", "yielded", "barrier", "driven_away", "killed"]) &&
+    resolutionState.initial === "unresolved" &&
+    lifeState !== undefined &&
+    readString(lifeState, "owner") === "ecology.valley_prologue" &&
+    sameStringArray(readStringArray(lifeState, "values"), ["alive", "injured", "dead"]) &&
+    lifeState.initial === "alive" &&
+    sameStringArray(readStringArray(lifeState, "unique_writer_events"), ["wildlife_damage_committed", "wildlife_death_committed"]) &&
+    readString(resolutionWriter, "owner") === "ch01_large_creature_crisis" &&
+    sameStringArray(readStringArray(readObject(resolutionWriter, "writes_enum"), "forest_large_creature_resolution"), ["migration_restored", "guided", "yielded", "barrier", "driven_away", "killed"]) &&
+    readString(damageWriter, "owner") === "ecology.valley_prologue" &&
+    sameStringArray(readStringArray(readObject(damageWriter, "writes_enum"), "forest_large_creature_life_state"), ["injured"]) &&
+    readString(deathWriter, "owner") === "ecology.valley_prologue" &&
+    sameStringArray(readStringArray(readObject(deathWriter, "writes_enum"), "forest_large_creature_life_state"), ["dead"]);
+  if (!scene || scene.kind !== "scene" || readString(scene.content, "scene_id") !== "scene.valley.return_channel" ||
+      !ecologyHasCreature || referencedTargets.length === 0 || referencedTargets.some((targetId) => !targetIds.has(targetId)) ||
+      !stateContractsValid) {
+    addIssue(issues, "ref.forest_large_creature", source.path, "scene_ref", "forest large-creature crisis must reference its ecology entity, all authored return-wetland targets, state registries, and writer events");
   }
 }
 

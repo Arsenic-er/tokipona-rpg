@@ -1,0 +1,61 @@
+schema_version: "g01.task.forest-large-creature.v0.1"
+content_version: "chapter-01.large-creature-crisis.1"
+task_id: "ch01_large_creature_crisis"
+task_type: "forest_large_creature_crisis"
+chapter_flow_id: "ch01_world_literacy_prologue"
+region_id: "valley_prologue"
+region_node_id: "valley.return_channel"
+scene_ref: "../scenes/valley-return-channel.v0.1.yaml"
+ecology_ref: "../ecology/valley-prologue.v0.1.yaml"
+wildlife_entity_id: "wildlife.valley.large_semiaquatic_nester"
+resolution_event: "forest_large_creature_resolution_committed"
+resolution_ids:
+  - "restore_migration_channel"
+  - "guide_with_food_and_scent"
+  - "wait_and_yield"
+  - "install_nonlethal_barrier"
+  - "drive_away_by_combat"
+  - "kill"
+mandatory_kill: false
+mainline_quest_drop_id: null
+language_evidence_from_harm: false
+attack_qualification_evidence_from_harm: false
+
+resolutions:
+  - resolution_id: "restore_migration_channel"
+    result_state: "migration_restored"
+    world_predicates: [migration_channel_cleared, young_trace_observed, escape_route_open]
+    target_ids: [return_wetland.large_creature.nest_trace, return_wetland.large_creature.young_trace, return_wetland.large_creature.migration_channel]
+    completion_event: "forest_large_creature_resolution_committed"
+  - resolution_id: "guide_with_food_and_scent"
+    result_state: "guided"
+    world_predicates: [food_and_scent_path_prepared, young_trace_observed, escape_route_open]
+    target_ids: [return_wetland.large_creature.young_trace, return_wetland.large_creature.food_scent_guide]
+    completion_event: "forest_large_creature_resolution_committed"
+  - resolution_id: "wait_and_yield"
+    result_state: "yielded"
+    world_predicates: [warning_telegraph_observed, player_yields_wetland, migration_route_clear]
+    target_ids: [return_wetland.large_creature.nest_trace, return_wetland.large_creature.migration_channel]
+    completion_event: "forest_large_creature_resolution_committed"
+  - resolution_id: "install_nonlethal_barrier"
+    result_state: "barrier"
+    world_predicates: [nonlethal_barrier_installed, young_route_preserved, escape_route_open]
+    target_ids: [return_wetland.large_creature.young_trace, return_wetland.large_creature.nonlethal_barrier]
+    completion_event: "forest_large_creature_resolution_committed"
+  - resolution_id: "drive_away_by_combat"
+    result_state: "driven_away"
+    world_predicates: [creature_left_wetland, escape_route_open, harm_reward_zero]
+    target_ids: [return_wetland.large_creature.migration_channel]
+    completion_event: "forest_large_creature_resolution_committed"
+  - resolution_id: "kill"
+    result_state: "killed"
+    world_predicates: [wildlife_death_committed, corpse_ledger_written_once, harm_reward_zero]
+    target_ids: [return_wetland.large_creature.migration_channel]
+    completion_event: "forest_large_creature_resolution_committed"
+
+recovery:
+  maximum_softlock_recovery_seconds: 60
+  actions: [restore_uncommitted_barrier_material, reopen_migration_escape_lane, preserve_living_creature_identity]
+  preserves: [forest_large_creature_life_state, learning_evidence, region_commits]
+
+golden_tests: []

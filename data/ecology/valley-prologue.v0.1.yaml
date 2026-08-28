@@ -123,6 +123,23 @@ entities:
     preferred_response: "move_with_water_level"
     cross_scene_return_condition: "life_state == alive && no_death_tombstone && wet_meadow_restored && settlement_supply_stable"
 
+  - entity_id: "wildlife.valley.large_semiaquatic_nester"
+    species: "large_semiaquatic_nester"
+    instance_id_strategy: "life_instance_id_formula"
+    life_state_ref: "valley_ecology_save.life_instances"
+    home_scene: "scene.valley.return_channel"
+    spawn_anchor: "return_wetland.large_creature.waterway"
+    nest_id: "return_wetland.large_creature.nest"
+    young_id: "return_wetland.large_creature.young"
+    food_need: "wetland_reeds_and_rootbeds"
+    water_need: "open_return_channel_water"
+    warning_telegraph: "tail_slap_and_reed_parting"
+    real_escape_exit: "return_wetland.large_creature.migration_outlet"
+    behavior_states: [nesting, searching_for_young, warning, defending, fleeing, resettling, dead]
+    mainline_quest_drop_id: null
+    language_evidence_from_harm: false
+    attack_qualification_evidence_from_harm: false
+
 events:
   - event_id: "rabbit_drinks_at_basin"
     trigger:
@@ -158,6 +175,12 @@ events:
     persistent_writes:
       fox_den_intact: "derived_from_den_structure"
     forbidden_writes: [den_route_open]
+
+  - event_id: "large_creature_crisis_observed"
+    trigger: "large_creature_blocks_return_wetland_channel_while_searching_for_young"
+    transition: "searching_for_young -> warning -> defending_or_fleeing"
+    guarantees: [visible_warning_telegraph, real_escape_exit, young_identity_persists]
+    forbidden_outputs: [required_kill, mainline_quest_drop, language_evidence_from_harm, attack_qualification_evidence_from_harm]
 
 reward_contract:
   on_harm: {language_xp: 0, attack_qualification_evidence: 0, key_items: 0, rare_drops: 0, direct_currency: 0}
