@@ -229,6 +229,42 @@ describe("PrologueWaterwheelSession generated N03/N04 slice", () => {
     expect(accepted.snapshot.session.learning.words.o).toBeUndefined();
   });
 
+  it("persists the lower-maintenance subarea across save/load and restores its service interactions", () => {
+    const session = fresh("infra.lower-maintenance.save");
+    enterService(session, "lower-maintenance");
+    expect(session.snapshot().session.checkpoint.id).toBe("checkpoint.valley.waterwheel.lower_maintenance.entry");
+
+    const loaded = PrologueWaterwheelSession.fromSave(JSON.parse(JSON.stringify(session.toSave())));
+    expect(loaded.snapshot()).toMatchObject({
+      mode: "service_channel",
+      taskId: SERVICE_TASK.id,
+      session: { checkpoint: { id: "checkpoint.valley.waterwheel.lower_maintenance.entry" } },
+    });
+    expect(loaded.discoverTawa("lower-maintenance.tawa").accepted).toBe(true);
+    expect(Object.values(loaded.snapshot().session.receiptIndex).some((receipt) =>
+      receipt.payloadHash.includes("service.observe_water_motion")
+    )).toBe(true);
+    expect(loaded.readGrammarOSign("lower-maintenance.o").accepted).toBe(true);
+    expect(loaded.completeServiceSolution("lower-maintenance.solution", "service.open_bypass_valve", {
+      completedActionIds: requiredActions(SERVICE_TASK.id, "service.open_bypass_valve"),
+      world: serviceWorldBySolution["service.open_bypass_valve"]!,
+    }).accepted).toBe(true);
+
+    const returned = loaded.returnToWaterwheel("lower-maintenance.return");
+    expect(returned).toMatchObject({
+      accepted: true,
+      snapshot: {
+        mode: "waterwheel",
+        session: { checkpoint: { id: "checkpoint.valley.waterwheel.from_lower_maintenance" } },
+      },
+    });
+    expect(returned.snapshot.session.checkpoint.id).not.toBe("checkpoint.valley.waterwheel.from_cistern");
+    expect(loaded.discoverTawa("lower-maintenance.main-tawa").accepted).toBe(true);
+    expect(Object.values(loaded.snapshot().session.receiptIndex).some((receipt) =>
+      receipt.payloadHash.includes("waterwheel.inspect_motion_marker")
+    )).toBe(true);
+  });
+
   it("round-trips the sole GameSession save and resets area state without erasing region progress", () => {
     const session = fresh("infra.save-reset");
     finishWaterwheel(session, "waterwheel.repair_axle", "persist");

@@ -180,6 +180,7 @@ state_registry:
   - {state_id: "waterwheel_mode", type: enum, values: [stopped, temporary_driven, structurally_restored], initial: stopped, owner: "ch01_waterwheel", persistence_scope: "region_persistent", save_owner: "valley_prologue_region_save", unique_writer_event: "waterwheel_result_committed"}
   - {state_id: "waterwheel_restored", type: boolean, initial: false, owner: "ch01_waterwheel", persistence_scope: "region_persistent", save_owner: "valley_prologue_region_save", derived_from: "waterwheel_mode == structurally_restored"}
   - {state_id: "maintenance_access_open", type: boolean, initial: false, owner: "ch01_waterwheel", persistence_scope: "region_persistent", save_owner: "valley_prologue_region_save", unique_writer_event: "waterwheel_goal_committed"}
+  - {state_id: "waterwheel_subarea_context", type: enum, values: [main_waterwheel, lower_maintenance], initial: main_waterwheel, owner: "ch01_service_channel", persistence_scope: "region_persistent", save_owner: "valley_prologue_region_save", unique_writer_events: [waterwheel_lower_maintenance_entered, waterwheel_lower_maintenance_returned]}
   - {state_id: "forest_medium_discovered", type: boolean, initial: false, owner: "ch01_medium_hermit_initiation", persistence_scope: "region_persistent", save_owner: "valley_prologue_region_save", unique_writer_event: "forest_medium_discovered"}
   - {state_id: "forest_medium_disclosure_committed", type: boolean, initial: false, owner: "ch01_medium_hermit_initiation", persistence_scope: "region_persistent", save_owner: "valley_prologue_region_save", unique_writer_event: "forest_medium_disclosure_committed"}
   - {state_id: "forest_hermit_route_committed", type: boolean, initial: false, owner: "ch01_medium_hermit_initiation", persistence_scope: "region_persistent", save_owner: "valley_prologue_region_save", unique_writer_event: "forest_hermit_route_committed"}
@@ -221,6 +222,12 @@ event_commit_points:
   waterwheel_goal_committed:
     owner: "ch01_waterwheel"
     atomic_writes: {waterwheel_stable: true, downstream_safe: true, maintenance_access_open: true}
+  waterwheel_lower_maintenance_entered:
+    owner: "ch01_service_channel"
+    atomic_writes: {waterwheel_subarea_context: lower_maintenance}
+  waterwheel_lower_maintenance_returned:
+    owner: "ch01_service_channel"
+    atomic_writes: {waterwheel_subarea_context: main_waterwheel}
   forest_medium_discovered:
     owner: "ch01_medium_hermit_initiation"
     atomic_writes: {forest_medium_discovered: true}

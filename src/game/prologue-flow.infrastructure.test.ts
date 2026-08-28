@@ -145,6 +145,28 @@ describe("PrologueFlowSession N03/N04 integration", () => {
     });
   });
 
+  it("restores the durable Waterwheel lower-maintenance context through flow save/load", () => {
+    const target = PrologueFlowSession.fresh({ sessionId: "flow.infrastructure.lower-maintenance" });
+    enterWaterwheel(target, "lower-maintenance");
+    repairWaterwheel(target, "lower-maintenance.waterwheel");
+    expect(target.enterServiceChannel("lower-maintenance.enter")).toMatchObject({ accepted: true });
+
+    const loaded = PrologueFlowSession.fromSave(JSON.parse(JSON.stringify(target.toSave())));
+    expect(loaded.snapshot()).toMatchObject({
+      mode: "infrastructure",
+      infrastructure: {
+        mode: "service_channel",
+        taskId: serviceTask.id,
+        session: { checkpoint: { id: "checkpoint.valley.waterwheel.lower_maintenance.entry" } },
+      },
+    });
+    expect(loaded.readGrammarOSign("lower-maintenance.o")).toMatchObject({ accepted: true });
+    expect(loaded.completeServiceSolution("lower-maintenance.solution", "service.open_bypass_valve", {
+      completedActionIds: requiredActions(serviceTask.id, "service.open_bypass_valve"),
+      world: { bypassValveOpen: true, bypassRouteClear: true },
+    })).toMatchObject({ accepted: true });
+  });
+
   it("wraps tawa/o, checkpoint/recovery, idempotency and fail-closed mode guards", () => {
     const target = PrologueFlowSession.fresh({ sessionId: "flow.infrastructure.contract" });
     expect(target.discoverTawa("wrong-mode.tawa")).toMatchObject({

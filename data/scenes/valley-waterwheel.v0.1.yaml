@@ -51,6 +51,14 @@ entrances:
     spawn_tile: [27, 1]
     recovery_entry: true
     checkpoint_policy: "return_route"
+  - entrance_id: "waterwheel.lower_maintenance.entry"
+    spawn_tile: [14, 1]
+    recovery_entry: true
+    checkpoint_policy: "internal_lower_maintenance_subarea"
+  - entrance_id: "waterwheel.from_lower_maintenance"
+    spawn_tile: [16, 1]
+    recovery_entry: false
+    checkpoint_policy: "internal_lower_maintenance_return"
 
 inbound_route_refs:
   - inbound_ref_id: "waterwheel.inbound_from_settlement"

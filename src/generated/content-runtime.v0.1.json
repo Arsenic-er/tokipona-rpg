@@ -33,7 +33,7 @@
     }
   },
   "scenes": {
-    "sourceDigest": "sha256:b21d696476b50f46483d1a19c5f5ceee856dd303b5e64abec998d484b2124d43",
+    "sourceDigest": "sha256:696fa50fbaa4a97f40c6c28db8cc893dccc0b067770144476df29d5c442e57ea",
     "byId": {
       "scene.valley.arrival_shelf": {
         "sceneId": "scene.valley.arrival_shelf",
@@ -3813,6 +3813,32 @@
             },
             "recoveryEntry": true,
             "checkpointPolicy": "return_route"
+          },
+          {
+            "id": "waterwheel.lower_maintenance.entry",
+            "spawnTile": [
+              14,
+              1
+            ],
+            "spawnPx": {
+              "x": 224,
+              "y": 482
+            },
+            "recoveryEntry": true,
+            "checkpointPolicy": "internal_lower_maintenance_subarea"
+          },
+          {
+            "id": "waterwheel.from_lower_maintenance",
+            "spawnTile": [
+              16,
+              1
+            ],
+            "spawnPx": {
+              "x": 256,
+              "y": 482
+            },
+            "recoveryEntry": false,
+            "checkpointPolicy": "internal_lower_maintenance_return"
           }
         ],
         "exits": [

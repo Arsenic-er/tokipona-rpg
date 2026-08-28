@@ -82,10 +82,6 @@ describe("N03/N04/N05/N07 infrastructure runtime artifact", () => {
         id: "ch01_service_channel",
         authoritativeTaskSourcePath: "data/tasks/ch01-service-channel.v0.1.yaml",
       }),
-      expect.objectContaining({
-        id: "ch01_service_channel",
-        authoritativeTaskSourcePath: "data/tasks/ch01-service-channel.v0.1.yaml",
-      }),
     ]));
     expect(waterwheel?.exits.find((exit) => exit.id === "waterwheel.to_high_cistern")?.target).toEqual({
       kind: "scene",

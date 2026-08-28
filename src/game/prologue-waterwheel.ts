@@ -72,7 +72,17 @@ const WATERWHEEL_ENTRY = requireOne(
   (entrance) => entrance.id === WATERWHEEL_SCENE.recovery.entryEntranceId,
   "waterwheel recovery entrance",
 );
-const SERVICE_ENTRY = WATERWHEEL_ENTRY;
+const WATERWHEEL_LOWER_MAINTENANCE_ENTRY = requireOne(
+  WATERWHEEL_SCENE.entrances,
+  (entrance) => entrance.id === "waterwheel.lower_maintenance.entry",
+  "waterwheel lower-maintenance entry",
+);
+const WATERWHEEL_RETURN_FROM_LOWER_MAINTENANCE = requireOne(
+  WATERWHEEL_SCENE.entrances,
+  (entrance) => entrance.id === "waterwheel.from_lower_maintenance",
+  "waterwheel lower-maintenance return entrance",
+);
+const SERVICE_ENTRY = WATERWHEEL_LOWER_MAINTENANCE_ENTRY;
 const WATERWHEEL_INBOUND_FROM_SETTLEMENT = requireOne(
   WATERWHEEL_SCENE.inboundRoutes,
   (route) => route.entranceId === WATERWHEEL_ENTRY.id,
@@ -209,6 +219,7 @@ export const PROLOGUE_INFRASTRUCTURE_REGION_FLAGS = Object.freeze({
   waterwheelRestored: "waterwheel_restored",
   waterwheelResultMode: "waterwheel_result_mode",
   waterwheelSolutionId: "waterwheel_solution_id",
+  activeSubareaContext: "waterwheel_subarea_context",
   serviceChannelEntryCrossed: "service_channel_entry_crossed",
   serviceGateOpen: "service_gate_open",
   serviceBypassOpen: "service_bypass_open",
@@ -403,6 +414,10 @@ const regionValue = (state: GameSessionState, flagId: string): WorldFlagValue | 
     flag.scope === "region" && flag.regionId === PROLOGUE_INFRASTRUCTURE_REGION_ID && flag.flagId === flagId
   )?.value;
 const regionTrue = (state: GameSessionState, flagId: string): boolean => regionValue(state, flagId) === true;
+const activeSubareaFrom = (state: GameSessionState): InfrastructureMode =>
+  regionValue(state, PROLOGUE_INFRASTRUCTURE_REGION_FLAGS.activeSubareaContext) === "lower_maintenance"
+    ? "service_channel"
+    : "waterwheel";
 const areaValue = (state: GameSessionState, areaId: string, flagId: string): WorldFlagValue | undefined =>
   Object.values(state.world.flags).find((flag) =>
     flag.scope === "area" && flag.areaId === areaId && flag.flagId === flagId
@@ -441,7 +456,7 @@ const checkpointForEntrance = (
 export class PrologueWaterwheelSession {
   private authoritativeSession: GameSession;
   private bridge!: GameSessionRuntimeBridge;
-  private activeSubarea: InfrastructureMode = "waterwheel";
+  private activeSubarea: InfrastructureMode;
 
   readExtensionLearning(port: ExtensionLearningRuntimePort): ExtensionLearningRuntimeView {
     return port.read(this.bridge, this.bridge.runtime.snapshot().sceneId);
@@ -459,6 +474,7 @@ export class PrologueWaterwheelSession {
       throw new Error("infrastructure session requires the generated N03 or N04 scene");
     }
     this.authoritativeSession = session;
+    this.activeSubarea = activeSubareaFrom(session.snapshot());
     this.rebuildBridge();
   }
 
@@ -527,6 +543,11 @@ export class PrologueWaterwheelSession {
         ) },
       },
       regionFlagDraft(`session.infrastructure.waterwheel.entry.flag.${id}`, "waterwheel_entry_crossed", true),
+      regionFlagDraft(
+        `session.infrastructure.waterwheel.entry.subarea.${id}`,
+        PROLOGUE_INFRASTRUCTURE_REGION_FLAGS.activeSubareaContext,
+        "main_waterwheel",
+      ),
       operationReceiptDraft(session.sessionId, id, fingerprint),
     );
     const commit = commitSessionProposal(session, { transactionId: id, drafts });
@@ -776,7 +797,7 @@ export class PrologueWaterwheelSession {
           payload: { sceneId: SERVICE_SCENE.sceneId },
         },
         {
-          eventId: `session.infrastructure.service.entry.checkpoint.${id}`,
+          eventId: `waterwheel_lower_maintenance_entered.checkpoint.${id}`,
           type: "checkpoint_set",
           payload: { checkpoint: checkpointForEntrance(
             state,
@@ -785,21 +806,21 @@ export class PrologueWaterwheelSession {
             SERVICE_ENTRY,
           ) },
         },
+        regionFlagDraft(
+          `waterwheel_lower_maintenance_entered.context.${id}`,
+          PROLOGUE_INFRASTRUCTURE_REGION_FLAGS.activeSubareaContext,
+          "lower_maintenance",
+        ),
         operationReceiptDraft(this.authoritativeSession.sessionId, id, fingerprint),
       ],
     });
-    if (result.accepted && !result.duplicate) this.activeSubarea = "service_channel";
     return this.result(result.accepted, result.duplicate, result.reason);
   }
 
   returnToWaterwheel(transactionId: string): InfrastructureActionResult {
     const id = requiredId(transactionId, "transactionId");
     if (!this.inServiceSubarea()) return this.result(false, false, "wrong_scene");
-    const entrance = requireOne(
-      WATERWHEEL_SCENE.entrances,
-      (candidate) => candidate.id === "waterwheel.from_cistern",
-      "waterwheel return entrance",
-    );
+    const entrance = WATERWHEEL_RETURN_FROM_LOWER_MAINTENANCE;
     const fingerprint = operationFingerprint("waterwheel_return", {
       sourceSceneId: SERVICE_SCENE.sceneId,
       targetSceneId: WATERWHEEL_SCENE.sceneId,
@@ -817,19 +838,24 @@ export class PrologueWaterwheelSession {
           payload: { sceneId: WATERWHEEL_SCENE.sceneId },
         },
         {
-          eventId: `session.infrastructure.waterwheel.return.checkpoint.${id}`,
+          eventId: `waterwheel_lower_maintenance_returned.checkpoint.${id}`,
           type: "checkpoint_set",
           payload: { checkpoint: checkpointForEntrance(
             state,
-            "checkpoint.valley.waterwheel.return",
+            "checkpoint.valley.waterwheel.from_lower_maintenance",
             WATERWHEEL_SCENE,
             entrance,
           ) },
         },
+        regionFlagDraft(
+          `waterwheel_lower_maintenance_returned.context.${id}`,
+          PROLOGUE_INFRASTRUCTURE_REGION_FLAGS.activeSubareaContext,
+          "main_waterwheel",
+        ),
         operationReceiptDraft(this.authoritativeSession.sessionId, id, fingerprint),
       ],
     });
-    if (result.accepted && !result.duplicate) { this.temporaryWaterwheelActive = false; this.activeSubarea = "waterwheel"; }
+    if (result.accepted && !result.duplicate) this.temporaryWaterwheelActive = false;
     return this.result(result.accepted, result.duplicate, result.reason);
   }
 
@@ -943,10 +969,8 @@ export class PrologueWaterwheelSession {
 
   discoverTawa(transactionId: string): InfrastructureLanguageActionResult {
     const id = requiredId(transactionId, "transactionId");
-    const scene = this.currentScene();
-    const interaction = scene.sceneId === WATERWHEEL_SCENE.sceneId
-      ? WATERWHEEL_MOTION_INTERACTION
-      : SERVICE_MOTION_INTERACTION;
+    const scene = this.currentPhysicalScene();
+    const interaction = this.currentMotionInteraction();
     const fingerprint = operationFingerprint("tawa_discovery", {
       sceneId: scene.sceneId,
       interactionId: interaction.id,
@@ -997,7 +1021,7 @@ export class PrologueWaterwheelSession {
     const task = this.inWaterwheel() ? WATERWHEEL_TASK : SERVICE_TASK;
     const solution = task.solutions.find((candidate) => candidate.id === attempt.solutionId);
     const fingerprint = operationFingerprint("tawa_grounding", {
-      sceneId: this.currentScene().sceneId,
+      sceneId: this.currentPhysicalScene().sceneId,
       taskId: task.id,
       attempt,
     });
@@ -1102,7 +1126,7 @@ export class PrologueWaterwheelSession {
     if (!Number.isFinite(position.x) || !Number.isFinite(position.y)) {
       throw new RangeError("checkpoint position must be finite");
     }
-    const scene = this.currentScene();
+    const scene = this.currentPhysicalScene();
     const fingerprint = operationFingerprint("checkpoint_set", {
       checkpointId: normalizedCheckpointId,
       sceneId: scene.sceneId,
@@ -1157,7 +1181,7 @@ export class PrologueWaterwheelSession {
 
   recoverSoftLock(transactionId: string): InfrastructureActionResult {
     const id = requiredId(transactionId, "transactionId");
-    const scene = this.currentScene();
+    const scene = this.currentPhysicalScene();
     const task = this.inWaterwheel() ? WATERWHEEL_TASK : SERVICE_TASK;
     const entrance = this.inWaterwheel() ? WATERWHEEL_ENTRY : SERVICE_ENTRY;
     const fingerprint = operationFingerprint("softlock_recovery", {
@@ -1252,6 +1276,7 @@ export class PrologueWaterwheelSession {
     const commit = commitSessionProposal(this.authoritativeSession, batch);
     if (!commit.committed) return this.result(false, false, "session_rejected");
     this.authoritativeSession = commit.session;
+    this.activeSubarea = activeSubareaFrom(commit.session.snapshot());
     this.rebuildBridge();
     return this.result(true, false, "committed");
   }
@@ -1280,8 +1305,12 @@ export class PrologueWaterwheelSession {
   private inWaterwheel(): boolean { return this.activeSubarea === "waterwheel" && this.inScene(WATERWHEEL_SCENE); }
   private inServiceSubarea(): boolean { return this.activeSubarea === "service_channel" && this.inScene(SERVICE_SCENE); }
 
-  private currentScene(): RuntimeSceneManifest {
+  private currentPhysicalScene(): RuntimeSceneManifest {
     return WATERWHEEL_SCENE;
+  }
+
+  private currentMotionInteraction() {
+    return this.inServiceSubarea() ? SERVICE_MOTION_INTERACTION : WATERWHEEL_MOTION_INTERACTION;
   }
 
   private rebuildBridge(): void {

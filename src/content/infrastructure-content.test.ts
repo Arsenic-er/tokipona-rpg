@@ -64,6 +64,14 @@ describe("N03/N04 infrastructure content contracts", () => {
     });
     expect(manifest.indexes.scenes["scene.valley.service_channel"]).toBeUndefined();
     expect(manifest.indexes.tasks.ch01_service_channel?.region_node_id).toBe("valley.waterwheel");
+    const waterwheelEntrances = objectArray(
+      manifest.indexes.scenes["scene.valley.waterwheel"] as unknown as MutableObject,
+      "entrances",
+    );
+    expect(waterwheelEntrances.map((entrance) => entrance.entrance_id)).toEqual(expect.arrayContaining([
+      "waterwheel.lower_maintenance.entry",
+      "waterwheel.from_lower_maintenance",
+    ]));
   });
 
   it("rejects a waterwheel contract where a temporary result persists", () => {
