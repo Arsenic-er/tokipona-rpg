@@ -16,6 +16,11 @@ required_event_sequence:
   - "forest_chapter_epilogue_committed"
 required_available_word_ids: [word.telo, word.tawa, word.wawa, word.lili, word.suli]
 required_artifact_id: "artifact.fragment.forest_site"
+automatic_word_meaning_grant_forbidden: true
+automatic_word_mastery_forbidden: true
+automatic_mp_increase_forbidden: true
+automatic_casting_grant_forbidden: true
+automatic_usable_spell_grant_forbidden: true
 allocation_modes:
   - mode_id: "settlement_priority"
     benefit_ids: [resident_water_stable, crops_stable]

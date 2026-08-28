@@ -2036,6 +2036,11 @@ function validateForestUndergroundTaskSource(source: CompiledSource, issues: Con
     sameStringArray(readStringArray(source.content, "required_event_sequence"), expectedEvents) &&
     sameStringArray(readStringArray(source.content, "required_available_word_ids"), ["word.telo", "word.tawa", "word.wawa", "word.lili", "word.suli"]) &&
     readString(source.content, "required_artifact_id") === "artifact.fragment.forest_site" &&
+    source.content.automatic_word_meaning_grant_forbidden === true &&
+    source.content.automatic_word_mastery_forbidden === true &&
+    source.content.automatic_mp_increase_forbidden === true &&
+    source.content.automatic_casting_grant_forbidden === true &&
+    source.content.automatic_usable_spell_grant_forbidden === true &&
     source.content.perfect_initial_balance_forbidden === true &&
     readString(source.content, "later_upgrade_mode") === "balanced_upgrade" &&
     sameStringArray(readStringArray(source.content, "scene_target_ids"), expectedTargets) &&

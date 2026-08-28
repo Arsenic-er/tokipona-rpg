@@ -101,4 +101,16 @@ describe("forest underground order-node contract", () => {
     object(list(source(oldMine, "scenes/valley-old-mine-threshold.v0.1.yaml"), "exits")[0]!, "traversal_guard").predicate = "prologue_return_observed == true";
     expectIssue(() => compileContent(oldMine), "scene.old_mine_peaceful_exit");
   });
+
+  it.each([
+    "automatic_word_meaning_grant_forbidden",
+    "automatic_word_mastery_forbidden",
+    "automatic_mp_increase_forbidden",
+    "automatic_casting_grant_forbidden",
+    "automatic_usable_spell_grant_forbidden",
+  ])("rejects automatic shard-synchronization grants through %s", (guarantee) => {
+    const invalid = sources();
+    source(invalid, "tasks/ch01-underground-water-allocation.v0.1.yaml")[guarantee] = false;
+    expectIssue(() => compileContent(invalid), "task.forest_underground_contract");
+  });
 });
