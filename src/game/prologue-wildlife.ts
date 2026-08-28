@@ -34,7 +34,7 @@ const sceneByNode = (nodeId: string): RuntimeSceneManifest => exactlyOne(
   Object.values(SCENES.byId), (scene) => scene.regionNodeId === nodeId, `scene ${nodeId}`,
 );
 const DEN_SCENE = sceneByNode("valley.den_bypass");
-const SERVICE_SCENE = sceneByNode("valley.service_channel");
+const SERVICE_SCENE = sceneByNode("valley.waterwheel");
 const CISTERN_SCENE = sceneByNode("valley.high_cistern");
 const DEN_TASK_REF = exactlyOne(DEN_SCENE.taskRefs, (ref) => ref.id === "ch01_den_bypass", "N06 task ref");
 const DEN_TASK = TASKS.byId[DEN_TASK_REF.id];
@@ -44,11 +44,11 @@ if (!DEN_TASK || DEN_TASK.sceneId !== DEN_SCENE.sceneId || DEN_TASK.maximumSoftl
 
 const entrance = (scene: RuntimeSceneManifest, id: string): RuntimeSceneEntranceManifest =>
   exactlyOne(scene.entrances, (entry) => entry.id === id, `entrance ${id}`);
-const DEN_FROM_SERVICE = entrance(DEN_SCENE, "den.from_service");
+const DEN_FROM_SERVICE = entrance(DEN_SCENE, "den.from_waterwheel");
 const DEN_FROM_CISTERN = entrance(DEN_SCENE, "den.from_cistern");
-const SERVICE_FROM_DEN = entrance(SERVICE_SCENE, "service.from_den");
+const SERVICE_FROM_DEN = entrance(SERVICE_SCENE, "waterwheel.from_settlement");
 const CISTERN_FROM_DEN = entrance(CISTERN_SCENE, "cistern.from_den");
-const DEN_TO_SERVICE = exactlyOne(DEN_SCENE.exits, (exit) => exit.id === "den.to_service", "den.to_service");
+const DEN_TO_SERVICE = exactlyOne(DEN_SCENE.exits, (exit) => exit.id === "den.to_waterwheel", "den.to_waterwheel");
 const DEN_TO_CISTERN = exactlyOne(DEN_SCENE.exits, (exit) => exit.id === "den.to_cistern", "den.to_cistern");
 if (DEN_TO_SERVICE.target.kind !== "scene" || DEN_TO_SERVICE.target.sceneId !== SERVICE_SCENE.sceneId ||
     DEN_TO_SERVICE.target.entranceId !== SERVICE_FROM_DEN.id || DEN_TO_SERVICE.traversalGuardAny.length !== 0 ||
@@ -262,7 +262,7 @@ export class PrologueWildlifeSession {
   }
 
   static enterFromService(session: GameSession, transactionId: string): PrologueWildlifeEntryResult {
-    if (!regionTrue(session.snapshot(), "service_channel_reached")) return this.entryResult(false, false, "entry_guard_failed", null, null);
+    if (!regionTrue(session.snapshot(), "maintenance_access_open")) return this.entryResult(false, false, "entry_guard_failed", null, null);
     return this.enter(session, transactionId, "service", SERVICE_SCENE, DEN_FROM_SERVICE);
   }
 

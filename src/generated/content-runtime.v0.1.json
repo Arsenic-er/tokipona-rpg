@@ -33,7 +33,7 @@
     }
   },
   "scenes": {
-    "sourceDigest": "sha256:0103bb628396d28ff9d3f2068c86b1ab4b087b30102be8757a4401ebdd170a5d",
+    "sourceDigest": "sha256:b21d696476b50f46483d1a19c5f5ceee856dd303b5e64abec998d484b2124d43",
     "byId": {
       "scene.valley.arrival_shelf": {
         "sceneId": "scene.valley.arrival_shelf",
@@ -41,7 +41,7 @@
         "regionId": "valley_prologue",
         "regionNodeId": "valley.arrival_shelf",
         "chapterFlowId": "ch01_world_literacy_prologue",
-        "chapterSegmentId": "arrival",
+        "chapterSegmentId": "arrival_tools",
         "tileSizePx": 16,
         "sizeTiles": {
           "width": 24,
@@ -289,7 +289,7 @@
         "regionId": "valley_prologue",
         "regionNodeId": "valley.den_bypass",
         "chapterFlowId": "ch01_world_literacy_prologue",
-        "chapterSegmentId": "den_and_return_flow",
+        "chapterSegmentId": "wetland_crisis",
         "tileSizePx": 16,
         "sizeTiles": {
           "width": 28,
@@ -327,7 +327,7 @@
         ],
         "entrances": [
           {
-            "id": "den.from_service",
+            "id": "den.from_waterwheel",
             "spawnTile": [
               2,
               1
@@ -355,7 +355,7 @@
         ],
         "exits": [
           {
-            "id": "den.to_service",
+            "id": "den.to_waterwheel",
             "boundsTiles": {
               "x": 0,
               "y": 0,
@@ -370,8 +370,8 @@
             },
             "target": {
               "kind": "scene",
-              "sceneId": "scene.valley.service_channel",
-              "entranceId": "service.from_den"
+              "sceneId": "scene.valley.waterwheel",
+              "entranceId": "waterwheel.from_settlement"
             },
             "firstTraverseCommit": null,
             "traversalGuardAny": []
@@ -402,7 +402,7 @@
           }
         ],
         "recovery": {
-          "entryEntranceId": "den.from_service",
+          "entryEntranceId": "den.from_waterwheel",
           "maximumSoftlockRecoverySeconds": 60,
           "actions": [
             "reopen_service_return",
@@ -443,7 +443,7 @@
             "id": "den.wait_and_observe",
             "kind": "non_magic",
             "solutionFamily": "wait_and_observe",
-            "fromEntranceId": "den.from_service",
+            "fromEntranceId": "den.from_waterwheel",
             "toExitId": "den.to_cistern",
             "objectiveIds": [
               "den.observe_warning",
@@ -456,7 +456,7 @@
             "id": "den.dig_upper_bypass",
             "kind": "non_magic",
             "solutionFamily": "dig_upper_bypass",
-            "fromEntranceId": "den.from_service",
+            "fromEntranceId": "den.from_waterwheel",
             "toExitId": "den.to_cistern",
             "objectiveIds": [
               "den.keep_escape_open",
@@ -468,7 +468,7 @@
             "id": "den.low_force_noise",
             "kind": "non_magic",
             "solutionFamily": "low_force_noise",
-            "fromEntranceId": "den.from_service",
+            "fromEntranceId": "den.from_waterwheel",
             "toExitId": "den.to_cistern",
             "objectiveIds": [
               "den.observe_warning",
@@ -481,7 +481,7 @@
             "id": "den.low_force_staff",
             "kind": "non_magic",
             "solutionFamily": "low_force_staff",
-            "fromEntranceId": "den.from_service",
+            "fromEntranceId": "den.from_waterwheel",
             "toExitId": "den.to_cistern",
             "objectiveIds": [
               "den.observe_warning",
@@ -495,7 +495,7 @@
             "kind": "non_magic",
             "solutionFamily": "always_open_service_return",
             "fromEntranceId": "den.from_cistern",
-            "toExitId": "den.to_service",
+            "toExitId": "den.to_waterwheel",
             "objectiveIds": []
           }
         ],
@@ -582,7 +582,7 @@
         ],
         "interactions": [
           {
-            "id": "den.return_to_service",
+            "id": "den.return_to_waterwheel",
             "targetId": "den.service_return_mouth",
             "verb": "leave_without_guard",
             "toolOrMagicRequired": false,
@@ -698,10 +698,10 @@
         "tradeEntries": [],
         "inboundRoutes": [
           {
-            "id": "den.inbound_from_service",
-            "sourceSceneId": "scene.valley.service_channel",
-            "sourceExitId": "service.to_den_bypass",
-            "entranceId": "den.from_service"
+            "id": "den.inbound_from_waterwheel",
+            "sourceSceneId": "scene.valley.waterwheel",
+            "sourceExitId": "waterwheel.to_den_bypass",
+            "entranceId": "den.from_waterwheel"
           },
           {
             "id": "den.inbound_from_cistern",
@@ -742,7 +742,7 @@
         "regionId": "valley_prologue",
         "regionNodeId": "valley.high_cistern",
         "chapterFlowId": "ch01_world_literacy_prologue",
-        "chapterSegmentId": "high_cistern",
+        "chapterSegmentId": "cistern_scale",
         "tileSizePx": 16,
         "sizeTiles": {
           "width": 30,
@@ -800,7 +800,7 @@
         ],
         "entrances": [
           {
-            "id": "cistern.from_service",
+            "id": "cistern.from_waterwheel",
             "spawnTile": [
               2,
               1
@@ -841,7 +841,7 @@
         ],
         "exits": [
           {
-            "id": "cistern.to_service",
+            "id": "cistern.to_waterwheel",
             "boundsTiles": {
               "x": 0,
               "y": 0,
@@ -856,8 +856,8 @@
             },
             "target": {
               "kind": "scene",
-              "sceneId": "scene.valley.service_channel",
-              "entranceId": "service.from_cistern"
+              "sceneId": "scene.valley.waterwheel",
+              "entranceId": "waterwheel.from_cistern"
             },
             "firstTraverseCommit": null,
             "traversalGuardAny": [
@@ -915,7 +915,7 @@
           }
         ],
         "recovery": {
-          "entryEntranceId": "cistern.from_service",
+          "entryEntranceId": "cistern.from_waterwheel",
           "maximumSoftlockRecoverySeconds": 60,
           "actions": [
             "restore_task_local_calibration_tools",
@@ -958,7 +958,7 @@
             "id": "cistern.direct_length_route",
             "kind": "optional_magic",
             "solutionFamily": "direct_length_calibration_and_transfer",
-            "fromEntranceId": "cistern.from_service",
+            "fromEntranceId": "cistern.from_waterwheel",
             "toExitId": "cistern.to_return_channel",
             "objectiveIds": [
               "cistern.observe_default",
@@ -972,7 +972,7 @@
             "id": "cistern.calibration_tool_route",
             "kind": "non_magic",
             "solutionFamily": "calibration_tool_bypass",
-            "fromEntranceId": "cistern.from_service",
+            "fromEntranceId": "cistern.from_waterwheel",
             "toExitId": "cistern.to_return_channel",
             "objectiveIds": [
               "cistern.observe_default",
@@ -985,7 +985,7 @@
             "id": "cistern.transfer_tool_route",
             "kind": "non_magic",
             "solutionFamily": "transfer_tool_bypass",
-            "fromEntranceId": "cistern.from_service",
+            "fromEntranceId": "cistern.from_waterwheel",
             "toExitId": "cistern.to_return_channel",
             "objectiveIds": [
               "cistern.transfer_long",
@@ -997,7 +997,7 @@
             "kind": "non_magic",
             "solutionFamily": "signed_service_return",
             "fromEntranceId": "cistern.from_return",
-            "toExitId": "cistern.to_service",
+            "toExitId": "cistern.to_waterwheel",
             "objectiveIds": []
           },
           {
@@ -1149,10 +1149,10 @@
         "tradeEntries": [],
         "inboundRoutes": [
           {
-            "id": "cistern.inbound_from_service",
-            "sourceSceneId": "scene.valley.service_channel",
-            "sourceExitId": "service.to_high_cistern",
-            "entranceId": "cistern.from_service"
+            "id": "cistern.inbound_from_waterwheel",
+            "sourceSceneId": "scene.valley.waterwheel",
+            "sourceExitId": "waterwheel.to_high_cistern",
+            "entranceId": "cistern.from_waterwheel"
           },
           {
             "id": "cistern.inbound_from_den",
@@ -1209,7 +1209,7 @@
         "regionId": "valley_prologue",
         "regionNodeId": "valley.old_mine_threshold",
         "chapterFlowId": "ch01_world_literacy_prologue",
-        "chapterSegmentId": "return_and_safe_range",
+        "chapterSegmentId": "allocation_epilogue",
         "tileSizePx": 16,
         "sizeTiles": {
           "width": 24,
@@ -1377,7 +1377,7 @@
         "regionId": "valley_prologue",
         "regionNodeId": "valley.return_channel",
         "chapterFlowId": "ch01_world_literacy_prologue",
-        "chapterSegmentId": "den_and_return_flow",
+        "chapterSegmentId": "wetland_crisis",
         "tileSizePx": 16,
         "sizeTiles": {
           "width": 30,
@@ -1762,7 +1762,7 @@
         "regionId": "valley_prologue",
         "regionNodeId": "valley.safe_range",
         "chapterFlowId": "ch01_world_literacy_prologue",
-        "chapterSegmentId": "return_and_safe_range",
+        "chapterSegmentId": "allocation_epilogue",
         "tileSizePx": 16,
         "sizeTiles": {
           "width": 24,
@@ -2042,547 +2042,13 @@
         ],
         "materialPatchRecordRefs": []
       },
-      "scene.valley.service_channel": {
-        "sceneId": "scene.valley.service_channel",
-        "sourcePath": "data/scenes/valley-service-channel.v0.1.yaml",
-        "regionId": "valley_prologue",
-        "regionNodeId": "valley.service_channel",
-        "chapterFlowId": "ch01_world_literacy_prologue",
-        "chapterSegmentId": "service_channel",
-        "tileSizePx": 16,
-        "sizeTiles": {
-          "width": 28,
-          "height": 40
-        },
-        "collisionRows": [
-          "............................",
-          "............................",
-          "............................",
-          "............................",
-          "............................",
-          "............................",
-          "............................",
-          "............................",
-          "............................",
-          "............................",
-          "............................",
-          "............................",
-          "............................",
-          "............................",
-          "............................",
-          "............................",
-          "............................",
-          "............................",
-          "............................",
-          "............................",
-          "............................",
-          "............................",
-          "............................",
-          "............................",
-          "............................",
-          "............................",
-          "............................",
-          "............................",
-          "............................",
-          "............................",
-          "............................",
-          "............................",
-          "............................",
-          "............................",
-          "............................",
-          "............................",
-          "............................",
-          "............................",
-          "............................",
-          "############################"
-        ],
-        "entrances": [
-          {
-            "id": "service.from_waterwheel",
-            "spawnTile": [
-              2,
-              1
-            ],
-            "spawnPx": {
-              "x": 32,
-              "y": 610
-            },
-            "recoveryEntry": true,
-            "checkpointPolicy": "scene_entry_and_softlock_recovery"
-          },
-          {
-            "id": "service.from_cistern",
-            "spawnTile": [
-              25,
-              1
-            ],
-            "spawnPx": {
-              "x": 400,
-              "y": 610
-            },
-            "recoveryEntry": true,
-            "checkpointPolicy": "return_route"
-          },
-          {
-            "id": "service.from_den",
-            "spawnTile": [
-              14,
-              1
-            ],
-            "spawnPx": {
-              "x": 224,
-              "y": 610
-            },
-            "recoveryEntry": true,
-            "checkpointPolicy": "optional_route_return"
-          }
-        ],
-        "exits": [
-          {
-            "id": "service.to_waterwheel",
-            "boundsTiles": {
-              "x": 0,
-              "y": 0,
-              "width": 2,
-              "height": 7
-            },
-            "boundsPx": {
-              "x": 0,
-              "y": 528,
-              "width": 32,
-              "height": 112
-            },
-            "target": {
-              "kind": "scene",
-              "sceneId": "scene.valley.waterwheel",
-              "entranceId": "waterwheel.from_service"
-            },
-            "firstTraverseCommit": null,
-            "traversalGuardAny": [
-              "waterwheel_restored == true",
-              "maintenance_access_open == true"
-            ]
-          },
-          {
-            "id": "service.to_high_cistern",
-            "boundsTiles": {
-              "x": 26,
-              "y": 0,
-              "width": 2,
-              "height": 7
-            },
-            "boundsPx": {
-              "x": 416,
-              "y": 528,
-              "width": 32,
-              "height": 112
-            },
-            "target": {
-              "kind": "scene",
-              "sceneId": "scene.valley.high_cistern",
-              "entranceId": "cistern.from_service"
-            },
-            "firstTraverseCommit": null,
-            "traversalGuardAny": [
-              "service_gate_open == true",
-              "service_bypass_open == true"
-            ]
-          },
-          {
-            "id": "service.to_den_bypass",
-            "boundsTiles": {
-              "x": 13,
-              "y": 0,
-              "width": 2,
-              "height": 7
-            },
-            "boundsPx": {
-              "x": 208,
-              "y": 528,
-              "width": 32,
-              "height": 112
-            },
-            "target": {
-              "kind": "scene",
-              "sceneId": "scene.valley.den_bypass",
-              "entranceId": "den.from_service"
-            },
-            "firstTraverseCommit": null,
-            "traversalGuardAny": []
-          }
-        ],
-        "recovery": {
-          "entryEntranceId": "service.from_waterwheel",
-          "maximumSoftlockRecoverySeconds": 60,
-          "actions": [
-            "restore_maintenance_crank",
-            "restore_nontradeable_planks",
-            "reset_uncommitted_mud_band",
-            "expose_public_maintenance_bypass",
-            "reopen_waterwheel_return"
-          ],
-          "preserves": [
-            "learning_evidence",
-            "committed_gate_patch",
-            "committed_bypass_patch",
-            "region_commits",
-            "survival_state"
-          ]
-        },
-        "routeObjectives": [
-          {
-            "id": "service.inspect_material_band",
-            "predicate": "materials_observed(water, wet_soil, stone, wood, thin_ice) >= 3"
-          },
-          {
-            "id": "service.open_gate",
-            "predicate": "service_gate_open == true"
-          },
-          {
-            "id": "service.open_bypass",
-            "predicate": "service_bypass_open == true"
-          },
-          {
-            "id": "service.reach_cistern",
-            "predicate": "service_gate_open == true || service_bypass_open == true"
-          }
-        ],
-        "routes": [
-          {
-            "id": "service.maintenance_valve_route",
-            "kind": "non_magic",
-            "solutionFamily": "open_bypass_valve",
-            "fromEntranceId": "service.from_waterwheel",
-            "toExitId": "service.to_high_cistern",
-            "objectiveIds": [
-              "service.inspect_material_band",
-              "service.open_bypass",
-              "service.reach_cistern"
-            ]
-          },
-          {
-            "id": "service.wood_platform_route",
-            "kind": "non_magic",
-            "solutionFamily": "place_wood_platform",
-            "fromEntranceId": "service.from_waterwheel",
-            "toExitId": "service.to_high_cistern",
-            "objectiveIds": [
-              "service.inspect_material_band",
-              "service.open_bypass",
-              "service.reach_cistern"
-            ]
-          },
-          {
-            "id": "service.wet_soil_route",
-            "kind": "non_magic",
-            "solutionFamily": "dig_wet_soil",
-            "fromEntranceId": "service.from_waterwheel",
-            "toExitId": "service.to_high_cistern",
-            "objectiveIds": [
-              "service.inspect_material_band",
-              "service.open_gate",
-              "service.reach_cistern"
-            ]
-          },
-          {
-            "id": "service.stone_baffle_route",
-            "kind": "non_magic",
-            "solutionFamily": "move_stone_baffle",
-            "fromEntranceId": "service.from_waterwheel",
-            "toExitId": "service.to_high_cistern",
-            "objectiveIds": [
-              "service.inspect_material_band",
-              "service.open_gate",
-              "service.reach_cistern"
-            ]
-          },
-          {
-            "id": "service.external_heat_route",
-            "kind": "non_magic",
-            "solutionFamily": "melt_thin_ice",
-            "fromEntranceId": "service.from_waterwheel",
-            "toExitId": "service.to_high_cistern",
-            "objectiveIds": [
-              "service.inspect_material_band",
-              "service.open_gate",
-              "service.reach_cistern"
-            ]
-          },
-          {
-            "id": "service.optional_magic_route",
-            "kind": "optional_magic",
-            "solutionFamily": "guided_material_change",
-            "fromEntranceId": "service.from_waterwheel",
-            "toExitId": "service.to_high_cistern",
-            "objectiveIds": [
-              "service.inspect_material_band",
-              "service.open_gate",
-              "service.reach_cistern"
-            ]
-          },
-          {
-            "id": "service.signed_return_route",
-            "kind": "non_magic",
-            "solutionFamily": "signed_waterwheel_return",
-            "fromEntranceId": "service.from_cistern",
-            "toExitId": "service.to_waterwheel",
-            "objectiveIds": []
-          },
-          {
-            "id": "service.optional_den_bypass_route",
-            "kind": "non_magic",
-            "solutionFamily": "den_route",
-            "fromEntranceId": "service.from_waterwheel",
-            "toExitId": "service.to_den_bypass",
-            "objectiveIds": []
-          }
-        ],
-        "nonMagicAlternativeRouteIds": [
-          "service.maintenance_valve_route",
-          "service.wood_platform_route",
-          "service.wet_soil_route",
-          "service.stone_baffle_route",
-          "service.external_heat_route",
-          "service.signed_return_route",
-          "service.optional_den_bypass_route"
-        ],
-        "targets": [
-          {
-            "id": "service.instruction_sign",
-            "kind": "grammar_contact",
-            "material": "wood_and_pigment",
-            "interactionPointTiles": null
-          },
-          {
-            "id": "service.water_band",
-            "kind": "material_band",
-            "material": "water",
-            "interactionPointTiles": null
-          },
-          {
-            "id": "service.wet_soil_bank",
-            "kind": "destructible_material",
-            "material": "wet_soil",
-            "interactionPointTiles": null
-          },
-          {
-            "id": "service.stone_baffle",
-            "kind": "movable_material",
-            "material": "stone",
-            "interactionPointTiles": null
-          },
-          {
-            "id": "service.wood_stock",
-            "kind": "task_material",
-            "material": "wood",
-            "interactionPointTiles": null
-          },
-          {
-            "id": "service.thin_ice_gate",
-            "kind": "phase_change_material",
-            "material": "thin_ice",
-            "interactionPointTiles": null
-          },
-          {
-            "id": "service.bypass_valve",
-            "kind": "maintenance_bypass",
-            "material": "metal_and_stone",
-            "interactionPointTiles": null
-          },
-          {
-            "id": "service.gate_track",
-            "kind": "route_gate",
-            "material": "stone_and_metal",
-            "interactionPointTiles": null
-          },
-          {
-            "id": "service.emergency_canteen",
-            "kind": "public_relief",
-            "material": "metal_and_water",
-            "interactionPointTiles": null
-          }
-        ],
-        "interactions": [
-          {
-            "id": "service.read_instruction_sign",
-            "targetId": "service.instruction_sign",
-            "verb": "read_receptively",
-            "toolOrMagicRequired": false,
-            "optionalWordId": null,
-            "npcId": null,
-            "facilityId": null,
-            "taskId": null
-          },
-          {
-            "id": "service.observe_water_motion",
-            "targetId": "service.water_band",
-            "verb": "observe_motion",
-            "toolOrMagicRequired": false,
-            "optionalWordId": "word.tawa",
-            "npcId": null,
-            "facilityId": null,
-            "taskId": null
-          },
-          {
-            "id": "service.dig_wet_soil",
-            "targetId": "service.wet_soil_bank",
-            "verb": "dig_and_brace",
-            "toolOrMagicRequired": false,
-            "optionalWordId": null,
-            "npcId": null,
-            "facilityId": null,
-            "taskId": null
-          },
-          {
-            "id": "service.move_stone_baffle",
-            "targetId": "service.stone_baffle",
-            "verb": "lever_and_chock",
-            "toolOrMagicRequired": null,
-            "optionalWordId": "word.tawa",
-            "npcId": null,
-            "facilityId": null,
-            "taskId": null
-          },
-          {
-            "id": "service.place_wood_platform",
-            "targetId": "service.wood_stock",
-            "verb": "place_and_lash",
-            "toolOrMagicRequired": false,
-            "optionalWordId": null,
-            "npcId": null,
-            "facilityId": null,
-            "taskId": null
-          },
-          {
-            "id": "service.warm_thin_ice",
-            "targetId": "service.thin_ice_gate",
-            "verb": "apply_external_heat",
-            "toolOrMagicRequired": false,
-            "optionalWordId": null,
-            "npcId": null,
-            "facilityId": null,
-            "taskId": null
-          },
-          {
-            "id": "service.open_bypass_valve",
-            "targetId": "service.bypass_valve",
-            "verb": "clear_and_turn",
-            "toolOrMagicRequired": false,
-            "optionalWordId": null,
-            "npcId": null,
-            "facilityId": null,
-            "taskId": null
-          },
-          {
-            "id": "service.inspect_gate_track",
-            "targetId": "service.gate_track",
-            "verb": "inspect_route",
-            "toolOrMagicRequired": false,
-            "optionalWordId": null,
-            "npcId": null,
-            "facilityId": null,
-            "taskId": null
-          },
-          {
-            "id": "service.refill_emergency_canteen",
-            "targetId": "service.emergency_canteen",
-            "verb": "drink_or_fill",
-            "toolOrMagicRequired": false,
-            "optionalWordId": null,
-            "npcId": null,
-            "facilityId": "service.facility.emergency_canteen",
-            "taskId": null
-          }
-        ],
-        "npcs": [],
-        "facilities": [
-          {
-            "id": "service.facility.emergency_canteen",
-            "kind": "emergency_maintenance_canteen",
-            "targetId": "service.emergency_canteen",
-            "interactionIds": [
-              "service.refill_emergency_canteen"
-            ],
-            "publicRelief": true,
-            "economyEligible": false
-          }
-        ],
-        "tasks": [],
-        "taskRefs": [
-          {
-            "id": "ch01_service_channel",
-            "authoritativeTaskSourcePath": "data/tasks/ch01-service-channel.v0.1.yaml",
-            "objectiveIds": [
-              "service.open_gate",
-              "service.open_bypass"
-            ]
-          }
-        ],
-        "tradeEntries": [],
-        "inboundRoutes": [
-          {
-            "id": "service.inbound_from_waterwheel",
-            "sourceSceneId": "scene.valley.waterwheel",
-            "sourceExitId": "waterwheel.to_service",
-            "entranceId": "service.from_waterwheel"
-          },
-          {
-            "id": "service.inbound_from_den",
-            "sourceSceneId": "scene.valley.den_bypass",
-            "sourceExitId": "den.to_service",
-            "entranceId": "service.from_den"
-          }
-        ],
-        "softFailureRecoveries": [
-          {
-            "id": "service.lost_crank",
-            "action": "restore_maintenance_crank",
-            "preserves": [
-              "learning_evidence",
-              "committed_patches",
-              "region_commits"
-            ]
-          },
-          {
-            "id": "service.lost_planks",
-            "action": "restore_nontradeable_planks",
-            "preserves": [
-              "learning_evidence",
-              "committed_patches",
-              "region_commits"
-            ]
-          },
-          {
-            "id": "service.mud_collapse",
-            "action": "reset_uncommitted_mud_band",
-            "preserves": [
-              "learning_evidence",
-              "committed_patches",
-              "waterwheel_return"
-            ]
-          },
-          {
-            "id": "service.route_blocked",
-            "action": "expose_public_maintenance_bypass",
-            "preserves": [
-              "learning_evidence",
-              "committed_patches",
-              "waterwheel_return"
-            ]
-          }
-        ],
-        "materialPatchRecordRefs": [
-          "patch.valley.service_gate.v0.1",
-          "patch.valley.service_bypass.v0.1"
-        ]
-      },
       "scene.valley.settlement": {
         "sceneId": "scene.valley.settlement",
         "sourcePath": "data/scenes/valley-settlement.v0.1.yaml",
         "regionId": "valley_prologue",
         "regionNodeId": "valley.settlement",
         "chapterFlowId": "ch01_world_literacy_prologue",
-        "chapterSegmentId": "settlement_orientation",
+        "chapterSegmentId": "settlement_work",
         "tileSizePx": 16,
         "sizeTiles": {
           "width": 40,
@@ -3568,7 +3034,7 @@
         "regionId": "valley_prologue",
         "regionNodeId": "valley.stream_section",
         "chapterFlowId": "ch01_world_literacy_prologue",
-        "chapterSegmentId": "arrival",
+        "chapterSegmentId": "hermit_initiation",
         "tileSizePx": 16,
         "sizeTiles": {
           "width": 32,
@@ -3921,7 +3387,7 @@
         "regionId": "valley_prologue",
         "regionNodeId": "valley.underground_order_node",
         "chapterFlowId": "ch01_world_literacy_prologue",
-        "chapterSegmentId": "den_and_return_flow",
+        "chapterSegmentId": "underground_node",
         "tileSizePx": 16,
         "sizeTiles": {
           "width": 28,
@@ -4281,7 +3747,7 @@
         "regionId": "valley_prologue",
         "regionNodeId": "valley.waterwheel",
         "chapterFlowId": "ch01_world_literacy_prologue",
-        "chapterSegmentId": "waterwheel",
+        "chapterSegmentId": "waterwheel_discovery",
         "tileSizePx": 16,
         "sizeTiles": {
           "width": 30,
@@ -4336,7 +3802,7 @@
             "checkpointPolicy": "scene_entry_and_softlock_recovery"
           },
           {
-            "id": "waterwheel.from_service",
+            "id": "waterwheel.from_cistern",
             "spawnTile": [
               27,
               1
@@ -4373,7 +3839,7 @@
             "traversalGuardAny": []
           },
           {
-            "id": "waterwheel.to_service",
+            "id": "waterwheel.to_high_cistern",
             "boundsTiles": {
               "x": 28,
               "y": 0,
@@ -4388,14 +3854,36 @@
             },
             "target": {
               "kind": "scene",
-              "sceneId": "scene.valley.service_channel",
-              "entranceId": "service.from_waterwheel"
+              "sceneId": "scene.valley.high_cistern",
+              "entranceId": "cistern.from_waterwheel"
             },
-            "firstTraverseCommit": "service_channel_entry_crossed",
+            "firstTraverseCommit": null,
             "traversalGuardAny": [
-              "waterwheel_restored == true",
-              "maintenance_access_open == true"
+              "service_gate_open == true",
+              "service_bypass_open == true"
             ]
+          },
+          {
+            "id": "waterwheel.to_den_bypass",
+            "boundsTiles": {
+              "x": 13,
+              "y": 0,
+              "width": 2,
+              "height": 7
+            },
+            "boundsPx": {
+              "x": 208,
+              "y": 400,
+              "width": 32,
+              "height": 112
+            },
+            "target": {
+              "kind": "scene",
+              "sceneId": "scene.valley.den_bypass",
+              "entranceId": "den.from_waterwheel"
+            },
+            "firstTraverseCommit": null,
+            "traversalGuardAny": []
           }
         ],
         "recovery": {
@@ -4430,6 +3918,14 @@
           {
             "id": "waterwheel.access_service",
             "predicate": "waterwheel_restored == true || maintenance_access_open == true"
+          },
+          {
+            "id": "service.open_gate",
+            "predicate": "service_gate_open == true"
+          },
+          {
+            "id": "service.open_bypass",
+            "predicate": "service_bypass_open == true"
           }
         ],
         "routes": [
@@ -4438,7 +3934,7 @@
             "kind": "non_magic",
             "solutionFamily": "clear_blockage",
             "fromEntranceId": "waterwheel.from_settlement",
-            "toExitId": "waterwheel.to_service",
+            "toExitId": "waterwheel.to_high_cistern",
             "objectiveIds": [
               "waterwheel.inspect_system",
               "waterwheel.stable_rotation",
@@ -4451,7 +3947,7 @@
             "kind": "non_magic",
             "solutionFamily": "repair_axle",
             "fromEntranceId": "waterwheel.from_settlement",
-            "toExitId": "waterwheel.to_service",
+            "toExitId": "waterwheel.to_high_cistern",
             "objectiveIds": [
               "waterwheel.inspect_system",
               "waterwheel.stable_rotation",
@@ -4464,7 +3960,7 @@
             "kind": "non_magic",
             "solutionFamily": "move_flume",
             "fromEntranceId": "waterwheel.from_settlement",
-            "toExitId": "waterwheel.to_service",
+            "toExitId": "waterwheel.to_high_cistern",
             "objectiveIds": [
               "waterwheel.inspect_system",
               "waterwheel.stable_rotation",
@@ -4477,7 +3973,7 @@
             "kind": "non_magic",
             "solutionFamily": "dig_bypass",
             "fromEntranceId": "waterwheel.from_settlement",
-            "toExitId": "waterwheel.to_service",
+            "toExitId": "waterwheel.to_high_cistern",
             "objectiveIds": [
               "waterwheel.inspect_system",
               "waterwheel.stable_rotation",
@@ -4490,7 +3986,7 @@
             "kind": "optional_magic",
             "solutionFamily": "temporary_manifest_then_mechanical_lock",
             "fromEntranceId": "waterwheel.from_settlement",
-            "toExitId": "waterwheel.to_service",
+            "toExitId": "waterwheel.to_high_cistern",
             "objectiveIds": [
               "waterwheel.inspect_system",
               "waterwheel.stable_rotation",
@@ -4502,7 +3998,7 @@
             "id": "waterwheel.signed_return_route",
             "kind": "non_magic",
             "solutionFamily": "signed_settlement_return",
-            "fromEntranceId": "waterwheel.from_service",
+            "fromEntranceId": "waterwheel.from_cistern",
             "toExitId": "waterwheel.to_settlement",
             "objectiveIds": []
           }
@@ -4573,6 +4069,60 @@
             "id": "waterwheel.sealed_maintenance_room",
             "kind": "sealed_maintenance_room",
             "material": "stone_wood_and_ancient_medium",
+            "interactionPointTiles": null
+          },
+          {
+            "id": "service.instruction_sign",
+            "kind": "grammar_contact",
+            "material": "wood_and_pigment",
+            "interactionPointTiles": null
+          },
+          {
+            "id": "service.water_band",
+            "kind": "material_band",
+            "material": "water",
+            "interactionPointTiles": null
+          },
+          {
+            "id": "service.wet_soil_bank",
+            "kind": "destructible_material",
+            "material": "wet_soil",
+            "interactionPointTiles": null
+          },
+          {
+            "id": "service.stone_baffle",
+            "kind": "movable_material",
+            "material": "stone",
+            "interactionPointTiles": null
+          },
+          {
+            "id": "service.wood_stock",
+            "kind": "task_material",
+            "material": "wood",
+            "interactionPointTiles": null
+          },
+          {
+            "id": "service.thin_ice_gate",
+            "kind": "phase_change_material",
+            "material": "thin_ice",
+            "interactionPointTiles": null
+          },
+          {
+            "id": "service.bypass_valve",
+            "kind": "maintenance_bypass",
+            "material": "metal_and_stone",
+            "interactionPointTiles": null
+          },
+          {
+            "id": "service.gate_track",
+            "kind": "route_gate",
+            "material": "stone_and_metal",
+            "interactionPointTiles": null
+          },
+          {
+            "id": "service.emergency_canteen",
+            "kind": "public_relief",
+            "material": "metal_and_water",
             "interactionPointTiles": null
           }
         ],
@@ -4676,6 +4226,96 @@
             "npcId": null,
             "facilityId": null,
             "taskId": null
+          },
+          {
+            "id": "service.read_instruction_sign",
+            "targetId": "service.instruction_sign",
+            "verb": "read_receptively",
+            "toolOrMagicRequired": false,
+            "optionalWordId": null,
+            "npcId": null,
+            "facilityId": null,
+            "taskId": null
+          },
+          {
+            "id": "service.observe_water_motion",
+            "targetId": "service.water_band",
+            "verb": "observe_motion",
+            "toolOrMagicRequired": false,
+            "optionalWordId": "word.tawa",
+            "npcId": null,
+            "facilityId": null,
+            "taskId": null
+          },
+          {
+            "id": "service.dig_wet_soil",
+            "targetId": "service.wet_soil_bank",
+            "verb": "dig_and_brace",
+            "toolOrMagicRequired": false,
+            "optionalWordId": null,
+            "npcId": null,
+            "facilityId": null,
+            "taskId": null
+          },
+          {
+            "id": "service.move_stone_baffle",
+            "targetId": "service.stone_baffle",
+            "verb": "lever_and_chock",
+            "toolOrMagicRequired": null,
+            "optionalWordId": "word.tawa",
+            "npcId": null,
+            "facilityId": null,
+            "taskId": null
+          },
+          {
+            "id": "service.place_wood_platform",
+            "targetId": "service.wood_stock",
+            "verb": "place_and_lash",
+            "toolOrMagicRequired": false,
+            "optionalWordId": null,
+            "npcId": null,
+            "facilityId": null,
+            "taskId": null
+          },
+          {
+            "id": "service.warm_thin_ice",
+            "targetId": "service.thin_ice_gate",
+            "verb": "apply_external_heat",
+            "toolOrMagicRequired": false,
+            "optionalWordId": null,
+            "npcId": null,
+            "facilityId": null,
+            "taskId": null
+          },
+          {
+            "id": "service.open_bypass_valve",
+            "targetId": "service.bypass_valve",
+            "verb": "clear_and_turn",
+            "toolOrMagicRequired": false,
+            "optionalWordId": null,
+            "npcId": null,
+            "facilityId": null,
+            "taskId": null
+          },
+          {
+            "id": "service.inspect_gate_track",
+            "targetId": "service.gate_track",
+            "verb": "inspect_route",
+            "toolOrMagicRequired": false,
+            "optionalWordId": null,
+            "npcId": null,
+            "facilityId": null,
+            "taskId": null
+          },
+          {
+            "id": "service.refill_emergency_canteen",
+            "targetId": "service.emergency_canteen",
+            "verb": "drink_or_fill",
+            "toolOrMagicRequired": false,
+            "optionalWordId": null,
+            "npcId": null,
+            "facilityId": "service.facility.emergency_canteen",
+            "taskId": null
           }
         ],
         "npcs": [],
@@ -4686,6 +4326,16 @@
             "targetId": "waterwheel.maintenance_spout",
             "interactionIds": [
               "waterwheel.drink_maintenance_spout"
+            ],
+            "publicRelief": true,
+            "economyEligible": false
+          },
+          {
+            "id": "service.facility.emergency_canteen",
+            "kind": "emergency_maintenance_canteen",
+            "targetId": "service.emergency_canteen",
+            "interactionIds": [
+              "service.refill_emergency_canteen"
             ],
             "publicRelief": true,
             "economyEligible": false
@@ -4700,6 +4350,14 @@
               "waterwheel.stable_rotation",
               "waterwheel.downstream_safe"
             ]
+          },
+          {
+            "id": "ch01_service_channel",
+            "authoritativeTaskSourcePath": "data/tasks/ch01-service-channel.v0.1.yaml",
+            "objectiveIds": [
+              "service.open_gate",
+              "service.open_bypass"
+            ]
           }
         ],
         "tradeEntries": [],
@@ -4711,10 +4369,10 @@
             "entranceId": "waterwheel.from_settlement"
           },
           {
-            "id": "waterwheel.inbound_from_service",
-            "sourceSceneId": "scene.valley.service_channel",
-            "sourceExitId": "service.to_waterwheel",
-            "entranceId": "waterwheel.from_service"
+            "id": "waterwheel.inbound_from_cistern",
+            "sourceSceneId": "scene.valley.high_cistern",
+            "sourceExitId": "cistern.to_waterwheel",
+            "entranceId": "waterwheel.from_cistern"
           }
         ],
         "softFailureRecoveries": [
@@ -4747,20 +4405,22 @@
           }
         ],
         "materialPatchRecordRefs": [
-          "patch.valley.waterwheel_structure.v0.1"
+          "patch.valley.waterwheel_structure.v0.1",
+          "patch.valley.service_gate.v0.1",
+          "patch.valley.service_bypass.v0.1"
         ]
       }
     }
   },
   "infrastructureTasks": {
-    "sourceDigest": "sha256:67799cf60549ecd26c09ea7d5b9381a84c333c00cd350a09dfd23522575bcd84",
+    "sourceDigest": "sha256:e5b69d1c891fb962b1b4ff44b5b2f283b4bd4e897d043d904e0491d915df09fd",
     "byId": {
       "ch01_den_bypass": {
         "id": "ch01_den_bypass",
         "sourcePath": "data/tasks/ch01-den-bypass.v0.1.yaml",
         "familyId": "ecology_and_return_flow",
         "chapterFlowId": "ch01_world_literacy_prologue",
-        "chapterSegmentId": "den_and_return_flow",
+        "chapterSegmentId": "wetland_crisis",
         "regionId": "valley_prologue",
         "regionNodeId": "valley.den_bypass",
         "sceneId": "scene.valley.den_bypass",
@@ -4878,7 +4538,7 @@
           "den.low_force_staff"
         ],
         "entryGuardAny": [
-          "service_channel_reached == true"
+          "maintenance_access_open == true"
         ],
         "exitGuardAny": [
           "den_route_open == true"
@@ -4912,7 +4572,7 @@
         "sourcePath": "data/tasks/ch01-length-cistern.v0.1.yaml",
         "familyId": "axial_length_infrastructure",
         "chapterFlowId": "ch01_world_literacy_prologue",
-        "chapterSegmentId": "high_cistern",
+        "chapterSegmentId": "cistern_scale",
         "regionId": "valley_prologue",
         "regionNodeId": "valley.high_cistern",
         "sceneId": "scene.valley.high_cistern",
@@ -5177,7 +4837,7 @@
         "sourcePath": "data/tasks/ch01-return-flow.v0.1.yaml",
         "familyId": "ecology_and_return_flow",
         "chapterFlowId": "ch01_world_literacy_prologue",
-        "chapterSegmentId": "den_and_return_flow",
+        "chapterSegmentId": "wetland_crisis",
         "regionId": "valley_prologue",
         "regionNodeId": "valley.return_channel",
         "sceneId": "scene.valley.return_channel",
@@ -5469,12 +5129,12 @@
       "ch01_service_channel": {
         "id": "ch01_service_channel",
         "sourcePath": "data/tasks/ch01-service-channel.v0.1.yaml",
-        "familyId": "material_route_repair",
+        "familyId": "infrastructure_flow",
         "chapterFlowId": "ch01_world_literacy_prologue",
-        "chapterSegmentId": "service_channel",
+        "chapterSegmentId": "waterwheel_discovery",
         "regionId": "valley_prologue",
-        "regionNodeId": "valley.service_channel",
-        "sceneId": "scene.valley.service_channel",
+        "regionNodeId": "valley.waterwheel",
+        "sceneId": "scene.valley.waterwheel",
         "implementationBoundary": "authored_contract_not_particle_or_reaction_simulation",
         "predicateMode": "any",
         "worldGoalPredicates": [
@@ -5621,8 +5281,7 @@
           "service.external_heat_thin_ice"
         ],
         "entryGuardAny": [
-          "waterwheel_restored == true",
-          "maintenance_access_open == true"
+          "settlement_reached == true"
         ],
         "exitGuardAny": [
           "service_gate_open == true",
@@ -5684,7 +5343,7 @@
         "sourcePath": "data/tasks/ch01-waterwheel.v0.1.yaml",
         "familyId": "infrastructure_flow",
         "chapterFlowId": "ch01_world_literacy_prologue",
-        "chapterSegmentId": "waterwheel",
+        "chapterSegmentId": "waterwheel_discovery",
         "regionId": "valley_prologue",
         "regionNodeId": "valley.waterwheel",
         "sceneId": "scene.valley.waterwheel",
@@ -5824,8 +5483,8 @@
           "settlement_reached == true"
         ],
         "exitGuardAny": [
-          "waterwheel_restored == true",
-          "maintenance_access_open == true"
+          "service_gate_open == true",
+          "service_bypass_open == true"
         ],
         "materialPatchRefs": [
           "patch.valley.waterwheel_structure.v0.1"
@@ -15350,9 +15009,9 @@
     "sourceDigest": "sha256:33b53f953c5771d7fbf7e10e89ce2b86b8d825c8cc090d9f61d42384f90ccda0"
   },
   "prologueAcceptance": {
-    "sourceDigest": "sha256:89178e33516eab45000091b6c06a2d69ef3944c3f65cc01e0b6934805d002209",
+    "sourceDigest": "sha256:6a81f91838287cdbf402e5e6b7120b653d1b95781ac179cbe947da75e72309ca",
     "sourcePath": "data/chapters/ch01-world-literacy-prologue.v0.1.yaml",
-    "contentVersion": "chapter-01.prologue.1",
+    "contentVersion": "chapter-01.forest.2",
     "telemetry": {
       "schemaVersion": "prologue.telemetry.v0.1",
       "eventIds": [
@@ -15482,9 +15141,30 @@
       },
       "segmentFocus": [
         {
-          "segmentId": "arrival",
+          "segmentId": "arrival_tools",
           "mapNodeIds": [
             "valley.arrival_shelf",
+            "valley.stream_section"
+          ],
+          "activeNewWordIds": []
+        },
+        {
+          "segmentId": "settlement_work",
+          "mapNodeIds": [
+            "valley.settlement"
+          ],
+          "activeNewWordIds": []
+        },
+        {
+          "segmentId": "waterwheel_discovery",
+          "mapNodeIds": [
+            "valley.waterwheel"
+          ],
+          "activeNewWordIds": []
+        },
+        {
+          "segmentId": "hermit_initiation",
+          "mapNodeIds": [
             "valley.stream_section"
           ],
           "activeNewWordIds": [
@@ -15492,32 +15172,16 @@
           ]
         },
         {
-          "segmentId": "settlement_orientation",
+          "segmentId": "cistern_motion",
           "mapNodeIds": [
-            "valley.settlement"
-          ],
-          "activeNewWordIds": []
-        },
-        {
-          "segmentId": "waterwheel",
-          "mapNodeIds": [
-            "valley.waterwheel"
+            "valley.high_cistern"
           ],
           "activeNewWordIds": [
             "tawa"
           ]
         },
         {
-          "segmentId": "service_channel",
-          "mapNodeIds": [
-            "valley.service_channel"
-          ],
-          "activeNewWordIds": [
-            "o"
-          ]
-        },
-        {
-          "segmentId": "high_cistern",
+          "segmentId": "cistern_scale",
           "mapNodeIds": [
             "valley.high_cistern"
           ],
@@ -15527,23 +15191,25 @@
           ]
         },
         {
-          "segmentId": "den_and_return_flow",
+          "segmentId": "wetland_crisis",
           "mapNodeIds": [
-            "valley.den_bypass",
-            "valley.return_channel",
-            "valley.underground_order_node",
-            "valley.settlement"
+            "valley.return_channel"
           ],
           "activeNewWordIds": [
             "wawa"
           ]
         },
         {
-          "segmentId": "return_and_safe_range",
+          "segmentId": "underground_node",
           "mapNodeIds": [
-            "valley.settlement",
-            "valley.safe_range",
-            "valley.old_mine_threshold"
+            "valley.underground_order_node"
+          ],
+          "activeNewWordIds": []
+        },
+        {
+          "segmentId": "allocation_epilogue",
+          "mapNodeIds": [
+            "valley.settlement"
           ],
           "activeNewWordIds": []
         }
@@ -15594,7 +15260,7 @@
   "capabilityProgression": {
     "sourcePath": "data/chapters/ch01-world-literacy-prologue.v0.1.yaml",
     "sourceDigest": "sha256:f1b6ec610915f8d963cbca3a8643b13949dfa26a028502122bed66d900c9bd88",
-    "contractRevision": "chapter-01.prologue.1",
+    "contractRevision": "chapter-01.forest.2",
     "capacityMilestones": [
       {
         "milestoneId": "arrival_single_word",

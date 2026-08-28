@@ -45,13 +45,13 @@ function expectIssue(run: () => unknown, code: string): void {
 }
 
 describe("N06 optional den bypass content", () => {
-  it("compiles a 28x28 optional, bidirectional, zero-combat bypass while preserving N04 to N05", () => {
+  it("compiles a 28x28 optional, bidirectional, zero-combat bypass while preserving waterwheel to N05", () => {
     const manifest = compileContent(repositorySources());
     const scene = manifest.indexes.scenes["scene.valley.den_bypass"]!;
     const task = manifest.indexes.tasks.ch01_den_bypass!;
-    const service = manifest.indexes.scenes["scene.valley.service_channel"]!;
+    const waterwheel = manifest.indexes.scenes["scene.valley.waterwheel"]!;
     const segment = (manifest.indexes.chapters.ch01_world_literacy_prologue!.segments as MutableObject[])
-      .find((entry) => entry.segment_id === "den_and_return_flow")!;
+      .find((entry) => entry.segment_id === "wetland_crisis")!;
     expect(scene.size_tiles).toEqual({ width: 28, height: 28 });
     expect(scene.tile_size_px).toBe(16);
     expect(scene.routes).toEqual(expect.arrayContaining([
@@ -66,9 +66,9 @@ describe("N06 optional den bypass content", () => {
       den_destruction_opens_route: false,
     });
     expect(segment.optional_task_ids).toContain("ch01_den_bypass");
-    expect((service.exits as MutableObject[]).find((entry) => entry.exit_id === "service.to_high_cistern")).toMatchObject({
+    expect((waterwheel.exits as MutableObject[]).find((entry) => entry.exit_id === "waterwheel.to_high_cistern")).toMatchObject({
       target_scene_id: "scene.valley.high_cistern",
-      target_entrance_id: "cistern.from_service",
+      target_entrance_id: "cistern.from_waterwheel",
     });
   });
 
@@ -96,18 +96,18 @@ describe("N06 optional den bypass content", () => {
     expectIssue(() => compileContent(rewardSources), "task.den_zero_reward");
   });
 
-  it("rejects making N06 mandatory or replacing the direct N04 to N05 mainline", () => {
+  it("rejects making N06 mandatory or replacing the direct waterwheel to N05 mainline", () => {
     const mandatorySources = repositorySources();
     const chapter = mutableSource(mandatorySources, "chapters/ch01-world-literacy-prologue.v0.1.yaml");
-    const segment = objectArray(chapter, "segments").find((entry) => entry.segment_id === "den_and_return_flow")!;
+    const segment = objectArray(chapter, "segments").find((entry) => entry.segment_id === "wetland_crisis")!;
     segment.optional_task_ids = [];
     expectIssue(() => compileContent(mandatorySources), "task.den_optional_only");
 
     const topologySources = repositorySources();
-    const service = mutableSource(topologySources, "scenes/valley-service-channel.v0.1.yaml");
-    const direct = objectArray(service, "exits").find((entry) => entry.exit_id === "service.to_high_cistern")!;
+    const waterwheel = mutableSource(topologySources, "scenes/valley-waterwheel.v0.1.yaml");
+    const direct = objectArray(waterwheel, "exits").find((entry) => entry.exit_id === "waterwheel.to_high_cistern")!;
     direct.target_scene_id = "scene.valley.den_bypass";
-    direct.target_entrance_id = "den.from_service";
+    direct.target_entrance_id = "den.from_waterwheel";
     expectIssue(() => compileContent(topologySources), "task.den_preserve_direct_mainline");
   });
 

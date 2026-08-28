@@ -4,7 +4,7 @@ scene_id: "scene.valley.den_bypass"
 region_id: "valley_prologue"
 region_node_id: "valley.den_bypass"
 chapter_flow_id: "ch01_world_literacy_prologue"
-chapter_segment_id: "den_and_return_flow"
+chapter_segment_id: "wetland_crisis"
 status: "graybox_machine_ready"
 tile_size_px: 16
 size_tiles: {width: 28, height: 28}
@@ -41,7 +41,7 @@ collision_rows_top_down:
   - "############################"
 
 entrances:
-  - entrance_id: "den.from_service"
+  - entrance_id: "den.from_waterwheel"
     spawn_tile: [2, 1]
     recovery_entry: true
     checkpoint_policy: "scene_entry_and_retreat_recovery"
@@ -51,20 +51,20 @@ entrances:
     checkpoint_policy: "optional_route_return"
 
 inbound_route_refs:
-  - inbound_ref_id: "den.inbound_from_service"
-    source_scene_id: "scene.valley.service_channel"
-    source_exit_id: "service.to_den_bypass"
-    entrance_id: "den.from_service"
+  - inbound_ref_id: "den.inbound_from_waterwheel"
+    source_scene_id: "scene.valley.waterwheel"
+    source_exit_id: "waterwheel.to_den_bypass"
+    entrance_id: "den.from_waterwheel"
   - inbound_ref_id: "den.inbound_from_cistern"
     source_scene_id: "scene.valley.high_cistern"
     source_exit_id: "cistern.to_den_bypass"
     entrance_id: "den.from_cistern"
 
 exits:
-  - exit_id: "den.to_service"
+  - exit_id: "den.to_waterwheel"
     trigger_rect_tiles: {x: 0, y: 0, width: 2, height: 7}
-    target_scene_id: "scene.valley.service_channel"
-    target_entrance_id: "service.from_den"
+    target_scene_id: "scene.valley.waterwheel"
+    target_entrance_id: "waterwheel.from_settlement"
     traversal_guard: {any: []}
   - exit_id: "den.to_cistern"
     trigger_rect_tiles: {x: 26, y: 0, width: 2, height: 7}
@@ -86,32 +86,32 @@ routes:
   - route_id: "den.wait_and_observe"
     route_kind: "non_magic"
     solution_family: "wait_and_observe"
-    from_entrance_id: "den.from_service"
+    from_entrance_id: "den.from_waterwheel"
     to_exit_id: "den.to_cistern"
     objective_ids: [den.observe_warning, den.keep_escape_open, den.keep_den_intact, den.open_route]
   - route_id: "den.dig_upper_bypass"
     route_kind: "non_magic"
     solution_family: "dig_upper_bypass"
-    from_entrance_id: "den.from_service"
+    from_entrance_id: "den.from_waterwheel"
     to_exit_id: "den.to_cistern"
     objective_ids: [den.keep_escape_open, den.keep_den_intact, den.open_route]
   - route_id: "den.low_force_noise"
     route_kind: "non_magic"
     solution_family: "low_force_noise"
-    from_entrance_id: "den.from_service"
+    from_entrance_id: "den.from_waterwheel"
     to_exit_id: "den.to_cistern"
     objective_ids: [den.observe_warning, den.keep_escape_open, den.keep_den_intact, den.open_route]
   - route_id: "den.low_force_staff"
     route_kind: "non_magic"
     solution_family: "low_force_staff"
-    from_entrance_id: "den.from_service"
+    from_entrance_id: "den.from_waterwheel"
     to_exit_id: "den.to_cistern"
     objective_ids: [den.observe_warning, den.keep_escape_open, den.keep_den_intact, den.open_route]
   - route_id: "den.service_return"
     route_kind: "non_magic"
     solution_family: "always_open_service_return"
     from_entrance_id: "den.from_cistern"
-    to_exit_id: "den.to_service"
+    to_exit_id: "den.to_waterwheel"
     objective_ids: []
 
 targets:
@@ -127,7 +127,7 @@ targets:
   - {target_id: "den.den_structure", target_kind: "protected_wildlife_structure", material: "soil_roots_and_stone"}
 
 interactions:
-  - {interaction_id: "den.return_to_service", target_id: "den.service_return_mouth", verb: "leave_without_guard", tool_or_magic_required: false}
+  - {interaction_id: "den.return_to_waterwheel", target_id: "den.service_return_mouth", verb: "leave_without_guard", tool_or_magic_required: false}
   - {interaction_id: "den.observe_fox", target_id: "den.fox.rest_anchor", verb: "observe_without_approach", tool_or_magic_required: false}
   - {interaction_id: "den.verify_real_escape", target_id: "den.fox.back_exit", verb: "verify_escape_clear", tool_or_magic_required: false}
   - {interaction_id: "den.read_warning_zone", target_id: "den.fox.young_area", verb: "observe_warning_boundary", tool_or_magic_required: false}
@@ -177,7 +177,7 @@ soft_failure_recoveries:
     preserves: [fox_life_state, fox_den_intact, committed_route_patch, learning_evidence]
 
 recovery:
-  entry_entrance_id: "den.from_service"
+  entry_entrance_id: "den.from_waterwheel"
   maximum_softlock_recovery_seconds: 60
   actions: [reopen_service_return, move_fox_to_real_escape_exit_if_alive, restore_task_local_braces, reset_uncommitted_upper_soil, expose_safe_recess]
   preserves: [fox_life_state, fox_den_intact, den_route_open, committed_patch, learning_evidence, survival_state]

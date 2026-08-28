@@ -4,7 +4,7 @@ scene_id: "scene.valley.underground_order_node"
 region_id: "valley_prologue"
 region_node_id: "valley.underground_order_node"
 chapter_flow_id: "ch01_world_literacy_prologue"
-chapter_segment_id: "den_and_return_flow"
+chapter_segment_id: "underground_node"
 status: "machine_contract_ready"
 tile_size_px: 16
 size_tiles: {width: 28, height: 22}

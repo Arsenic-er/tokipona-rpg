@@ -213,6 +213,7 @@ function validateSource(
       break;
     case "chapter":
       validateArrayIds(source, "segments", "segment_id", issues);
+      validateForestChapterSource(source, issues);
       validatePrologueAcceptanceSource(source, issues);
       break;
     case "dialogue_audio":
@@ -379,13 +380,15 @@ function validatePrologueAcceptanceSource(source: CompiledSource, issues: Conten
     "percentile_method", "share_aggregation", "rate_aggregation", "count_aggregation",
   ].sort();
   const expectedSegmentFocus = [
-    ["arrival", ["valley.arrival_shelf", "valley.stream_section"], ["telo"]],
-    ["settlement_orientation", ["valley.settlement"], []],
-    ["waterwheel", ["valley.waterwheel"], ["tawa"]],
-    ["service_channel", ["valley.service_channel"], ["o"]],
-    ["high_cistern", ["valley.high_cistern"], ["lili", "suli"]],
-    ["den_and_return_flow", ["valley.den_bypass", "valley.return_channel", "valley.underground_order_node", "valley.settlement"], ["wawa"]],
-    ["return_and_safe_range", ["valley.settlement", "valley.safe_range", "valley.old_mine_threshold"], []],
+    ["arrival_tools", ["valley.arrival_shelf", "valley.stream_section"], []],
+    ["settlement_work", ["valley.settlement"], []],
+    ["waterwheel_discovery", ["valley.waterwheel"], []],
+    ["hermit_initiation", ["valley.stream_section"], ["telo"]],
+    ["cistern_motion", ["valley.high_cistern"], ["tawa"]],
+    ["cistern_scale", ["valley.high_cistern"], ["lili", "suli"]],
+    ["wetland_crisis", ["valley.return_channel"], ["wawa"]],
+    ["underground_node", ["valley.underground_order_node"], []],
+    ["allocation_epilogue", ["valley.settlement"], []],
   ] as const;
   const focusSegments = readObjectArray(source.content, "segments");
   const segmentFocusCanonical = focusSegments.length === expectedSegmentFocus.length &&
@@ -909,7 +912,7 @@ const FORBIDDEN_INPUTS = ["kill_count", "wildlife_harm", "elapsed_real_time", "r
 function validateSafeRangeTaskSource(source: CompiledSource, issues: ContentIssue[]): void {
   const content = source.content as Obj;
   const fail = (code: string, fieldPath: string, message: string): void => { issues.push({ code, sourcePath: source.path, fieldPath, message }); };
-  if (source.schemaVersion !== "g01.task.safe-range.v0.1" || str(content.task_id) !== "ch01_first_attack_qualification" || str(content.task_family_id) !== "safe_range_unseen_transfer" || str(content.chapter_segment_id) !== "return_and_safe_range" || str(content.region_node_id) !== "valley.safe_range" || content.optional !== true || content.living_targets_forbidden !== true) fail("task.safe_range_identity", "task_id", "N08 identity, optionality and inert-only boundary are noncanonical");
+  if (source.schemaVersion !== "g01.task.safe-range.v0.1" || str(content.task_id) !== "ch01_first_attack_qualification" || str(content.task_family_id) !== "safe_range_unseen_transfer" || str(content.chapter_segment_id) !== "allocation_epilogue" || str(content.region_node_id) !== "valley.safe_range" || content.optional !== true || content.living_targets_forbidden !== true) fail("task.safe_range_identity", "task_id", "N08 identity, optionality and inert-only boundary are noncanonical");
   const entry = obj(content.entry_guard), exit = obj(content.exit_guard);
   if (!exact(entry, { state_id: "range_trial_permission", expected: true }) || !exact(exit, { state_id: "range_trial_permission", expected: true })) fail("task.safe_range_guard", "entry_guard", "N08 entry and exit require range_trial_permission only");
   if (!same(content.target_ids, TARGET_IDS) || !same(content.interaction_ids, INTERACTION_IDS)) fail("task.safe_range_bindings", "target_ids", "N08 target and interaction bindings must be exact ordered sets");
@@ -975,7 +978,7 @@ function validateSafeRangeTaskReferences(source: CompiledSource, sources: readon
   const settlementExit = arr(settlementContent.exits).find((item) => str(item.exit_id) === "settlement.to_safe_range"), settlementEntrance = arr(settlementContent.entrances).find((item) => str(item.entrance_id) === "settlement.from_safe_range"), safeExit = arr(sceneContent.exits).find((item) => str(item.exit_id) === "safe_range.to_settlement"), safeEntrance = arr(sceneContent.entrances).find((item) => str(item.entrance_id) === "safe_range.from_settlement");
   if (guard(safeNode) !== "range_trial_permission == true" || guardConnection(connection) !== "range_trial_permission == true" || guardConnection(reciprocalConnection) !== "range_trial_permission == true" || guardExit(settlementExit) !== "range_trial_permission == true" || guardExit(safeExit) !== "range_trial_permission == true" || str(settlementExit?.target_scene_id) !== "scene.valley.safe_range" || str(settlementExit?.target_entrance_id) !== "safe_range.from_settlement" || !settlementEntrance || str(safeExit?.target_scene_id) !== "scene.valley.settlement" || str(safeExit?.target_entrance_id) !== "settlement.from_safe_range" || !safeEntrance) fail("task.safe_range_topology", "scene_ref", "N02 <-> N08 must be direct and guarded by range_trial_permission on both directions");
   if (guard(oldMine) !== "forest_chapter_epilogue_committed == true") fail("task.safe_range_old_mine_guard", "region_id", "old mine must remain guarded only by the forest chapter epilogue");
-  const segment = arr(chapterContent.segments).find((item) => str(item.segment_id) === "return_and_safe_range");
+  const segment = arr(chapterContent.segments).find((item) => str(item.segment_id) === "allocation_epilogue");
   if (!segment || !arrStrings(segment.optional_task_ids).includes("ch01_first_attack_qualification")) fail("task.safe_range_optional", "chapter_segment_id", "N08 qualification must remain optional");
   const commits = obj(regionContent.event_commit_points), returnWriter = obj(commits.return_observation_committed), transferWriter = obj(commits.safe_range_transfer_passed), tableWriter = obj(commits.safe_range_material_table_completed);
   if (str(returnWriter.owner) !== "ch01_return_observation" || !same(Object.keys(obj(returnWriter.atomic_writes)), ["prologue_return_observed"]) || str(transferWriter.owner) !== "ch01_first_attack_qualification" || !same(Object.keys(obj(transferWriter.atomic_writes)), ["first_attack_signature_available"]) || str(tableWriter.owner) !== "ch01_first_attack_qualification" || !same(Object.keys(obj(tableWriter.atomic_writes)), ["first_attack_signature_completed"])) fail("task.safe_range_writer_boundary", "completion", "N08 may own only its two qualification states; prologue_return_observed stays protected");
@@ -1109,22 +1112,22 @@ function validateDenBypassTaskReferences(
     }
     const exitIds = new Set(readObjectArray(sceneSource.content, "exits").map((entry) => readString(entry, "exit_id")));
     const inboundIds = new Set(readObjectArray(sceneSource.content, "inbound_route_refs").map((entry) => readString(entry, "inbound_ref_id")));
-    if (!exitIds.has("den.to_service") || !exitIds.has("den.to_cistern") ||
-        !inboundIds.has("den.inbound_from_service") || !inboundIds.has("den.inbound_from_cistern")) {
-      addIssue(issues, "task.den_bidirectional_topology", source.path, "scene_ref", "N06 requires explicit service and cistern inbound/outbound references");
+    if (!exitIds.has("den.to_waterwheel") || !exitIds.has("den.to_cistern") ||
+        !inboundIds.has("den.inbound_from_waterwheel") || !inboundIds.has("den.inbound_from_cistern")) {
+      addIssue(issues, "task.den_bidirectional_topology", source.path, "scene_ref", "N06 requires explicit waterwheel and cistern inbound/outbound references");
     }
   }
-  const serviceScene = sources.find((item) => item.kind === "scene" && readString(item.content, "scene_id") === "scene.valley.service_channel");
+  const waterwheelScene = sources.find((item) => item.kind === "scene" && readString(item.content, "scene_id") === "scene.valley.waterwheel");
   const cisternScene = sources.find((item) => item.kind === "scene" && readString(item.content, "scene_id") === "scene.valley.high_cistern");
-  const serviceDirectExit = serviceScene ? readObjectArray(serviceScene.content, "exits").find((entry) => readString(entry, "exit_id") === "service.to_high_cistern") : undefined;
-  const serviceDenExit = serviceScene ? readObjectArray(serviceScene.content, "exits").find((entry) => readString(entry, "exit_id") === "service.to_den_bypass") : undefined;
+  const waterwheelDirectExit = waterwheelScene ? readObjectArray(waterwheelScene.content, "exits").find((entry) => readString(entry, "exit_id") === "waterwheel.to_high_cistern") : undefined;
+  const waterwheelDenExit = waterwheelScene ? readObjectArray(waterwheelScene.content, "exits").find((entry) => readString(entry, "exit_id") === "waterwheel.to_den_bypass") : undefined;
   const cisternDenExit = cisternScene ? readObjectArray(cisternScene.content, "exits").find((entry) => readString(entry, "exit_id") === "cistern.to_den_bypass") : undefined;
-  if (!serviceDirectExit || readString(serviceDirectExit, "target_scene_id") !== "scene.valley.high_cistern" || readString(serviceDirectExit, "target_entrance_id") !== "cistern.from_service") {
-    addIssue(issues, "task.den_preserve_direct_mainline", source.path, "scene_ref", "N04 service.to_high_cistern must remain the direct N05 mainline edge");
+  if (!waterwheelDirectExit || readString(waterwheelDirectExit, "target_scene_id") !== "scene.valley.high_cistern" || readString(waterwheelDirectExit, "target_entrance_id") !== "cistern.from_waterwheel") {
+    addIssue(issues, "task.den_preserve_direct_mainline", source.path, "scene_ref", "waterwheel.to_high_cistern must remain the direct N05 mainline edge");
   }
-  if (!serviceDenExit || readString(serviceDenExit, "target_scene_id") !== "scene.valley.den_bypass" ||
+  if (!waterwheelDenExit || readString(waterwheelDenExit, "target_scene_id") !== "scene.valley.den_bypass" ||
       !cisternDenExit || readString(cisternDenExit, "target_scene_id") !== "scene.valley.den_bypass") {
-    addIssue(issues, "task.den_bidirectional_topology", source.path, "scene_ref", "optional N06 requires direct scene references from N04 and N05");
+    addIssue(issues, "task.den_bidirectional_topology", source.path, "scene_ref", "optional N06 requires direct waterwheel and cistern scene references");
   }
   if (region) {
     const optionalNodes = new Set(readStringArray(readObject(region, "route_completion_contract"), "optional_nodes"));
@@ -1171,11 +1174,11 @@ function validateCisternTaskReferences(
       addIssue(issues, "task.cistern_scene_contract", source.path, "scene_ref", "high cistern scene must remain canonical scene.valley.high_cistern at 30x48 tiles");
     }
     const inbound = readObjectArray(sceneSource.content, "inbound_route_refs")
-      .find((route) => readString(route, "inbound_ref_id") === "cistern.inbound_from_service");
-    const serviceScene = sources.find((item) => item.kind === "scene" && readString(item.content, "scene_id") === "scene.valley.service_channel");
-    const serviceExit = serviceScene ? readObjectArray(serviceScene.content, "exits").find((exit) => readString(exit, "exit_id") === "service.to_high_cistern") : undefined;
-    if (!inbound || !serviceExit || readString(serviceExit, "target_scene_id") !== "scene.valley.high_cistern" || readString(serviceExit, "target_entrance_id") !== "cistern.from_service") {
-      addIssue(issues, "task.cistern_direct_inbound", source.path, "scene_ref", "N04 service.to_high_cistern must directly target the canonical N05 entrance");
+      .find((route) => readString(route, "inbound_ref_id") === "cistern.inbound_from_waterwheel");
+    const waterwheelScene = sources.find((item) => item.kind === "scene" && readString(item.content, "scene_id") === "scene.valley.waterwheel");
+    const waterwheelExit = waterwheelScene ? readObjectArray(waterwheelScene.content, "exits").find((exit) => readString(exit, "exit_id") === "waterwheel.to_high_cistern") : undefined;
+    if (!inbound || !waterwheelExit || readString(waterwheelExit, "target_scene_id") !== "scene.valley.high_cistern" || readString(waterwheelExit, "target_entrance_id") !== "cistern.from_waterwheel") {
+      addIssue(issues, "task.cistern_direct_inbound", source.path, "scene_ref", "waterwheel.to_high_cistern must directly target the canonical N05 entrance");
     }
   }
 
@@ -1588,7 +1591,7 @@ function validateOldMineThresholdSource(
   const target = targets.find((item) => readString(item, "target_id") === "old_mine.threshold_marker");
   const interaction = interactions.find((item) => readString(item, "interaction_id") === "old_mine.inspect_threshold_marker");
   if (readString(source.content, "region_node_id") !== "valley.old_mine_threshold" ||
-      readString(source.content, "chapter_segment_id") !== "return_and_safe_range" ||
+      readString(source.content, "chapter_segment_id") !== "allocation_epilogue" ||
       readNumber(size, "width") !== 24 || readNumber(size, "height") !== 20 ||
       entrances.length !== 1 || exits.length !== 1 || routes.length !== 1 ||
       !entrance || !exit || !route || !target || !interaction) {
@@ -1922,6 +1925,37 @@ function validateEcologySource(source: CompiledSource, issues: ContentIssue[]): 
   }
 }
 
+function validateForestChapterSource(source: CompiledSource, issues: ContentIssue[]): void {
+  if (readString(source.content, "chapter_flow_id") !== "ch01_world_literacy_prologue") return;
+  const segments = readObjectArray(source.content, "segments");
+  const expected = [
+    ["arrival_tools", [0, 30], ["valley.arrival_shelf", "valley.stream_section"], []],
+    ["settlement_work", [30, 55], ["valley.settlement"], []],
+    ["waterwheel_discovery", [55, 75], ["valley.waterwheel"], []],
+    ["hermit_initiation", [75, 95], ["valley.stream_section"], ["telo"]],
+    ["cistern_motion", [95, 105], ["valley.high_cistern"], ["tawa"]],
+    ["cistern_scale", [105, 120], ["valley.high_cistern"], ["lili", "suli"]],
+    ["wetland_crisis", [120, 148], ["valley.return_channel"], ["wawa"]],
+    ["underground_node", [148, 173], ["valley.underground_order_node"], []],
+    ["allocation_epilogue", [173, 180], ["valley.settlement"], []],
+  ] as const;
+  const contract = readObject(source.content, "forest_chapter_contract");
+  const canonical = source.contentVersion === "chapter-01.forest.2" &&
+    segments.length === expected.length && expected.every(([id, minutes, nodes, words], index) => {
+      const segment = segments[index];
+      return segment !== undefined && readString(segment, "segment_id") === id &&
+        sameNumberArray(segment.content_budget_minutes, minutes) && sameStringArray(readStringArray(segment, "map_nodes"), nodes) &&
+        sameStringArray(readStringArray(segment, "focus_active_new_words"), words);
+    }) &&
+    readString(contract, "working_title_zh") === "水往何处" && readNumber(contract, "target_median_minutes") === 180 &&
+    sameNumberArray(contract.first_play_range_minutes, [150, 240]) &&
+    sameStringArray(readStringArray(contract, "main_scene_ids"), ["scene.valley.arrival_shelf", "scene.valley.stream_section", "scene.valley.settlement", "scene.valley.waterwheel", "scene.valley.high_cistern", "scene.valley.return_channel", "scene.valley.underground_order_node"]) &&
+    sameStringArray(readStringArray(contract, "optional_scene_ids"), ["scene.valley.den_bypass", "scene.valley.safe_range"]) &&
+    readString(contract, "post_chapter_boundary_scene_id") === "scene.valley.old_mine_threshold" &&
+    contract.mandatory_kills === 0 && contract.mandatory_wildlife_products === 0 && contract.medium_usable_before_hermit_initiation === false;
+  if (!canonical) addIssue(issues, "chapter.forest_contract", source.path, "forest_chapter_contract", "forest chapter must retain the canonical 180-minute seven-main-plus-two-optional structure");
+}
+
 function validateForestLargeCreatureTaskSource(source: CompiledSource, issues: ContentIssue[]): void {
   const resolutionIds = [
     "restore_migration_channel", "guide_with_food_and_scent", "wait_and_yield",
@@ -2029,7 +2063,7 @@ function validateForestUndergroundTaskSource(source: CompiledSource, issues: Con
     readString(source.content, "task_type") === "forest_underground_water_allocation" &&
     readString(source.content, "task_family_id") === "ecology_and_return_flow" &&
     readString(source.content, "chapter_flow_id") === "ch01_world_literacy_prologue" &&
-    readString(source.content, "chapter_segment_id") === "den_and_return_flow" &&
+    readString(source.content, "chapter_segment_id") === "underground_node" &&
     readString(source.content, "region_id") === "valley_prologue" &&
     readString(source.content, "region_node_id") === "valley.underground_order_node" &&
     readString(source.content, "scene_ref") === "../scenes/valley-underground-order-node.v0.1.yaml" &&
@@ -2312,6 +2346,10 @@ function validateCisternTaskSource(source: CompiledSource, issues: ContentIssue[
 
 function sameStringArray(left: readonly string[], right: readonly string[]): boolean {
   return left.length === right.length && left.every((value, index) => value === right[index]);
+}
+
+function sameNumberArray(value: ContentValue | undefined, expected: readonly number[]): boolean {
+  return Array.isArray(value) && value.length === expected.length && value.every((item, index) => item === expected[index]);
 }
 
 function validateTaskExpectedProfiles(source: CompiledSource, issues: ContentIssue[]): void {

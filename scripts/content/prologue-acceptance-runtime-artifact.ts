@@ -30,20 +30,22 @@ const PROLOGUE_PLAYTEST_SESSION_FORBIDDEN_FIELDS = [
   "rawUtterance", "rawText", "inventoryLotIds", "savePayload", "playerIdentifier", "damageOverride", "worldFlagOverride",
 ] as const;
 const PROLOGUE_SEGMENT_FOCUS = [
-  { segmentId: "arrival", mapNodeIds: ["valley.arrival_shelf", "valley.stream_section"], activeNewWordIds: ["telo"] },
-  { segmentId: "settlement_orientation", mapNodeIds: ["valley.settlement"], activeNewWordIds: [] },
-  { segmentId: "waterwheel", mapNodeIds: ["valley.waterwheel"], activeNewWordIds: ["tawa"] },
-  { segmentId: "service_channel", mapNodeIds: ["valley.service_channel"], activeNewWordIds: ["o"] },
-  { segmentId: "high_cistern", mapNodeIds: ["valley.high_cistern"], activeNewWordIds: ["lili", "suli"] },
-  { segmentId: "den_and_return_flow", mapNodeIds: ["valley.den_bypass", "valley.return_channel", "valley.underground_order_node", "valley.settlement"], activeNewWordIds: ["wawa"] },
-  { segmentId: "return_and_safe_range", mapNodeIds: ["valley.settlement", "valley.safe_range", "valley.old_mine_threshold"], activeNewWordIds: [] },
+  { segmentId: "arrival_tools", mapNodeIds: ["valley.arrival_shelf", "valley.stream_section"], activeNewWordIds: [] },
+  { segmentId: "settlement_work", mapNodeIds: ["valley.settlement"], activeNewWordIds: [] },
+  { segmentId: "waterwheel_discovery", mapNodeIds: ["valley.waterwheel"], activeNewWordIds: [] },
+  { segmentId: "hermit_initiation", mapNodeIds: ["valley.stream_section"], activeNewWordIds: ["telo"] },
+  { segmentId: "cistern_motion", mapNodeIds: ["valley.high_cistern"], activeNewWordIds: ["tawa"] },
+  { segmentId: "cistern_scale", mapNodeIds: ["valley.high_cistern"], activeNewWordIds: ["lili", "suli"] },
+  { segmentId: "wetland_crisis", mapNodeIds: ["valley.return_channel"], activeNewWordIds: ["wawa"] },
+  { segmentId: "underground_node", mapNodeIds: ["valley.underground_order_node"], activeNewWordIds: [] },
+  { segmentId: "allocation_epilogue", mapNodeIds: ["valley.settlement"], activeNewWordIds: [] },
 ] as const;
 
 export function projectPrologueAcceptance(manifest: ContentManifest): RuntimePrologueAcceptanceManifest {
   const source = manifest.byKind.chapter[0];
   if (!source || manifest.byKind.chapter.length !== 1 ||
       source.path !== "data/chapters/ch01-world-literacy-prologue.v0.1.yaml" ||
-      source.contentVersion !== "chapter-01.prologue.1") {
+      source.contentVersion !== "chapter-01.forest.2") {
     throw new Error("prologue acceptance requires the canonical chapter source");
   }
   const telemetryContract = object(source.content.telemetry_contract, "telemetry_contract");

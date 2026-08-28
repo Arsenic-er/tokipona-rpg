@@ -4,7 +4,7 @@ task_type: "infrastructure_world_predicate"
 task_id: "ch01_waterwheel"
 task_family_id: "infrastructure_flow"
 chapter_flow_id: "ch01_world_literacy_prologue"
-chapter_segment_id: "waterwheel"
+chapter_segment_id: "waterwheel_discovery"
 region_id: "valley_prologue"
 region_node_id: "valley.waterwheel"
 scene_ref: "../scenes/valley-waterwheel.v0.1.yaml"
@@ -101,7 +101,7 @@ language_exposure:
     tool_solution_still_allows_observation: true
 
 entry_guard_any: ["settlement_reached == true"]
-exit_guard_any: ["waterwheel_restored == true", "maintenance_access_open == true"]
+exit_guard_any: ["service_gate_open == true", "service_bypass_open == true"]
 material_patch_refs: [patch.valley.waterwheel_structure.v0.1]
 
 recovery:

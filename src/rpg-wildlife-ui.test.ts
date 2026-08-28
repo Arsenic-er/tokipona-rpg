@@ -81,7 +81,7 @@ describe("RPG wildlife UI model", () => {
     const model = deriveWildlifeUiModel(asSnapshot({
       mode: "infrastructure",
       runtime: { sceneId: PROLOGUE_SERVICE_CHANNEL_SCENE_ID },
-      session: sessionState({ service_channel_reached: true }),
+      session: sessionState({ maintenance_access_open: true }),
       infrastructure: { mode: "service_channel" },
       wildlife: null,
     }));

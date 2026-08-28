@@ -35,7 +35,7 @@ describe("N03/N04/N05/N07 infrastructure runtime artifact", () => {
       predicateMode: "all",
       validResultModes: ["temporary_driven", "structurally_restored"],
       entryGuardAny: ["settlement_reached == true"],
-      exitGuardAny: ["waterwheel_restored == true", "maintenance_access_open == true"],
+      exitGuardAny: ["service_gate_open == true", "service_bypass_open == true"],
       nonMagicMainlineSolutionIds: [
         "waterwheel.clear_natural_inflow",
         "waterwheel.repair_axle",
@@ -54,7 +54,7 @@ describe("N03/N04/N05/N07 infrastructure runtime artifact", () => {
       }),
     ]);
     expect(index.byId.ch01_service_channel).toMatchObject({
-      sceneId: "scene.valley.service_channel",
+      sceneId: "scene.valley.waterwheel",
       predicateMode: "any",
       materialReactionKinds: ["water", "wet_soil", "stone", "wood", "thin_ice"],
       maximumSoftlockRecoverySeconds: 60,
@@ -72,26 +72,25 @@ describe("N03/N04/N05/N07 infrastructure runtime artifact", () => {
   it("emits scene task references and authoritative traversal guards", () => {
     const artifact = buildRuntimeContentArtifact(compileContent(repositorySources()));
     const waterwheel = artifact.scenes.byId["scene.valley.waterwheel"];
-    const service = artifact.scenes.byId["scene.valley.service_channel"];
 
-    expect(waterwheel?.taskRefs).toEqual([
+    expect(waterwheel?.taskRefs).toEqual(expect.arrayContaining([
       expect.objectContaining({
         id: "ch01_waterwheel",
         authoritativeTaskSourcePath: "data/tasks/ch01-waterwheel.v0.1.yaml",
       }),
-    ]);
-    expect(waterwheel?.exits.find((exit) => exit.id === "waterwheel.to_service")?.traversalGuardAny)
-      .toEqual(["waterwheel_restored == true", "maintenance_access_open == true"]);
-    expect(service?.taskRefs).toEqual([
       expect.objectContaining({
         id: "ch01_service_channel",
         authoritativeTaskSourcePath: "data/tasks/ch01-service-channel.v0.1.yaml",
       }),
-    ]);
-    expect(service?.exits.find((exit) => exit.id === "service.to_high_cistern")?.target).toEqual({
+      expect.objectContaining({
+        id: "ch01_service_channel",
+        authoritativeTaskSourcePath: "data/tasks/ch01-service-channel.v0.1.yaml",
+      }),
+    ]));
+    expect(waterwheel?.exits.find((exit) => exit.id === "waterwheel.to_high_cistern")?.target).toEqual({
       kind: "scene",
       sceneId: "scene.valley.high_cistern",
-      entranceId: "cistern.from_service",
+      entranceId: "cistern.from_waterwheel",
     });
   });
 

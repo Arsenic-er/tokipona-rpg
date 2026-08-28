@@ -4,7 +4,7 @@ scene_id: "scene.valley.return_channel"
 region_id: "valley_prologue"
 region_node_id: "valley.return_channel"
 chapter_flow_id: "ch01_world_literacy_prologue"
-chapter_segment_id: "den_and_return_flow"
+chapter_segment_id: "wetland_crisis"
 status: "graybox_machine_ready"
 tile_size_px: 16
 size_tiles: {width: 30, height: 26}

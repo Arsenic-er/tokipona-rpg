@@ -89,7 +89,7 @@ export interface RpgWildlifeUi {
   render(snapshot: WildlifeUiFlowSnapshot): void;
 }
 
-const SERVICE_REACHED_FLAG = "service_channel_reached";
+const MAINTENANCE_ACCESS_OPEN_FLAG = "maintenance_access_open";
 const DEN_ROUTE_OPEN_FLAG = "den_route_open";
 
 const ROUTE_META: Readonly<Record<PrologueWildlifeSolutionId, Readonly<{
@@ -119,9 +119,9 @@ export function deriveWildlifeUiModel(snapshot: WildlifeUiFlowSnapshot): Wildlif
   const atService = snapshot.mode === "infrastructure" && snapshot.runtime.sceneId === PROLOGUE_SERVICE_CHANNEL_SCENE_ID;
   const atCistern = snapshot.mode === "cistern" && snapshot.runtime.sceneId === PROLOGUE_CISTERN_SCENE_ID;
   const gatewaySource = atService ? "service" : atCistern ? "cistern" : null;
-  const serviceReached = regionFlagTrue(snapshot, SERVICE_REACHED_FLAG);
+  const maintenanceAccessOpen = regionFlagTrue(snapshot, MAINTENANCE_ACCESS_OPEN_FLAG);
   const denRouteOpen = regionFlagTrue(snapshot, DEN_ROUTE_OPEN_FLAG);
-  const canEnter = gatewaySource === "service" ? serviceReached : gatewaySource === "cistern" ? denRouteOpen : false;
+  const canEnter = gatewaySource === "service" ? maintenanceAccessOpen : gatewaySource === "cistern" ? denRouteOpen : false;
   const panelVisible = snapshot.mode === "wildlife" && snapshot.runtime.sceneId === PROLOGUE_WILDLIFE_SCENE_ID && wildlife !== null;
   const evidence = wildlife?.visitEvidence;
   const warningTicks = wildlife?.fox.warningTicks ?? 0;

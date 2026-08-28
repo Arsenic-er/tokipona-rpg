@@ -1,10 +1,10 @@
 schema_version: "g01.scene.v0.1"
-content_version: "chapter-01.valley-waterwheel.1"
+content_version: "chapter-01.forest.2"
 scene_id: "scene.valley.waterwheel"
 region_id: "valley_prologue"
 region_node_id: "valley.waterwheel"
 chapter_flow_id: "ch01_world_literacy_prologue"
-chapter_segment_id: "waterwheel"
+chapter_segment_id: "waterwheel_discovery"
 status: "graybox_machine_ready"
 tile_size_px: 16
 size_tiles: {width: 30, height: 32}
@@ -47,7 +47,7 @@ entrances:
     spawn_tile: [2, 1]
     recovery_entry: true
     checkpoint_policy: "scene_entry_and_softlock_recovery"
-  - entrance_id: "waterwheel.from_service"
+  - entrance_id: "waterwheel.from_cistern"
     spawn_tile: [27, 1]
     recovery_entry: true
     checkpoint_policy: "return_route"
@@ -57,23 +57,27 @@ inbound_route_refs:
     source_scene_id: "scene.valley.settlement"
     source_exit_id: "settlement.to_waterwheel"
     entrance_id: "waterwheel.from_settlement"
-  - inbound_ref_id: "waterwheel.inbound_from_service"
-    source_scene_id: "scene.valley.service_channel"
-    source_exit_id: "service.to_waterwheel"
-    entrance_id: "waterwheel.from_service"
+  - inbound_ref_id: "waterwheel.inbound_from_cistern"
+    source_scene_id: "scene.valley.high_cistern"
+    source_exit_id: "cistern.to_waterwheel"
+    entrance_id: "waterwheel.from_cistern"
 
 exits:
   - exit_id: "waterwheel.to_settlement"
     trigger_rect_tiles: {x: 0, y: 0, width: 2, height: 7}
     target_scene_id: "scene.valley.settlement"
     target_entrance_id: "settlement.from_waterwheel"
-  - exit_id: "waterwheel.to_service"
+  - exit_id: "waterwheel.to_high_cistern"
     trigger_rect_tiles: {x: 28, y: 0, width: 2, height: 7}
-    target_scene_id: "scene.valley.service_channel"
-    target_entrance_id: "service.from_waterwheel"
-    on_first_traverse_commit: "service_channel_entry_crossed"
+    target_scene_id: "scene.valley.high_cistern"
+    target_entrance_id: "cistern.from_waterwheel"
     traversal_guard:
-      any: ["waterwheel_restored == true", "maintenance_access_open == true"]
+      any: ["service_gate_open == true", "service_bypass_open == true"]
+  - exit_id: "waterwheel.to_den_bypass"
+    trigger_rect_tiles: {x: 13, y: 0, width: 2, height: 7}
+    target_scene_id: "scene.valley.den_bypass"
+    target_entrance_id: "den.from_waterwheel"
+    traversal_guard: {any: []}
 
 route_objectives:
   - objective_id: "waterwheel.inspect_system"
@@ -84,42 +88,46 @@ route_objectives:
     predicate: "downstream.overflow_contact == false && downstream.flow_band <= safe"
   - objective_id: "waterwheel.access_service"
     predicate: "waterwheel_restored == true || maintenance_access_open == true"
+  - objective_id: "service.open_gate"
+    predicate: "service_gate_open == true"
+  - objective_id: "service.open_bypass"
+    predicate: "service_bypass_open == true"
 
 routes:
   - route_id: "waterwheel.natural_inflow_route"
     route_kind: "non_magic"
     solution_family: "clear_blockage"
     from_entrance_id: "waterwheel.from_settlement"
-    to_exit_id: "waterwheel.to_service"
+    to_exit_id: "waterwheel.to_high_cistern"
     objective_ids: [waterwheel.inspect_system, waterwheel.stable_rotation, waterwheel.downstream_safe, waterwheel.access_service]
   - route_id: "waterwheel.axle_tool_route"
     route_kind: "non_magic"
     solution_family: "repair_axle"
     from_entrance_id: "waterwheel.from_settlement"
-    to_exit_id: "waterwheel.to_service"
+    to_exit_id: "waterwheel.to_high_cistern"
     objective_ids: [waterwheel.inspect_system, waterwheel.stable_rotation, waterwheel.downstream_safe, waterwheel.access_service]
   - route_id: "waterwheel.flume_alignment_route"
     route_kind: "non_magic"
     solution_family: "move_flume"
     from_entrance_id: "waterwheel.from_settlement"
-    to_exit_id: "waterwheel.to_service"
+    to_exit_id: "waterwheel.to_high_cistern"
     objective_ids: [waterwheel.inspect_system, waterwheel.stable_rotation, waterwheel.downstream_safe, waterwheel.access_service]
   - route_id: "waterwheel.soil_bypass_route"
     route_kind: "non_magic"
     solution_family: "dig_bypass"
     from_entrance_id: "waterwheel.from_settlement"
-    to_exit_id: "waterwheel.to_service"
+    to_exit_id: "waterwheel.to_high_cistern"
     objective_ids: [waterwheel.inspect_system, waterwheel.stable_rotation, waterwheel.downstream_safe, waterwheel.access_service]
   - route_id: "waterwheel.temporary_magic_lock_route"
     route_kind: "optional_magic"
     solution_family: "temporary_manifest_then_mechanical_lock"
     from_entrance_id: "waterwheel.from_settlement"
-    to_exit_id: "waterwheel.to_service"
+    to_exit_id: "waterwheel.to_high_cistern"
     objective_ids: [waterwheel.inspect_system, waterwheel.stable_rotation, waterwheel.downstream_safe, waterwheel.access_service]
   - route_id: "waterwheel.signed_return_route"
     route_kind: "non_magic"
     solution_family: "signed_settlement_return"
-    from_entrance_id: "waterwheel.from_service"
+    from_entrance_id: "waterwheel.from_cistern"
     to_exit_id: "waterwheel.to_settlement"
     objective_ids: []
 
@@ -134,12 +142,27 @@ targets:
   - {target_id: "waterwheel.hand_tools", target_kind: "task_tools", material: "wood_and_metal"}
   - {target_id: "waterwheel.maintenance_spout", target_kind: "public_relief", material: "stone_and_water"}
   - {target_id: "waterwheel.sealed_maintenance_room", target_kind: "sealed_maintenance_room", material: "stone_wood_and_ancient_medium"}
+  - {target_id: "service.instruction_sign", target_kind: "grammar_contact", material: "wood_and_pigment"}
+  - {target_id: "service.water_band", target_kind: "material_band", material: "water"}
+  - {target_id: "service.wet_soil_bank", target_kind: "destructible_material", material: "wet_soil"}
+  - {target_id: "service.stone_baffle", target_kind: "movable_material", material: "stone"}
+  - {target_id: "service.wood_stock", target_kind: "task_material", material: "wood"}
+  - {target_id: "service.thin_ice_gate", target_kind: "phase_change_material", material: "thin_ice"}
+  - {target_id: "service.bypass_valve", target_kind: "maintenance_bypass", material: "metal_and_stone"}
+  - {target_id: "service.gate_track", target_kind: "route_gate", material: "stone_and_metal"}
+  - {target_id: "service.emergency_canteen", target_kind: "public_relief", material: "metal_and_water"}
 
 facilities:
   - facility_id: "waterwheel.facility.maintenance_spout"
     facility_kind: "potable_maintenance_spout"
     target_id: "waterwheel.maintenance_spout"
     interaction_ids: [waterwheel.drink_maintenance_spout]
+    public_relief: true
+    economy_eligible: false
+  - facility_id: "service.facility.emergency_canteen"
+    facility_kind: "emergency_maintenance_canteen"
+    target_id: "service.emergency_canteen"
+    interaction_ids: [service.refill_emergency_canteen]
     public_relief: true
     economy_eligible: false
 
@@ -154,17 +177,37 @@ interactions:
   - {interaction_id: "waterwheel.recover_tools", target_id: "waterwheel.hand_tools", verb: "take_task_tools", tool_or_magic_required: false}
   - {interaction_id: "waterwheel.drink_maintenance_spout", target_id: "waterwheel.maintenance_spout", verb: "drink_or_fill", facility_id: "waterwheel.facility.maintenance_spout", tool_or_magic_required: false}
   - {interaction_id: "waterwheel.discover_forest_medium", target_id: "waterwheel.sealed_maintenance_room", verb: "discover_artifact", tool_or_magic_required: false}
+  - {interaction_id: "service.read_instruction_sign", target_id: "service.instruction_sign", verb: "read_receptively", tool_or_magic_required: false}
+  - {interaction_id: "service.observe_water_motion", target_id: "service.water_band", verb: "observe_motion", optional_word_id: "word.tawa", tool_or_magic_required: false}
+  - {interaction_id: "service.dig_wet_soil", target_id: "service.wet_soil_bank", verb: "dig_and_brace", tool_or_magic_required: false}
+  - {interaction_id: "service.move_stone_baffle", target_id: "service.stone_baffle", verb: "lever_and_chock", optional_word_id: "word.tawa"}
+  - {interaction_id: "service.place_wood_platform", target_id: "service.wood_stock", verb: "place_and_lash", tool_or_magic_required: false}
+  - {interaction_id: "service.warm_thin_ice", target_id: "service.thin_ice_gate", verb: "apply_external_heat", tool_or_magic_required: false}
+  - {interaction_id: "service.open_bypass_valve", target_id: "service.bypass_valve", verb: "clear_and_turn", tool_or_magic_required: false}
+  - {interaction_id: "service.inspect_gate_track", target_id: "service.gate_track", verb: "inspect_route", tool_or_magic_required: false}
+  - {interaction_id: "service.refill_emergency_canteen", target_id: "service.emergency_canteen", verb: "drink_or_fill", facility_id: "service.facility.emergency_canteen", tool_or_magic_required: false}
 
 task_refs:
   - task_id: "ch01_waterwheel"
     task_ref: "../tasks/ch01-waterwheel.v0.1.yaml"
     objective_ids: [waterwheel.stable_rotation, waterwheel.downstream_safe]
+  - task_id: "ch01_service_channel"
+    task_ref: "../tasks/ch01-service-channel.v0.1.yaml"
+    objective_ids: [service.open_gate, service.open_bypass]
 
 material_patches:
   - patch_id: "scene.patch.waterwheel.structure"
     patch_record_ref: "patch.valley.waterwheel_structure.v0.1"
     activation_predicate: "waterwheel_mode == structurally_restored"
     ordered_ops: [restore_axle_and_flume_delta, rebuild_collision, bind_continuous_wheel_variant]
+  - patch_id: "scene.patch.service.gate"
+    patch_record_ref: "patch.valley.service_gate.v0.1"
+    activation_predicate: "service_gate_open == true"
+    ordered_ops: [restore_gate_geometry, rebuild_collision, verify_gate_route]
+  - patch_id: "scene.patch.service.bypass"
+    patch_record_ref: "patch.valley.service_bypass.v0.1"
+    activation_predicate: "service_bypass_open == true"
+    ordered_ops: [restore_bypass_geometry, rebuild_collision, verify_bypass_route]
 
 soft_failure_recoveries:
   - {failure_id: "waterwheel.lost_tools", action: "restore_hand_tools", preserves: [learning_evidence, committed_patches, region_commits]}

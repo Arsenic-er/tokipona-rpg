@@ -53,9 +53,9 @@ describe("scene content compiler", () => {
       "scene.valley.old_mine_threshold",
       "scene.valley.return_channel",
       "scene.valley.safe_range",
-      "scene.valley.service_channel",
       "scene.valley.settlement",
       "scene.valley.stream_section",
+      "scene.valley.underground_order_node",
       "scene.valley.waterwheel",
     ]);
   });

@@ -45,7 +45,7 @@ function expectIssue(run: () => unknown, code: string): void {
 }
 
 describe("N03/N04 infrastructure content contracts", () => {
-  it("compiles two independently indexed infrastructure tasks with canonical topology", () => {
+  it("compiles independently indexed infrastructure tasks rehomed to the waterwheel lower subarea", () => {
     const manifest = compileContent(repositorySources());
     expect(Object.keys(manifest.indexes.tasks).sort()).toEqual([
       "ch01_den_bypass",
@@ -62,10 +62,8 @@ describe("N03/N04 infrastructure content contracts", () => {
       width: 30,
       height: 32,
     });
-    expect(manifest.indexes.scenes["scene.valley.service_channel"]?.size_tiles).toEqual({
-      width: 28,
-      height: 40,
-    });
+    expect(manifest.indexes.scenes["scene.valley.service_channel"]).toBeUndefined();
+    expect(manifest.indexes.tasks.ch01_service_channel?.region_node_id).toBe("valley.waterwheel");
   });
 
   it("rejects a waterwheel contract where a temporary result persists", () => {
@@ -105,11 +103,11 @@ describe("N03/N04 infrastructure content contracts", () => {
 
   it("rejects a scene exit guard that diverges from the region connection", () => {
     const sources = repositorySources();
-    const scene = mutableSource(sources, "scenes/valley-service-channel.v0.1.yaml");
+    const scene = mutableSource(sources, "scenes/valley-waterwheel.v0.1.yaml");
     const exit = objectArray(scene, "exits").find(
-      (candidate) => candidate.exit_id === "service.to_high_cistern",
+      (candidate) => candidate.exit_id === "waterwheel.to_high_cistern",
     );
-    if (!exit) throw new Error("service exit missing");
+    if (!exit) throw new Error("waterwheel exit missing");
     exit.traversal_guard = { any: ["invented_shortcut == true"] };
     expectIssue(() => compileContent(sources), "scene.traversal_guard_mismatch");
   });

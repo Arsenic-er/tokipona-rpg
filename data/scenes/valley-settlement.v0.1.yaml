@@ -4,7 +4,7 @@ scene_id: "scene.valley.settlement"
 region_id: "valley_prologue"
 region_node_id: "valley.settlement"
 chapter_flow_id: "ch01_world_literacy_prologue"
-chapter_segment_id: "settlement_orientation"
+chapter_segment_id: "settlement_work"
 status: "graybox_machine_ready"
 tile_size_px: 16
 size_tiles: {width: 40, height: 30}

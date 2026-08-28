@@ -84,10 +84,10 @@ const ENTRY = requireOne(
 const INBOUND = requireOne(
   CISTERN_SCENE.inboundRoutes,
   (route) => route.entranceId === ENTRY.id,
-  "service-channel to high-cistern inbound route",
+  "waterwheel lower-maintenance to high-cistern inbound route",
 );
 const SERVICE_SCENE = SCENE_INDEX.byId[INBOUND.sourceSceneId];
-if (!SERVICE_SCENE) throw new Error("generated service-channel source scene is missing");
+if (!SERVICE_SCENE) throw new Error("generated waterwheel source scene is missing");
 const TASK_REFERENCE = requireOne(
   CISTERN_SCENE.taskRefs,
   (reference) => reference.id === CISTERN_TASK.id,

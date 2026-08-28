@@ -51,20 +51,20 @@ function expectIssue(run: () => unknown, code: string): void {
 }
 
 describe("N05 high-cistern content contract", () => {
-  it("compiles the canonical 30x48 scene, direct N04 inbound, three receiver stages and two independent families", () => {
+  it("compiles the canonical 30x48 scene, direct waterwheel inbound, three receiver stages and two independent families", () => {
     const manifest = compileContent(repositorySources());
     const scene = manifest.indexes.scenes["scene.valley.high_cistern"]!;
     const task = manifest.indexes.tasks.ch01_length_cistern!;
     expect(scene.size_tiles).toEqual({ width: 30, height: 48 });
     expect((scene.inbound_route_refs as MutableObject[])[0]).toMatchObject({
-      source_scene_id: "scene.valley.service_channel",
-      source_exit_id: "service.to_high_cistern",
-      entrance_id: "cistern.from_service",
+      source_scene_id: "scene.valley.waterwheel",
+      source_exit_id: "waterwheel.to_high_cistern",
+      entrance_id: "cistern.from_waterwheel",
     });
-    const service = manifest.indexes.scenes["scene.valley.service_channel"]!;
-    expect((service.exits as MutableObject[]).find((exit) => exit.exit_id === "service.to_high_cistern")).toMatchObject({
+    const waterwheel = manifest.indexes.scenes["scene.valley.waterwheel"]!;
+    expect((waterwheel.exits as MutableObject[]).find((exit) => exit.exit_id === "waterwheel.to_high_cistern")).toMatchObject({
       target_scene_id: "scene.valley.high_cistern",
-      target_entrance_id: "cistern.from_service",
+      target_entrance_id: "cistern.from_waterwheel",
     });
     expect(task.capacity_milestone_binding).toEqual(expect.objectContaining({
       milestone_id: "pre_cistern_length_phrase",
@@ -122,10 +122,10 @@ describe("N05 high-cistern content contract", () => {
     expectIssue(() => compileContent(sources), "task.cistern_capacity_ref");
   });
 
-  it("rejects weakening N04 to an implicit region-node handoff", () => {
+  it("rejects weakening the waterwheel handoff to an implicit region-node handoff", () => {
     const sources = repositorySources();
-    const service = mutableSource(sources, "scenes/valley-service-channel.v0.1.yaml");
-    const exit = objects(service, "exits").find((candidate) => candidate.exit_id === "service.to_high_cistern")!;
+    const waterwheel = mutableSource(sources, "scenes/valley-waterwheel.v0.1.yaml");
+    const exit = objects(waterwheel, "exits").find((candidate) => candidate.exit_id === "waterwheel.to_high_cistern")!;
     delete exit.target_scene_id;
     delete exit.target_entrance_id;
     exit.target_region_node_id = "valley.high_cistern";

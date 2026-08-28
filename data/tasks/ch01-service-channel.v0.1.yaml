@@ -1,13 +1,13 @@
 schema_version: "g01.task.infrastructure.v0.1"
-content_version: "chapter-01.service-channel.1"
+content_version: "chapter-01.service-channel.2"
 task_type: "infrastructure_world_predicate"
 task_id: "ch01_service_channel"
-task_family_id: "material_route_repair"
+task_family_id: "infrastructure_flow"
 chapter_flow_id: "ch01_world_literacy_prologue"
-chapter_segment_id: "service_channel"
+chapter_segment_id: "waterwheel_discovery"
 region_id: "valley_prologue"
-region_node_id: "valley.service_channel"
-scene_ref: "../scenes/valley-service-channel.v0.1.yaml"
+region_node_id: "valley.waterwheel"
+scene_ref: "../scenes/valley-waterwheel.v0.1.yaml"
 status: "machine_contract_ready"
 implementation_boundary: "authored_contract_not_particle_or_reaction_simulation"
 
@@ -115,7 +115,7 @@ grammar_contacts:
     production_required: false
     mastery_evidence_allowed: false
 
-entry_guard_any: ["waterwheel_restored == true", "maintenance_access_open == true"]
+entry_guard_any: ["settlement_reached == true"]
 exit_guard_any: ["service_gate_open == true", "service_bypass_open == true"]
 material_patch_refs: [patch.valley.service_gate.v0.1, patch.valley.service_bypass.v0.1]
 

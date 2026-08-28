@@ -4,7 +4,7 @@ task_type: "infrastructure_world_predicate"
 task_id: "ch01_den_bypass"
 task_family_id: "ecology_and_return_flow"
 chapter_flow_id: "ch01_world_literacy_prologue"
-chapter_segment_id: "den_and_return_flow"
+chapter_segment_id: "wetland_crisis"
 region_id: "valley_prologue"
 region_node_id: "valley.den_bypass"
 scene_ref: "../scenes/valley-den-bypass.v0.1.yaml"
@@ -98,7 +98,7 @@ language_exposure: []
 grammar_contacts: []
 material_reactions: []
 
-entry_guard_any: ["service_channel_reached == true"]
+entry_guard_any: ["maintenance_access_open == true"]
 exit_guard_any: ["den_route_open == true"]
 material_patch_refs: [patch.valley.den_route.v0.1]
 

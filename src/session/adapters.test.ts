@@ -214,7 +214,7 @@ describe("GameSession transaction adapters", () => {
     const session = GameSession.create({
       sessionId: "save.adapter.capacity",
       mp: { currentMp: 17, maxMp: 24, worldVersion: 9 },
-      currentSceneId: "scene.valley.service_channel",
+      currentSceneId: "scene.valley.waterwheel",
     });
     const committed = commitSessionProposal(
       session,

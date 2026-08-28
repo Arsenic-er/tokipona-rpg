@@ -29,11 +29,11 @@ describe("verified portrait camera projection", () => {
   });
 
   it("follows and clamps on both axes in a tall scene", () => {
-    const scene = scenes["scene.valley.service_channel"]!;
+    const scene = scenes["scene.valley.high_cistern"]!;
     const state = runtime(scene.sceneId, 400, 500);
     const camera = projectPortraitCamera(profile, state, scene);
-    expect(camera).toEqual({ x: 268, y: 309, width: 180, height: 320 });
-    expect(portraitScreenPoint(camera, state.player.position)).toEqual({ x: 132, y: 191 });
+    expect(camera).toEqual({ x: 300, y: 309, width: 180, height: 320 });
+    expect(portraitScreenPoint(camera, state.player.position)).toEqual({ x: 100, y: 191 });
   });
 
   it("rejects a mismatched scene and an unverified profile", () => {

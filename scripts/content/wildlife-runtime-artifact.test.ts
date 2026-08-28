@@ -45,15 +45,15 @@ describe("N06 wildlife runtime artifact", () => {
   it("emits optional N06 topology without replacing the direct N04 to N05 edge", () => {
     const artifact = buildRuntimeContentArtifact(compileContent(repositorySources()));
     const den = artifact.scenes.byId["scene.valley.den_bypass"]!;
-    const service = artifact.scenes.byId["scene.valley.service_channel"]!;
+    const waterwheel = artifact.scenes.byId["scene.valley.waterwheel"]!;
     expect(den.sizeTiles).toEqual({ width: 28, height: 28 });
     expect(den.nonMagicAlternativeRouteIds).toEqual([
       "den.wait_and_observe", "den.dig_upper_bypass", "den.low_force_noise", "den.low_force_staff", "den.service_return",
     ]);
-    expect(den.exits.find((exit) => exit.id === "den.to_service")?.traversalGuardAny).toEqual([]);
+    expect(den.exits.find((exit) => exit.id === "den.to_waterwheel")?.traversalGuardAny).toEqual([]);
     expect(den.exits.find((exit) => exit.id === "den.to_cistern")?.traversalGuardAny).toEqual(["den_route_open == true"]);
-    expect(service.exits.find((exit) => exit.id === "service.to_high_cistern")?.target).toEqual({
-      kind: "scene", sceneId: "scene.valley.high_cistern", entranceId: "cistern.from_service",
+    expect(waterwheel.exits.find((exit) => exit.id === "waterwheel.to_high_cistern")?.target).toEqual({
+      kind: "scene", sceneId: "scene.valley.high_cistern", entranceId: "cistern.from_waterwheel",
     });
     expect(artifact.infrastructureTasks.byId.ch01_den_bypass).toMatchObject({
       sceneId: "scene.valley.den_bypass",

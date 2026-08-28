@@ -100,7 +100,7 @@ const enterService = (session: PrologueWaterwheelSession, prefix: string): void 
   expect(entry.snapshot.mode).toBe("service_channel");
   expect(Object.values(entry.snapshot.session.world.flags).some((flag) =>
     flag.scope === "region" && flag.regionId === "valley_prologue" &&
-    flag.flagId === PROLOGUE_INFRASTRUCTURE_REGION_FLAGS.serviceChannelReached && flag.value === true
+    flag.flagId === PROLOGUE_INFRASTRUCTURE_REGION_FLAGS.maintenanceAccessOpen && flag.value === true
   )).toBe(true);
 };
 

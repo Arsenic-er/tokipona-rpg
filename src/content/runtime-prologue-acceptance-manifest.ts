@@ -53,13 +53,15 @@ export const PROLOGUE_PLAYTEST_SESSION_FORBIDDEN_FIELDS = Object.freeze([
 ] as const);
 
 export const PROLOGUE_SEGMENT_FOCUS = Object.freeze([
-  Object.freeze({ segmentId: "arrival", mapNodeIds: Object.freeze(["valley.arrival_shelf", "valley.stream_section"]), activeNewWordIds: Object.freeze(["telo"]) }),
-  Object.freeze({ segmentId: "settlement_orientation", mapNodeIds: Object.freeze(["valley.settlement"]), activeNewWordIds: Object.freeze([]) }),
-  Object.freeze({ segmentId: "waterwheel", mapNodeIds: Object.freeze(["valley.waterwheel"]), activeNewWordIds: Object.freeze(["tawa"]) }),
-  Object.freeze({ segmentId: "service_channel", mapNodeIds: Object.freeze(["valley.service_channel"]), activeNewWordIds: Object.freeze(["o"]) }),
-  Object.freeze({ segmentId: "high_cistern", mapNodeIds: Object.freeze(["valley.high_cistern"]), activeNewWordIds: Object.freeze(["lili", "suli"]) }),
-  Object.freeze({ segmentId: "den_and_return_flow", mapNodeIds: Object.freeze(["valley.den_bypass", "valley.return_channel"]), activeNewWordIds: Object.freeze(["wawa"]) }),
-  Object.freeze({ segmentId: "return_and_safe_range", mapNodeIds: Object.freeze(["valley.settlement", "valley.safe_range", "valley.old_mine_threshold"]), activeNewWordIds: Object.freeze([]) }),
+  Object.freeze({ segmentId: "arrival_tools", mapNodeIds: Object.freeze(["valley.arrival_shelf", "valley.stream_section"]), activeNewWordIds: Object.freeze([]) }),
+  Object.freeze({ segmentId: "settlement_work", mapNodeIds: Object.freeze(["valley.settlement"]), activeNewWordIds: Object.freeze([]) }),
+  Object.freeze({ segmentId: "waterwheel_discovery", mapNodeIds: Object.freeze(["valley.waterwheel"]), activeNewWordIds: Object.freeze([]) }),
+  Object.freeze({ segmentId: "hermit_initiation", mapNodeIds: Object.freeze(["valley.stream_section"]), activeNewWordIds: Object.freeze(["telo"]) }),
+  Object.freeze({ segmentId: "cistern_motion", mapNodeIds: Object.freeze(["valley.high_cistern"]), activeNewWordIds: Object.freeze(["tawa"]) }),
+  Object.freeze({ segmentId: "cistern_scale", mapNodeIds: Object.freeze(["valley.high_cistern"]), activeNewWordIds: Object.freeze(["lili", "suli"]) }),
+  Object.freeze({ segmentId: "wetland_crisis", mapNodeIds: Object.freeze(["valley.return_channel"]), activeNewWordIds: Object.freeze(["wawa"]) }),
+  Object.freeze({ segmentId: "underground_node", mapNodeIds: Object.freeze(["valley.underground_order_node"]), activeNewWordIds: Object.freeze([]) }),
+  Object.freeze({ segmentId: "allocation_epilogue", mapNodeIds: Object.freeze(["valley.settlement"]), activeNewWordIds: Object.freeze([]) }),
 ] as const);
 
 export type PrologueTelemetryEventId = typeof PROLOGUE_TELEMETRY_EVENT_IDS[number];
@@ -70,7 +72,7 @@ export type PrologueActivityKind = PrologueIncludedActivityKind | PrologueExclud
 export interface RuntimePrologueAcceptanceManifest {
   readonly sourceDigest: `sha256:${string}`;
   readonly sourcePath: "data/chapters/ch01-world-literacy-prologue.v0.1.yaml";
-  readonly contentVersion: "chapter-01.prologue.1";
+  readonly contentVersion: "chapter-01.forest.2";
   readonly telemetry: Readonly<{
     schemaVersion: "prologue.telemetry.v0.1";
     eventIds: readonly PrologueTelemetryEventId[];
@@ -161,7 +163,7 @@ export function readRuntimePrologueAcceptanceManifest(candidate: unknown): Runti
   const payload = Object.fromEntries(Object.entries(raw).filter(([key]) => key !== "sourceDigest"));
   if (computeRuntimePrologueAcceptanceDigest(payload) !== digest) throw new Error("prologue acceptance projection digest mismatch");
   exactKeys(raw, ["sourceDigest", "sourcePath", "contentVersion", "telemetry", "acceptance"], "prologue acceptance");
-  if (raw.sourcePath !== "data/chapters/ch01-world-literacy-prologue.v0.1.yaml" || raw.contentVersion !== "chapter-01.prologue.1") throw new Error("prologue acceptance source identity is invalid");
+  if (raw.sourcePath !== "data/chapters/ch01-world-literacy-prologue.v0.1.yaml" || raw.contentVersion !== "chapter-01.forest.2") throw new Error("prologue acceptance source identity is invalid");
 
   const telemetry = record(raw.telemetry, "prologue telemetry");
   exactKeys(telemetry, ["schemaVersion", "eventIds", "includedPrimaryActivities", "excludedActivities", "exclusivePrimaryActivity", "payload", "cadence", "playtestSessionSummary", "segmentFocus"], "prologue telemetry");

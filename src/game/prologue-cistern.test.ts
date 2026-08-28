@@ -22,7 +22,7 @@ import {
 } from "./prologue-cistern";
 
 const REGION_ID = "valley_prologue";
-const SERVICE_SCENE_ID = "scene.valley.service_channel";
+const SERVICE_SCENE_ID = "scene.valley.waterwheel";
 
 const preparedLearning = (sessionId: string): LearningProgressionSnapshot => {
   const learning = new CisternLearningSession({ playerSaveId: sessionId, expressionCapacity: 2 });

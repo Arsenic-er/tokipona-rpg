@@ -1,5 +1,5 @@
 schema_version: "g01.chapter-flow.v0.1"
-content_version: "chapter-01.prologue.1"
+content_version: "chapter-01.forest.2"
 chapter_flow_id: "ch01_world_literacy_prologue"
 status: "draft"
 
@@ -49,133 +49,26 @@ prologue_contract:
   wildlife_products_required_for_progress_forbidden: true
 
 segments:
-  - segment_id: "arrival"
-    content_budget_minutes: [0, 25]
-    map_nodes: [valley.arrival_shelf, valley.stream_section]
-    task_ids: [ch01_arrival]
-    task_family_id: "world_arrival_and_path"
-    implementation_status: "planned"
-    primary_world_facts: [world.water_obeys_path, world.destruction_persists]
-    focus_active_new_words: [telo]
-    previously_available_words: []
-    receptive_exposure: [kiwen, ko]
-    required_world_predicates: [settlement_reached]
-    solution_families: [move_loose_material, place_rotten_wood, dig_soft_soil, shallow_water_route, upper_slope_route]
+  - {segment_id: "arrival_tools", content_budget_minutes: [0, 30], map_nodes: [valley.arrival_shelf, valley.stream_section], task_ids: [ch01_arrival], task_family_id: "world_arrival_and_path", focus_active_new_words: [], solution_families: [move_loose_material, place_rotten_wood, dig_soft_soil, shallow_water_route, upper_slope_route]}
+  - {segment_id: "settlement_work", content_budget_minutes: [30, 55], map_nodes: [valley.settlement], task_ids: [ch01_settlement_orientation], task_family_id: "community_orientation", focus_active_new_words: [], solution_families: [survey_route_markers, interview_facility_workers]}
+  - {segment_id: "waterwheel_discovery", content_budget_minutes: [55, 75], map_nodes: [valley.waterwheel], task_ids: [ch01_waterwheel, ch01_service_channel], task_family_id: "infrastructure_flow", focus_active_new_words: [], solution_families: [clear_blockage, repair_axle, move_flume, dig_bypass, temporary_manifest_then_mechanical_lock, dig_wet_soil, move_stone_baffle, melt_thin_ice, open_bypass_valve, place_wood_platform, guided_material_change]}
+  - {segment_id: "hermit_initiation", content_budget_minutes: [75, 95], map_nodes: [valley.stream_section], task_ids: [ch01_medium_hermit_initiation], task_family_id: "forest_medium_initiation", focus_active_new_words: [telo], solution_families: [observe_natural_water, predict_manifest_path, perform_low_mp_telo, stabilize_with_tool]}
+  - {segment_id: "cistern_motion", content_budget_minutes: [95, 105], map_nodes: [valley.high_cistern], task_family_id: "cistern_motion_observation", focus_active_new_words: [tawa], solution_families: [observe_three_feedback_layers]}
+  - {segment_id: "cistern_scale", content_budget_minutes: [105, 120], map_nodes: [valley.high_cistern], task_ids: [ch01_length_cistern], task_family_id: "axial_length_infrastructure", focus_active_new_words: [lili, suli], solution_families: [calibration_tool_bypass, transfer_tool_bypass, direct_length_calibration, direct_length_transfer]}
+  - {segment_id: "wetland_crisis", content_budget_minutes: [120, 148], map_nodes: [valley.return_channel], task_ids: [ch01_return_flow], optional_task_ids: [ch01_den_bypass], task_family_id: "ecology_and_return_flow", focus_active_new_words: [wawa], solution_families: [wait_and_observe, dig_upper_bypass, route_around, low_force_deterrence, repair_overflow, clear_mud, reuse_old_channel]}
+  - {segment_id: "underground_node", content_budget_minutes: [148, 173], map_nodes: [valley.underground_order_node], task_ids: [ch01_underground_water_allocation], task_family_id: "ecology_and_return_flow", focus_active_new_words: [], solution_families: [observe_archive_synchronize_shard_choose_allocation]}
+  - {segment_id: "allocation_epilogue", content_budget_minutes: [173, 180], map_nodes: [valley.settlement], required_task_ids: [ch01_return_observation], optional_task_ids: [ch01_first_attack_qualification], task_family_id: "delayed_return_and_safe_transfer", focus_active_new_words: [], solution_families: [settlement_return_observation]}
 
-    survival_needs_mode: "hidden_and_frozen"
-  - segment_id: "settlement_orientation"
-    content_budget_minutes: [25, 50]
-    map_nodes: [valley.settlement]
-    task_ids: [ch01_settlement_orientation]
-    task_family_id: "community_orientation"
-    implementation_status: "planned"
-    primary_world_facts: [world.community_depends_on_infrastructure, world.magic_has_safety_practice]
-    focus_active_new_words: []
-    previously_available_words: [telo]
-    receptive_exposure: [seli, lete]
-    required_world_predicates: [meditation_court_activated]
-    optional_economy_jobs: [repair, transport, survey, salvage, gathering]
-    survival_onboarding:
-      optional: true
-      language_answer_required: false
-      public_well: true
-      communal_plant_meal: true
-      first_use_minimum_state: {player_satiety: 90, player_hydration: 90}
-      active_new_words_added: 0
-      optional_receptive_exposure: [moku]
-
-  - segment_id: "waterwheel"
-    content_budget_minutes: [50, 85]
-    map_nodes: [valley.waterwheel]
-    task_ids: [ch01_waterwheel]
-    task_family_id: "infrastructure_flow"
-    implementation_status: "planned"
-    primary_world_facts: [world.environment_saves_mp, world.structure_controls_continuity]
-    focus_active_new_words: [tawa]
-    previously_available_words: [telo]
-    receptive_exposure: [awen]
-    required_world_predicates: [waterwheel_stable, downstream_safe]
-    solution_families: [clear_blockage, repair_axle, move_flume, dig_bypass, temporary_manifest_then_mechanical_lock]
-
-  - segment_id: "service_channel"
-    content_budget_minutes: [85, 115]
-    map_nodes: [valley.service_channel]
-    task_ids: [ch01_service_channel]
-    task_family_id: "material_route_repair"
-    implementation_status: "planned"
-    primary_world_facts: [world.material_states_differ, world.heat_needs_source]
-    focus_active_new_words: [o]
-    previously_available_words: [telo, tawa]
-    receptive_exposure: [seli, lete, kiwen, ko]
-    required_world_predicates_any: [service_gate_open, service_bypass_open, den_route_open]
-    solution_families: [dig_wet_soil, move_stone_baffle, melt_thin_ice, open_bypass_valve, place_wood_platform, den_route]
-
-  - segment_id: "high_cistern"
-    content_budget_minutes: [110, 150]
-    map_nodes: [valley.high_cistern]
-    task_ids: [ch01_length_cistern]
-    task_family_id: "axial_length_infrastructure"
-    task_ref: "../tasks/ch01-length-cistern.v0.1.yaml"
-    implementation_status: "specified"
-    primary_world_facts: [world.length_is_geometry, world.length_changes_workload_not_direct_damage]
-    focus_active_new_words: [lili, suli]
-    previously_available_words: [telo, tawa, o]
-    receptive_exposure: []
-    solution_families: [calibration_tool_bypass, transfer_tool_bypass, direct_length_calibration, direct_length_transfer]
-    required_world_predicates: [high_cistern_reconnected, upper_channel_available, exit_ladder_lowered]
-    completion_learning_state:
-      authority: "task.completion.world_transition.learning_state_proposals"
-      accept_conditional_task_proposals: true
-      rule_refs: {lili: "cistern.available.lili.v0.1", suli: "cistern.available.suli.v0.1"}
-      tool_only_completion_writes_available: false
-      direct_mastery_write_forbidden: true
-    length_mastery_required_for_first_attack: false
-
-    survival_metabolism_frozen: true
-  - segment_id: "den_and_return_flow"
-    content_budget_minutes: [140, 165]
-    map_nodes: [valley.den_bypass, valley.return_channel, valley.underground_order_node, valley.settlement]
-    task_ids: [ch01_return_flow, ch01_underground_water_allocation]
-    optional_task_ids: [ch01_den_bypass]
-    task_family_id: "ecology_and_return_flow"
-    implementation_status: "graybox_machine_ready"
-    primary_world_facts: [world.wildlife_has_intent, world.destruction_persists]
-    focus_active_new_words: [wawa]
-    previously_available_words: [telo, tawa, o, lili, suli]
-    receptive_exposure: []
-    required_world_predicates: [settlement_supply_stable]
-    first_wawa_evidence_source: "inert_return_flow_mechanism_only"
-    wildlife_actions_count_for_wawa_evidence: false
-    solution_families: [wait_and_observe, dig_upper_bypass, route_around, low_force_deterrence, repair_overflow, clear_mud, reuse_old_channel]
-    optional_harvest_allowed: true
-    harvest_required_for_segment: false
-    wildlife_products_count_for_language_or_attack_evidence: false
-    optional_processing_demo_on_settlement_return: true
-    wildlife_processing_demo_source_any: [gifted_carcass, purchased_carcass, natural_death_carcass]
-    player_kill_required_for_demo: false
-    processing_demo_active_new_words_added: 0
-    processing_demo_language_answer_required: false
-    wildlife_contract:
-      default_relation: "avoidant"
-      states: [calm, observe, warn, self_defense, flee, return]
-      required_kill: false
-      important_drop: false
-      language_reward_from_harm: false
-
-  - segment_id: "return_and_safe_range"
-    content_budget_minutes: [155, 180]
-    map_nodes: [valley.settlement, valley.safe_range, valley.old_mine_threshold]
-    required_task_ids: [ch01_return_observation]
-    optional_task_ids: [ch01_first_attack_qualification]
-    task_family_id: "delayed_return_and_safe_transfer"
-    implementation_status: "machine_contract_ready"
-    primary_world_facts: [world.actions_have_persistent_social_and_ecological_effects, world.damage_is_physical_result]
-    focus_active_new_words: []
-    previously_available_words: [telo, tawa, o, wawa, lili, suli]
-    receptive_exposure: []
-    required_world_predicates: [prologue_return_observed]
-    optional_world_predicates: [first_attack_signature_available, first_attack_signature_completed]
-    safe_range_targets: [wood_dummy, sandbag, minecart, hanging_stone, material_collision_table]
+forest_chapter_contract:
+  working_title_zh: "水往何处"
+  target_median_minutes: 180
+  first_play_range_minutes: [150, 240]
+  main_scene_ids: ["scene.valley.arrival_shelf", "scene.valley.stream_section", "scene.valley.settlement", "scene.valley.waterwheel", "scene.valley.high_cistern", "scene.valley.return_channel", "scene.valley.underground_order_node"]
+  optional_scene_ids: ["scene.valley.den_bypass", "scene.valley.safe_range"]
+  post_chapter_boundary_scene_id: "scene.valley.old_mine_threshold"
+  mandatory_kills: 0
+  mandatory_wildlife_products: 0
+  medium_usable_before_hermit_initiation: false
 
 world_literacy_evidence:
   evidence_kinds: [observed, intervened, transferred, causally_explained]

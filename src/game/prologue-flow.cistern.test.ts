@@ -180,7 +180,7 @@ describe("PrologueFlowSession N05 integration", () => {
     reachReadyService(target, "adopt");
     const runtimeSession = target.session;
     expect(runtimeSession.apply({
-      eventId: "runtime.scene.reconcile.scene.valley.service_channel->scene.valley.high_cistern",
+      eventId: "runtime.scene.reconcile.scene.valley.waterwheel->scene.valley.high_cistern",
       sequence: runtimeSession.nextSequence(),
       type: "scene_entered",
       payload: { sceneId: PROLOGUE_CISTERN_SCENE_ID },

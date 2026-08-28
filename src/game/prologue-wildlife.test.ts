@@ -45,7 +45,7 @@ function sceneSession(id: string, sceneId: string, serviceReached = false): Game
   if (serviceReached) {
     const commit = commitSessionProposal(session, { transactionId: `setup.${id}`, drafts: [{
       eventId: `setup.${id}.service`, type: "world_flag_set",
-      payload: { flagId: "service_channel_reached", value: true, scope: "region", regionId: "valley_prologue" },
+      payload: { flagId: "maintenance_access_open", value: true, scope: "region", regionId: "valley_prologue" },
     }] });
     if (!commit.committed) throw new Error("test setup failed");
     session = commit.session;
@@ -123,7 +123,7 @@ describe("N06 prologue wildlife coordinator", () => {
   });
 
   it("enters from N04/N05, checkpoints each entrance, and adopts only the latest canonical N06 entry", () => {
-    const service = PrologueWildlifeSession.enterFromService(sceneSession("entry.service", "scene.valley.service_channel", true), "enter.service");
+    const service = PrologueWildlifeSession.enterFromService(sceneSession("entry.service", "scene.valley.waterwheel", true), "enter.service");
     expect(service).toMatchObject({ accepted: true, source: "service" });
     expect(service.wildlife!.session.snapshot().checkpoint.position).toEqual({ x: 32, y: 418 });
     expect(PrologueWildlifeSession.adopt(service.wildlife!.session, "adopt.service")).toMatchObject({ accepted: true, source: "service" });
@@ -142,8 +142,8 @@ describe("N06 prologue wildlife coordinator", () => {
 
   it("keeps service/cistern entry guarded and entry transaction reuse conflict-safe", () => {
     expect(PrologueWildlifeSession.enterFromCistern(sceneSession("blocked.cistern", "scene.valley.high_cistern"), "entry.cistern.blocked")).toMatchObject({ accepted: false, reason: "entry_guard_failed" });
-    expect(PrologueWildlifeSession.enterFromService(sceneSession("blocked", "scene.valley.service_channel"), "entry")).toMatchObject({ accepted: false, reason: "entry_guard_failed" });
-    const first = PrologueWildlifeSession.enterFromService(sceneSession("entry.receipt", "scene.valley.service_channel", true), "same");
+    expect(PrologueWildlifeSession.enterFromService(sceneSession("blocked", "scene.valley.waterwheel"), "entry")).toMatchObject({ accepted: false, reason: "entry_guard_failed" });
+    const first = PrologueWildlifeSession.enterFromService(sceneSession("entry.receipt", "scene.valley.waterwheel", true), "same");
     expect(PrologueWildlifeSession.enterFromService(first.wildlife!.session, "same")).toMatchObject({ accepted: true, duplicate: true });
     expect(PrologueWildlifeSession.enterFromCistern(first.wildlife!.session, "same")).toMatchObject({ accepted: false, reason: "transaction_conflict" });
   });
@@ -231,7 +231,7 @@ describe("N06 prologue wildlife coordinator", () => {
   it("keeps service handoff open, gates cistern, and returns structured wrong-scene recovery", () => {
     const game = createWildlife("handoff");
     expect(game.handoffToHighCistern("cistern.blocked")).toMatchObject({ accepted: false, reason: "route_prerequisite_missing" });
-    expect(game.returnToService("service")).toMatchObject({ accepted: true, ready: true, targetEntranceId: "service.from_den" });
+    expect(game.returnToService("service")).toMatchObject({ accepted: true, ready: true, targetEntranceId: "waterwheel.from_settlement" });
     expect(game.recoverSoftLock("wrong.scene")).toMatchObject({ accepted: false, reason: "wrong_scene" });
     expect(game.resetToCheckpoint("wrong.scene.reset")).toMatchObject({ accepted: false, reason: "wrong_scene" });
   });

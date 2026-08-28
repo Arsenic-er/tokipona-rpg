@@ -4,7 +4,7 @@ scene_id: "scene.valley.stream_section"
 region_id: "valley_prologue"
 region_node_id: "valley.stream_section"
 chapter_flow_id: "ch01_world_literacy_prologue"
-chapter_segment_id: "arrival"
+chapter_segment_id: "hermit_initiation"
 status: "graybox_machine_ready"
 tile_size_px: 16
 size_tiles: {width: 32, height: 24}

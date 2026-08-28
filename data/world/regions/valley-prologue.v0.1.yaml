@@ -1,5 +1,5 @@
 schema_version: "g01.region.v0.1"
-content_version: "chapter-01.prologue.1"
+content_version: "chapter-01.forest.2"
 region_id: "valley_prologue"
 status: "draft"
 ecology_ref: "../../ecology/valley-prologue.v0.1.yaml"
@@ -41,8 +41,7 @@ survival_relief_contract:
     - {node_id: "valley.arrival_shelf", mode: "first_25_minutes_metabolism_frozen"}
     - {node_id: "valley.stream_section", mode: "first_25_minutes_metabolism_frozen"}
     - {node_id: "valley.settlement", mode: "public_well_and_communal_plant_meal"}
-    - {node_id: "valley.waterwheel", mode: "potable_maintenance_spout_and_signed_settlement_return"}
-    - {node_id: "valley.service_channel", mode: "emergency_maintenance_canteen_and_signed_return"}
+    - {node_id: "valley.waterwheel", mode: "potable_maintenance_spout_and_lower_maintenance_canteen"}
     - {node_id: "valley.high_cistern", mode: "task_metabolism_frozen"}
     - {node_id: "valley.return_channel", mode: "potable_return_spout_and_root_foraging"}
     - {node_id: "valley.underground_order_node", mode: "archive_shelter_and_existing_fragment_cradle"}
@@ -79,18 +78,7 @@ nodes:
     suggested_size_tiles: [30, 32]
     entry_condition: {predicate: "settlement_reached == true"}
     persistence_scope: "region_persistent"
-    world_literacy_tags: [existing_material_efficiency, continuous_flow, mechanical_repair]
-
-  - node_id: "valley.service_channel"
-    scene_id: "scene.valley.service_channel"
-    implementation_status: "planned"
-    suggested_size_tiles: [28, 40]
-    entry_condition:
-      any:
-        - "waterwheel_restored == true"
-        - "maintenance_access_open == true"
-    persistence_scope: "checkpoint_local"
-    world_literacy_tags: [water, mud, stone, wood, thin_ice]
+    world_literacy_tags: [existing_material_efficiency, continuous_flow, mechanical_repair, water, mud, stone, wood, thin_ice]
 
   - node_id: "valley.high_cistern"
     scene_id: "scene.valley.high_cistern"
@@ -109,7 +97,7 @@ nodes:
     scene_id: "scene.valley.den_bypass"
     implementation_status: "planned"
     suggested_size_tiles: [28, 28]
-    entry_condition: {predicate: "service_channel_reached == true"}
+    entry_condition: {predicate: "maintenance_access_open == true"}
     persistence_scope: "region_persistent"
     world_literacy_tags: [wildlife_warning, retreat_path, nonlethal_deterrence]
 
@@ -157,19 +145,12 @@ connections:
   - {from: "valley.stream_section", to: "valley.settlement", traversal: {always: true}, on_first_traverse_commit: "settlement_entry_crossed"}
   - {from: "valley.settlement", to: "valley.waterwheel", traversal: {always: true}}
   - from: "valley.waterwheel"
-    to: "valley.service_channel"
-    traversal:
-      any:
-        - "waterwheel_restored == true"
-        - "maintenance_access_open == true"
-    on_first_traverse_commit: "service_channel_entry_crossed"
-  - from: "valley.service_channel"
     to: "valley.high_cistern"
     traversal:
       any:
         - "service_gate_open == true"
         - "service_bypass_open == true"
-  - {from: "valley.service_channel", to: "valley.den_bypass", traversal: {always: true}}
+  - {from: "valley.waterwheel", to: "valley.den_bypass", traversal: {always: true}}
   - {from: "valley.den_bypass", to: "valley.high_cistern", traversal: {predicate: "den_route_open == true"}}
   - {from: "valley.high_cistern", to: "valley.return_channel", traversal: {predicate: "exit_ladder_lowered == true"}}
   - {from: "valley.return_channel", to: "valley.underground_order_node", traversal: {predicate: "settlement_supply_stable == true"}}
@@ -209,7 +190,6 @@ state_registry:
   - {state_id: "forest_water_allocation", type: enum, values: [unassigned, settlement_priority, wetland_priority, road_trade_priority], initial: unassigned, owner: "ch01_underground_water_allocation", persistence_scope: "region_persistent", save_owner: "valley_prologue_region_save", unique_writer_event: "forest_water_allocation_committed"}
   - {state_id: "forest_site_lead_revealed", type: boolean, initial: false, owner: "ch01_underground_water_allocation", persistence_scope: "region_persistent", save_owner: "valley_prologue_region_save", unique_writer_event: "forest_site_lead_revealed"}
   - {state_id: "forest_chapter_epilogue_committed", type: boolean, initial: false, owner: "ch01_underground_water_allocation", persistence_scope: "region_persistent", save_owner: "valley_prologue_region_save", unique_writer_event: "forest_chapter_epilogue_committed"}
-  - {state_id: "service_channel_reached", type: boolean, initial: false, owner: "region", persistence_scope: "region_persistent", save_owner: "valley_prologue_region_save", unique_writer_event: "service_channel_entry_crossed"}
   - {state_id: "service_gate_open", type: boolean, initial: false, owner: "ch01_service_channel", persistence_scope: "region_persistent", save_owner: "valley_prologue_region_save", unique_writer_event: "service_gate_solution_committed"}
   - {state_id: "service_bypass_open", type: boolean, initial: false, owner: "ch01_service_channel", persistence_scope: "region_persistent", save_owner: "valley_prologue_region_save", unique_writer_event: "service_bypass_solution_committed"}
   - {state_id: "den_route_open", type: boolean, initial: false, owner: "ch01_den_bypass", persistence_scope: "region_persistent", save_owner: "valley_prologue_region_save", unique_writer_event: "non_destructive_den_route_committed"}
@@ -281,9 +261,6 @@ event_commit_points:
     monotonic_enum_order: [stopped, temporary_driven, structurally_restored]
     replay_merge_policy: "maximum_rank_wins"
     patch_records_by_result: {structurally_restored: patch.valley.waterwheel_structure.v0.1}
-  service_channel_entry_crossed:
-    owner: "region"
-    atomic_writes: {service_channel_reached: true}
   service_gate_solution_committed:
     owner: "ch01_service_channel"
     atomic_writes: {service_gate_open: true}
@@ -393,11 +370,11 @@ scene_state_bindings:
   - {scene_id: "scene.valley.underground_order_node", reads: "forest_water_allocation", binding: "allocation_console_and_channel_variants"}
 
 route_completion_contract:
-  required_loop: [valley.arrival_shelf, valley.stream_section, valley.settlement, valley.waterwheel, valley.service_channel, valley.high_cistern, valley.return_channel, valley.underground_order_node, valley.settlement]
+  required_loop: [valley.arrival_shelf, valley.stream_section, valley.settlement, valley.waterwheel, valley.high_cistern, valley.return_channel, valley.underground_order_node, valley.settlement]
   required_transition_alternatives:
-    service_channel_to_high_cistern:
-      - [valley.service_channel, valley.high_cistern]
-      - [valley.service_channel, valley.den_bypass, valley.high_cistern]
+    waterwheel_to_high_cistern:
+      - [valley.waterwheel, valley.high_cistern]
+      - [valley.waterwheel, valley.den_bypass, valley.high_cistern]
   optional_nodes: [valley.den_bypass, valley.safe_range]
   den_bypass_counts_as_valid_required_loop_subpath: true
   peaceful_exit_node: "valley.old_mine_threshold"

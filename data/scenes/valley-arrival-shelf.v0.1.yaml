@@ -4,7 +4,7 @@ scene_id: "scene.valley.arrival_shelf"
 region_id: "valley_prologue"
 region_node_id: "valley.arrival_shelf"
 chapter_flow_id: "ch01_world_literacy_prologue"
-chapter_segment_id: "arrival"
+chapter_segment_id: "arrival_tools"
 status: "graybox_machine_ready"
 tile_size_px: 16
 size_tiles: {width: 24, height: 20}

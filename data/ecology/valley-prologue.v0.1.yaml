@@ -103,9 +103,9 @@ entities:
     life_state_ref: "valley_ecology_save.life_instances"
     harvest_profile_id: "harvest.bat.v0.1"
     max_hp_provisional: 10
-    home_scene: "scene.valley.service_channel"
-    spawn_anchor: "service_channel.bat_roost"
-    real_escape_exit: "service_channel.upper_vent"
+    home_scene: "scene.valley.waterwheel"
+    spawn_anchor: "waterwheel.lower_maintenance.bat_roost"
+    real_escape_exit: "waterwheel.lower_maintenance.upper_vent"
     defensive_action: {kind: "accidental_collision", damage_provisional: 1}
     preferred_response: "flee_from_light_sound_and_vibration"
     environment_sensor: "roof_vibration_precedes_loose_rock_fall"

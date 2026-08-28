@@ -4,7 +4,7 @@ scene_id: "scene.valley.high_cistern"
 region_id: "valley_prologue"
 region_node_id: "valley.high_cistern"
 chapter_flow_id: "ch01_world_literacy_prologue"
-chapter_segment_id: "high_cistern"
+chapter_segment_id: "cistern_scale"
 status: "graybox_machine_ready"
 tile_size_px: 16
 size_tiles: {width: 30, height: 48}
@@ -59,7 +59,7 @@ collision_rows_top_down:
   - "##############################"
 
 entrances:
-  - entrance_id: "cistern.from_service"
+  - entrance_id: "cistern.from_waterwheel"
     spawn_tile: [2, 1]
     recovery_entry: true
     checkpoint_policy: "scene_entry_and_stage_recovery"
@@ -73,20 +73,20 @@ entrances:
     checkpoint_policy: "optional_route_entry"
 
 inbound_route_refs:
-  - inbound_ref_id: "cistern.inbound_from_service"
-    source_scene_id: "scene.valley.service_channel"
-    source_exit_id: "service.to_high_cistern"
-    entrance_id: "cistern.from_service"
+  - inbound_ref_id: "cistern.inbound_from_waterwheel"
+    source_scene_id: "scene.valley.waterwheel"
+    source_exit_id: "waterwheel.to_high_cistern"
+    entrance_id: "cistern.from_waterwheel"
   - inbound_ref_id: "cistern.inbound_from_den"
     source_scene_id: "scene.valley.den_bypass"
     source_exit_id: "den.to_cistern"
     entrance_id: "cistern.from_den"
 
 exits:
-  - exit_id: "cistern.to_service"
+  - exit_id: "cistern.to_waterwheel"
     trigger_rect_tiles: {x: 0, y: 0, width: 2, height: 7}
-    target_scene_id: "scene.valley.service_channel"
-    target_entrance_id: "service.from_cistern"
+    target_scene_id: "scene.valley.waterwheel"
+    target_entrance_id: "waterwheel.from_cistern"
     traversal_guard:
       any: ["service_gate_open == true", "service_bypass_open == true"]
   - exit_id: "cistern.to_return_channel"
@@ -116,26 +116,26 @@ routes:
   - route_id: "cistern.direct_length_route"
     route_kind: "optional_magic"
     solution_family: "direct_length_calibration_and_transfer"
-    from_entrance_id: "cistern.from_service"
+    from_entrance_id: "cistern.from_waterwheel"
     to_exit_id: "cistern.to_return_channel"
     objective_ids: [cistern.observe_default, cistern.calibrate_short, cistern.calibrate_default, cistern.transfer_long, cistern.reconnect]
   - route_id: "cistern.calibration_tool_route"
     route_kind: "non_magic"
     solution_family: "calibration_tool_bypass"
-    from_entrance_id: "cistern.from_service"
+    from_entrance_id: "cistern.from_waterwheel"
     to_exit_id: "cistern.to_return_channel"
     objective_ids: [cistern.observe_default, cistern.calibrate_short, cistern.calibrate_default, cistern.reconnect]
   - route_id: "cistern.transfer_tool_route"
     route_kind: "non_magic"
     solution_family: "transfer_tool_bypass"
-    from_entrance_id: "cistern.from_service"
+    from_entrance_id: "cistern.from_waterwheel"
     to_exit_id: "cistern.to_return_channel"
     objective_ids: [cistern.transfer_long, cistern.reconnect]
   - route_id: "cistern.signed_service_return"
     route_kind: "non_magic"
     solution_family: "signed_service_return"
     from_entrance_id: "cistern.from_return"
-    to_exit_id: "cistern.to_service"
+    to_exit_id: "cistern.to_waterwheel"
     objective_ids: []
   - route_id: "cistern.optional_den_return"
     route_kind: "non_magic"
@@ -180,7 +180,7 @@ soft_failure_recoveries:
   - {failure_id: "cistern.route_blocked", action: "restore_latest_stage_checkpoint", preserves: [learning_evidence, committed_completion, survival_state]}
 
 recovery:
-  entry_entrance_id: "cistern.from_service"
+  entry_entrance_id: "cistern.from_waterwheel"
   maximum_softlock_recovery_seconds: 60
   actions: [restore_task_local_calibration_tools, restore_task_local_transfer_tools, reset_uncommitted_receiver_state, restore_latest_stage_checkpoint, expose_signed_service_return]
   preserves: [learning_evidence, completed_stages, committed_completion, survival_state]

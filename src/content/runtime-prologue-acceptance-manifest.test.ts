@@ -56,13 +56,15 @@ describe("prologue acceptance runtime contract", () => {
     });
     expect(value.telemetry.eventIds).toHaveLength(24);
     expect(value.telemetry.segmentFocus).toEqual([
-      { segmentId: "arrival", mapNodeIds: ["valley.arrival_shelf", "valley.stream_section"], activeNewWordIds: ["telo"] },
-      { segmentId: "settlement_orientation", mapNodeIds: ["valley.settlement"], activeNewWordIds: [] },
-      { segmentId: "waterwheel", mapNodeIds: ["valley.waterwheel"], activeNewWordIds: ["tawa"] },
-      { segmentId: "service_channel", mapNodeIds: ["valley.service_channel"], activeNewWordIds: ["o"] },
-      { segmentId: "high_cistern", mapNodeIds: ["valley.high_cistern"], activeNewWordIds: ["lili", "suli"] },
-      { segmentId: "den_and_return_flow", mapNodeIds: ["valley.den_bypass", "valley.return_channel"], activeNewWordIds: ["wawa"] },
-      { segmentId: "return_and_safe_range", mapNodeIds: ["valley.settlement", "valley.safe_range", "valley.old_mine_threshold"], activeNewWordIds: [] },
+      { segmentId: "arrival_tools", mapNodeIds: ["valley.arrival_shelf", "valley.stream_section"], activeNewWordIds: [] },
+      { segmentId: "settlement_work", mapNodeIds: ["valley.settlement"], activeNewWordIds: [] },
+      { segmentId: "waterwheel_discovery", mapNodeIds: ["valley.waterwheel"], activeNewWordIds: [] },
+      { segmentId: "hermit_initiation", mapNodeIds: ["valley.stream_section"], activeNewWordIds: ["telo"] },
+      { segmentId: "cistern_motion", mapNodeIds: ["valley.high_cistern"], activeNewWordIds: ["tawa"] },
+      { segmentId: "cistern_scale", mapNodeIds: ["valley.high_cistern"], activeNewWordIds: ["lili", "suli"] },
+      { segmentId: "wetland_crisis", mapNodeIds: ["valley.return_channel"], activeNewWordIds: ["wawa"] },
+      { segmentId: "underground_node", mapNodeIds: ["valley.underground_order_node"], activeNewWordIds: [] },
+      { segmentId: "allocation_epilogue", mapNodeIds: ["valley.settlement"], activeNewWordIds: [] },
     ]);
     expect(value.acceptance.required).toMatchObject({ mandatoryKills: 0, safeRangeUsesLivingTargets: false, meaningfulWorldDeltasOnReturnMinimum: 3 });
     expect(value.acceptance.playtest).toMatchObject({ worldPeoplePhysicsTimeShareMinimum: 0.65, languageActivityTimeShareRange: [0.15, 0.25], longExplanationPanelTimeShareMaximum: 0.10, rangeTrialPermissionContentMinutesP90Maximum: 180 });

@@ -65,26 +65,18 @@ const manifestByNode = (regionNodeId: string): RuntimeSceneManifest => requireOn
 );
 
 const WATERWHEEL_SCENE = manifestByNode("valley.waterwheel");
-const SERVICE_SCENE = manifestByNode("valley.service_channel");
+// The service task is a lower-maintenance subarea of the waterwheel, not a separate scene.
+const SERVICE_SCENE = WATERWHEEL_SCENE;
 const WATERWHEEL_ENTRY = requireOne(
   WATERWHEEL_SCENE.entrances,
   (entrance) => entrance.id === WATERWHEEL_SCENE.recovery.entryEntranceId,
   "waterwheel recovery entrance",
 );
-const SERVICE_ENTRY = requireOne(
-  SERVICE_SCENE.entrances,
-  (entrance) => entrance.id === SERVICE_SCENE.recovery.entryEntranceId,
-  "service-channel recovery entrance",
-);
+const SERVICE_ENTRY = WATERWHEEL_ENTRY;
 const WATERWHEEL_INBOUND_FROM_SETTLEMENT = requireOne(
   WATERWHEEL_SCENE.inboundRoutes,
   (route) => route.entranceId === WATERWHEEL_ENTRY.id,
   "settlement-to-waterwheel inbound route",
-);
-const SERVICE_INBOUND_FROM_WATERWHEEL = requireOne(
-  SERVICE_SCENE.inboundRoutes,
-  (route) => route.entranceId === SERVICE_ENTRY.id,
-  "waterwheel-to-service inbound route",
 );
 const WATERWHEEL_EXIT_TO_SETTLEMENT = requireOne(
   WATERWHEEL_SCENE.exits,
@@ -115,8 +107,8 @@ const INFRASTRUCTURE_RUNTIME_SCENES = Object.freeze(
   Object.values(SCENE_INDEX.byId).map(toRuntimeScene),
 );
 
-const taskForScene = (scene: RuntimeSceneManifest): RuntimeInfrastructureTaskManifest => {
-  const reference = requireOne(scene.taskRefs, () => true, `${scene.sceneId} task reference`);
+const taskForScene = (scene: RuntimeSceneManifest, taskId: string): RuntimeInfrastructureTaskManifest => {
+  const reference = requireOne(scene.taskRefs, (candidate) => candidate.id === taskId, `${scene.sceneId} ${taskId} reference`);
   const task = TASK_INDEX.byId[reference.id];
   if (!task || task.sourcePath !== reference.authoritativeTaskSourcePath || task.sceneId !== scene.sceneId ||
       task.regionId !== scene.regionId || task.regionNodeId !== scene.regionNodeId) {
@@ -125,8 +117,8 @@ const taskForScene = (scene: RuntimeSceneManifest): RuntimeInfrastructureTaskMan
   return task;
 };
 
-const WATERWHEEL_TASK = taskForScene(WATERWHEEL_SCENE);
-const SERVICE_TASK = taskForScene(SERVICE_SCENE);
+const WATERWHEEL_TASK = taskForScene(WATERWHEEL_SCENE, "ch01_waterwheel");
+const SERVICE_TASK = taskForScene(SERVICE_SCENE, "ch01_service_channel");
 
 const STOPPED_MODE = requireOne(
   WATERWHEEL_TASK.modes,
@@ -157,9 +149,8 @@ if (WATERWHEEL_TASK.maximumSoftlockRecoverySeconds > 60 ||
     SERVICE_TASK.maximumSoftlockRecoverySeconds > 60) {
   throw new Error("infrastructure recovery must be available within 60 seconds");
 }
-if (WATERWHEEL_SCENE.sizeTiles.width !== 30 || WATERWHEEL_SCENE.sizeTiles.height !== 32 ||
-    SERVICE_SCENE.sizeTiles.width !== 28 || SERVICE_SCENE.sizeTiles.height !== 40) {
-  throw new Error("generated N03/N04 dimensions do not match the playable slice contract");
+if (WATERWHEEL_SCENE.sizeTiles.width !== 30 || WATERWHEEL_SCENE.sizeTiles.height !== 32) {
+  throw new Error("generated waterwheel dimensions do not match the playable slice contract");
 }
 
 const WATERWHEEL_TAWA_EXPOSURE = requireOne(
@@ -185,12 +176,12 @@ const O_CONTACT = requireOne(
 
 const WATERWHEEL_MOTION_INTERACTION = requireOne(
   WATERWHEEL_SCENE.interactions,
-  (interaction) => interaction.optionalWordId === "word.tawa" && interaction.verb === "observe_motion",
+  (interaction) => interaction.id === "waterwheel.inspect_motion_marker" && interaction.optionalWordId === "word.tawa" && interaction.verb === "observe_motion",
   "waterwheel tawa observation",
 );
 const SERVICE_MOTION_INTERACTION = requireOne(
   SERVICE_SCENE.interactions,
-  (interaction) => interaction.optionalWordId === "word.tawa" && interaction.verb === "observe_motion",
+  (interaction) => interaction.id === "service.observe_water_motion" && interaction.optionalWordId === "word.tawa" && interaction.verb === "observe_motion",
   "service-channel tawa observation",
 );
 const O_SIGN_INTERACTION = requireOne(
@@ -219,7 +210,6 @@ export const PROLOGUE_INFRASTRUCTURE_REGION_FLAGS = Object.freeze({
   waterwheelResultMode: "waterwheel_result_mode",
   waterwheelSolutionId: "waterwheel_solution_id",
   serviceChannelEntryCrossed: "service_channel_entry_crossed",
-  serviceChannelReached: "service_channel_reached",
   serviceGateOpen: "service_gate_open",
   serviceBypassOpen: "service_bypass_open",
   serviceResultMode: "service_result_mode",
@@ -451,6 +441,7 @@ const checkpointForEntrance = (
 export class PrologueWaterwheelSession {
   private authoritativeSession: GameSession;
   private bridge!: GameSessionRuntimeBridge;
+  private activeSubarea: InfrastructureMode = "waterwheel";
 
   readExtensionLearning(port: ExtensionLearningRuntimePort): ExtensionLearningRuntimeView {
     return port.read(this.bridge, this.bridge.runtime.snapshot().sceneId);
@@ -574,7 +565,7 @@ export class PrologueWaterwheelSession {
 
   snapshot(): PrologueWaterwheelSnapshot {
     const session = this.authoritativeSession.snapshot();
-    const inWaterwheel = session.world.currentSceneId === WATERWHEEL_SCENE.sceneId;
+    const inWaterwheel = this.activeSubarea === "waterwheel";
     const physics = currentPhysics(session);
     const structural = regionTrue(session, PROLOGUE_INFRASTRUCTURE_REGION_FLAGS.waterwheelRestored);
     const persistedResultMode = regionValue(
@@ -646,7 +637,7 @@ export class PrologueWaterwheelSession {
     observation: WaterwheelPhysicalObservation,
   ): InfrastructureActionResult {
     const id = requiredId(transactionId, "transactionId");
-    if (!this.inScene(WATERWHEEL_SCENE)) return this.result(false, false, "wrong_scene");
+    if (!this.inWaterwheel()) return this.result(false, false, "wrong_scene");
     const fingerprint = operationFingerprint("waterwheel_physics", observation);
     const preflight = this.preflight(id, fingerprint);
     if (preflight) return preflight;
@@ -687,7 +678,7 @@ export class PrologueWaterwheelSession {
   ): InfrastructureActionResult {
     const id = requiredId(transactionId, "transactionId");
     const normalizedSolutionId = requiredId(solutionId, "solutionId");
-    if (!this.inScene(WATERWHEEL_SCENE)) return this.result(false, false, "wrong_scene");
+    if (!this.inWaterwheel()) return this.result(false, false, "wrong_scene");
     const normalizedActions = [...new Set(evidence.completedActionIds)].sort();
     const fingerprint = operationFingerprint("waterwheel_solution", {
       solutionId: normalizedSolutionId,
@@ -761,10 +752,10 @@ export class PrologueWaterwheelSession {
 
   enterServiceChannel(transactionId: string): InfrastructureActionResult {
     const id = requiredId(transactionId, "transactionId");
-    if (!this.inScene(WATERWHEEL_SCENE)) return this.result(false, false, "wrong_scene");
+    if (!this.inWaterwheel()) return this.result(false, false, "wrong_scene");
     const fingerprint = operationFingerprint("service_entry", {
-      sourceSceneId: SERVICE_INBOUND_FROM_WATERWHEEL.sourceSceneId,
-      sourceExitId: SERVICE_INBOUND_FROM_WATERWHEEL.sourceExitId,
+      sourceSceneId: WATERWHEEL_SCENE.sceneId,
+      sourceExitId: "waterwheel.lower_maintenance_subarea",
       targetSceneId: SERVICE_SCENE.sceneId,
       targetEntranceId: SERVICE_ENTRY.id,
     });
@@ -776,7 +767,7 @@ export class PrologueWaterwheelSession {
       (regionTrue(state, PROLOGUE_INFRASTRUCTURE_REGION_FLAGS.waterwheelRestored) ||
         regionTrue(state, PROLOGUE_INFRASTRUCTURE_REGION_FLAGS.maintenanceAccessOpen));
     if (!exitReady) return this.result(false, false, "entry_guard_failed");
-    return this.commit({
+    const result = this.commit({
       transactionId: id,
       drafts: [
         {
@@ -789,32 +780,24 @@ export class PrologueWaterwheelSession {
           type: "checkpoint_set",
           payload: { checkpoint: checkpointForEntrance(
             state,
-            "checkpoint.valley.service_channel.entry",
+            "checkpoint.valley.waterwheel.lower_maintenance.entry",
             SERVICE_SCENE,
             SERVICE_ENTRY,
           ) },
         },
-        regionFlagDraft(
-          `session.infrastructure.service.entry.flag.${id}`,
-          PROLOGUE_INFRASTRUCTURE_REGION_FLAGS.serviceChannelEntryCrossed,
-          true,
-        ),
-        regionFlagDraft(
-          `session.infrastructure.service.entry.reached.${id}`,
-          PROLOGUE_INFRASTRUCTURE_REGION_FLAGS.serviceChannelReached,
-          true,
-        ),
         operationReceiptDraft(this.authoritativeSession.sessionId, id, fingerprint),
       ],
     });
+    if (result.accepted && !result.duplicate) this.activeSubarea = "service_channel";
+    return this.result(result.accepted, result.duplicate, result.reason);
   }
 
   returnToWaterwheel(transactionId: string): InfrastructureActionResult {
     const id = requiredId(transactionId, "transactionId");
-    if (!this.inScene(SERVICE_SCENE)) return this.result(false, false, "wrong_scene");
+    if (!this.inServiceSubarea()) return this.result(false, false, "wrong_scene");
     const entrance = requireOne(
       WATERWHEEL_SCENE.entrances,
-      (candidate) => candidate.id === "waterwheel.from_service",
+      (candidate) => candidate.id === "waterwheel.from_cistern",
       "waterwheel return entrance",
     );
     const fingerprint = operationFingerprint("waterwheel_return", {
@@ -846,13 +829,13 @@ export class PrologueWaterwheelSession {
         operationReceiptDraft(this.authoritativeSession.sessionId, id, fingerprint),
       ],
     });
-    if (result.accepted && !result.duplicate) this.temporaryWaterwheelActive = false;
+    if (result.accepted && !result.duplicate) { this.temporaryWaterwheelActive = false; this.activeSubarea = "waterwheel"; }
     return this.result(result.accepted, result.duplicate, result.reason);
   }
 
   returnToSettlement(transactionId: string): PrologueWaterwheelSettlementReturnResult {
     const id = requiredId(transactionId, "transactionId");
-    if (!this.inScene(WATERWHEEL_SCENE)) {
+    if (!this.inWaterwheel()) {
       return Object.freeze({ accepted: false, duplicate: false, reason: "wrong_scene", session: null });
     }
     const fingerprint = operationFingerprint("settlement_return", {
@@ -910,7 +893,7 @@ export class PrologueWaterwheelSession {
   ): InfrastructureActionResult {
     const id = requiredId(transactionId, "transactionId");
     const normalizedSolutionId = requiredId(solutionId, "solutionId");
-    if (!this.inScene(SERVICE_SCENE)) return this.result(false, false, "wrong_scene");
+    if (!this.inServiceSubarea()) return this.result(false, false, "wrong_scene");
     const normalizedActions = [...new Set(evidence.completedActionIds)].sort();
     const fingerprint = operationFingerprint("service_solution", {
       solutionId: normalizedSolutionId,
@@ -985,7 +968,7 @@ export class PrologueWaterwheelSession {
 
   attuneTawa(transactionId: string): InfrastructureLanguageActionResult {
     const id = requiredId(transactionId, "transactionId");
-    if (!this.inScene(WATERWHEEL_SCENE)) return this.languageResult(false, false, "wrong_scene", false);
+    if (!this.inWaterwheel()) return this.languageResult(false, false, "wrong_scene", false);
     const fingerprint = operationFingerprint("tawa_attunement", {
       sceneId: WATERWHEEL_SCENE.sceneId,
       environmentalWitnessId: WATERWHEEL_MOTION_INTERACTION.targetId,
@@ -1011,7 +994,7 @@ export class PrologueWaterwheelSession {
     attempt: TawaGroundingAttempt,
   ): InfrastructureLanguageActionResult {
     const id = requiredId(transactionId, "transactionId");
-    const task = this.inScene(WATERWHEEL_SCENE) ? WATERWHEEL_TASK : SERVICE_TASK;
+    const task = this.inWaterwheel() ? WATERWHEEL_TASK : SERVICE_TASK;
     const solution = task.solutions.find((candidate) => candidate.id === attempt.solutionId);
     const fingerprint = operationFingerprint("tawa_grounding", {
       sceneId: this.currentScene().sceneId,
@@ -1056,7 +1039,7 @@ export class PrologueWaterwheelSession {
 
   readGrammarOSign(transactionId: string): InfrastructureLanguageActionResult {
     const id = requiredId(transactionId, "transactionId");
-    if (!this.inScene(SERVICE_SCENE)) return this.languageResult(false, false, "wrong_scene", false);
+    if (!this.inServiceSubarea()) return this.languageResult(false, false, "wrong_scene", false);
     const fingerprint = operationFingerprint("grammar_o_seen", {
       token: O_CONTACT.token,
       contactKind: O_CONTACT.contactKind,
@@ -1083,7 +1066,7 @@ export class PrologueWaterwheelSession {
     understood: boolean,
   ): InfrastructureLanguageActionResult {
     const id = requiredId(transactionId, "transactionId");
-    if (!this.inScene(SERVICE_SCENE)) return this.languageResult(false, false, "wrong_scene", false);
+    if (!this.inServiceSubarea()) return this.languageResult(false, false, "wrong_scene", false);
     const fingerprint = operationFingerprint("grammar_o_receptive", {
       token: O_CONTACT.token,
       understood,
@@ -1175,8 +1158,8 @@ export class PrologueWaterwheelSession {
   recoverSoftLock(transactionId: string): InfrastructureActionResult {
     const id = requiredId(transactionId, "transactionId");
     const scene = this.currentScene();
-    const task = scene.sceneId === WATERWHEEL_SCENE.sceneId ? WATERWHEEL_TASK : SERVICE_TASK;
-    const entrance = scene.sceneId === WATERWHEEL_SCENE.sceneId ? WATERWHEEL_ENTRY : SERVICE_ENTRY;
+    const task = this.inWaterwheel() ? WATERWHEEL_TASK : SERVICE_TASK;
+    const entrance = this.inWaterwheel() ? WATERWHEEL_ENTRY : SERVICE_ENTRY;
     const fingerprint = operationFingerprint("softlock_recovery", {
       sceneId: scene.sceneId,
       actions: task.recoveryActions,
@@ -1211,7 +1194,7 @@ export class PrologueWaterwheelSession {
         operationReceiptDraft(this.authoritativeSession.sessionId, id, fingerprint),
       ],
     });
-    if (result.accepted && !result.duplicate && scene.sceneId === WATERWHEEL_SCENE.sceneId) {
+    if (result.accepted && !result.duplicate && this.inWaterwheel()) {
       this.temporaryWaterwheelActive = false;
     }
     return this.result(result.accepted, result.duplicate, result.reason);
@@ -1294,8 +1277,11 @@ export class PrologueWaterwheelSession {
     return this.authoritativeSession.snapshot().world.currentSceneId === scene.sceneId;
   }
 
+  private inWaterwheel(): boolean { return this.activeSubarea === "waterwheel" && this.inScene(WATERWHEEL_SCENE); }
+  private inServiceSubarea(): boolean { return this.activeSubarea === "service_channel" && this.inScene(SERVICE_SCENE); }
+
   private currentScene(): RuntimeSceneManifest {
-    return this.inScene(WATERWHEEL_SCENE) ? WATERWHEEL_SCENE : SERVICE_SCENE;
+    return WATERWHEEL_SCENE;
   }
 
   private rebuildBridge(): void {
