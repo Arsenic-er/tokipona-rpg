@@ -1,4 +1,8 @@
 import { computeRuntimeManifestDigest } from "./runtime-manifest-digest.ts";
+import {
+  FOREST_CHAPTER_ACTIVE_WORD_IDS,
+  type ForestChapterActiveWordIds,
+} from "./forest-chapter-contract.ts";
 
 const MAIN_SCENE_IDS = [
   "scene.valley.arrival_shelf", "scene.valley.stream_section", "scene.valley.settlement",
@@ -6,7 +10,6 @@ const MAIN_SCENE_IDS = [
   "scene.valley.underground_order_node",
 ] as const;
 const OPTIONAL_SCENE_IDS = ["scene.valley.den_bypass", "scene.valley.safe_range"] as const;
-const ACTIVE_WORD_IDS = ["word.telo", "word.tawa", "word.lili", "word.suli", "word.wawa"] as const;
 const SEGMENTS = [
   ["arrival_tools", [0, 30], ["scene.valley.arrival_shelf", "scene.valley.stream_section"], []],
   ["settlement_work", [30, 55], ["scene.valley.settlement"], []],
@@ -46,7 +49,7 @@ export interface RuntimeForestChapterManifest {
   readonly optionalSceneIds: readonly string[];
   readonly postChapterBoundarySceneId: "scene.valley.old_mine_threshold";
   readonly postChapterBoundaryRequiresEpilogue: true;
-  readonly activeWordIds: readonly ["word.telo", "word.tawa", "word.lili", "word.suli", "word.wawa"];
+  readonly activeWordIds: ForestChapterActiveWordIds;
   readonly segments: readonly Readonly<{ segmentId: string; minuteRange: readonly [number, number]; sceneIds: readonly string[]; activeNewWordIds: readonly string[]; }>[];
   readonly medium: Readonly<{
     mediumId: "artifact.ancient_medium_frame"; shardId: "artifact.fragment.forest_site";
@@ -84,7 +87,7 @@ export function readRuntimeForestChapterManifest(candidate: unknown): RuntimeFor
   if (!same(raw.mainSceneIds, MAIN_SCENE_IDS)) throw new Error("forest chapter main scene order is invalid");
   if (!same(raw.optionalSceneIds, OPTIONAL_SCENE_IDS)) throw new Error("forest chapter optional scenes are invalid");
   if (raw.postChapterBoundarySceneId !== "scene.valley.old_mine_threshold" || raw.postChapterBoundaryRequiresEpilogue !== true) throw new Error("forest chapter old-mine epilogue guard is invalid");
-  if (!same(raw.activeWordIds, ACTIVE_WORD_IDS)) throw new Error("forest chapter active words are invalid");
+  if (!same(raw.activeWordIds, FOREST_CHAPTER_ACTIVE_WORD_IDS)) throw new Error("forest chapter active words are invalid");
   validateSegments(raw.segments);
   validateMedium(raw.medium);
   validateLargeCreature(raw.largeCreature);

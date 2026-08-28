@@ -2,13 +2,15 @@ import generatedRuntimeArtifact from "../generated/content-runtime.v0.1.json";
 import {
   readRuntimeCisternTaskManifest,
   readRuntimeInfrastructureTaskManifestIndex,
-  readRuntimeSceneManifestIndex,
   type RuntimeCisternFamilyManifest,
   type RuntimeCisternLengthClass,
   type RuntimeCisternStageManifest,
+} from "../content/runtime-task-manifest";
+import {
+  readRuntimeSceneManifestIndex,
   type RuntimeSceneEntranceManifest,
   type RuntimeSceneManifest,
-} from "../content";
+} from "../content/runtime-scene-manifest";
 import {
   CisternLearningSession,
   type CisternWordId,

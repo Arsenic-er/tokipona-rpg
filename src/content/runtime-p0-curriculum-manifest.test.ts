@@ -127,18 +127,26 @@ describe("P0 curriculum runtime contract", () => {
   it("rejects re-signed first-chapter scope drift", () => {
     const extraActiveMastery = structuredClone(generated) as any;
     extraActiveMastery.p0Curriculum.firstChapterActiveMasteryWordIds.push("word.seli");
-    expect(() => readRuntimeP0CurriculumManifest(resign(extraActiveMastery))).toThrow(/first chapter active mastery/);
+    expect(() => readRuntimeP0CurriculumManifest(resign(extraActiveMastery))).toThrow(/first chapter scope/);
 
     const missingActiveMastery = structuredClone(generated) as any;
     missingActiveMastery.p0Curriculum.firstChapterActiveMasteryWordIds = ["word.telo", "word.tawa", "word.lili", "word.suli"];
-    expect(() => readRuntimeP0CurriculumManifest(resign(missingActiveMastery))).toThrow(/first chapter active mastery/);
+    expect(() => readRuntimeP0CurriculumManifest(resign(missingActiveMastery))).toThrow(/first chapter scope/);
 
     const particleAsActiveContent = structuredClone(generated) as any;
     particleAsActiveContent.p0Curriculum.firstChapterActiveMasteryWordIds.push("o");
-    expect(() => readRuntimeP0CurriculumManifest(resign(particleAsActiveContent))).toThrow(/first chapter active mastery/);
+    expect(() => readRuntimeP0CurriculumManifest(resign(particleAsActiveContent))).toThrow(/first chapter scope/);
 
     const allP0CompletionGate = structuredClone(generated) as any;
     allP0CompletionGate.p0Curriculum.firstChapterCompletionRequiresAllP0Words = true;
-    expect(() => readRuntimeP0CurriculumManifest(resign(allP0CompletionGate))).toThrow(/first chapter completion/);
+    expect(() => readRuntimeP0CurriculumManifest(resign(allP0CompletionGate))).toThrow(/first chapter scope/);
+  });
+
+  it("reads the P0 contract without eagerly requiring the unrelated forest chapter branch", () => {
+    const candidate = structuredClone(generated) as Record<string, unknown>;
+    delete candidate.forestChapter;
+
+    expect(readRuntimeP0CurriculumManifest(candidate).firstChapterActiveMasteryWordIds)
+      .toEqual(["word.telo", "word.tawa", "word.lili", "word.suli", "word.wawa"]);
   });
 });

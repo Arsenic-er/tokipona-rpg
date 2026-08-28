@@ -3,9 +3,9 @@ import { sha256Canonical, type JsonValue } from "../persistence/cross-save-wal";
 import { readRuntimeSpeechlessAudioPolicy, type RuntimeSpeechlessAudioPolicy } from
   "./runtime-speechless-audio-policy";
 import {
-  readRuntimeForestChapterManifest,
-  type RuntimeForestChapterManifest,
-} from "./runtime-forest-chapter-manifest";
+  FOREST_CHAPTER_ACTIVE_WORD_IDS,
+  type ForestChapterActiveWordIds,
+} from "./forest-chapter-contract";
 
 export type RuntimeP0TargetState = "attuned" | "grounded" | "produced";
 
@@ -36,7 +36,7 @@ export interface RuntimeP0CurriculumManifest {
     wordIds: readonly P0WordId[];
     firstThreeHoursIsContentBudgetNotRealTimeGate: true;
   }>;
-  readonly firstChapterActiveMasteryWordIds: RuntimeForestChapterManifest["activeWordIds"];
+  readonly firstChapterActiveMasteryWordIds: ForestChapterActiveWordIds;
   readonly firstChapterStructureParticleIds: readonly ["o", "li", "e"];
   readonly additionalReceptiveWordIds: readonly ["word.awen", "word.kasi", "word.kiwen", "word.kon", "word.lukin", "word.seli", "word.soweli", "word.weka"];
   readonly firstChapterCompletionRequiresAllP0Words: false;
@@ -101,11 +101,12 @@ export function readRuntimeP0CurriculumManifest(candidate: unknown): RuntimeP0Cu
   const scope = record(raw.scope, "P0 curriculum scope");
   exactKeys(scope, ["band", "uniqueWordCount", "wordIds", "firstThreeHoursIsContentBudgetNotRealTimeGate"], "P0 curriculum scope");
   if (scope.band !== "P0" || scope.uniqueWordCount !== 12 || scope.firstThreeHoursIsContentBudgetNotRealTimeGate !== true || !sameSet(scope.wordIds, P0_WORD_IDS)) throw new Error("P0 curriculum scope is invalid");
-  const forestChapter = readRuntimeForestChapterManifest(root);
-  if (!sameSet(raw.firstChapterActiveMasteryWordIds, forestChapter.activeWordIds)) throw new Error("P0 first chapter active mastery words must equal forest chapter active words");
-  if (!same(raw.firstChapterStructureParticleIds, ["o", "li", "e"])) throw new Error("P0 first chapter structure particles are invalid");
-  if (!same(raw.additionalReceptiveWordIds, ["word.awen", "word.kasi", "word.kiwen", "word.kon", "word.lukin", "word.seli", "word.soweli", "word.weka"])) throw new Error("P0 additional receptive words are invalid");
-  if (raw.firstChapterCompletionRequiresAllP0Words !== false) throw new Error("P0 first chapter completion must not require all P0 words");
+  if (!sameSet(raw.firstChapterActiveMasteryWordIds, FOREST_CHAPTER_ACTIVE_WORD_IDS) ||
+    !same(raw.firstChapterStructureParticleIds, ["o", "li", "e"]) ||
+    !same(raw.additionalReceptiveWordIds, ["word.awen", "word.kasi", "word.kiwen", "word.kon", "word.lukin", "word.seli", "word.soweli", "word.weka"]) ||
+    raw.firstChapterCompletionRequiresAllP0Words !== false) {
+    throw new Error("P0 first chapter scope is invalid");
+  }
   const target = record(raw.targetStateCeiling, "P0 target state ceiling");
   if (!same(target.produced, TARGETS.produced) || !same(target.grounded, TARGETS.grounded) || !same(target.attuned, TARGETS.attuned)) throw new Error("P0 target state ceiling is noncanonical");
   const medium = record(raw.activationMedium, "P0 activation medium");

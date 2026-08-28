@@ -1,6 +1,7 @@
 import type { ContentManifest, ContentObject, ContentValue } from "../../src/content/types.ts";
 import { computeRuntimeManifestDigest } from "../../src/content/runtime-manifest-digest.ts";
 import type { RuntimeForestChapterManifest } from "../../src/content/runtime-forest-chapter-manifest.ts";
+import { FOREST_CHAPTER_ACTIVE_WORD_IDS } from "../../src/content/forest-chapter-contract.ts";
 
 const MAIN_SCENES = [
   "scene.valley.arrival_shelf", "scene.valley.stream_section", "scene.valley.settlement",
@@ -8,7 +9,6 @@ const MAIN_SCENES = [
   "scene.valley.underground_order_node",
 ] as const;
 const OPTIONAL_SCENES = ["scene.valley.den_bypass", "scene.valley.safe_range"] as const;
-const ACTIVE_WORD_IDS = ["word.telo", "word.tawa", "word.lili", "word.suli", "word.wawa"] as const;
 const MEDIUM_EVENTS = ["waterwheel_goal_committed", "forest_medium_discovered", "forest_hermit_route_committed", "forest_telo_initiation_committed"] as const;
 const HERMIT_ROUTES = ["medium.tell_facility_worker", "medium.follow_fragment_markers", "medium.ask_external_trader"] as const;
 const HERMIT_PRACTICE_ACTIONS = ["observe_natural_water", "predict_manifest_path", "perform_low_mp_telo", "stabilize_with_tool"] as const;
@@ -39,7 +39,7 @@ export function projectForestChapterRuntimeManifest(manifest: ContentManifest): 
     optionalSceneIds: exactStrings(chapterContract.optional_scene_ids, OPTIONAL_SCENES, "optional scene IDs"),
     postChapterBoundarySceneId: exact(chapterContract.post_chapter_boundary_scene_id, "scene.valley.old_mine_threshold", "post-chapter boundary scene"),
     postChapterBoundaryRequiresEpilogue: oldMineEpilogueGuard(oldMine),
-    activeWordIds: [...ACTIVE_WORD_IDS],
+    activeWordIds: [...FOREST_CHAPTER_ACTIVE_WORD_IDS],
     segments: projectSegments(chapter.segments),
     medium: {
       mediumId: exact(object(mediumTask.medium, "medium").medium_id, "artifact.ancient_medium_frame", "medium ID"),
@@ -98,7 +98,7 @@ function projectSegments(value: ContentValue | undefined) {
   }
   if (priorEnd !== 180) throw new Error("forest chapter must end at 180 minutes");
   const active = result.flatMap((segment) => segment.activeNewWordIds);
-  if (active.join("|") !== ACTIVE_WORD_IDS.join("|")) throw new Error("forest chapter active words are noncanonical");
+  if (active.join("|") !== FOREST_CHAPTER_ACTIVE_WORD_IDS.join("|")) throw new Error("forest chapter active words are noncanonical");
   return result;
 }
 

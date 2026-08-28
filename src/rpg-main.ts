@@ -69,7 +69,7 @@ import {
 } from "./rpg-safe-range-ui";
 import { createRpgP0LearningUi, type P0LearningUiCommand } from "./rpg-p0-learning-ui";
 import { createRpgCore120LearningUi, type Core120LearningUiCommand } from "./rpg-core120-learning-ui";
-import { createRpgOldMineUi, type OldMineUiCommand } from "./rpg-old-mine-ui";
+import type { OldMineUiCommand, RpgOldMineUi } from "./rpg-old-mine-ui";
 import { BrowserPrologueTelemetry } from "./acceptance/browser-prologue-telemetry";
 import {
   BrowserProloguePlaytest,
@@ -719,7 +719,8 @@ const returnFlowUi = createRpgReturnFlowUi((command) => run(() => port.returnFlo
 const safeRangeUi = createRpgSafeRangeUi((command) => run(() => port.safeRange(command)));
 const p0LearningUi = createRpgP0LearningUi((command) => run(() => port.p0Learning(command)));
 const core120LearningUi = createRpgCore120LearningUi((command) => run(() => port.core120Learning(command)));
-const oldMineUi = createRpgOldMineUi((command) => run(() => port.oldMine(command)));
+let oldMineUi: RpgOldMineUi | null = null;
+let oldMineUiLoad: Promise<void> | null = null;
 const extensionLearningUi = EXTENSION_LEARNING_FEATURE?.createUi((command) =>
   run(() => port.extensionLearning(command))) ?? null;
 let priorTime = performance.now();
@@ -841,7 +842,7 @@ function render(snapshot: PrologueFlowSnapshot, now: number): void {
   safeRangeUi.render(port.safeRangeView(), port.safeRangeCompileResult());
   p0LearningUi.render(port.p0LearningView());
   core120LearningUi.render(port.core120LearningView());
-  oldMineUi.render(port.oldMineView());
+  renderOldMineUi();
   extensionLearningUi?.render(port.extensionLearningView());
   const scene = requiredScene(snapshot.runtime.sceneId);
   drawWorld(snapshot, scene);
@@ -919,6 +920,19 @@ function render(snapshot: PrologueFlowSnapshot, now: number): void {
   } else {
     glyphPanel.style.setProperty("--activation", phase === "activated" ? "1" : "0");
   }
+}
+
+function renderOldMineUi(): void {
+  const view = port.oldMineView();
+  if (oldMineUi) {
+    oldMineUi.render(view);
+    return;
+  }
+  if (!view.entryAvailable && view.mode !== "old_mine") return;
+  oldMineUiLoad ??= import("./rpg-old-mine-ui").then(({ createRpgOldMineUi }) => {
+    oldMineUi = createRpgOldMineUi((command) => run(() => port.oldMine(command)));
+    oldMineUi.render(port.oldMineView());
+  });
 }
 
 function drawWorld(snapshot: PrologueFlowSnapshot, scene: RuntimeSceneManifest): void {

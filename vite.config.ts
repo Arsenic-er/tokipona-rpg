@@ -2,6 +2,8 @@ import { defineConfig, type UserConfig } from "vite";
 import generatedRuntimeArtifact from "./src/generated/content-runtime.v0.1.json" with { type: "json" };
 import { assertExtensionLearningBundleBoundary } from
   "./scripts/build/extension-learning-bundle-boundary.ts";
+import { assertForestChapterBundleBoundary } from
+  "./scripts/build/forest-chapter-bundle-boundary.ts";
 
 const extensionLearningAdmitted =
   generatedRuntimeArtifact.learningCorpusCatalog.admittedCorpusIds.length > 0;
@@ -25,6 +27,15 @@ export function createTokiponaViteConfig(
             moduleIds: Object.keys(chunk.modules),
           })),
           admittedExtensionLearning,
+        );
+        assertForestChapterBundleBoundary(
+          Object.values(bundle).filter((output) => output.type === "chunk").map((chunk) => ({
+            fileName: chunk.fileName,
+            facadeModuleId: chunk.facadeModuleId,
+            isEntry: chunk.isEntry,
+            imports: chunk.imports,
+            moduleIds: Object.keys(chunk.modules),
+          })),
         );
       },
     }],

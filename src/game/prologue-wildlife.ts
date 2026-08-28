@@ -1,11 +1,15 @@
 import generatedRuntimeArtifact from "../generated/content-runtime.v0.1.json";
 import {
   readRuntimeEcologyManifest,
+} from "../content/runtime-ecology-manifest";
+import {
   readRuntimeInfrastructureTaskManifestIndex,
+} from "../content/runtime-task-manifest";
+import {
   readRuntimeSceneManifestIndex,
   type RuntimeSceneEntranceManifest,
   type RuntimeSceneManifest,
-} from "../content";
+} from "../content/runtime-scene-manifest";
 import { commitSessionProposal, type SessionEventDraft } from "../session/adapters";
 import {
   GameSession,
