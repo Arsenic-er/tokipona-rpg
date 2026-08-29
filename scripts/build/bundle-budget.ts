@@ -17,10 +17,17 @@ export const BUNDLE_BUDGETS = Object.freeze({
 const REQUIRED_RPG_CHUNK_NAMES = Object.freeze([
   "content-runtime.v0.1",
   "app-support~rpg",
-  "game-runtime~rpg~world-scale",
+  "game-runtime~rpg",
   "session-runtime~rpg",
   "rpg-ui~rpg",
-  "learning-runtime~rpg~world-scale",
+  "learning-runtime~rpg",
+]);
+
+const FORBIDDEN_WORLD_SCALE_DOMAIN_CHUNK_NAMES = Object.freeze([
+  "game-runtime~rpg",
+  "session-runtime~rpg",
+  "rpg-ui~rpg",
+  "learning-runtime~rpg",
 ]);
 
 interface ManifestChunk {
@@ -103,6 +110,13 @@ export function assertBundleBudget(
     .filter((name): name is string => name !== null));
   for (const requiredName of REQUIRED_RPG_CHUNK_NAMES) {
     assert(rpgNames.has(requiredName), `bundle_rpg_domain_chunk_missing:${requiredName}`);
+  }
+
+  const worldScaleNames = new Set([...staticClosure("world-scale.html", manifest)]
+    .map((key) => required(manifest.get(key), `bundle_chunk_missing:${key}`).name)
+    .filter((name): name is string => name !== null));
+  for (const forbiddenName of FORBIDDEN_WORLD_SCALE_DOMAIN_CHUNK_NAMES) {
+    assert(!worldScaleNames.has(forbiddenName), `bundle_world_scale_domain_dependency:${forbiddenName}`);
   }
 
   return Object.freeze({

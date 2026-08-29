@@ -11,6 +11,17 @@ describe("production bundle budget", () => {
     expect(report.entries.find((entry) => entry.entry === "rpg.html")?.initialJsRequests).toBe(7);
   });
 
+  it("rejects world-scale coupling to RPG game, GameSession, learning, or UI chunks", () => {
+    for (const chunkKey of ["_game", "_session", "_learning", "_ui"]) {
+      const fixture = createFixture();
+      fixture.manifest["world-scale.html"].imports = [chunkKey];
+
+      expect(() => assertFixture(fixture)).toThrow(
+        `bundle_world_scale_domain_dependency:${fixture.manifest[chunkKey].name}`,
+      );
+    }
+  });
+
   it("rejects missing or additional HTML entries", () => {
     const missing = createFixture();
     delete missing.manifest["trade.html"];
@@ -52,7 +63,7 @@ describe("production bundle budget", () => {
   it("rejects missing domain groups and reverse imports into an HTML entry", () => {
     const missingGroup = createFixture();
     missingGroup.manifest._learning.name = "wrong-learning-name";
-    expect(() => assertFixture(missingGroup)).toThrow("bundle_rpg_domain_chunk_missing:learning-runtime~rpg~world-scale");
+    expect(() => assertFixture(missingGroup)).toThrow("bundle_rpg_domain_chunk_missing:learning-runtime~rpg");
 
     const cycle = createFixture();
     cycle.manifest._game.imports = ["rpg.html"];
@@ -101,10 +112,10 @@ function createFixture(): Fixture {
     [key, entry(`assets/${key.replace(".html", ".js")}`)]));
   manifest._content = chunkRecord("assets/content.js", "content-runtime.v0.1");
   manifest._support = chunkRecord("assets/support.js", "app-support~rpg");
-  manifest._game = chunkRecord("assets/game.js", "game-runtime~rpg~world-scale");
+  manifest._game = chunkRecord("assets/game.js", "game-runtime~rpg");
   manifest._session = chunkRecord("assets/session.js", "session-runtime~rpg");
   manifest._ui = chunkRecord("assets/ui.js", "rpg-ui~rpg");
-  manifest._learning = chunkRecord("assets/learning.js", "learning-runtime~rpg~world-scale");
+  manifest._learning = chunkRecord("assets/learning.js", "learning-runtime~rpg");
   manifest["rpg.html"].imports = ["_content", "_support", "_game", "_session", "_ui", "_learning"];
 
   const sizes = Object.fromEntries(Object.values(manifest).flatMap((chunk) => [
