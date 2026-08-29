@@ -1,4 +1,4 @@
-import { sha256Canonical, type JsonValue } from "../persistence/cross-save-wal";
+import { sha256Canonical, type JsonValue } from "../canonical-json";
 export type RuntimeFreshnessState = "fresh" | "aging" | "spoiled" | "decomposed" | "raw" | "slipping" | "rotten" | "cured" | "stable";
 export type RuntimeMatterOrigin = "natural" | "manifested" | "mixed" | "legacy_unknown";
 

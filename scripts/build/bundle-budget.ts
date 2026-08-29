@@ -9,6 +9,8 @@ export const EXPECTED_BUILD_ENTRIES = Object.freeze([
 
 export const BUNDLE_BUDGETS = Object.freeze({
   maximumChunkBytes: 320 * 1024,
+  maximumTradeInitialBytes: 400 * 1024,
+  maximumTradeInitialRequests: 8,
   maximumRpgShellBytes: 64 * 1024,
   maximumRpgInitialBytes: 1_100 * 1024,
   maximumRpgInitialRequests: 18,
@@ -98,6 +100,11 @@ export function assertBundleBudget(
   });
 
   const rpg = required(entries.find((entry) => entry.entry === "rpg.html"), "bundle_rpg_entry_missing");
+  const trade = required(entries.find((entry) => entry.entry === "trade.html"), "bundle_trade_entry_missing");
+  assert(trade.initialJsBytes <= BUNDLE_BUDGETS.maximumTradeInitialBytes,
+    `bundle_trade_initial_budget_exceeded:${trade.initialJsBytes}`);
+  assert(trade.initialJsRequests <= BUNDLE_BUDGETS.maximumTradeInitialRequests,
+    `bundle_trade_request_budget_exceeded:${trade.initialJsRequests}`);
   assert(rpg.entryBytes <= BUNDLE_BUDGETS.maximumRpgShellBytes,
     `bundle_rpg_shell_budget_exceeded:${rpg.entryBytes}`);
   assert(rpg.initialJsBytes <= BUNDLE_BUDGETS.maximumRpgInitialBytes,

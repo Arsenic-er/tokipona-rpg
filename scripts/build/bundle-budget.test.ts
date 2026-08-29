@@ -74,6 +74,28 @@ describe("production bundle budget", () => {
     expect(() => assertFixture(requests)).toThrow("bundle_rpg_request_budget_exceeded");
   });
 
+  it("rejects trade initial-byte and request regressions", () => {
+    const bytes = createFixture();
+    for (const file of Object.keys(bytes.sizes)) bytes.sizes[file] = 1;
+    bytes.manifest._tradeA = chunkRecord("assets/trade-a.js", "trade-a");
+    bytes.manifest._tradeB = chunkRecord("assets/trade-b.js", "trade-b");
+    bytes.sizes["assets/trade-a.js"] = 205 * 1024;
+    bytes.sizes["assets/trade-b.js"] = 205 * 1024;
+    bytes.manifest["trade.html"].imports = ["_tradeA", "_tradeB"];
+    expect(() => assertFixture(bytes)).toThrow("bundle_trade_initial_budget_exceeded");
+
+    const requests = createFixture();
+    for (const file of Object.keys(requests.sizes)) requests.sizes[file] = 1;
+    for (let index = 0; index < 8; index += 1) {
+      const key = `_trade-${index}`;
+      const file = `assets/trade-${index}.js`;
+      requests.manifest[key] = chunkRecord(file, `trade-${index}`);
+      requests.sizes[file] = 1;
+      requests.manifest["trade.html"].imports?.push(key);
+    }
+    expect(() => assertFixture(requests)).toThrow("bundle_trade_request_budget_exceeded");
+  });
+
   it("rejects missing domain groups and reverse imports into an HTML entry", () => {
     const missingGroup = createFixture();
     missingGroup.manifest._learning.name = "wrong-learning-name";
