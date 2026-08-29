@@ -1,8 +1,20 @@
 import { describe, expect, it } from "vitest";
 import { WorldScalePrototypeController } from "./visual/world-scale-controller";
+import { ForestGrayboxController } from "./visual/forest-graybox-controller";
 import { WORLD_SCALE_TELO_GLYPH_POSITION } from "./visual/world-interaction";
 
 describe("world scale browser controller", () => {
+  it("provides the continuous forest audit controller without changing the legacy page yet", () => {
+    const snapshot = ForestGrayboxController.fresh({ seed: "world-scale.continuous.contract" }).snapshot();
+
+    expect(snapshot.runtime.camera).toMatchObject({ width: 640, height: 360 });
+    expect(snapshot.location).toMatchObject({
+      districtId: "forest.arrival",
+      sceneId: "scene.valley.arrival_shelf",
+    });
+    expect(snapshot.diagnostics.regionId).toBe("valley_prologue");
+  });
+
   it("uses the approved medium world scale as the audit baseline", () => {
     expect(WorldScalePrototypeController.fresh("world-scale.controller.default").snapshot().profileId)
       .toBe("medium");
