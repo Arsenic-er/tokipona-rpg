@@ -1,8 +1,10 @@
 import { ForestGrayboxController } from "./visual/forest-graybox-controller";
 import {
+  bindForestGrayboxTouchControl,
   createForestGrayboxPageMarkup,
   projectForestGrayboxView,
   renderForestGrayboxView,
+  type ForestGrayboxTouchAction,
   type ForestGrayboxViewProjection,
 } from "./visual/forest-graybox-view";
 
@@ -26,6 +28,7 @@ const touchButtons = [...app.querySelectorAll<HTMLButtonElement>("[data-touch]")
 const held = new Set<"left" | "right">();
 const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 let jumpQueued = false;
+let queuedMove: -1 | 0 | 1 = 0;
 let lastFrameTime = performance.now();
 
 canvas.width = view.viewport.width;
@@ -56,6 +59,7 @@ function bindControls(): void {
   window.addEventListener("blur", () => {
     held.clear();
     jumpQueued = false;
+    queuedMove = 0;
   });
   resetButton.addEventListener("click", () => {
     latest = controller.resetToCheckpoint();
@@ -63,39 +67,42 @@ function bindControls(): void {
     render(view);
     canvas.focus({ preventScroll: true });
   });
-  for (const button of touchButtons) bindTouchButton(button);
+  for (const button of touchButtons) {
+    const action = touchAction(button.dataset.touch);
+    bindForestGrayboxTouchControl(button, action, {
+      activate: (activatedAction) => {
+        if (activatedAction === "left") queuedMove = -1;
+        if (activatedAction === "right") queuedMove = 1;
+        if (activatedAction === "jump") jumpQueued = true;
+      },
+      setHeld: (heldAction, active) => {
+        if (heldAction === "jump") return;
+        if (active) held.add(heldAction);
+        else held.delete(heldAction);
+      },
+    });
+  }
   reducedMotion.addEventListener("change", syncReducedMotion);
 }
 
-function bindTouchButton(button: HTMLButtonElement): void {
-  const action = button.dataset.touch;
-  const press = (event: PointerEvent) => {
-    event.preventDefault();
-    button.setPointerCapture(event.pointerId);
-    if (action === "left" || action === "right") held.add(action);
-    if (action === "jump") jumpQueued = true;
-  };
-  const release = (event: PointerEvent) => {
-    if (action === "left" || action === "right") held.delete(action);
-    if (button.hasPointerCapture(event.pointerId)) button.releasePointerCapture(event.pointerId);
-  };
-  button.addEventListener("pointerdown", press);
-  button.addEventListener("pointerup", release);
-  button.addEventListener("pointercancel", release);
-  button.addEventListener("lostpointercapture", () => {
-    if (action === "left" || action === "right") held.delete(action);
-  });
+function touchAction(value: string | undefined): ForestGrayboxTouchAction {
+  if (value === "left" || value === "right" || value === "jump") return value;
+  throw new Error(`forest graybox touch action is invalid: ${String(value)}`);
 }
 
 function loop(now: number): void {
   const elapsed = Math.min(0.1, Math.max(0, (now - lastFrameTime) / 1_000));
   lastFrameTime = now;
   const beforeTick = latest.runtime.tick;
+  const heldMove = (held.has("right") ? 1 : 0) - (held.has("left") ? 1 : 0);
   latest = controller.advanceFrame(elapsed, {
-    moveX: (held.has("right") ? 1 : 0) - (held.has("left") ? 1 : 0),
+    moveX: heldMove === 0 ? queuedMove : heldMove,
     jump: jumpQueued,
   });
-  if (latest.runtime.tick > beforeTick) jumpQueued = false;
+  if (latest.runtime.tick > beforeTick) {
+    jumpQueued = false;
+    queuedMove = 0;
+  }
   view = projectForestGrayboxView(latest);
   render(view);
   requestAnimationFrame(loop);

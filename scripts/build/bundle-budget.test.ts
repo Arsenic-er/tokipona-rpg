@@ -22,6 +22,20 @@ describe("production bundle budget", () => {
     }
   });
 
+  it("rejects multi-entry session owner names in the world-scale closure", () => {
+    const fixture = createFixture();
+    fixture.manifest._sessionMulti = chunkRecord(
+      "assets/session-multi.js",
+      "session-runtime~trade~rpg~world-scale",
+    );
+    fixture.sizes["assets/session-multi.js"] = 1;
+    fixture.manifest["world-scale.html"].imports = ["_sessionMulti"];
+
+    expect(() => assertFixture(fixture)).toThrow(
+      "bundle_world_scale_domain_dependency:session-runtime~trade~rpg~world-scale",
+    );
+  });
+
   it("rejects missing or additional HTML entries", () => {
     const missing = createFixture();
     delete missing.manifest["trade.html"];

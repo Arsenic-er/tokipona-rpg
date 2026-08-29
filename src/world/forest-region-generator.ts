@@ -2,7 +2,7 @@ import {
   isVerifiedRuntimeForestSpatialManifest,
   type RuntimeForestSpatialManifest,
 } from "../content/runtime-forest-spatial-manifest";
-import { canonicalJson, sha256Canonical, type JsonValue } from "../persistence/cross-save-wal";
+import { canonicalJson, sha256Canonical, type JsonValue } from "../canonical-json";
 
 export interface ForestRectPx {
   readonly x: number;

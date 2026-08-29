@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest";
 import type { ForestGrayboxControllerSnapshot } from "./forest-graybox-controller";
 import { ForestGrayboxController } from "./forest-graybox-controller";
 import {
+  bindForestGrayboxTouchControl,
   createForestGrayboxPageMarkup,
   projectForestGrayboxView,
   renderForestGrayboxView,
+  type ForestGrayboxTouchPort,
 } from "./forest-graybox-view";
 
 const seed = "forest.graybox.view.audit";
@@ -140,6 +142,23 @@ describe("forest graybox view", () => {
     expect(markup).not.toContain("world-audit");
     expect(markup).not.toContain("视觉审计");
   });
+
+  it("gives pointer and keyboard or AT click one equivalent touch activation", () => {
+    const pointer = touchHarness();
+    bindForestGrayboxTouchControl(pointer.button, "left", pointer.port);
+    pointer.dispatch("pointerdown", { pointerId: 7 });
+    pointer.dispatch("pointerup", { pointerId: 7 });
+    pointer.dispatch("click", { detail: 1 });
+
+    const accessibleClick = touchHarness();
+    bindForestGrayboxTouchControl(accessibleClick.button, "left", accessibleClick.port);
+    accessibleClick.dispatch("click", { detail: 0 });
+
+    expect(pointer.activations).toEqual(["left"]);
+    expect(accessibleClick.activations).toEqual(pointer.activations);
+    expect(pointer.holds).toEqual(["left:on", "left:off"]);
+    expect(accessibleClick.holds).toEqual([]);
+  });
 });
 
 function snapshotAt(options: {
@@ -186,4 +205,39 @@ function fakeCanvasTarget(): { readonly context: CanvasRenderingContext2D; reado
     lineTo: noop, arc: noop, fill: noop, stroke: noop, save: noop, restore: noop, drawImage: noop,
   } as unknown as CanvasRenderingContext2D;
   return { context, uploads: () => uploadCount };
+}
+
+function touchHarness(): {
+  readonly button: HTMLButtonElement;
+  readonly port: ForestGrayboxTouchPort;
+  readonly activations: string[];
+  readonly holds: string[];
+  readonly dispatch: (type: string, event: Readonly<Record<string, number>>) => void;
+} {
+  const listeners = new Map<string, ((event: unknown) => void)[]>();
+  const activations: string[] = [];
+  const holds: string[] = [];
+  const button = {
+    addEventListener: (type: string, listener: (event: unknown) => void) => {
+      const entries = listeners.get(type) ?? [];
+      entries.push(listener);
+      listeners.set(type, entries);
+    },
+    setPointerCapture: () => undefined,
+    hasPointerCapture: () => true,
+    releasePointerCapture: () => undefined,
+  } as unknown as HTMLButtonElement;
+  const port: ForestGrayboxTouchPort = {
+    activate: (action) => activations.push(action),
+    setHeld: (action, active) => holds.push(`${action}:${active ? "on" : "off"}`),
+  };
+  return {
+    button,
+    port,
+    activations,
+    holds,
+    dispatch: (type, event) => {
+      for (const listener of listeners.get(type) ?? []) listener(event);
+    },
+  };
 }

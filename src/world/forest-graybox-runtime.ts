@@ -1,5 +1,5 @@
 import type { RuntimeForestSpatialManifest } from "../content/runtime-forest-spatial-manifest";
-import { sha256Canonical, type JsonValue } from "../persistence/cross-save-wal";
+import { sha256Canonical, type JsonValue } from "../canonical-json";
 import { type Aabb, type Vec2 } from "../runtime/geometry";
 import {
   advanceForestCamera,

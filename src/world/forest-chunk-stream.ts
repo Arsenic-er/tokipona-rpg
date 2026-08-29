@@ -1,5 +1,5 @@
 import type { RuntimeForestSpatialManifest } from "../content/runtime-forest-spatial-manifest";
-import { sha256Canonical, type JsonValue } from "../persistence/cross-save-wal";
+import { sha256Canonical, type JsonValue } from "../canonical-json";
 import type { Aabb } from "../runtime/geometry";
 import type { CameraState } from "../runtime/runtime";
 import type { ForestRectPx, ForestRegion } from "./forest-region-generator";

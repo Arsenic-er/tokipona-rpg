@@ -10,6 +10,52 @@ export const FOREST_GRAYBOX_VIEWPORT = Object.freeze({ width: 640, height: 360 }
   height: 360;
 }>;
 
+export type ForestGrayboxTouchAction = "left" | "right" | "jump";
+
+export interface ForestGrayboxTouchPort {
+  readonly activate: (action: ForestGrayboxTouchAction) => void;
+  readonly setHeld: (action: ForestGrayboxTouchAction, active: boolean) => void;
+}
+
+/** Bind pointer and keyboard/AT activation without replaying a synthesized pointer click. */
+export function bindForestGrayboxTouchControl(
+  button: HTMLButtonElement,
+  action: ForestGrayboxTouchAction,
+  port: ForestGrayboxTouchPort,
+): void {
+  let activePointerId: number | null = null;
+  let isHeld = false;
+  const setHeld = (active: boolean): void => {
+    if (action === "jump" || isHeld === active) return;
+    isHeld = active;
+    port.setHeld(action, active);
+  };
+  const release = (event: PointerEvent): void => {
+    if (activePointerId !== event.pointerId) return;
+    setHeld(false);
+    activePointerId = null;
+    if (button.hasPointerCapture(event.pointerId)) button.releasePointerCapture(event.pointerId);
+  };
+
+  button.addEventListener("pointerdown", (event) => {
+    if (activePointerId !== null) return;
+    activePointerId = event.pointerId;
+    button.setPointerCapture(event.pointerId);
+    port.activate(action);
+    setHeld(true);
+  });
+  button.addEventListener("pointerup", release);
+  button.addEventListener("pointercancel", release);
+  button.addEventListener("lostpointercapture", () => {
+    if (activePointerId === null) return;
+    setHeld(false);
+    activePointerId = null;
+  });
+  button.addEventListener("click", (event) => {
+    if (event.detail === 0) port.activate(action);
+  });
+}
+
 type ForestGrayboxLayer =
   | "regional-field"
   | "edge-silhouette"
