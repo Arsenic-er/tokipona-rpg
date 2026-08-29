@@ -6,6 +6,7 @@ import {
   generateForestRegion,
   serializeForestRegion,
   type ForestRegion,
+  validateForestRegion,
 } from "./forest-region-generator";
 
 const manifest = readRuntimeForestSpatialManifest(generated);
@@ -48,6 +49,26 @@ function reachableCellIds(region: ForestRegion, capabilities: readonly string[])
 function intersects(left: { x: number; y: number; width: number; height: number }, right: { x: number; y: number; width: number; height: number }): boolean {
   return left.x < right.x + right.width && right.x < left.x + left.width &&
     left.y < right.y + right.height && right.y < left.y + left.height;
+}
+
+function hasPath(region: ForestRegion, fromCellId: string, toCellId: string, capabilities: readonly string[]): boolean {
+  const enabled = new Set(capabilities), adjacent = new Map<string, string[]>();
+  for (const link of region.cellLinks) {
+    if (link.capability !== null && !enabled.has(link.capability)) continue;
+    const from = adjacent.get(link.fromCellId) ?? [];
+    from.push(link.toCellId);
+    adjacent.set(link.fromCellId, from);
+    const to = adjacent.get(link.toCellId) ?? [];
+    to.push(link.fromCellId);
+    adjacent.set(link.toCellId, to);
+  }
+  const found = new Set([fromCellId]), queue = [...found];
+  while (queue.length > 0) {
+    const current = queue.shift()!;
+    if (current === toCellId) return true;
+    for (const next of adjacent.get(current) ?? []) if (!found.has(next)) { found.add(next); queue.push(next); }
+  }
+  return false;
 }
 
 describe("forest region generator", () => {
@@ -114,6 +135,65 @@ describe("forest region generator", () => {
     for (const phase of phases) {
       const reachable = reachableCellIds(region, phase.capabilities);
       for (const anchorId of phase.anchorIds) expect(reachable.has(region.anchorCellIds[anchorId]!)).toBe(true);
+    }
+  });
+
+  it("keeps every future anchor closed until its authored gate phase", () => {
+    const region = generateForestRegion(manifest, "forest.gate-phase.audit");
+    const futureByPhase = [
+      { capabilities: [], futureAnchorIds: ["forest.cistern", "forest.return_channel", "forest.underground_node", "forest.safe_range", "forest.old_mine"] },
+      { capabilities: ["maintenance_access_open"], futureAnchorIds: ["forest.return_channel", "forest.underground_node", "forest.safe_range", "forest.old_mine"] },
+      { capabilities: ["maintenance_access_open", "exit_ladder_lowered"], futureAnchorIds: ["forest.underground_node", "forest.safe_range", "forest.old_mine"] },
+      { capabilities: ["maintenance_access_open", "exit_ladder_lowered", "settlement_supply_stable"], futureAnchorIds: ["forest.safe_range", "forest.old_mine"] },
+      { capabilities: ["maintenance_access_open", "exit_ladder_lowered", "settlement_supply_stable", "forest_chapter_epilogue_committed"], futureAnchorIds: ["forest.safe_range"] },
+    ] as const;
+
+    for (const phase of futureByPhase) {
+      const reachable = reachableCellIds(region, phase.capabilities);
+      for (const anchorId of phase.futureAnchorIds) expect(reachable.has(region.anchorCellIds[anchorId]!)).toBe(false);
+    }
+    expect(reachableCellIds(region, ["range_trial_permission"]).has(region.anchorCellIds["forest.safe_range"]!)).toBe(true);
+    expect(reachableCellIds(region, ["forest_chapter_epilogue_committed"]).has(region.anchorCellIds["forest.old_mine"]!)).toBe(true);
+  });
+
+  it("derives navigation cells and gates directly from every authored route edge", () => {
+    const region = generateForestRegion(manifest, "forest.route-projection.audit");
+    const routeById = new Map(manifest.routeEdges.map((edge) => [edge.edgeId, edge]));
+
+    expect(new Set(region.cellLinks.map((link) => link.routeEdgeId))).toEqual(new Set(manifest.routeEdges.map((edge) => edge.edgeId)));
+    for (const corridor of region.routeCorridors) {
+      const authored = routeById.get(corridor.edgeId)!;
+      expect(corridor.cellIds[0]).toBe(region.anchorCellIds[authored.from]);
+      expect(corridor.cellIds.at(-1)).toBe(region.anchorCellIds[authored.to]);
+      expect(corridor.gate?.capability ?? null).toBe(authored.capability);
+    }
+  });
+
+  it("rejects a real pocket candidate that intersects a critical clearance volume", () => {
+    const region = generateForestRegion(manifest, "forest.unsafe-clearance.audit");
+    const unsafeBounds = region.criticalRouteClearances.find((clearance) => clearance.edgeId === "settlement.hermit")!.boundsPx;
+    const unsafeRegion: ForestRegion = {
+      ...region,
+      pockets: [{ ...region.pockets[0]!, boundsPx: unsafeBounds }],
+    };
+
+    expect(() => validateForestRegion(manifest, unsafeRegion)).toThrow(/pocket_overlaps_critical_clearance/);
+  });
+
+  it("proves each encounter chamber has two graph-distinct usable escape paths", () => {
+    const region = generateForestRegion(manifest, "forest.escape.audit");
+    const capabilities = ["maintenance_access_open", "den_route_open", "exit_ladder_lowered", "settlement_supply_stable"];
+
+    for (const chamber of region.encounterChambers) {
+      expect(new Set(chamber.escapeCellIds).size).toBe(2);
+      for (let index = 0; index < chamber.escapeEdgeIds.length; index += 1) {
+        const edgeId = chamber.escapeEdgeIds[index]!;
+        const exitCellId = chamber.escapeCellIds[index]!;
+        expect(region.cellLinks.some((link) => link.routeEdgeId === edgeId &&
+          ((link.fromCellId === chamber.chamberCellId && link.toCellId === exitCellId) ||
+            (link.toCellId === chamber.chamberCellId && link.fromCellId === exitCellId)))).toBe(true);
+        expect(hasPath(region, chamber.chamberCellId, exitCellId, capabilities)).toBe(true);
+      }
     }
   });
 

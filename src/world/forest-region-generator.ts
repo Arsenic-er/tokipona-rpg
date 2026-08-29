@@ -19,20 +19,24 @@ export interface ForestRegion {
   readonly anchorCellIds: Readonly<Record<string, string>>;
   readonly terrainPrimitives: readonly Readonly<{ kind: string; boundsPx: ForestRectPx }> [];
   readonly traversableCells: readonly Readonly<{ cellId: string; positionPx: Readonly<{ x: number; y: number }> }>[];
-  readonly cellLinks: readonly Readonly<{ fromCellId: string; toCellId: string; capability: string | null }> [];
+  readonly cellLinks: readonly Readonly<{ fromCellId: string; toCellId: string; routeEdgeId: string; capability: string | null }> [];
   readonly routeCorridors: readonly Readonly<{
     edgeId: string;
     fromDistrictId: string;
     toDistrictId: string;
     capability: string | null;
     pointsPx: readonly Readonly<{ x: number; y: number }>[];
+    cellIds: readonly string[];
+    gate: Readonly<{ capability: string; cellId: string }> | null;
+    clearanceBoundsPx: ForestRectPx;
+    clearanceVolumesPx: readonly ForestRectPx[];
     ownership: readonly Readonly<{ districtId: string; fromT: number; toT: number; includesStart: boolean; includesEnd: boolean }> [];
   }> [];
   readonly protectedZones: readonly Readonly<{ zoneId: string; kind: "story_anchor_clearance" | "checkpoint_clearance" | "settlement_structure" | "waterwheel_protected_mass"; boundsPx: ForestRectPx }> [];
   readonly pockets: readonly Readonly<{ pocketId: string; districtId: string; kind: "loose_material" | "root" | "ledge" | "resource_candidate"; boundsPx: ForestRectPx }> [];
-  readonly encounterChambers: readonly Readonly<{ chamberId: string; districtId: string; escapeEdgeIds: readonly string[] }> [];
+  readonly encounterChambers: readonly Readonly<{ chamberId: string; districtId: string; chamberCellId: string; escapeEdgeIds: readonly string[]; escapeCellIds: readonly string[] }> [];
   readonly meadowSurfaces: readonly Readonly<{ surfaceId: "forest.meadow.ground"; left: number; right: number; y: number }> [];
-  readonly criticalRouteClearances: readonly Readonly<{ edgeId: string; width: number; height: number }> [];
+  readonly criticalRouteClearances: readonly Readonly<{ edgeId: string; boundsPx: ForestRectPx; volumesPx: readonly ForestRectPx[]; width: number; height: number }> [];
 }
 
 export class ForestGenerationError extends Error {
@@ -45,26 +49,17 @@ export class ForestGenerationError extends Error {
   }
 }
 
-const INITIAL_CELL_COUNT = 38;
-const TOTAL_CELL_COUNT = 100;
-const ANCHOR_CELL_INDEX: Readonly<Record<string, number>> = Object.freeze({
-  "forest.arrival": 0,
-  "forest.stream": 6,
-  "forest.settlement": 14,
-  "forest.hermit_branch": 20,
-  "forest.waterwheel": 28,
-  "forest.den_bypass": 34,
-  "forest.cistern": 38,
-  "forest.return_channel": 51,
-  "forest.underground_node": 66,
-  "forest.safe_range": 75,
-  "forest.old_mine": 85,
+const EDGE_INTERIOR_CELL_COUNTS: Readonly<Record<string, number>> = Object.freeze({
+  "arrival.stream": 7, "stream.settlement": 7, "settlement.hermit": 7,
+  "hermit.waterwheel": 6, "waterwheel.cistern": 9, "waterwheel.den": 5,
+  "den.cistern": 8, "cistern.return": 8, "return.underground": 8,
+  "underground.settlement": 8, "settlement.safe_range": 7, "settlement.old_mine": 9,
 });
 
 const POCKET_CANDIDATES = Object.freeze([
   { districtId: "forest.arrival", boundsPx: { x: 896, y: 800, width: 32, height: 32 } },
   { districtId: "forest.stream", boundsPx: { x: 2048, y: 1040, width: 32, height: 32 } },
-  { districtId: "forest.settlement", boundsPx: { x: 3600, y: 848, width: 32, height: 32 } },
+  { districtId: "forest.settlement", boundsPx: { x: 3600, y: 416, width: 32, height: 32 } },
   { districtId: "forest.hermit_branch", boundsPx: { x: 4200, y: 1280, width: 32, height: 32 } },
   { districtId: "forest.waterwheel", boundsPx: { x: 4600, y: 1900, width: 32, height: 32 } },
   { districtId: "forest.cistern", boundsPx: { x: 6400, y: 920, width: 32, height: 32 } },
@@ -76,28 +71,36 @@ const POCKET_CANDIDATES = Object.freeze([
 
 const POCKET_KINDS = ["loose_material", "root", "ledge", "resource_candidate"] as const;
 
+interface NavigationGraph {
+  readonly anchorCellIds: Readonly<Record<string, string>>;
+  readonly edgeCellIds: Readonly<Record<string, readonly string[]>>;
+  readonly traversableCells: readonly Readonly<{ cellId: string; positionPx: Readonly<{ x: number; y: number }> }>[];
+  readonly cellLinks: readonly Readonly<{ fromCellId: string; toCellId: string; routeEdgeId: string; capability: string | null }>[];
+}
+
 export function generateForestRegion(manifest: RuntimeForestSpatialManifest, seed: string): ForestRegion {
   if (!isVerifiedRuntimeForestSpatialManifest(manifest)) throw new ForestGenerationError(seed, "reader_verified_manifest_required");
   if (typeof seed !== "string" || seed.trim().length === 0) throw new ForestGenerationError(seed, "seed_must_be_non_empty");
 
   const generatorSeed = Number.parseInt(sha256Canonical({ manifestDigest: manifest.sourceDigest, seed } as JsonValue).slice(7, 15), 16) >>> 0;
-  const anchorCellIds = Object.freeze(Object.fromEntries(manifest.anchors.map((anchor) => [anchor.anchorId, cellId(ANCHOR_CELL_INDEX[anchor.anchorId]!)])));
   const anchorPositions = new Map(manifest.anchors.map((anchor) => [anchor.anchorId, { x: anchor.positionPx[0], y: anchor.positionPx[1] }]));
-  const traversableCells = Object.freeze(Array.from({ length: TOTAL_CELL_COUNT }, (_, index) => {
-    const anchor = manifest.anchors.find((entry) => ANCHOR_CELL_INDEX[entry.anchorId] === index);
-    const positionPx = anchorPositions.get(anchor?.anchorId ?? "") ?? fallbackCellPosition(index);
-    return Object.freeze({ cellId: cellId(index), positionPx: Object.freeze(positionPx) });
-  }));
-  const cellLinks = Object.freeze(buildCellLinks());
+  const navigation = buildNavigationGraph(manifest, anchorPositions);
   const routeCorridors = Object.freeze(manifest.routeEdges.map((edge) => {
     const from = anchorPositions.get(edge.from)!;
     const to = anchorPositions.get(edge.to)!;
+    const cellIds = navigation.edgeCellIds[edge.edgeId]!;
+    const clearanceVolumesPx = clearanceVolumes(cellIds, navigation.traversableCells);
+    const clearanceBoundsPx = clearanceVolumesPx[0]!;
     return Object.freeze({
       edgeId: edge.edgeId,
       fromDistrictId: edge.from,
       toDistrictId: edge.to,
       capability: edge.capability,
       pointsPx: Object.freeze([Object.freeze({ ...from }), Object.freeze({ ...to })]),
+      cellIds,
+      gate: edge.capability === null ? null : Object.freeze({ capability: edge.capability, cellId: cellIds[Math.floor(cellIds.length / 2)]! }),
+      clearanceBoundsPx,
+      clearanceVolumesPx,
       ownership: Object.freeze([
         Object.freeze({ districtId: edge.from, fromT: 0, toT: 0.5, includesStart: true, includesEnd: false }),
         Object.freeze({ districtId: edge.to, fromT: 0.5, toT: 1, includesStart: true, includesEnd: true }),
@@ -110,18 +113,16 @@ export function generateForestRegion(manifest: RuntimeForestSpatialManifest, see
     seed,
     generatorSeed,
     macroTilePx: 16 as const,
-    anchorCellIds,
+    anchorCellIds: navigation.anchorCellIds,
     terrainPrimitives: Object.freeze(buildTerrainPrimitives(manifest)),
-    traversableCells,
-    cellLinks,
+    traversableCells: navigation.traversableCells,
+    cellLinks: navigation.cellLinks,
     routeCorridors,
     protectedZones,
     pockets,
-    encounterChambers: Object.freeze(manifest.encounterChambers.map((chamber) => Object.freeze({
-      chamberId: chamber.chamberId, districtId: chamber.districtId, escapeEdgeIds: Object.freeze([...chamber.escapeEdgeIds]),
-    }))),
+    encounterChambers: Object.freeze(buildEncounterChambers(manifest, navigation)),
     meadowSurfaces: Object.freeze([Object.freeze({ surfaceId: "forest.meadow.ground" as const, left: manifest.meadowGroundBandPx.left, right: manifest.meadowGroundBandPx.right, y: manifest.meadowGroundBandPx.y })]),
-    criticalRouteClearances: Object.freeze(manifest.routeEdges.map((edge) => Object.freeze({ edgeId: edge.edgeId, width: 16, height: 18 }))),
+    criticalRouteClearances: Object.freeze(routeCorridors.map((corridor) => Object.freeze({ edgeId: corridor.edgeId, boundsPx: corridor.clearanceBoundsPx, volumesPx: corridor.clearanceVolumesPx, width: Math.min(...corridor.clearanceVolumesPx.map((volume) => volume.width)), height: Math.min(...corridor.clearanceVolumesPx.map((volume) => volume.height)) }))),
   };
   validateRegion(regionWithoutDigest, manifest, seed);
   const topologyDigest = sha256Canonical(regionWithoutDigest as unknown as JsonValue);
@@ -132,24 +133,46 @@ export function serializeForestRegion(region: ForestRegion): string {
   return canonicalJson(region as unknown as JsonValue);
 }
 
-function buildCellLinks(): readonly Readonly<{ fromCellId: string; toCellId: string; capability: string | null }> [] {
-  const links: { fromCellId: string; toCellId: string; capability: string | null }[] = [];
-  for (let index = 0; index < INITIAL_CELL_COUNT - 1; index += 1) links.push({ fromCellId: cellId(index), toCellId: cellId(index + 1), capability: null });
-  for (let index = 38; index < 50; index += 1) links.push({ fromCellId: cellId(index), toCellId: cellId(index + 1), capability: null });
-  for (let index = 51; index < 65; index += 1) links.push({ fromCellId: cellId(index), toCellId: cellId(index + 1), capability: null });
-  for (let index = 66; index < 74; index += 1) links.push({ fromCellId: cellId(index), toCellId: cellId(index + 1), capability: null });
-  for (let index = 75; index < 79; index += 1) links.push({ fromCellId: cellId(index), toCellId: cellId(index + 1), capability: null });
-  for (let index = 80; index < TOTAL_CELL_COUNT - 1; index += 1) links.push({ fromCellId: cellId(index), toCellId: cellId(index + 1), capability: null });
-  links.push(
-    { fromCellId: cellId(37), toCellId: cellId(38), capability: "maintenance_access_open" },
-    { fromCellId: cellId(34), toCellId: cellId(38), capability: "den_route_open" },
-    { fromCellId: cellId(50), toCellId: cellId(51), capability: "exit_ladder_lowered" },
-    { fromCellId: cellId(65), toCellId: cellId(66), capability: "settlement_supply_stable" },
-    { fromCellId: cellId(74), toCellId: cellId(75), capability: "range_trial_permission" },
-    { fromCellId: cellId(74), toCellId: cellId(80), capability: "forest_chapter_epilogue_committed" },
-    { fromCellId: cellId(66), toCellId: cellId(14), capability: "forest_chapter_epilogue_committed" },
-  );
-  return links.map((link) => Object.freeze(link));
+export function validateForestRegion(manifest: RuntimeForestSpatialManifest, region: ForestRegion): void {
+  if (!isVerifiedRuntimeForestSpatialManifest(manifest)) throw new ForestGenerationError(region.seed, "reader_verified_manifest_required");
+  const { topologyDigest: _topologyDigest, ...withoutDigest } = region;
+  validateRegion(withoutDigest, manifest, region.seed);
+}
+
+function buildNavigationGraph(manifest: RuntimeForestSpatialManifest, anchorPositions: ReadonlyMap<string, Readonly<{ x: number; y: number }>>): NavigationGraph {
+  const anchorCellIds = Object.freeze(Object.fromEntries(manifest.anchors.map((anchor) => [anchor.anchorId, `forest.anchor.${anchor.anchorId.slice("forest.".length)}`])));
+  const cells = manifest.anchors.map((anchor) => Object.freeze({ cellId: anchorCellIds[anchor.anchorId]!, positionPx: Object.freeze({ ...anchorPositions.get(anchor.anchorId)! }) }));
+  const edgeCellIds: Record<string, readonly string[]> = {};
+  const links: { fromCellId: string; toCellId: string; routeEdgeId: string; capability: string | null }[] = [];
+  for (const edge of manifest.routeEdges) {
+    const interiorCount = EDGE_INTERIOR_CELL_COUNTS[edge.edgeId];
+    if (interiorCount === undefined) throw new ForestGenerationError("<graph>", `missing_edge_cell_count:${edge.edgeId}`);
+    const from = anchorPositions.get(edge.from)!;
+    const to = anchorPositions.get(edge.to)!;
+    const cellIds = [anchorCellIds[edge.from]!];
+    for (let index = 0; index < interiorCount; index += 1) {
+      const t = (index + 1) / (interiorCount + 1);
+      const cellId = `forest.edge.${edge.edgeId}.${index}`;
+      cellIds.push(cellId);
+      cells.push(Object.freeze({ cellId, positionPx: Object.freeze({ x: Math.round(from.x + (to.x - from.x) * t), y: Math.round(from.y + (to.y - from.y) * t) }) }));
+    }
+    cellIds.push(anchorCellIds[edge.to]!);
+    edgeCellIds[edge.edgeId] = Object.freeze(cellIds);
+    for (let index = 0; index < cellIds.length - 1; index += 1) links.push({ fromCellId: cellIds[index]!, toCellId: cellIds[index + 1]!, routeEdgeId: edge.edgeId, capability: edge.capability });
+  }
+  return Object.freeze({ anchorCellIds, edgeCellIds: Object.freeze(edgeCellIds), traversableCells: Object.freeze(cells), cellLinks: Object.freeze(links.map((link) => Object.freeze(link))) });
+}
+
+function buildEncounterChambers(manifest: RuntimeForestSpatialManifest, navigation: NavigationGraph): readonly Readonly<{ chamberId: string; districtId: string; chamberCellId: string; escapeEdgeIds: readonly string[]; escapeCellIds: readonly string[] }> [] {
+  return manifest.encounterChambers.map((chamber) => {
+    const chamberCellId = navigation.anchorCellIds[chamber.districtId]!;
+    const escapeCellIds = chamber.escapeEdgeIds.map((edgeId) => {
+      const edge = manifest.routeEdges.find((entry) => entry.edgeId === edgeId)!;
+      const cells = navigation.edgeCellIds[edgeId]!;
+      return edge.from === chamber.districtId ? cells[1]! : cells[cells.length - 2]!;
+    });
+    return Object.freeze({ chamberId: chamber.chamberId, districtId: chamber.districtId, chamberCellId, escapeEdgeIds: Object.freeze([...chamber.escapeEdgeIds]), escapeCellIds: Object.freeze(escapeCellIds) });
+  });
 }
 
 function buildTerrainPrimitives(manifest: RuntimeForestSpatialManifest): readonly Readonly<{ kind: string; boundsPx: ForestRectPx }> [] {
@@ -201,10 +224,11 @@ function validateRegion(region: Omit<ForestRegion, "topologyDigest">, manifest: 
   const initialCount = countReachable(region, []);
   const ratio = initialCount / region.traversableCells.length;
   if (ratio < manifest.chapterOneAccessibleRatio.minimum || ratio > manifest.chapterOneAccessibleRatio.maximum) throw new ForestGenerationError(seed, "initial_accessible_ratio");
+  if (region.pockets.some((pocket) => region.criticalRouteClearances.some((clearance) => clearance.volumesPx.some((volume) => overlaps(pocket.boundsPx, volume))))) throw new ForestGenerationError(seed, "pocket_overlaps_critical_clearance");
   if (region.pockets.some((pocket) => region.protectedZones.some((zone) => overlaps(pocket.boundsPx, zone.boundsPx)))) throw new ForestGenerationError(seed, "pocket_overlaps_protected_zone");
   if (region.meadowSurfaces.some((surface) => Math.abs(surface.y - manifest.meadowGroundBandPx.y) > 16)) throw new ForestGenerationError(seed, "meadow_vertical_delta");
   if (region.criticalRouteClearances.some((clearance) => clearance.width < 16 || clearance.height < 18)) throw new ForestGenerationError(seed, "critical_route_clearance");
-  if (region.encounterChambers.some((chamber) => new Set(chamber.escapeEdgeIds).size !== 2)) throw new ForestGenerationError(seed, "encounter_escape_routes");
+  if (region.encounterChambers.some((chamber) => !hasDistinctEscapeLinks(region, chamber))) throw new ForestGenerationError(seed, "encounter_escape_routes");
 }
 
 function countReachable(region: Omit<ForestRegion, "topologyDigest">, capabilities: readonly string[]): number {
@@ -219,8 +243,22 @@ function countReachable(region: Omit<ForestRegion, "topologyDigest">, capabiliti
   return found.size;
 }
 
-function cellId(index: number): string { return `forest.cell.${index.toString().padStart(3, "0")}`; }
-function fallbackCellPosition(index: number): { x: number; y: number } { return { x: 256 + (index % 16) * 608, y: 448 + Math.floor(index / 16) * 336 }; }
+function hasDistinctEscapeLinks(region: Omit<ForestRegion, "topologyDigest">, chamber: ForestRegion["encounterChambers"][number]): boolean {
+  if (chamber.escapeEdgeIds.length !== 2 || new Set(chamber.escapeEdgeIds).size !== 2 || new Set(chamber.escapeCellIds).size !== 2) return false;
+  return chamber.escapeEdgeIds.every((edgeId, index) => region.cellLinks.some((link) => link.routeEdgeId === edgeId &&
+    ((link.fromCellId === chamber.chamberCellId && link.toCellId === chamber.escapeCellIds[index]) ||
+      (link.toCellId === chamber.chamberCellId && link.fromCellId === chamber.escapeCellIds[index]))));
+}
+
+function clearanceBounds(from: Readonly<{ x: number; y: number }>, to: Readonly<{ x: number; y: number }>): ForestRectPx {
+  const left = Math.min(from.x, to.x), top = Math.min(from.y, to.y);
+  return freezeRect({ x: left - 8, y: top - 9, width: Math.max(16, Math.abs(to.x - from.x) + 16), height: Math.max(18, Math.abs(to.y - from.y) + 18) });
+}
+
+function clearanceVolumes(cellIds: readonly string[], cells: readonly Readonly<{ cellId: string; positionPx: Readonly<{ x: number; y: number }> }>[]): readonly ForestRectPx[] {
+  const positionByCellId = new Map(cells.map((cell) => [cell.cellId, cell.positionPx]));
+  return Object.freeze(cellIds.slice(0, -1).map((cellId, index) => clearanceBounds(positionByCellId.get(cellId)!, positionByCellId.get(cellIds[index + 1]!)!)));
+}
 function nextRandom(value: number): number { return (Math.imul(value ^ (value >>> 16), 0x45d9f3b) ^ (value >>> 13)) >>> 0; }
 function freezeRect(rect: ForestRectPx): ForestRectPx { return Object.freeze({ ...rect }); }
 function overlaps(left: ForestRectPx, right: ForestRectPx): boolean { return left.x < right.x + right.width && right.x < left.x + left.width && left.y < right.y + right.height && right.y < left.y + left.height; }
