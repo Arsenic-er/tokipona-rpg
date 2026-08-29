@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { compileContent } from "../../src/content/compiler";
 import { readRuntimeSceneManifestIndex } from "../../src/content/runtime-scene-manifest";
 import { readRuntimePortraitCameraProfile } from "../../src/content/runtime-camera-profile";
+import { readRuntimeForestSpatialManifest } from "../../src/content/runtime-forest-spatial-manifest";
 import type { ContentSource } from "../../src/content/types";
 import generatedRuntimeText from "../../src/generated/content-runtime.v0.1.json?raw";
 import generatedLearningCorpusPackagesText from
@@ -48,6 +49,11 @@ describe("runtime content artifact generator", () => {
 
   it("emits the validated N00 through N08 runtime scene manifest", () => {
     const artifact = buildRuntimeContentArtifact(compileContent(repositorySources()));
+    expect(readRuntimeForestSpatialManifest(artifact)).toMatchObject({
+      profileId: "forest_side_scroll.v0.1",
+      regionBoundsPx: { width: 10240, height: 2880 },
+      laterGateAnchorIds: ["forest.safe_range", "forest.old_mine"],
+    });
     expect(readRuntimePortraitCameraProfile(artifact)).toMatchObject({
       profileId: "portrait_scroll.v0.1",
       viewportPx: { width: 180, height: 320 },

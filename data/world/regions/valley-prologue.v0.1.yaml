@@ -400,3 +400,68 @@ invariants:
   - "Scene dimensions do not depend on the current laboratory canvas size."
   - "L-01 remains authoritative for high-cistern objects, costs, predicates, and evidence."
   - "Only meaningful route, infrastructure, ecology, and narrative deltas persist across the region."
+
+continuous_map_contract:
+  schema_version: "g01.forest-spatial.v0.1"
+  runtime_origin: "top_left"
+  region_bounds_px: {width: 10240, height: 2880}
+  viewport_px: {width: 640, height: 360}
+  viewport_envelope: {columns: 16, rows: 8}
+  visible_material_cell_px: 1
+  storage_chunk_px: {width: 16, height: 16}
+  chapter_one_accessible_ratio: {minimum: 0.35, maximum: 0.40}
+  camera:
+    profile_id: "forest_side_scroll.v0.1"
+    fixed_zoom: true
+    movement_look_ahead_ratio: 0.18
+    dead_zone_normalized: {left: 0.38, right: 0.62, top: 0.35, bottom: 0.67}
+    downward_bias_ratio: 0.14
+    upward_lag_ratio: 0.08
+    pixel_snap: true
+  anchors:
+    - {anchor_id: "forest.arrival", scene_id: "scene.valley.arrival_shelf", position_px: [512, 480]}
+    - {anchor_id: "forest.stream", scene_id: "scene.valley.stream_section", position_px: [1664, 704]}
+    - {anchor_id: "forest.settlement", scene_id: "scene.valley.settlement", position_px: [3072, 672]}
+    - {anchor_id: "forest.hermit_branch", scene_id: "scene.valley.stream_section", position_px: [4032, 992]}
+    - {anchor_id: "forest.waterwheel", scene_id: "scene.valley.waterwheel", position_px: [5312, 1488]}
+    - {anchor_id: "forest.cistern", scene_id: "scene.valley.high_cistern", position_px: [6560, 1056]}
+    - {anchor_id: "forest.den_bypass", scene_id: "scene.valley.den_bypass", position_px: [6176, 1792]}
+    - {anchor_id: "forest.return_channel", scene_id: "scene.valley.return_channel", position_px: [7488, 1744]}
+    - {anchor_id: "forest.underground_node", scene_id: "scene.valley.underground_order_node", position_px: [8704, 2016]}
+    - {anchor_id: "forest.safe_range", scene_id: "scene.valley.safe_range", position_px: [3360, 192]}
+    - {anchor_id: "forest.old_mine", scene_id: "scene.valley.old_mine_threshold", position_px: [9248, 2208]}
+  chapter_one_route_anchor_ids: [forest.arrival, forest.stream, forest.settlement, forest.hermit_branch, forest.waterwheel, forest.cistern, forest.return_channel, forest.underground_node, forest.settlement]
+  later_gate_anchor_ids: [forest.safe_range, forest.old_mine]
+  districts:
+    - {district_id: "forest.arrival", scene_id: "scene.valley.arrival_shelf", bounds_px: [0, 256, 1280, 640]}
+    - {district_id: "forest.stream", scene_id: "scene.valley.stream_section", bounds_px: [1280, 448, 1216, 768]}
+    - {district_id: "forest.settlement", scene_id: "scene.valley.settlement", bounds_px: [2496, 384, 1280, 640]}
+    - {district_id: "forest.hermit_branch", scene_id: "scene.valley.stream_section", bounds_px: [3776, 768, 768, 640]}
+    - {district_id: "forest.waterwheel", scene_id: "scene.valley.waterwheel", bounds_px: [4544, 1024, 1536, 960]}
+    - {district_id: "forest.cistern", scene_id: "scene.valley.high_cistern", bounds_px: [6080, 640, 960, 768]}
+    - {district_id: "forest.den_bypass", scene_id: "scene.valley.den_bypass", bounds_px: [6080, 1472, 960, 640]}
+    - {district_id: "forest.return_channel", scene_id: "scene.valley.return_channel", bounds_px: [7040, 1408, 1152, 704]}
+    - {district_id: "forest.underground_node", scene_id: "scene.valley.underground_order_node", bounds_px: [8192, 1728, 896, 704]}
+    - {district_id: "forest.safe_range", scene_id: "scene.valley.safe_range", bounds_px: [3072, 32, 640, 320]}
+    - {district_id: "forest.old_mine", scene_id: "scene.valley.old_mine_threshold", bounds_px: [9088, 1888, 1024, 640]}
+  route_edges:
+    - {edge_id: "arrival.stream", from: "forest.arrival", to: "forest.stream", capability: null}
+    - {edge_id: "stream.settlement", from: "forest.stream", to: "forest.settlement", capability: null}
+    - {edge_id: "settlement.hermit", from: "forest.settlement", to: "forest.hermit_branch", capability: null}
+    - {edge_id: "hermit.waterwheel", from: "forest.hermit_branch", to: "forest.waterwheel", capability: null}
+    - {edge_id: "waterwheel.cistern", from: "forest.waterwheel", to: "forest.cistern", capability: "maintenance_access_open"}
+    - {edge_id: "waterwheel.den", from: "forest.waterwheel", to: "forest.den_bypass", capability: null}
+    - {edge_id: "den.cistern", from: "forest.den_bypass", to: "forest.cistern", capability: "den_route_open"}
+    - {edge_id: "cistern.return", from: "forest.cistern", to: "forest.return_channel", capability: "exit_ladder_lowered"}
+    - {edge_id: "return.underground", from: "forest.return_channel", to: "forest.underground_node", capability: "settlement_supply_stable"}
+    - {edge_id: "underground.settlement", from: "forest.underground_node", to: "forest.settlement", capability: "forest_chapter_epilogue_committed"}
+    - {edge_id: "settlement.safe_range", from: "forest.settlement", to: "forest.safe_range", capability: "range_trial_permission"}
+    - {edge_id: "settlement.old_mine", from: "forest.settlement", to: "forest.old_mine", capability: "forest_chapter_epilogue_committed"}
+  meadow_ground_band_px: {left: 2496, right: 3776, y: 704, maximum_vertical_delta: 16}
+  water_course_control_points_px: [[1088, 672], [1792, 800], [3328, 752], [4352, 1120], [5184, 1504], [7424, 1792]]
+  landmarks:
+    - {landmark_id: "forest.waterwheel_structure", district_id: "forest.waterwheel", bounds_px: [4800, 1120, 1408, 1024], reveal_stage_ids: [channel_sound, support_beams, broken_rim, inner_machinery]}
+  encounter_chambers:
+    - {chamber_id: "forest.stream.bend", district_id: "forest.stream", escape_edge_ids: [arrival.stream, stream.settlement]}
+    - {chamber_id: "forest.waterwheel.approach", district_id: "forest.waterwheel", escape_edge_ids: [hermit.waterwheel, waterwheel.den]}
+    - {chamber_id: "forest.return.lower", district_id: "forest.return_channel", escape_edge_ids: [cistern.return, return.underground]}

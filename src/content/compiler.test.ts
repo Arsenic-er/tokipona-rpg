@@ -47,6 +47,18 @@ describe("content compiler", () => {
     expect(JSON.stringify(index)).not.toContain("prototype_activation_mp");
   });
 
+  it("rejects missing and drifted canonical continuous forest map contracts", () => {
+    const missing = repositorySources();
+    delete mutableSource(missing, "world/regions/valley-prologue.v0.1.yaml").continuous_map_contract;
+    expect(() => compileContent(missing)).toThrowError(/continuous forest spatial contract/i);
+
+    const drifted = repositorySources();
+    const contract = mutableSource(drifted, "world/regions/valley-prologue.v0.1.yaml")
+      .continuous_map_contract as Record<string, unknown>;
+    (contract.camera as Record<string, unknown>).movement_look_ahead_ratio = 0.19;
+    expect(() => compileContent(drifted)).toThrowError(/continuous forest spatial contract/i);
+  });
+
   it("fails closed when a referenced file does not exist", () => {
     const sources = repositorySources();
     mutableSource(sources, "chapters/ch01-world-literacy-prologue.v0.1.yaml").region_ref =
