@@ -150,6 +150,16 @@ describe("asset release gate", () => {
     }
   });
 
+  it("rejects candidate, private, and concept markers in every forest path segment", () => {
+    for (const forbiddenPath of [
+      { source: "candidate/background.png", target: "background.png" },
+      { source: "runtime/background.png", target: "private/background.png" },
+      { source: "concept/background.png", target: "background.png" },
+    ]) {
+      expect(auditAssetRelease(approvedForestFixture({ forbiddenPath })).decision).toBe("deny");
+    }
+  });
+
   it("serializes a public audit without leaking repository or private file paths", () => {
     const fixture = createFixture({ runtimeReady: false, publicExport: false });
     const serialized = serializePublicAudit(audit(fixture));
@@ -243,6 +253,7 @@ function createFixture(options: FixtureOptions = {}) {
 function approvedForestFixture(options: {
   readonly reviewPng?: boolean;
   readonly forbiddenFilename?: string;
+  readonly forbiddenPath?: Readonly<{ source: string; target: string }>;
 } = {}) {
   const root = mkdtempSync(join(tmpdir(), "tokipona-forest-release-gate-"));
   temporaryRoots.push(root);
@@ -269,6 +280,13 @@ function approvedForestFixture(options: {
       ? [forestReleaseFile(
           `runtime/${options.forbiddenFilename}`,
           options.forbiddenFilename,
+          "runtime_layer",
+        )]
+      : []),
+    ...(options.forbiddenPath
+      ? [forestReleaseFile(
+          options.forbiddenPath.source,
+          options.forbiddenPath.target,
           "runtime_layer",
         )]
       : []),

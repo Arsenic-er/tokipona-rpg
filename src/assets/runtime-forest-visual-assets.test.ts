@@ -82,6 +82,17 @@ describe("forest visual runtime asset export", () => {
       .toThrow("forest visual privacy fields are invalid");
   });
 
+  it("rejects an inherited required field paired with an unexpected own field", () => {
+    const candidate = approvedFixture();
+    const manifestDigest = candidate.manifestDigest;
+    delete candidate.manifestDigest;
+    candidate.unexpected = "keeps-the-own-key-count-equal";
+    const inherited = Object.assign(Object.create({ manifestDigest }), candidate);
+
+    expect(() => readRuntimeForestVisualAssetExport(inherited))
+      .toThrow("forest visual export fields are invalid");
+  });
+
   it("rejects missing roles, duplicate roles, and duplicate public paths", () => {
     const missingRole = approvedFixture();
     missingRole.files.pop();

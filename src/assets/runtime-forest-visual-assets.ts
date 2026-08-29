@@ -188,7 +188,9 @@ function exactKeys(
   reason: string,
 ): void {
   const keys = Object.keys(value);
-  if (keys.length !== expected.length || !expected.every((key) => key in value)) {
+  if (keys.length !== expected.length ||
+      !expected.every((key) => Object.hasOwn(value, key)) ||
+      !keys.every((key) => expected.includes(key))) {
     throw new Error(reason);
   }
 }

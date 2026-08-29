@@ -467,8 +467,9 @@ function validateRuntimeFilePath(
   if (FORBIDDEN_FILE_MARKERS.some((marker) => filename.includes(marker))) {
     throw new Error("review_or_engineering_file_forbidden");
   }
-  if (destinationRoot === "forest_chapter_visuals" &&
-      FOREST_VISUAL_FORBIDDEN_FILE_MARKERS.some((marker) => filename.includes(marker))) {
+  if (destinationRoot === "forest_chapter_visuals" && segments.some((segment) =>
+    FOREST_VISUAL_FORBIDDEN_FILE_MARKERS.some((marker) =>
+      segment.toLowerCase().includes(marker)))) {
     throw new Error("private_asset_class_forbidden");
   }
   const extension = extname(filename);
