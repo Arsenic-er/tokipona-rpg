@@ -125,11 +125,25 @@ describe("ForestGrayboxRuntime", () => {
     expect(replay.snapshot().stateDigest).toBe(source.snapshot().stateDigest);
   });
 
-  it("keeps the temporary centered camera fixed-size, deterministic, and clamped", () => {
+  it("keeps the final fixed-zoom camera deterministic and clamped", () => {
     const left = createRuntime({ x: 0, y: 0 }).snapshot().camera;
     const right = createRuntime({ x: 10_220, y: 2_850 }).snapshot().camera;
 
-    expect(left).toEqual({ x: 0, y: 0, width: 640, height: 360 });
-    expect(right).toEqual({ x: 9_600, y: 2_520, width: 640, height: 360 });
+    expect(left).toEqual({ x: 0, y: 0, width: 640, height: 360, facing: "right" });
+    expect(right).toEqual({ x: 9_600, y: 2_520, width: 640, height: 360, facing: "right" });
+  });
+
+  it("restores player and stateful camera data without a first-tick camera jump", () => {
+    const source = createRuntime();
+    source.advanceTicks(180, { moveX: 1 });
+    const save = source.save();
+    const restored = ForestGrayboxRuntime.fromSave({ manifest, region }, save);
+
+    expect(restored.snapshot()).toEqual(source.snapshot());
+    expect(restored.snapshot().camera.facing).toBe("right");
+
+    restored.advanceTicks(1);
+    source.advanceTicks(1);
+    expect(restored.snapshot().camera).toEqual(source.snapshot().camera);
   });
 });

@@ -1,9 +1,13 @@
 import type { RuntimeForestSpatialManifest } from "../content/runtime-forest-spatial-manifest";
 import { sha256Canonical, type JsonValue } from "../persistence/cross-save-wal";
-import { clamp, type Aabb, type Vec2 } from "../runtime/geometry";
+import { type Aabb, type Vec2 } from "../runtime/geometry";
+import {
+  advanceForestCamera,
+  initializeForestCamera,
+  type ForestCameraState,
+} from "../runtime/forest-camera";
 import { stepPlayerMotion, type PlayerMotionState } from "../runtime/player-motion";
 import type {
-  CameraState,
   NormalizedRuntimeInput,
   PlayerState,
   RuntimeInput,
@@ -23,20 +27,23 @@ export interface ForestGrayboxSnapshot {
   readonly seed: string;
   readonly topologyDigest: `sha256:${string}`;
   readonly player: PlayerState;
-  readonly camera: CameraState;
+  readonly camera: ForestCameraState;
   readonly checkpoint: ForestGrayboxCheckpoint;
   readonly stateDigest: `sha256:${string}`;
 }
 
-export interface ForestGrayboxCameraStepInput {
-  readonly previous: CameraState;
-  readonly player: PlayerState;
-  readonly input: NormalizedRuntimeInput;
-  readonly regionBoundsPx: Readonly<{ width: number; height: number }>;
-  readonly viewportPx: Readonly<{ width: number; height: number }>;
+export interface ForestGrayboxSave {
+  readonly schema: "tokipona.forest-graybox.v0.1";
+  readonly seed: string;
+  readonly topologyDigest: `sha256:${string}`;
+  readonly fixedHz: number;
+  readonly tick: number;
+  readonly accumulatorSeconds: number;
+  readonly previousJump: boolean;
+  readonly player: PlayerMotionState;
+  readonly camera: ForestCameraState;
+  readonly checkpoint: ForestGrayboxCheckpoint;
 }
-
-export type ForestGrayboxCameraStep = (input: ForestGrayboxCameraStepInput) => CameraState;
 
 export interface ForestGrayboxRuntimeOptions extends ForestChunkStreamOptions {
   readonly manifest: RuntimeForestSpatialManifest;
@@ -44,7 +51,6 @@ export interface ForestGrayboxRuntimeOptions extends ForestChunkStreamOptions {
   readonly initialPosition?: Vec2;
   readonly playerBody?: PlayerBody;
   readonly fixedHz?: number;
-  readonly cameraStep?: ForestGrayboxCameraStep;
 }
 
 const MAX_FRAME_SECONDS = 1;
@@ -59,14 +65,13 @@ export class ForestGrayboxRuntime {
 
   private readonly manifest: RuntimeForestSpatialManifest;
   private readonly body: PlayerBody;
-  private readonly cameraStep: ForestGrayboxCameraStep;
   private readonly recoveryClearanceVolumes: readonly ForestRegion["criticalRouteClearances"][number]["volumesPx"][number][];
   private player: PlayerMotionState;
   private previousJump = false;
   private tickId = 0;
   private accumulatorSeconds = 0;
   private checkpoint: ForestGrayboxCheckpoint;
-  private camera: CameraState;
+  private camera: ForestCameraState;
 
   public constructor(options: ForestGrayboxRuntimeOptions) {
     validateForestRegion(options.manifest, options.region);
@@ -98,17 +103,45 @@ export class ForestGrayboxRuntime {
       maxRetainedChunks: options.maxRetainedChunks,
     });
     this.recoveryClearanceVolumes = arrivalRecoveryComponent(options.region, this.body);
-    this.cameraStep = options.cameraStep ?? centeredForestCameraStep;
     this.checkpoint = freezeCheckpoint({
       id: "checkpoint.initial",
       position: initialPosition,
       tick: 0,
     });
-    const viewport = this.manifest.viewportPx;
-    this.camera = this.nextCamera(
-      { x: 0, y: 0, width: viewport.width, height: viewport.height },
-      { moveX: 0, jump: false },
+    this.camera = initializeForestCamera(
+      this.manifest.camera,
+      freezePlayer(this.player, this.body),
+      this.manifest.regionBoundsPx,
     );
+  }
+
+  public static fromSave(options: ForestGrayboxRuntimeOptions, save: ForestGrayboxSave): ForestGrayboxRuntime {
+    const runtime = new ForestGrayboxRuntime(options);
+    if (
+      save.schema !== "tokipona.forest-graybox.v0.1" ||
+      save.seed !== runtime.seed ||
+      save.topologyDigest !== runtime.topologyDigest ||
+      save.fixedHz !== runtime.fixedHz
+    ) {
+      throw new Error("forest graybox save does not match this runtime");
+    }
+    if (!Number.isSafeInteger(save.tick) || save.tick < 0 || !Number.isFinite(save.accumulatorSeconds) ||
+      save.accumulatorSeconds < 0 || save.accumulatorSeconds >= runtime.fixedSeconds) {
+      throw new Error("forest graybox save timing is invalid");
+    }
+    if (typeof save.previousJump !== "boolean" || !isSavedMotionState(save.player) ||
+      !isSavedCamera(save.camera, runtime.manifest) || !isSavedCheckpoint(save.checkpoint) ||
+      runtime.chunkStream.isSolid({ ...save.checkpoint.position, ...runtime.body }) ||
+      !runtime.hasRecoveryRoute(save.checkpoint.position)) {
+      throw new Error("forest graybox save state is invalid");
+    }
+    runtime.player = Object.freeze({ ...save.player });
+    runtime.previousJump = save.previousJump;
+    runtime.tickId = save.tick;
+    runtime.accumulatorSeconds = save.accumulatorSeconds;
+    runtime.camera = Object.freeze({ ...save.camera });
+    runtime.checkpoint = freezeCheckpoint(save.checkpoint);
+    return runtime;
   }
 
   public advanceFrame(elapsedSeconds: number, input: RuntimeInput = {}): number {
@@ -159,6 +192,21 @@ export class ForestGrayboxRuntime {
     });
   }
 
+  public save(): ForestGrayboxSave {
+    return Object.freeze({
+      schema: "tokipona.forest-graybox.v0.1",
+      seed: this.seed,
+      topologyDigest: this.topologyDigest,
+      fixedHz: this.fixedHz,
+      tick: this.tickId,
+      accumulatorSeconds: this.accumulatorSeconds,
+      previousJump: this.previousJump,
+      player: Object.freeze({ ...this.player }),
+      camera: Object.freeze({ ...this.camera }),
+      checkpoint: freezeCheckpoint(this.checkpoint),
+    });
+  }
+
   public setCheckpoint(id: string): ForestGrayboxCheckpoint {
     if (!id.trim()) throw new Error("checkpoint id must not be empty");
     const position = { x: this.player.x, y: this.player.y };
@@ -185,7 +233,7 @@ export class ForestGrayboxRuntime {
     };
     this.previousJump = false;
     this.accumulatorSeconds = 0;
-    this.camera = this.nextCamera(this.camera, { moveX: 0, jump: false });
+    this.camera = this.nextCamera();
     return this.snapshot();
   }
 
@@ -201,27 +249,16 @@ export class ForestGrayboxRuntime {
     });
     this.player = motion.state;
     this.previousJump = motion.previousJump;
-    this.camera = this.nextCamera(this.camera, input);
+    this.camera = this.nextCamera();
   }
 
-  private nextCamera(previous: CameraState, input: NormalizedRuntimeInput): CameraState {
-    const viewport = this.manifest.viewportPx;
-    const candidate = this.cameraStep({
-      previous,
-      player: freezePlayer(this.player, this.body),
-      input,
-      regionBoundsPx: this.manifest.regionBoundsPx,
-      viewportPx: viewport,
-    });
-    if (!Number.isFinite(candidate.x) || !Number.isFinite(candidate.y)) {
-      throw new Error("camera step must return a finite camera");
-    }
-    return Object.freeze({
-      x: clamp(candidate.x, 0, this.manifest.regionBoundsPx.width - viewport.width),
-      y: clamp(candidate.y, 0, this.manifest.regionBoundsPx.height - viewport.height),
-      width: viewport.width,
-      height: viewport.height,
-    });
+  private nextCamera(): ForestCameraState {
+    return advanceForestCamera(
+      this.manifest.camera,
+      this.camera,
+      freezePlayer(this.player, this.body),
+      this.manifest.regionBoundsPx,
+    );
   }
 
   private hasRecoveryRoute(position: Vec2): boolean {
@@ -232,30 +269,30 @@ export class ForestGrayboxRuntime {
   }
 }
 
-export const centeredForestCameraStep: ForestGrayboxCameraStep = ({
-  player,
-  regionBoundsPx,
-  viewportPx,
-}) => Object.freeze({
-  x: clamp(
-    player.position.x + player.body.width / 2 - viewportPx.width / 2,
-    0,
-    regionBoundsPx.width - viewportPx.width,
-  ),
-  y: clamp(
-    player.position.y + player.body.height / 2 - viewportPx.height / 2,
-    0,
-    regionBoundsPx.height - viewportPx.height,
-  ),
-  width: viewportPx.width,
-  height: viewportPx.height,
-});
-
 function normalizeInput(input: RuntimeInput): NormalizedRuntimeInput {
   return Object.freeze({
     moveX: input.moveX === undefined || input.moveX === 0 ? 0 : input.moveX < 0 ? -1 : 1,
     jump: input.jump === true,
   });
+}
+
+function isSavedMotionState(value: PlayerMotionState): boolean {
+  return [value.x, value.y, value.velocityX, value.velocityY].every(Number.isFinite) &&
+    typeof value.grounded === "boolean";
+}
+
+function isSavedCamera(value: ForestCameraState, manifest: RuntimeForestSpatialManifest): boolean {
+  return Number.isInteger(value.x) && Number.isInteger(value.y) &&
+    value.x >= 0 && value.y >= 0 &&
+    value.x <= manifest.regionBoundsPx.width - manifest.viewportPx.width &&
+    value.y <= manifest.regionBoundsPx.height - manifest.viewportPx.height &&
+    value.width === manifest.viewportPx.width && value.height === manifest.viewportPx.height &&
+    (value.facing === "left" || value.facing === "right");
+}
+
+function isSavedCheckpoint(value: ForestGrayboxCheckpoint): boolean {
+  return value.id.trim().length > 0 && Number.isSafeInteger(value.tick) && value.tick >= 0 &&
+    Number.isFinite(value.position.x) && Number.isFinite(value.position.y);
 }
 
 function freezePlayer(state: PlayerMotionState, body: PlayerBody): PlayerState {
