@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import generated from "../../src/generated/content-runtime.v0.1.json";
 import currentRelease from "../../src/assets/runtime-release-contract.v0.1.json";
 import currentPrivateExport from "../../src/assets/runtime-core120-private-export.v0.3.json";
+import currentForestVisualExport from "../../src/assets/runtime-forest-visual-private-export.v0.1.json";
 import currentCatalog from "../../data/language/pu-120-glyph-catalog.v0.2.json";
 import {
   computeRuntimeCore120CurriculumDigest,
@@ -29,6 +30,7 @@ describe("public runtime asset boundary", () => {
       releaseContract: currentRelease,
       glyphCatalog: currentCatalog,
       privateAssetExport: currentPrivateExport,
+      forestVisualAssetExport: currentForestVisualExport,
     })).toEqual({
       schemaVersion: "tokipona.public-asset-boundary-check.v0.3",
       status: "safe_blocked_pending_external_approval",
@@ -76,6 +78,20 @@ describe("public runtime asset boundary", () => {
       .toThrow("public_non_glyph_runtime_forbidden");
   });
 
+  it("rejects changed and undeclared forest runtime files", () => {
+    const changed = approvedFixture();
+    writeFileSync(join(changed.root,
+      "public/assets/forest-chapter/waterwheel-benchmark/v0.1/background-far.png"), "changed");
+    expect(() => checkPublicRuntimeAssetBoundary(changed.input))
+      .toThrow("approved_public_asset_hash_mismatch");
+
+    const undeclared = approvedFixture();
+    writeFileSync(join(undeclared.root,
+      "public/assets/forest-chapter/waterwheel-benchmark/v0.1/undeclared.png"), "undeclared");
+    expect(() => checkPublicRuntimeAssetBoundary(undeclared.input))
+      .toThrow("public_forest_file_set_invalid");
+  });
+
   it("rejects partial approval states", () => {
     const partial = approvedFixture();
     const blockedRelease = structuredClone(currentRelease);
@@ -120,6 +136,7 @@ function approvedFixture(): Readonly<{
   const runtimeArtifact = approvedRuntimeArtifact();
   const manifest = readRuntimeCore120CurriculumManifest(runtimeArtifact);
   const privateAssetExport = approvedPrivateExport(manifest, root);
+  const forestVisualAssetExport = approvedForestVisualExport(root);
   const releaseContract = approvedRelease();
   const glyphCatalog = approvedCatalog();
   return Object.freeze({
@@ -130,8 +147,55 @@ function approvedFixture(): Readonly<{
       releaseContract,
       glyphCatalog,
       privateAssetExport,
+      forestVisualAssetExport,
     },
   });
+}
+
+function approvedForestVisualExport(root: string): any {
+  const forestRoot = join(root, "public/assets/forest-chapter/waterwheel-benchmark/v0.1");
+  mkdirSync(forestRoot, { recursive: true });
+  const files = [
+    forestRuntimeFile(forestRoot, "background_far", "background-far.png", 640, 360, "background-far"),
+    forestRuntimeFile(forestRoot, "background_mid", "background-mid.png", 640, 360, "background-mid"),
+    forestRuntimeFile(forestRoot, "waterwheel_landmark", "waterwheel-landmark.png", 320, 192, "waterwheel"),
+    forestRuntimeFile(forestRoot, "forest_material_atlas", "forest-material-atlas.png", 256, 256, "materials"),
+    forestRuntimeFile(forestRoot, "traveler_atlas", "traveler-atlas.png", 192, 96, "traveler"),
+    forestRuntimeFile(forestRoot, "time_palette", "time-palette.json", 0, 0, "palette"),
+    forestRuntimeFile(forestRoot, "runtime_manifest", "runtime-manifest.json", 0, 0, "manifest"),
+  ];
+  return {
+    schemaVersion: "tokipona.forest-visual-private-export.v0.1",
+    status: "approved",
+    packId: "forest.waterwheel.visual-benchmark.v001",
+    manifestDigest: hash(Buffer.from("forest-runtime-manifest")),
+    files,
+    privacy: {
+      containsPrivatePaths: false,
+      containsPrivateAssets: false,
+      containsConceptAssets: false,
+      containsReviewMedia: false,
+    },
+  };
+}
+
+function forestRuntimeFile(
+  forestRoot: string,
+  role: string,
+  filename: string,
+  width: number,
+  height: number,
+  content: string,
+): any {
+  const bytes = Buffer.from(content);
+  writeFileSync(join(forestRoot, filename), bytes);
+  return {
+    role,
+    publicPath: `assets/forest-chapter/waterwheel-benchmark/v0.1/${filename}`,
+    width,
+    height,
+    sha256: hash(bytes),
+  };
 }
 
 function approvedRuntimeArtifact(): any {

@@ -14,6 +14,7 @@ import { parse } from "yaml";
 
 export const ASSET_RELEASE_SCHEMA_VERSION = "tokipona.asset-release-gate.v0.1" as const;
 export const PUBLIC_RUNTIME_ROOT = "public/assets/magic-glyphs" as const;
+export const PUBLIC_FOREST_VISUAL_ROOT = "public/assets/forest-chapter" as const;
 
 export const REQUIRED_APPROVALS = [
   "source",
@@ -86,9 +87,20 @@ type RuntimeRootId = keyof typeof RUNTIME_ROOTS;
 
 const RUNTIME_ROOTS = {
   magic_glyphs: PUBLIC_RUNTIME_ROOT,
+  forest_chapter_visuals: PUBLIC_FOREST_VISUAL_ROOT,
 } as const;
 
+const FOREST_VISUAL_REQUIRED_APPROVALS = [
+  "source",
+  "license",
+  "pixel",
+  "animation",
+  "accessibility",
+  "hashes",
+] as const;
+
 const ROLE_EXTENSIONS = {
+  runtime_layer: [".png"],
   runtime_atlas: [".png"],
   runtime_mask: [".png"],
   runtime_animation: [".apng"],
@@ -101,6 +113,12 @@ const ROOT_ROLES = {
     "runtime_atlas",
     "runtime_mask",
     "runtime_animation",
+    "runtime_palette",
+    "runtime_manifest",
+  ]),
+  forest_chapter_visuals: new Set<RuntimeFileRole>([
+    "runtime_layer",
+    "runtime_atlas",
     "runtime_palette",
     "runtime_manifest",
   ]),
@@ -123,6 +141,8 @@ const FORBIDDEN_FILE_MARKERS = [
   "preview",
   "review",
 ];
+
+const FOREST_VISUAL_FORBIDDEN_FILE_MARKERS = ["candidate", "concept", "private"] as const;
 
 const SHA256_PATTERN = /^[a-f0-9]{64}$/;
 export function auditAssetRelease(options: AuditAssetReleaseOptions): AssetReleaseAudit {
@@ -153,7 +173,7 @@ export function auditAssetRelease(options: AuditAssetReleaseOptions): AssetRelea
   if (releaseStatus === "approved") pass("release_status");
   else deny("release_status", "release_status_not_approved");
 
-  auditApprovals(parsed.publicExport, checks);
+  auditApprovals(parsed.publicExport, parsed.destinationRoot, checks);
   auditLicenseRecord(parsed, options, checks);
   auditDestination(parsed, options, checks);
   auditFiles(parsed, options, checks);
@@ -253,7 +273,7 @@ function parseRelease(options: AuditAssetReleaseOptions): ParsedRelease {
 function parseRuntimeRoot(value: unknown): RuntimeRootId {
   if (value === undefined || value === null) return "magic_glyphs";
   const root = stringValue(value);
-  if (root === "magic_glyphs") return root;
+  if (root === "magic_glyphs" || root === "forest_chapter_visuals") return root;
   throw new Error("destination_root_invalid");
 }
 
@@ -268,9 +288,16 @@ function parseReleaseFile(value: unknown): ReleaseFile | undefined {
   return { source, target, sha256, role: role as RuntimeFileRole };
 }
 
-function auditApprovals(publicExport: UnknownRecord | undefined, checks: ReleaseGateCheck[]): void {
+function auditApprovals(
+  publicExport: UnknownRecord | undefined,
+  destinationRoot: RuntimeRootId,
+  checks: ReleaseGateCheck[],
+): void {
   const approvals = recordValue(publicExport?.approvals);
-  for (const approval of REQUIRED_APPROVALS) {
+  const requiredApprovals = destinationRoot === "forest_chapter_visuals"
+    ? FOREST_VISUAL_REQUIRED_APPROVALS
+    : REQUIRED_APPROVALS;
+  for (const approval of requiredApprovals) {
     const passed = approvals?.[approval] === "approved";
     checks.push({
       id: `approval_${approval}`,
@@ -404,8 +431,8 @@ function auditFiles(
       if (!ROOT_ROLES[parsed.destinationRoot].has(file.role)) {
         throw new Error("runtime_role_root_mismatch");
       }
-      validateRuntimeFilePath(file.source, file.role);
-      validateRuntimeFilePath(file.target, file.role);
+      validateRuntimeFilePath(file.source, file.role, parsed.destinationRoot);
+      validateRuntimeFilePath(file.target, file.role, parsed.destinationRoot);
       resolveSafeTarget(assetRoot, file.source, "source_path_escape");
       resolveSafeTarget(assetRoot, file.target, "target_path_escape");
       if (!SHA256_PATTERN.test(file.sha256)) throw new Error("runtime_file_hash_missing");
@@ -421,7 +448,11 @@ function auditFiles(
   checks.push({ id: "runtime_files", passed, reasonCode });
 }
 
-function validateRuntimeFilePath(path: string, role: RuntimeFileRole): void {
+function validateRuntimeFilePath(
+  path: string,
+  role: RuntimeFileRole,
+  destinationRoot: RuntimeRootId,
+): void {
   if (!path || isAbsolute(path)) throw new Error("absolute_runtime_path_forbidden");
   const normalized = path.replaceAll("\\", "/");
   const segments = normalized.split("/");
@@ -435,6 +466,10 @@ function validateRuntimeFilePath(path: string, role: RuntimeFileRole): void {
   if (filename.startsWith(".")) throw new Error("hidden_runtime_file_forbidden");
   if (FORBIDDEN_FILE_MARKERS.some((marker) => filename.includes(marker))) {
     throw new Error("review_or_engineering_file_forbidden");
+  }
+  if (destinationRoot === "forest_chapter_visuals" &&
+      FOREST_VISUAL_FORBIDDEN_FILE_MARKERS.some((marker) => filename.includes(marker))) {
+    throw new Error("private_asset_class_forbidden");
   }
   const extension = extname(filename);
   const allowedExtensions = ROLE_EXTENSIONS[role] as readonly string[];

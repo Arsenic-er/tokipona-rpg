@@ -7,6 +7,10 @@ import {
   type RuntimeCore120ApprovedAssetExport,
 } from "../../src/assets/runtime-core120-assets.ts";
 import {
+  readRuntimeForestVisualAssetExport,
+  type RuntimeForestVisualAssetExport,
+} from "../../src/assets/runtime-forest-visual-assets.ts";
+import {
   readRuntimeCore120CurriculumManifest,
   type RuntimeCore120CurriculumManifest,
 } from "../../src/content/runtime-core120-curriculum-manifest.ts";
@@ -20,6 +24,7 @@ export interface PublicRuntimeAssetBoundaryInput {
   readonly releaseContract: unknown;
   readonly glyphCatalog: unknown;
   readonly privateAssetExport: unknown;
+  readonly forestVisualAssetExport: unknown;
 }
 
 export interface PublicRuntimeAssetBoundaryReport {
@@ -45,6 +50,9 @@ export function readRepositoryPublicRuntimeAssetBoundary(
     releaseContract: readJson("src/assets/runtime-release-contract.v0.1.json"),
     glyphCatalog: readJson("data/language/pu-120-glyph-catalog.v0.2.json"),
     privateAssetExport: readJson("src/assets/runtime-core120-private-export.v0.3.json"),
+    forestVisualAssetExport: readJson(
+      "src/assets/runtime-forest-visual-private-export.v0.1.json",
+    ),
   });
 }
 
@@ -60,9 +68,12 @@ export function checkPublicRuntimeAssetBoundary(
     input.privateAssetExport,
     input.releaseContract,
   );
+  const forestVisualAssetExport = readRuntimeForestVisualAssetExport(
+    input.forestVisualAssetExport,
+  );
   readCatalog(input.glyphCatalog, manifest);
   const publicFiles = readPublicAssetFiles(repositoryRoot);
-  assert(publicFiles.nonGlyphFiles.length === 0, "public_non_glyph_runtime_forbidden");
+  assert(publicFiles.otherFiles.length === 0, "public_non_glyph_runtime_forbidden");
 
   if (readiness.playableContentMayClaimFullAssetAcceptance) {
     assert(readiness.privateAssetExport === "approved" &&
@@ -90,29 +101,47 @@ export function checkPublicRuntimeAssetBoundary(
     }
     assertRuntimeAtlasMatches(repositoryRoot, manifest, approved);
     assertSameFileSet(publicFiles.glyphFiles, expectedGlyphFiles, "public_glyph_file_set_invalid");
-    return freezeReport({
-      status: "approved_runtime_assets_verified",
-      publicGlyphFileCount: publicFiles.glyphFiles.length,
-      approvedPrivateExportPresent: true,
-      missingExportPlaceholderPresent: false,
-    });
+  } else {
+    assert(readiness.privateAssetExport === "missing" &&
+      readiness.glyphVisuals === "blocked_pending_private_approval" &&
+      readiness.glyphCatalog === "draft" &&
+      same(readiness.blockingReasons, [
+        "private_asset_export_missing", "glyph_release_blocked", "glyph_catalog_not_approved",
+      ]),
+    "partial_asset_approval_state_forbidden");
+    assertSameFileSet(publicFiles.glyphFiles, new Set(REQUIRED_BLOCKED_GLYPH_FILES),
+      "unapproved_glyph_runtime_present");
   }
 
-  assert(readiness.privateAssetExport === "missing" &&
-    readiness.glyphVisuals === "blocked_pending_private_approval" &&
-    readiness.glyphCatalog === "draft" &&
-    same(readiness.blockingReasons, [
-      "private_asset_export_missing", "glyph_release_blocked", "glyph_catalog_not_approved",
-    ]),
-  "partial_asset_approval_state_forbidden");
-  assertSameFileSet(publicFiles.glyphFiles, new Set(REQUIRED_BLOCKED_GLYPH_FILES),
-    "unapproved_glyph_runtime_present");
+  verifyForestVisualFiles(repositoryRoot, forestVisualAssetExport, publicFiles.forestFiles);
+  const allRuntimeAssetsApproved = readiness.playableContentMayClaimFullAssetAcceptance &&
+    forestVisualAssetExport.status === "approved";
   return freezeReport({
-    status: "safe_blocked_pending_external_approval",
+    status: allRuntimeAssetsApproved
+      ? "approved_runtime_assets_verified"
+      : "safe_blocked_pending_external_approval",
     publicGlyphFileCount: publicFiles.glyphFiles.length,
-    approvedPrivateExportPresent: false,
-    missingExportPlaceholderPresent: true,
+    approvedPrivateExportPresent: readiness.privateAssetExport === "approved",
+    missingExportPlaceholderPresent: readiness.privateAssetExport === "missing",
   });
+}
+
+function verifyForestVisualFiles(
+  repositoryRoot: string,
+  forestVisualAssetExport: RuntimeForestVisualAssetExport,
+  publicForestFiles: readonly string[],
+): void {
+  if (forestVisualAssetExport.status === "missing") {
+    assertSameFileSet(publicForestFiles, new Set(), "unapproved_forest_runtime_present");
+    return;
+  }
+  const expectedForestFiles = new Set<string>();
+  for (const file of forestVisualAssetExport.files) {
+    const repositoryPath = repositoryPathForPublicAsset(file.publicPath);
+    expectedForestFiles.add(repositoryPath);
+    assertFileHash(repositoryRoot, repositoryPath, file.sha256);
+  }
+  assertSameFileSet(publicForestFiles, expectedForestFiles, "public_forest_file_set_invalid");
 }
 
 function assertRuntimeAtlasMatches(
@@ -227,12 +256,16 @@ function readCatalog(candidate: unknown, manifest: RuntimeCore120CurriculumManif
 
 function readPublicAssetFiles(repositoryRoot: string): Readonly<{
   glyphFiles: readonly string[];
-  nonGlyphFiles: readonly string[];
+  forestFiles: readonly string[];
+  otherFiles: readonly string[];
 }> {
   const allFiles = filesBelow(repositoryRoot, "public/assets");
   return Object.freeze({
     glyphFiles: allFiles.filter((file) => file.startsWith("public/assets/magic-glyphs/")),
-    nonGlyphFiles: allFiles.filter((file) => !file.startsWith("public/assets/magic-glyphs/")),
+    forestFiles: allFiles.filter((file) => file.startsWith("public/assets/forest-chapter/")),
+    otherFiles: allFiles.filter((file) =>
+      !file.startsWith("public/assets/magic-glyphs/") &&
+      !file.startsWith("public/assets/forest-chapter/")),
   });
 }
 

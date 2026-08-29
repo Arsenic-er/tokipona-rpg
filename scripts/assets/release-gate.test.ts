@@ -135,6 +135,21 @@ describe("asset release gate", () => {
     expect(reasonCodes(audit(unknownRoot))).toContain("destination_root_invalid");
   });
 
+  it("allows the exact approved forest runtime roles under the forest visual root", () => {
+    expect(auditAssetRelease(approvedForestFixture()).decision).toBe("allow");
+  });
+
+  it("rejects forest review media even when it is declared as a runtime layer", () => {
+    expect(auditAssetRelease(forestFixtureWithReviewPng()).decision).toBe("deny");
+  });
+
+  it("rejects forest candidate, private, and concept files", () => {
+    for (const filename of ["candidate-layer.png", "private-layer.png", "concept-layer.png"]) {
+      expect(auditAssetRelease(approvedForestFixture({ forbiddenFilename: filename })).decision)
+        .toBe("deny");
+    }
+  });
+
   it("serializes a public audit without leaking repository or private file paths", () => {
     const fixture = createFixture({ runtimeReady: false, publicExport: false });
     const serialized = serializePublicAudit(audit(fixture));
@@ -223,6 +238,89 @@ function createFixture(options: FixtureOptions = {}) {
       manifestPath: "manifests/draft.yaml",
     },
   };
+}
+
+function approvedForestFixture(options: {
+  readonly reviewPng?: boolean;
+  readonly forbiddenFilename?: string;
+} = {}) {
+  const root = mkdtempSync(join(tmpdir(), "tokipona-forest-release-gate-"));
+  temporaryRoots.push(root);
+  const assetRoot = join(root, "asset-private");
+  const publicRoot = join(root, "game-public");
+  mkdirSync(join(assetRoot, "manifests"), { recursive: true });
+  mkdirSync(join(assetRoot, "runtime"), { recursive: true });
+  mkdirSync(join(assetRoot, "records"), { recursive: true });
+  mkdirSync(join(assetRoot, "provenance"), { recursive: true });
+  mkdirSync(publicRoot, { recursive: true });
+
+  const releaseFiles = [
+    forestReleaseFile("runtime/background-far.png", "background-far.png", "runtime_layer"),
+    forestReleaseFile("runtime/background-mid.png", "background-mid.png", "runtime_layer"),
+    forestReleaseFile("runtime/waterwheel-landmark.png", "waterwheel-landmark.png", "runtime_layer"),
+    forestReleaseFile("runtime/forest-material-atlas.png", "forest-material-atlas.png", "runtime_atlas"),
+    forestReleaseFile("runtime/traveler-atlas.png", "traveler-atlas.png", "runtime_atlas"),
+    forestReleaseFile("runtime/time-palette.json", "time-palette.json", "runtime_palette"),
+    forestReleaseFile("runtime/runtime-manifest.json", "runtime-manifest.json", "runtime_manifest"),
+    ...(options.reviewPng
+      ? [forestReleaseFile("review/contact-sheet.png", "review.png", "runtime_layer")]
+      : []),
+    ...(options.forbiddenFilename
+      ? [forestReleaseFile(
+          `runtime/${options.forbiddenFilename}`,
+          options.forbiddenFilename,
+          "runtime_layer",
+        )]
+      : []),
+  ];
+  for (const file of releaseFiles) {
+    const absoluteSource = join(assetRoot, ...file.source.split("/"));
+    mkdirSync(join(absoluteSource, ".."), { recursive: true });
+    writeFileSync(absoluteSource, file.content);
+  }
+
+  writeFileSync(join(assetRoot, "provenance", "license.txt"), "forest-license");
+  writeFileSync(join(assetRoot, "records", "license.yaml"), stringify({
+    status: "approved",
+    source_url: "https://example.invalid/forest-visuals",
+    source_url_status: "verified",
+    redistribution_status: "approved",
+    license_spdx: "CC0-1.0",
+    files: {
+      license: { path: "provenance/license.txt", sha256: sha256("forest-license") },
+    },
+  }));
+  writeFileSync(join(assetRoot, "manifests", "forest.yaml"), stringify({
+    asset_id: "forest.waterwheel.visual-benchmark.v001",
+    runtime_ready: true,
+    outputs: {
+      public_export: {
+        release_status: "approved",
+        destination_root: "forest_chapter_visuals",
+        destination: "waterwheel-benchmark/v0.1",
+        license_record: "records/license.yaml",
+        approvals: Object.fromEntries(
+          ["source", "license", "pixel", "animation", "accessibility", "hashes"]
+            .map((approval) => [approval, "approved"]),
+        ),
+        files: releaseFiles.map(({ content: _content, ...file }) => file),
+      },
+    },
+  }));
+  return {
+    assetRoot,
+    publicRepositoryRoot: publicRoot,
+    manifestPath: "manifests/forest.yaml",
+  };
+}
+
+function forestFixtureWithReviewPng() {
+  return approvedForestFixture({ reviewPng: true });
+}
+
+function forestReleaseFile(source: string, target: string, role: string) {
+  const content = `forest:${target}`;
+  return { source, target, role, sha256: sha256(content), content };
 }
 
 function audit(fixture: ReturnType<typeof createFixture>) {
