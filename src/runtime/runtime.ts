@@ -11,6 +11,7 @@ import {
   type SceneDefinition,
   SceneRegistry,
 } from "./scene";
+import { stepPlayerMotion } from "./player-motion";
 
 export type JsonPrimitive = string | number | boolean | null;
 export type JsonValue = JsonPrimitive | readonly JsonValue[] | { readonly [key: string]: JsonValue };
@@ -119,13 +120,6 @@ interface ScenePersistentState {
   readonly tileSolidity: Map<string, boolean>;
 }
 
-const MOVE_SPEED_PX_PER_SECOND = 88;
-const GROUND_ACCELERATION = 720;
-const AIR_ACCELERATION = 420;
-const GROUND_DECELERATION = 920;
-const GRAVITY_PX_PER_SECOND_SQUARED = 560;
-const MAX_FALL_SPEED = 240;
-const JUMP_SPEED = 190;
 const EXIT_COOLDOWN_TICKS = 2;
 const MAX_FRAME_SECONDS = 1;
 const EPSILON = 1e-9;
@@ -134,12 +128,6 @@ const normalizeInput = (input: RuntimeInput): NormalizedRuntimeInput => ({
   moveX: input.moveX === undefined || input.moveX === 0 ? 0 : input.moveX < 0 ? -1 : 1,
   jump: input.jump === true,
 });
-
-const approach = (value: number, target: number, maximumDelta: number): number => {
-  if (value < target) return Math.min(value + maximumDelta, target);
-  if (value > target) return Math.max(value - maximumDelta, target);
-  return target;
-};
 
 const cloneJson = <T extends JsonValue>(value: T): T => {
   if (Array.isArray(value)) return value.map((entry) => cloneJson(entry)) as unknown as T;
@@ -460,53 +448,23 @@ export class FixedStepRpgRuntime<TGlobalProgress> {
     this.tickId += 1;
     if (this.exitCooldown > 0) this.exitCooldown -= 1;
 
-    const targetVelocity = input.moveX * MOVE_SPEED_PX_PER_SECOND;
-    const acceleration = this.player.grounded ? GROUND_ACCELERATION : AIR_ACCELERATION;
-    const rate = input.moveX === 0 && this.player.grounded ? GROUND_DECELERATION : acceleration;
-    this.player.velocityX = approach(
-      this.player.velocityX,
-      targetVelocity,
-      rate * this.fixedSeconds,
-    );
-    if (input.jump && !this.previousJump && this.player.grounded) {
-      this.player.velocityY = -JUMP_SPEED;
-      this.player.grounded = false;
-    }
-    this.previousJump = input.jump;
-    this.player.velocityY = Math.min(
-      MAX_FALL_SPEED,
-      this.player.velocityY + GRAVITY_PX_PER_SECOND_SQUARED * this.fixedSeconds,
-    );
-
-    this.movePlayerAxis(this.player.velocityX * this.fixedSeconds, "x");
-    this.player.grounded = false;
-    this.movePlayerAxis(this.player.velocityY * this.fixedSeconds, "y");
+    const motion = stepPlayerMotion({
+      state: this.player,
+      body: this.registry.playerBody,
+      input,
+      previousJump: this.previousJump,
+      fixedSeconds: this.fixedSeconds,
+      collides: (bounds) => this.collidesAt(this.sceneId, bounds),
+    });
+    this.player.x = motion.state.x;
+    this.player.y = motion.state.y;
+    this.player.velocityX = motion.state.velocityX;
+    this.player.velocityY = motion.state.velocityY;
+    this.player.grounded = motion.state.grounded;
+    this.previousJump = motion.previousJump;
     this.updateParticles();
     this.checkSceneExit();
     this.camera = this.followCamera();
-  }
-
-  private movePlayerAxis(delta: number, axis: "x" | "y"): void {
-    const maximumStep = WORLD_TILE_SIZE_PX / 4;
-    let remaining = delta;
-    while (Math.abs(remaining) > EPSILON) {
-      const step = Math.sign(remaining) * Math.min(Math.abs(remaining), maximumStep);
-      const candidate = {
-        x: this.player.x + (axis === "x" ? step : 0),
-        y: this.player.y + (axis === "y" ? step : 0),
-      };
-      if (this.collidesAt(this.sceneId, this.playerBounds(candidate))) {
-        if (axis === "x") this.player.velocityX = 0;
-        else {
-          if (step > 0) this.player.grounded = true;
-          this.player.velocityY = 0;
-        }
-        return;
-      }
-      this.player.x = candidate.x;
-      this.player.y = candidate.y;
-      remaining -= step;
-    }
   }
 
   private checkSceneExit(): void {

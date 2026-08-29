@@ -89,6 +89,38 @@ describe("runtime coordinate contract", () => {
 });
 
 describe("FixedStepRpgRuntime", () => {
+  it("preserves the pre-extraction 600-tick snapshot and replay start signature", () => {
+    const runtime = createRuntime();
+    settle(runtime);
+    runtime.startRecording();
+    for (let tick = 0; tick < 600; tick += 1) {
+      runtime.advanceTicks(1, {
+        moveX: tick < 150 ? 1 : tick < 300 ? -1 : tick < 420 ? 0 : 1,
+        jump: tick === 30 || tick === 180 || tick === 450,
+      });
+    }
+    const replay = runtime.stopRecording();
+
+    expect(replay.startSignature).toBe("{\"tick\":5,\"sceneId\":\"room.a\",\"player\":[16,66,0,0,true],\"checkpoint\":{\"id\":\"checkpoint.initial\",\"sceneId\":\"room.a\",\"position\":{\"x\":16,\"y\":66},\"tick\":0},\"persistent\":[{\"sceneId\":\"room.a\",\"values\":{},\"tileSolidity\":{}}]}");
+    expect(runtime.snapshot()).toEqual({
+      tick: 605,
+      sceneId: "room.b",
+      player: {
+        position: { x: 156.00000000000014, y: 66 },
+        velocity: { x: 88, y: 0 },
+        grounded: true,
+        body: { width: 12, height: 14 },
+      },
+      camera: { x: 96, y: 32, width: 96, height: 64 },
+      checkpoint: {
+        id: "checkpoint.initial",
+        sceneId: "room.a",
+        position: { x: 16, y: 66 },
+        tick: 0,
+      },
+    });
+  });
+
   it("produces the same simulation state at different render frame rates", () => {
     const atThirtyFps = createRuntime();
     const atOneTwentyFps = createRuntime();
