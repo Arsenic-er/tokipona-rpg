@@ -56,18 +56,28 @@ describe("forest spatial projection", () => {
       .toThrow(ForestSpatialProjectionError);
   });
 
-  it("derives nearby anchors from authored positions at one fixed distance", () => {
+  it("derives nearby anchors from authored positions at one fixed distance and rejects injected facts", () => {
     const runtime = snapshotAt({ x: 512, y: 480 });
-    const poisonedRuntime = Object.freeze({
-      ...runtime,
-      nearbyAnchorIds: ["caller.injected"],
-      inventory: ["forbidden"],
-    });
-    const location = projectForestSpatialLocation(manifest, poisonedRuntime);
+    const location = projectForestSpatialLocation(manifest, runtime);
 
     expect(FOREST_NEARBY_ANCHOR_DISTANCE_PX).toBe(320);
     expect(location.nearbyAnchorIds).toEqual(["forest.arrival"]);
-    expect(location.nearbyAnchorIds).not.toContain("caller.injected");
+    for (const field of [
+      "nearbyAnchorIds",
+      "flags",
+      "learning",
+      "mp",
+      "inventory",
+      "damage",
+      "prices",
+      "receipts",
+      "mutation",
+      "unknown",
+    ] as const) {
+      const poisonedRuntime = Object.freeze({ ...runtime, [field]: "caller.injected" });
+      expect(() => projectForestSpatialLocation(manifest, poisonedRuntime), field)
+        .toThrow(/unknown runtime fields/);
+    }
   });
 
   it("returns only immutable spatial facts and no domain or mutation surface", () => {

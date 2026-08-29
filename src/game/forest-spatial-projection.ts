@@ -108,13 +108,65 @@ function regionFor(manifest: RuntimeForestSpatialManifest, seed: string): Forest
 }
 
 function validateRuntimeFacts(runtime: ForestGrayboxSnapshot): void {
+  const runtimeRecord = strictRecord(runtime, "runtime snapshot");
+  exactKeys(runtimeRecord, [
+    "tick",
+    "seed",
+    "topologyDigest",
+    "player",
+    "camera",
+    "checkpoint",
+    "stateDigest",
+  ], "unknown runtime fields");
+  const player = strictRecord(runtimeRecord.player, "runtime player");
+  exactKeys(player, ["position", "velocity", "grounded", "body"], "unknown runtime player fields");
+  const position = strictRecord(player.position, "runtime player position");
+  exactKeys(position, ["x", "y"], "unknown runtime player position fields");
+  const velocity = strictRecord(player.velocity, "runtime player velocity");
+  exactKeys(velocity, ["x", "y"], "unknown runtime player velocity fields");
+  const body = strictRecord(player.body, "runtime player body");
+  exactKeys(body, ["width", "height"], "unknown runtime player body fields");
+  const camera = strictRecord(runtimeRecord.camera, "runtime camera");
+  exactKeys(camera, ["x", "y", "width", "height", "facing"], "unknown runtime camera fields");
+  const checkpoint = strictRecord(runtimeRecord.checkpoint, "runtime checkpoint");
+  exactKeys(checkpoint, ["id", "position", "tick"], "unknown runtime checkpoint fields");
+  const checkpointPosition = strictRecord(checkpoint.position, "runtime checkpoint position");
+  exactKeys(checkpointPosition, ["x", "y"], "unknown runtime checkpoint position fields");
+
   if (typeof runtime.seed !== "string" || runtime.seed.trim().length === 0 ||
       !/^sha256:[0-9a-f]{64}$/.test(runtime.topologyDigest) ||
+      !/^sha256:[0-9a-f]{64}$/.test(runtime.stateDigest) ||
       !Number.isSafeInteger(runtime.tick) || runtime.tick < 0 ||
       !Number.isFinite(runtime.player.position.x) || !Number.isFinite(runtime.player.position.y) ||
+      !Number.isFinite(runtime.player.velocity.x) || !Number.isFinite(runtime.player.velocity.y) ||
+      typeof runtime.player.grounded !== "boolean" ||
       !Number.isFinite(runtime.player.body.width) || !Number.isFinite(runtime.player.body.height) ||
-      runtime.player.body.width <= 0 || runtime.player.body.height <= 0) {
+      runtime.player.body.width <= 0 || runtime.player.body.height <= 0 ||
+      !Number.isFinite(runtime.camera.x) || !Number.isFinite(runtime.camera.y) ||
+      runtime.camera.width !== 640 || runtime.camera.height !== 360 ||
+      (runtime.camera.facing !== "left" && runtime.camera.facing !== "right") ||
+      typeof runtime.checkpoint.id !== "string" || runtime.checkpoint.id.trim().length === 0 ||
+      !Number.isSafeInteger(runtime.checkpoint.tick) || runtime.checkpoint.tick < 0 ||
+      !Number.isFinite(runtime.checkpoint.position.x) || !Number.isFinite(runtime.checkpoint.position.y)) {
     throw new ForestSpatialProjectionError("runtime facts are invalid");
+  }
+}
+
+function strictRecord(value: unknown, label: string): Record<string, unknown> {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new ForestSpatialProjectionError(`${label} must be an object`);
+  }
+  return value as Record<string, unknown>;
+}
+
+function exactKeys(
+  value: Record<string, unknown>,
+  expected: readonly string[],
+  reason: string,
+): void {
+  const keys = Object.keys(value);
+  if (keys.length !== expected.length || keys.some((key) => !expected.includes(key))) {
+    throw new ForestSpatialProjectionError(reason);
   }
 }
 

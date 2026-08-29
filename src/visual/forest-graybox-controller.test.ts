@@ -53,7 +53,7 @@ describe("ForestGrayboxController", () => {
     expect(changed.runtime.topologyDigest).not.toBe(fresh.runtime.topologyDigest);
   });
 
-  it("traverses arrival, settlement, and the waterwheel approach without mutating a real Flow save", () => {
+  it("traverses arrival through settlement toward the waterwheel without mutating a real Flow save", () => {
     const flow = PrologueFlowSession.fresh({
       sessionId: "forest.controller.domain-nonmutation",
       currentMp: 12,
