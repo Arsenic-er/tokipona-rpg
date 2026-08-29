@@ -160,6 +160,17 @@ describe("asset release gate", () => {
     }
   });
 
+  it("rejects review and source markers in forest source and target directory segments", () => {
+    for (const forbiddenPath of [
+      { source: "review-media/background.png", target: "background.png" },
+      { source: "runtime/background.png", target: "review-media/background.png" },
+      { source: "source-files/background.png", target: "background.png" },
+      { source: "runtime/background.png", target: "source-files/background.png" },
+    ]) {
+      expect(auditAssetRelease(approvedForestFixture({ forbiddenPath })).decision).toBe("deny");
+    }
+  });
+
   it("serializes a public audit without leaking repository or private file paths", () => {
     const fixture = createFixture({ runtimeReady: false, publicExport: false });
     const serialized = serializePublicAudit(audit(fixture));

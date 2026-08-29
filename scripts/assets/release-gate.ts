@@ -142,7 +142,13 @@ const FORBIDDEN_FILE_MARKERS = [
   "review",
 ];
 
-const FOREST_VISUAL_FORBIDDEN_FILE_MARKERS = ["candidate", "concept", "private"] as const;
+const FOREST_VISUAL_FORBIDDEN_PATH_MARKERS = [
+  ...FORBIDDEN_FILE_MARKERS,
+  "candidate",
+  "concept",
+  "private",
+  "source",
+] as const;
 
 const SHA256_PATTERN = /^[a-f0-9]{64}$/;
 export function auditAssetRelease(options: AuditAssetReleaseOptions): AssetReleaseAudit {
@@ -468,7 +474,7 @@ function validateRuntimeFilePath(
     throw new Error("review_or_engineering_file_forbidden");
   }
   if (destinationRoot === "forest_chapter_visuals" && segments.some((segment) =>
-    FOREST_VISUAL_FORBIDDEN_FILE_MARKERS.some((marker) =>
+    FOREST_VISUAL_FORBIDDEN_PATH_MARKERS.some((marker) =>
       segment.toLowerCase().includes(marker)))) {
     throw new Error("private_asset_class_forbidden");
   }
