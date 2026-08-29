@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import generated from "../generated/content-runtime.v0.1.json";
 import { readRuntimeForestSpatialManifest } from "../content/runtime-forest-spatial-manifest";
 import { generateForestRegion } from "./forest-region-generator";
+import type { ForestRegion } from "./forest-region-generator";
 import { FOREST_MATERIAL } from "./forest-chunk-stream";
 import { ForestGrayboxRuntime } from "./forest-graybox-runtime";
 
@@ -47,6 +48,53 @@ describe("ForestGrayboxRuntime", () => {
     const gated = createRuntime(gatedCell.positionPx);
     expect(gated.chunkStream.isSolid({ ...gatedCell.positionPx, width: 12, height: 14 })).toBe(false);
     expect(() => gated.setCheckpoint("checkpoint.gated")).toThrow(/safe recovery route/);
+  });
+
+  it("rejects isolated carved air even when it is near an abstract reachable cell", () => {
+    const arrivalVolume = region.routeCorridors.find((corridor) => corridor.edgeId === "arrival.stream")!
+      .clearanceVolumesPx[0]!;
+    const isolatedVolumes = [
+      Object.freeze({ x: 512, y: 560, width: 64, height: 64 }),
+      Object.freeze({ x: arrivalVolume.x - 64, y: arrivalVolume.y - 64, width: 64, height: 64 }),
+    ];
+
+    for (const [index, isolated] of isolatedVolumes.entries()) {
+      const isolatedRegion = Object.freeze({
+        ...region,
+        routeCorridors: Object.freeze(region.routeCorridors.map((corridor) =>
+          corridor.edgeId === "arrival.stream"
+            ? Object.freeze({
+              ...corridor,
+              clearanceVolumesPx: Object.freeze([...corridor.clearanceVolumesPx, isolated]),
+            })
+            : corridor)),
+        criticalRouteClearances: Object.freeze(region.criticalRouteClearances.map((clearance) =>
+          clearance.edgeId === "arrival.stream"
+            ? Object.freeze({
+              ...clearance,
+              volumesPx: Object.freeze([...clearance.volumesPx, isolated]),
+            })
+            : clearance)),
+      }) as ForestRegion;
+      const position = { x: isolated.x + 8, y: isolated.y + 8 };
+      const runtime = new ForestGrayboxRuntime({ manifest, region: isolatedRegion, initialPosition: position });
+
+      expect(runtime.chunkStream.isSolid({ ...position, width: 12, height: 14 })).toBe(false);
+      expect(() => runtime.setCheckpoint(`checkpoint.isolated-air.${index}`)).toThrow(/safe recovery route/);
+    }
+  });
+
+  it("accepts a collision-safe position inside the sparse arrival-connected corridor geometry", () => {
+    const corridor = region.routeCorridors.find((candidate) => candidate.edgeId === "hermit.waterwheel")!;
+    const volume = corridor.clearanceVolumesPx[Math.floor(corridor.clearanceVolumesPx.length / 2)]!;
+    const position = {
+      x: volume.x + (volume.width - 12) / 2,
+      y: volume.y + (volume.height - 14) / 2,
+    };
+    const runtime = createRuntime(position);
+
+    expect(runtime.chunkStream.isSolid({ ...position, width: 12, height: 14 })).toBe(false);
+    expect(runtime.setCheckpoint("checkpoint.sparse-corridor").position).toEqual(position);
   });
 
   it("resets to the accepted checkpoint without crossing a capability gate", () => {

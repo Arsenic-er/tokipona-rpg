@@ -52,7 +52,6 @@ export class ForestChunkStream {
   readonly chunkHeight = 16 as const;
 
   private readonly retained = new Map<string, ForestMaterialChunk>();
-  private readonly digestByPayload = new Map<string, `sha256:${string}`>();
   private readonly sealedGates: readonly ForestRectPx[];
   private readonly clearanceVolumes: readonly ForestRectPx[];
   private readonly protectedMasses: readonly Readonly<{ kind: string; boundsPx: ForestRectPx }>[];
@@ -94,7 +93,7 @@ export class ForestChunkStream {
     if (left > right || top > bottom) return Object.freeze(chunks);
     for (let chunkY = top; chunkY <= bottom; chunkY += 1) {
       for (let chunkX = left; chunkX <= right; chunkX += 1) {
-        chunks.push(this.chunkAt(chunkX, chunkY));
+        chunks.push(copyChunk(this.chunkAt(chunkX, chunkY)));
       }
     }
     return Object.freeze(chunks);
@@ -158,16 +157,10 @@ export class ForestChunkStream {
         );
       }
     }
-    const payloadKey = String.fromCharCode(...materials);
-    let digest = this.digestByPayload.get(payloadKey);
-    if (!digest) {
-      digest = sha256Canonical([...materials] as JsonValue);
-      this.digestByPayload.set(payloadKey, digest);
-    }
     const chunk = Object.freeze({
       chunkX,
       chunkY,
-      digest,
+      digest: sha256Canonical([...materials] as JsonValue),
       materials,
     });
     this.materializedCount += 1;
@@ -184,21 +177,21 @@ export class ForestChunkStream {
     const sealedGate = (context?.sealedGates ?? this.sealedGates).find((bounds) => contains(bounds, x, y));
     if (sealedGate) return FOREST_MATERIAL.protected_mass;
 
+    const inClearance = (context?.clearanceVolumes ?? this.clearanceVolumes)
+      .some((volume) => contains(volume, x, y));
+    const protectedMass = (context?.protectedMasses ?? this.protectedMasses)
+      .find((zone) => contains(zone.boundsPx, x, y));
+    if (protectedMass && !inClearance) return protectedMass.kind === "settlement_structure"
+      ? FOREST_MATERIAL.wood
+      : FOREST_MATERIAL.protected_mass;
+
+    if (this.isWaterPixel(x, y)) return FOREST_MATERIAL.water;
+
     const meadow = this.region.meadowSurfaces.find((surface) =>
       x >= surface.left && x < surface.right && y >= surface.y);
     if (meadow) return y < meadow.y + 12 ? FOREST_MATERIAL.soil : FOREST_MATERIAL.stone;
 
-    if (this.isWaterPixel(x, y)) return FOREST_MATERIAL.water;
-
-    if ((context?.clearanceVolumes ?? this.clearanceVolumes).some((volume) => contains(volume, x, y))) {
-      return FOREST_MATERIAL.air;
-    }
-
-    const protectedMass = (context?.protectedMasses ?? this.protectedMasses)
-      .find((zone) => contains(zone.boundsPx, x, y));
-    if (protectedMass) return protectedMass.kind === "settlement_structure"
-      ? FOREST_MATERIAL.wood
-      : FOREST_MATERIAL.protected_mass;
+    if (inClearance) return FOREST_MATERIAL.air;
 
     const pocket = (context?.pockets ?? this.region.pockets)
       .find((candidate) => contains(candidate.boundsPx, x, y));
@@ -240,6 +233,15 @@ export class ForestChunkStream {
 
 function contains(rect: ForestRectPx, x: number, y: number): boolean {
   return x >= rect.x && y >= rect.y && x < rect.x + rect.width && y < rect.y + rect.height;
+}
+
+function copyChunk(chunk: ForestMaterialChunk): ForestMaterialChunk {
+  return Object.freeze({
+    chunkX: chunk.chunkX,
+    chunkY: chunk.chunkY,
+    digest: chunk.digest,
+    materials: chunk.materials.slice(),
+  });
 }
 
 function overlaps(left: ForestRectPx, right: ForestRectPx): boolean {

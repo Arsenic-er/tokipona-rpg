@@ -38,6 +38,28 @@ describe("ForestChunkStream", () => {
     expect(stream.isSolid({ x: 0, y: 2_880, width: 1, height: 1 })).toBe(true);
   });
 
+  it("keeps authored meadow water non-solid instead of replacing it with meadow terrain", () => {
+    const stream = new ForestChunkStream(manifest, region);
+
+    expect(stream.materialAt(3000, 762)).toBe(FOREST_MATERIAL.water);
+    expect(stream.isSolid({ x: 3000, y: 762, width: 1, height: 1 })).toBe(false);
+  });
+
+  it("does not expose cached material payloads to caller mutation", () => {
+    const stream = new ForestChunkStream(manifest, region);
+    const camera = { x: 512, y: 480, width: 1, height: 1 };
+    const first = stream.visible(camera, 0)[0]!;
+    const digest = first.digest;
+
+    first.materials[0] = FOREST_MATERIAL.protected_mass;
+    const second = stream.visible(camera, 0)[0]!;
+
+    expect(second.materials[0]).toBe(FOREST_MATERIAL.air);
+    expect(second.digest).toBe(digest);
+    expect(stream.materialAt(512, 480)).toBe(FOREST_MATERIAL.air);
+    expect(stream.isSolid({ x: 512, y: 480, width: 1, height: 1 })).toBe(false);
+  });
+
   it("returns exactly one extra chunk around an interior camera", () => {
     const stream = new ForestChunkStream(manifest, region, { maxRetainedChunks: 2_000 });
 
@@ -76,5 +98,19 @@ describe("ForestChunkStream", () => {
 
     expect(stream.cacheStats().materialized).toBeLessThan(20_000);
     expect(stream.cacheStats().retained).toBeLessThanOrEqual(maxRetainedChunks);
+  });
+
+  it("keeps retention bounded across repeated long-distance traversal", () => {
+    const maxRetainedChunks = 64;
+    const stream = new ForestChunkStream(manifest, region, { maxRetainedChunks });
+
+    for (let pass = 0; pass < 3; pass += 1) {
+      for (let x = 0; x < manifest.regionBoundsPx.width; x += 320) {
+        stream.visible({ x, y: 1_200 + pass * 160, width: 64, height: 64 }, 1);
+      }
+    }
+
+    expect(stream.cacheStats().materialized).toBeGreaterThan(maxRetainedChunks);
+    expect(stream.cacheStats()).toMatchObject({ retained: maxRetainedChunks });
   });
 });

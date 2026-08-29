@@ -1,6 +1,6 @@
 import type { RuntimeForestSpatialManifest } from "../content/runtime-forest-spatial-manifest";
 import { sha256Canonical, type JsonValue } from "../persistence/cross-save-wal";
-import { clamp, type Vec2 } from "../runtime/geometry";
+import { clamp, type Aabb, type Vec2 } from "../runtime/geometry";
 import { stepPlayerMotion, type PlayerMotionState } from "../runtime/player-motion";
 import type {
   CameraState,
@@ -58,10 +58,9 @@ export class ForestGrayboxRuntime {
   readonly chunkStream: ForestChunkStream;
 
   private readonly manifest: RuntimeForestSpatialManifest;
-  private readonly region: ForestRegion;
   private readonly body: PlayerBody;
   private readonly cameraStep: ForestGrayboxCameraStep;
-  private readonly reachableCellIds: ReadonlySet<string>;
+  private readonly recoveryClearanceVolumes: readonly ForestRegion["criticalRouteClearances"][number]["volumesPx"][number][];
   private player: PlayerMotionState;
   private previousJump = false;
   private tickId = 0;
@@ -72,7 +71,6 @@ export class ForestGrayboxRuntime {
   public constructor(options: ForestGrayboxRuntimeOptions) {
     validateForestRegion(options.manifest, options.region);
     this.manifest = options.manifest;
-    this.region = options.region;
     this.seed = options.region.seed;
     this.topologyDigest = options.region.topologyDigest;
     this.fixedHz = options.fixedHz ?? 60;
@@ -99,7 +97,7 @@ export class ForestGrayboxRuntime {
     this.chunkStream = new ForestChunkStream(options.manifest, options.region, {
       maxRetainedChunks: options.maxRetainedChunks,
     });
-    this.reachableCellIds = reachableWithoutCapabilities(options.region);
+    this.recoveryClearanceVolumes = arrivalRecoveryComponent(options.region, this.body);
     this.cameraStep = options.cameraStep ?? centeredForestCameraStep;
     this.checkpoint = freezeCheckpoint({
       id: "checkpoint.initial",
@@ -227,17 +225,10 @@ export class ForestGrayboxRuntime {
   }
 
   private hasRecoveryRoute(position: Vec2): boolean {
-    const center = { x: position.x + this.body.width / 2, y: position.y + this.body.height / 2 };
-    let nearest: ForestRegion["traversableCells"][number] | undefined;
-    let nearestDistance = Number.POSITIVE_INFINITY;
-    for (const cell of this.region.traversableCells) {
-      const distance = Math.hypot(cell.positionPx.x - center.x, cell.positionPx.y - center.y);
-      if (distance < nearestDistance) {
-        nearest = cell;
-        nearestDistance = distance;
-      }
-    }
-    return nearest !== undefined && nearestDistance <= 256 && this.reachableCellIds.has(nearest.cellId);
+    return aabbCoveredByVolumes(
+      { ...position, ...this.body },
+      this.recoveryClearanceVolumes,
+    );
   }
 }
 
@@ -284,7 +275,10 @@ function freezeCheckpoint(checkpoint: ForestGrayboxCheckpoint): ForestGrayboxChe
   });
 }
 
-function reachableWithoutCapabilities(region: ForestRegion): ReadonlySet<string> {
+function arrivalRecoveryComponent(
+  region: ForestRegion,
+  body: PlayerBody,
+): readonly ForestRegion["criticalRouteClearances"][number]["volumesPx"][number][] {
   const adjacent = new Map<string, string[]>();
   for (const link of region.cellLinks) {
     if (link.capability !== null) continue;
@@ -304,5 +298,81 @@ function reachableWithoutCapabilities(region: ForestRegion): ReadonlySet<string>
       queue.push(next);
     }
   }
-  return found;
+  const accessibleEdgeIds = new Set(region.routeCorridors
+    .filter((corridor) => corridor.capability === null && corridor.cellIds.some((cellId) => found.has(cellId)))
+    .map((corridor) => corridor.edgeId));
+  const volumes = region.criticalRouteClearances
+    .filter((clearance) => accessibleEdgeIds.has(clearance.edgeId))
+    .flatMap((clearance) => clearance.volumesPx);
+  const arrival = region.traversableCells.find((cell) => cell.cellId === region.anchorCellIds["forest.arrival"])!;
+  const connectedIndexes = new Set<number>();
+  const volumeQueue: number[] = [];
+  volumes.forEach((volume, index) => {
+    if (pointInside(volume, arrival.positionPx)) {
+      connectedIndexes.add(index);
+      volumeQueue.push(index);
+    }
+  });
+  for (let queueIndex = 0; queueIndex < volumeQueue.length; queueIndex += 1) {
+    const currentIndex = volumeQueue[queueIndex]!;
+    for (let candidateIndex = 0; candidateIndex < volumes.length; candidateIndex += 1) {
+      if (
+        connectedIndexes.has(candidateIndex) ||
+        !supportsBodyPassage(volumes[currentIndex]!, volumes[candidateIndex]!, body)
+      ) continue;
+      connectedIndexes.add(candidateIndex);
+      volumeQueue.push(candidateIndex);
+    }
+  }
+  return Object.freeze(volumes.filter((_, index) => connectedIndexes.has(index)));
+}
+
+function aabbCoveredByVolumes(
+  bounds: Aabb,
+  volumes: readonly ForestRegion["criticalRouteClearances"][number]["volumesPx"][number][],
+): boolean {
+  const intersecting = volumes.filter((volume) => overlapsAabb(bounds, volume));
+  if (intersecting.length === 0) return false;
+  const xStops = uniqueSorted([
+    bounds.x,
+    bounds.x + bounds.width,
+    ...intersecting.flatMap((volume) => [volume.x, volume.x + volume.width]
+      .filter((value) => value > bounds.x && value < bounds.x + bounds.width)),
+  ]);
+  const yStops = uniqueSorted([
+    bounds.y,
+    bounds.y + bounds.height,
+    ...intersecting.flatMap((volume) => [volume.y, volume.y + volume.height]
+      .filter((value) => value > bounds.y && value < bounds.y + bounds.height)),
+  ]);
+  for (let xIndex = 0; xIndex < xStops.length - 1; xIndex += 1) {
+    for (let yIndex = 0; yIndex < yStops.length - 1; yIndex += 1) {
+      const sample = {
+        x: (xStops[xIndex]! + xStops[xIndex + 1]!) / 2,
+        y: (yStops[yIndex]! + yStops[yIndex + 1]!) / 2,
+      };
+      if (!intersecting.some((volume) => pointInside(volume, sample))) return false;
+    }
+  }
+  return true;
+}
+
+function uniqueSorted(values: readonly number[]): number[] {
+  return [...new Set(values)].sort((left, right) => left - right);
+}
+
+function pointInside(rect: Aabb, point: Vec2): boolean {
+  return point.x >= rect.x && point.x <= rect.x + rect.width &&
+    point.y >= rect.y && point.y <= rect.y + rect.height;
+}
+
+function overlapsAabb(left: Aabb, right: Aabb): boolean {
+  return left.x < right.x + right.width && right.x < left.x + left.width &&
+    left.y < right.y + right.height && right.y < left.y + left.height;
+}
+
+function supportsBodyPassage(left: Aabb, right: Aabb, body: PlayerBody): boolean {
+  const overlapWidth = Math.min(left.x + left.width, right.x + right.width) - Math.max(left.x, right.x);
+  const overlapHeight = Math.min(left.y + left.height, right.y + right.height) - Math.max(left.y, right.y);
+  return overlapWidth >= body.width && overlapHeight >= body.height;
 }
