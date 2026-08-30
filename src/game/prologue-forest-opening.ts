@@ -28,7 +28,7 @@ import {
 } from "./prologue-arrival-stream";
 import { PrologueFlowSession } from "./prologue-flow";
 
-const SCHEMA = "tokipona.prologue-forest-opening.v0.1" as const;
+export const PROLOGUE_FOREST_OPENING_SAVE_SCHEMA = "tokipona.prologue-forest-opening.v0.1" as const;
 const GLYPH_RECEIPT_ID = "forest-opening:glyph:word.telo" as const;
 const FLOW_SYNC_TICK_LIMIT = 1_200;
 const openingManifest = readRuntimeForestOpeningManifest(generatedRuntimeArtifact);
@@ -51,7 +51,7 @@ const GLYPH_RECEIPT_HASH = sha256Canonical({
 });
 
 export interface PrologueForestOpeningSave {
-  readonly schema: typeof SCHEMA;
+  readonly schema: typeof PROLOGUE_FOREST_OPENING_SAVE_SCHEMA;
   readonly manifestDigest: `sha256:${string}`;
   readonly session: GameSessionSave;
   readonly runtime: ForestOpeningRuntimeSave;
@@ -229,7 +229,7 @@ export class PrologueForestOpeningSession {
 
   public toSave(): PrologueForestOpeningSave {
     const body = {
-      schema: SCHEMA,
+      schema: PROLOGUE_FOREST_OPENING_SAVE_SCHEMA,
       manifestDigest: openingManifest.sourceDigest,
       session: this.flow.toSave(),
       runtime: this.runtime.save(),
@@ -339,14 +339,14 @@ function hasReachedSettlementEntrance(actor: Aabb): boolean {
 function readSave(candidate: unknown): PrologueForestOpeningSave {
   const raw = record(candidate, "forest opening coordinator save");
   exactKeys(raw, ["schema", "manifestDigest", "session", "runtime", "checksum"], "forest opening coordinator save");
-  if (raw.schema !== SCHEMA || raw.manifestDigest !== openingManifest.sourceDigest) {
+  if (raw.schema !== PROLOGUE_FOREST_OPENING_SAVE_SCHEMA || raw.manifestDigest !== openingManifest.sourceDigest) {
     throw new Error("forest opening coordinator save identity is invalid");
   }
   const checksum = sha(raw.checksum, "forest opening coordinator checksum");
   const body = Object.fromEntries(Object.entries(raw).filter(([key]) => key !== "checksum"));
   if (sha256Canonical(body as JsonValue) !== checksum) throw new Error("forest opening coordinator checksum mismatch");
   return Object.freeze({
-    schema: SCHEMA,
+    schema: PROLOGUE_FOREST_OPENING_SAVE_SCHEMA,
     manifestDigest: raw.manifestDigest,
     session: structuredClone(raw.session) as GameSessionSave,
     runtime: structuredClone(raw.runtime) as ForestOpeningRuntimeSave,
