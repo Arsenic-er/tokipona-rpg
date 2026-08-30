@@ -27,7 +27,12 @@ describe("ForestOpeningRuntime", () => {
       schema: "tokipona.forest-opening-runtime.v0.1",
       manifestDigest: openingManifest.sourceDigest,
       obstacle: { committedSolutionId: null, revision: 0 },
-      ecology: { tick: 0, revision: 0 },
+      ecology: {
+        tick: 0,
+        revision: 0,
+        rabbit: { mode: "foraging" },
+        wetlandBird: { mode: "wading" },
+      },
       worldMinute: 360,
     });
   });
@@ -55,6 +60,15 @@ describe("ForestOpeningRuntime", () => {
     restored.advanceTicks(1);
     source.advanceTicks(1);
     expect(restored.snapshot()).toEqual(source.snapshot());
+  });
+
+  it("derives wildlife perception from the spatial player instead of caller domain input", () => {
+    const runtime = fresh("forest.opening.ecology-integration");
+
+    runtime.advanceTicks(180, { moveX: 1 });
+
+    expect(runtime.snapshot().ecology.rabbit.mode).not.toBe("foraging");
+    expect(runtime.snapshot().ecology.tick).toBe(runtime.snapshot().tick);
   });
 
   it("fails closed on checksum, unknown fields, and manifest mismatches", () => {
@@ -102,6 +116,11 @@ describe("ForestOpeningRuntime", () => {
 
     expect(reset.spatial.player.position).toEqual(checkpoint.position);
     expect(reset.obstacle.committedSolutionId).toBe("stone_steps");
-    expect(reset.ecology).toMatchObject({ tick: reset.tick, revision: 0 });
+    expect(reset.ecology).toMatchObject({
+      tick: reset.tick,
+      revision: 0,
+      rabbit: { mode: "foraging" },
+      wetlandBird: { mode: "wading" },
+    });
   });
 });

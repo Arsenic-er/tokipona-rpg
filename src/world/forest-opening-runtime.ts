@@ -16,6 +16,12 @@ import {
   type ForestOpeningObstacleSnapshot,
 } from "./forest-opening-obstacle";
 import {
+  ForestOpeningEcology,
+  type ForestOpeningEcologySave,
+  type ForestOpeningEcologySnapshot,
+  type ForestOpeningPerceptionFrame,
+} from "./forest-opening-ecology";
+import {
   ForestGrayboxRuntime,
   type ForestGrayboxCheckpoint,
   type ForestGrayboxSave,
@@ -24,15 +30,8 @@ import {
 import { generateForestRegion } from "./forest-region-generator";
 
 const OPENING_SCHEMA = "tokipona.forest-opening-runtime.v0.1" as const;
-const ECOLOGY_SCHEMA = "tokipona.forest-opening-ecology.v0.1" as const;
 const INITIAL_WORLD_MINUTE = 360;
 const TICKS_PER_WORLD_MINUTE = 240;
-
-export interface ForestOpeningEcologySave {
-  readonly schema: typeof ECOLOGY_SCHEMA;
-  readonly revision: number;
-  readonly tick: number;
-}
 
 export interface ForestOpeningRuntimeSave {
   readonly schema: typeof OPENING_SCHEMA;
@@ -42,10 +41,6 @@ export interface ForestOpeningRuntimeSave {
   readonly ecology: ForestOpeningEcologySave;
   readonly worldMinute: number;
   readonly checksum: `sha256:${string}`;
-}
-
-export interface ForestOpeningEcologySnapshot extends ForestOpeningEcologySave {
-  readonly stateDigest: `sha256:${string}`;
 }
 
 export interface ForestOpeningSnapshot {
@@ -72,18 +67,18 @@ export class ForestOpeningRuntime {
   private readonly openingManifest: RuntimeForestOpeningManifest;
   private readonly spatialRuntime: ForestGrayboxRuntime;
   private readonly obstacle: ForestOpeningObstacle;
-  private ecologyRevision: number;
+  private readonly ecology: ForestOpeningEcology;
 
   private constructor(
     openingManifest: RuntimeForestOpeningManifest,
     spatialRuntime: ForestGrayboxRuntime,
     obstacle: ForestOpeningObstacle,
-    ecologyRevision: number,
+    ecology: ForestOpeningEcology,
   ) {
     this.openingManifest = openingManifest;
     this.spatialRuntime = spatialRuntime;
     this.obstacle = obstacle;
-    this.ecologyRevision = ecologyRevision;
+    this.ecology = ecology;
   }
 
   public static fresh(options: ForestOpeningRuntimeFreshOptions): ForestOpeningRuntime {
@@ -95,7 +90,7 @@ export class ForestOpeningRuntime {
       options.openingManifest,
       spatial,
       ForestOpeningObstacle.fresh(options.openingManifest),
-      0,
+      ForestOpeningEcology.fresh(options.openingManifest, `${options.seed}:ecology`),
     );
   }
 
@@ -121,19 +116,24 @@ export class ForestOpeningRuntime {
       options.openingManifest,
       spatial,
       ForestOpeningObstacle.fromSave(options.openingManifest, save.obstacle),
-      save.ecology.revision,
+      ForestOpeningEcology.fromSave(options.openingManifest, save.ecology),
     );
   }
 
   public advanceFrame(elapsedSeconds: number, input: RuntimeInput = {}): number {
     const steps = this.spatialRuntime.advanceFrame(elapsedSeconds, input);
     this.obstacle.advanceTicks(steps);
+    this.ecology.advanceTicks(steps, this.currentPerception());
     return steps;
   }
 
   public advanceTicks(ticks: number, input: RuntimeInput = {}): ForestOpeningSnapshot {
-    this.spatialRuntime.advanceTicks(ticks, input);
-    this.obstacle.advanceTicks(ticks);
+    if (!Number.isSafeInteger(ticks) || ticks < 0) throw new Error("forest opening ticks must be non-negative");
+    for (let tick = 0; tick < ticks; tick += 1) {
+      this.spatialRuntime.advanceTicks(1, input);
+      this.obstacle.advanceTicks(1);
+      this.ecology.advanceTicks(1, this.currentPerception());
+    }
     return this.snapshot();
   }
 
@@ -156,17 +156,14 @@ export class ForestOpeningRuntime {
   public resetToCheckpoint(): ForestOpeningSnapshot {
     this.spatialRuntime.resetToCheckpoint();
     this.obstacle.resetToCommittedState();
+    this.ecology.resetAtTick(this.spatialRuntime.snapshot().tick);
     return this.snapshot();
   }
 
   public snapshot(): ForestOpeningSnapshot {
     const spatial = this.spatialRuntime.snapshot();
     const obstacle = this.obstacle.snapshot();
-    const ecology = freezeEcologySnapshot({
-      schema: ECOLOGY_SCHEMA,
-      revision: this.ecologyRevision,
-      tick: spatial.tick,
-    });
+    const ecology = this.ecology.snapshot();
     const worldMinute = worldMinuteAtTick(spatial.tick);
     const stateDigest = sha256Canonical({
       manifestDigest: this.openingManifest.sourceDigest,
@@ -192,14 +189,19 @@ export class ForestOpeningRuntime {
       manifestDigest: this.openingManifest.sourceDigest,
       spatial: this.spatialRuntime.save(),
       obstacle: this.obstacle.save(),
-      ecology: freezeEcology({
-        schema: ECOLOGY_SCHEMA,
-        revision: this.ecologyRevision,
-        tick: snapshot.tick,
-      }),
+      ecology: this.ecology.save(),
       worldMinute: snapshot.worldMinute,
     };
     return Object.freeze({ ...body, checksum: sha256Canonical(body as unknown as JsonValue) });
+  }
+
+  private currentPerception(): ForestOpeningPerceptionFrame {
+    const player = this.spatialRuntime.snapshot().player;
+    return Object.freeze({
+      playerPosition: player.position,
+      playerVelocity: player.velocity,
+      soundEvents: Object.freeze([]),
+    });
   }
 }
 
@@ -231,7 +233,7 @@ function readSave(
   const manifestDigest = sha(raw.manifestDigest, "forest opening manifest digest");
   const spatial = readSpatialSave(raw.spatial);
   const obstacle = ForestOpeningObstacle.fromSave(openingManifest, raw.obstacle).save();
-  const ecology = readEcologySave(raw.ecology);
+  const ecology = ForestOpeningEcology.fromSave(openingManifest, raw.ecology).save();
   if (!Number.isFinite(raw.worldMinute)) throw new Error("forest opening world minute is invalid");
   return Object.freeze({
     schema: OPENING_SCHEMA,
@@ -253,25 +255,6 @@ function readSpatialSave(value: unknown): ForestGrayboxSave {
   exactKeys(checkpoint, ["id", "position", "tick"], "forest opening checkpoint save");
   exactKeys(record(checkpoint.position, "forest opening checkpoint position"), ["x", "y"], "forest opening checkpoint position");
   return structuredClone(raw) as unknown as ForestGrayboxSave;
-}
-
-function readEcologySave(value: unknown): ForestOpeningEcologySave {
-  const raw = record(value, "forest opening ecology save");
-  exactKeys(raw, ["schema", "revision", "tick"], "forest opening ecology save");
-  if (raw.schema !== ECOLOGY_SCHEMA || !Number.isSafeInteger(raw.revision) || (raw.revision as number) < 0 ||
-      !Number.isSafeInteger(raw.tick) || (raw.tick as number) < 0) {
-    throw new Error("forest opening ecology save is invalid");
-  }
-  return freezeEcology(raw as unknown as ForestOpeningEcologySave);
-}
-
-function freezeEcology(value: ForestOpeningEcologySave): ForestOpeningEcologySave {
-  return Object.freeze({ schema: ECOLOGY_SCHEMA, revision: value.revision, tick: value.tick });
-}
-
-function freezeEcologySnapshot(value: ForestOpeningEcologySave): ForestOpeningEcologySnapshot {
-  const body = freezeEcology(value);
-  return Object.freeze({ ...body, stateDigest: sha256Canonical(body as unknown as JsonValue) });
 }
 
 function worldMinuteAtTick(tick: number): number {
