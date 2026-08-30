@@ -2,6 +2,16 @@ const DEFERRED_FOREST_MODULE_SUFFIXES = Object.freeze([
   "/src/content/runtime-forest-chapter-manifest.ts",
   "/src/rpg-old-mine-ui.ts",
 ]);
+const FOREST_OPENING_FORBIDDEN_MODULE_SUFFIXES = Object.freeze([
+  "/src/world-scale-main.ts",
+  "/src/visual/forest-graybox-controller.ts",
+  "/src/visual/forest-graybox-view.ts",
+]);
+const FOREST_OPENING_FORBIDDEN_PATH_SEGMENTS = Object.freeze([
+  "/private-assets/",
+  "/candidate-export/",
+  "/review/",
+]);
 
 export interface ForestChapterBundleChunk {
   readonly fileName: string;
@@ -36,6 +46,20 @@ export function assertForestChapterBundleBoundary(
       normalized(moduleId).endsWith(suffix))));
   if (deferredForestModule !== undefined) {
     throw new Error(`forest_chapter_static_import:${deferredForestModule.fileName}`);
+  }
+
+  const chapterEntry = chunks.find((chunk) => chunk.isEntry &&
+    normalized(chunk.facadeModuleId ?? "").endsWith("/chapter-one.html"));
+  if (chapterEntry === undefined) throw new Error("forest_opening_entry_missing");
+  const chapterStaticFiles = staticClosure(chapterEntry.fileName, byFileName);
+  const forbiddenOpeningModule = chunks.find((chunk) => chapterStaticFiles.has(chunk.fileName) &&
+    chunk.moduleIds.some((moduleId) => {
+      const path = normalized(moduleId);
+      return FOREST_OPENING_FORBIDDEN_MODULE_SUFFIXES.some((suffix) => path.endsWith(suffix)) ||
+        FOREST_OPENING_FORBIDDEN_PATH_SEGMENTS.some((segment) => path.includes(segment));
+    }));
+  if (forbiddenOpeningModule !== undefined) {
+    throw new Error(`forest_opening_static_import:${forbiddenOpeningModule.fileName}`);
   }
 }
 

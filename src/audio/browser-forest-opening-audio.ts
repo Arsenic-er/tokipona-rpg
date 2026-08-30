@@ -25,6 +25,15 @@ export interface ForestOpeningAudioFrame {
   readonly oneShots: readonly Readonly<{ role: "foley_bank" | "dialogue_blip_bank"; variant: string; gain: number }>[];
 }
 
+export interface ForestOpeningMovementAudioInput {
+  readonly tick: number;
+  readonly grounded: boolean;
+  readonly velocityX: number;
+  readonly districtId: string;
+  readonly solutionId: "stone_steps" | "deadwood_bridge" | "shallow_detour" | null;
+  readonly position: Vec2;
+}
+
 export interface ForestOpeningAudioPort {
   setLoopGain(role: "forest_ambience" | "stream_ambience", gain: number): void;
   playOneShot(role: "foley_bank" | "dialogue_blip_bank", variant: string, gain: number): void;
@@ -51,6 +60,18 @@ export function mixForestOpeningAudioFrame(input: ForestOpeningAudioFrameInput):
     loops: Object.freeze({ forest_ambience: roundGain(forestGain), stream_ambience: roundGain(streamGain) }),
     oneShots: Object.freeze(oneShots),
   });
+}
+
+export function projectForestOpeningMovementAudioEvents(
+  input: ForestOpeningMovementAudioInput,
+): readonly ForestOpeningAudioEvent[] {
+  if (!Number.isSafeInteger(input.tick) || input.tick < 0 || !Number.isFinite(input.velocityX) ||
+      !input.grounded || Math.abs(input.velocityX) < 0.1 || input.tick % 12 !== 0) return Object.freeze([]);
+  const surface = input.districtId !== "forest.stream" ? "soil"
+    : input.solutionId === "stone_steps" ? "stone"
+      : input.solutionId === "deadwood_bridge" ? "deadwood"
+        : input.solutionId === "shallow_detour" ? "mud" : "soil";
+  return Object.freeze([Object.freeze({ kind: "footstep" as const, surface, position: Object.freeze({ ...input.position }) })]);
 }
 
 export class BrowserForestOpeningAudio {

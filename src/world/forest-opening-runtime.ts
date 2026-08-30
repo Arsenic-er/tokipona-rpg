@@ -108,32 +108,36 @@ export class ForestOpeningRuntime {
       { manifest: options.spatialManifest, region },
       save.spatial,
     );
+    const obstacle = ForestOpeningObstacle.fromSave(options.openingManifest, save.obstacle);
+    assertNoUnsolvedCrossing(options.openingManifest, save.spatial, obstacle.snapshot());
     const expectedWorldMinute = worldMinuteAtTick(save.spatial.tick);
-    if (save.worldMinute !== expectedWorldMinute || save.ecology.tick !== save.spatial.tick) {
+    if (save.worldMinute !== expectedWorldMinute || save.ecology.tick !== save.spatial.tick ||
+        obstacle.snapshot().materialPocket.tick !== save.spatial.tick) {
       throw new Error("forest opening save timeline is invalid");
     }
     return new ForestOpeningRuntime(
       options.openingManifest,
       spatial,
-      ForestOpeningObstacle.fromSave(options.openingManifest, save.obstacle),
+      obstacle,
       ForestOpeningEcology.fromSave(options.openingManifest, save.ecology),
     );
   }
 
   public advanceFrame(elapsedSeconds: number, input: RuntimeInput = {}): number {
-    const steps = this.spatialRuntime.advanceFrame(elapsedSeconds, input);
+    const steps = this.spatialRuntime.advanceFrame(elapsedSeconds, input, () => {
+      this.ecology.advanceTicks(1, this.currentPerception());
+    }, (bounds) => this.obstacle.blocksTraversal(bounds));
     this.obstacle.advanceTicks(steps);
-    this.ecology.advanceTicks(steps, this.currentPerception());
     return steps;
   }
 
   public advanceTicks(ticks: number, input: RuntimeInput = {}): ForestOpeningSnapshot {
     if (!Number.isSafeInteger(ticks) || ticks < 0) throw new Error("forest opening ticks must be non-negative");
     for (let tick = 0; tick < ticks; tick += 1) {
-      this.spatialRuntime.advanceTicks(1, input);
-      this.obstacle.advanceTicks(1);
+      this.spatialRuntime.advanceTicks(1, input, (bounds) => this.obstacle.blocksTraversal(bounds));
       this.ecology.advanceTicks(1, this.currentPerception());
     }
+    this.obstacle.advanceTicks(ticks);
     return this.snapshot();
   }
 
@@ -142,11 +146,18 @@ export class ForestOpeningRuntime {
     request: ForestOpeningInteraction,
     expectedObstacleRevision: number,
   ): ForestOpeningObstacleActionResult {
-    const player = this.spatialRuntime.snapshot().player;
-    return this.obstacle.applyInteraction(operationId, request, {
+    const player = this.spatialRuntime.playerSnapshot();
+    const result = this.obstacle.applyInteraction(operationId, request, {
       actorBounds: { ...player.position, ...player.body },
       expectedRevision: expectedObstacleRevision,
     });
+    if (result.ok && !result.duplicate) {
+      this.ecology.disturb(this.currentPerception([Object.freeze({
+        position: Object.freeze({ ...player.position }),
+        strength: request.kind === "enter_shallow_detour" ? 0.7 : 1,
+      })]));
+    }
+    return result;
   }
 
   public setCheckpoint(id: string): ForestGrayboxCheckpoint {
@@ -155,8 +166,9 @@ export class ForestOpeningRuntime {
 
   public resetToCheckpoint(): ForestOpeningSnapshot {
     this.spatialRuntime.resetToCheckpoint();
-    this.obstacle.resetToCommittedState();
-    this.ecology.resetAtTick(this.spatialRuntime.snapshot().tick);
+    const tick = this.spatialRuntime.snapshot().tick;
+    this.obstacle.resetToCommittedState(tick);
+    this.ecology.resetAtTick(tick);
     return this.snapshot();
   }
 
@@ -195,12 +207,17 @@ export class ForestOpeningRuntime {
     return Object.freeze({ ...body, checksum: sha256Canonical(body as unknown as JsonValue) });
   }
 
-  private currentPerception(): ForestOpeningPerceptionFrame {
+  private currentPerception(
+    soundEvents: ForestOpeningPerceptionFrame["soundEvents"] = Object.freeze([]),
+  ): ForestOpeningPerceptionFrame {
     const player = this.spatialRuntime.snapshot().player;
+    const movementSound = Math.abs(player.velocity.x) >= 0.1
+      ? [Object.freeze({ position: Object.freeze({ ...player.position }), strength: 1 })]
+      : [];
     return Object.freeze({
       playerPosition: player.position,
       playerVelocity: player.velocity,
-      soundEvents: Object.freeze([]),
+      soundEvents: Object.freeze([...soundEvents, ...movementSound]),
     });
   }
 }
@@ -259,6 +276,20 @@ function readSpatialSave(value: unknown): ForestGrayboxSave {
 
 function worldMinuteAtTick(tick: number): number {
   return INITIAL_WORLD_MINUTE + tick / TICKS_PER_WORLD_MINUTE;
+}
+
+function assertNoUnsolvedCrossing(
+  manifest: RuntimeForestOpeningManifest,
+  spatial: ForestGrayboxSave,
+  obstacle: ForestOpeningObstacleSnapshot,
+): void {
+  if (obstacle.committedSolutionId !== null) return;
+  const farEdge = manifest.obstacle.boundsPx.x + manifest.obstacle.boundsPx.width;
+  const bodyWidth = 12;
+  if (spatial.player.x + bodyWidth > farEdge + 1e-9 ||
+      spatial.checkpoint.position.x + bodyWidth > farEdge + 1e-9) {
+    throw new Error("forest opening unsolved crossing save is invalid");
+  }
 }
 
 function record(value: unknown, label: string): Record<string, unknown> {

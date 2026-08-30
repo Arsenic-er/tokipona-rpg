@@ -11,18 +11,29 @@ import type { PrologueForestOpeningSnapshot } from "../game/prologue-forest-open
 import type { ForestCameraState } from "../runtime/forest-camera";
 import type { Aabb, Vec2 } from "../runtime/geometry";
 import type { RabbitMode, WetlandBirdMode } from "../world/forest-opening-ecology";
+import type {
+  ForestOpeningTravelerAction,
+  LoadedForestOpeningVisualAssets,
+} from "./browser-forest-opening-assets";
 
 export const FOREST_OPENING_VIEWPORT = Object.freeze({ width: 640 as const, height: 360 as const });
 const manifest = readRuntimeForestOpeningManifest(generatedRuntimeArtifact);
 
-export type ForestOpeningAnimationId = "idle" | "walk" | "run" | "jump" | "fall";
+export type ForestOpeningAnimationId = ForestOpeningTravelerAction;
 export type ForestOpeningLayerId = "far_parallax" | "mid_parallax" | "world_material" | "foreground";
+export type ForestOpeningInteractionId =
+  | "push_stone" | "drag_deadwood" | "enter_shallow_detour" | "observe_glyph";
 
 export interface ForestOpeningWorldObjectView {
   readonly kind: "stream" | "stone" | "deadwood" | "unknown_glyph" | "settlement_perimeter";
   readonly id: string;
   readonly bounds: Aabb;
   readonly state: string;
+  readonly materialPocket: Readonly<{
+    width: 128;
+    height: 64;
+    cells: readonly number[];
+  }> | null;
 }
 
 export interface ForestOpeningEnvironmentLayer {
@@ -60,6 +71,7 @@ export interface ForestOpeningPublicView {
   readonly environment: readonly ForestOpeningEnvironmentLayer[];
   readonly obstacle: Readonly<{
     solutionId: ForestOpeningSolutionId | null;
+    interactionId: ForestOpeningInteractionId | null;
     interactionPrompt: string | null;
     visuallyComplete: boolean;
     glyph: Readonly<{
@@ -111,8 +123,8 @@ export function fitForestOpeningPresentation(
 
 export function createForestOpeningPageMarkup(view: ForestOpeningPublicView): string {
   const candidate = view.presentation.kind === "procedural_candidate"
-    ? '<span class="forest-opening__candidate">程序化画面候选</span>' : "";
-  return `<section class="forest-opening" data-mode="${view.mode}">
+    ? '<span class="forest-opening__candidate">候选视觉 · 尚未通过素材审批</span>' : "";
+  return `<section class="forest-opening">
     <div class="forest-opening__stage">
       <canvas data-surface="game" width="640" height="360" tabindex="0" aria-label="第一章森林开场游戏画面"></canvas>
       <header class="forest-opening__hud" aria-live="polite">
@@ -120,7 +132,7 @@ export function createForestOpeningPageMarkup(view: ForestOpeningPublicView): st
         <p data-hud="objective">${escapeHtml(view.hud.objective)}</p>
         <output data-hud="prompt">${escapeHtml(view.obstacle.interactionPrompt ?? "")}</output>
         ${candidate}
-        <button type="button" data-action="pause" aria-pressed="false">暂停</button>
+        <div class="forest-opening__settings"><button type="button" data-action="mute" aria-pressed="false">声音</button><button type="button" data-action="pause" aria-pressed="false">暂停</button></div>
       </header>
       <div class="forest-opening__touch" aria-label="触控操作">
         <div><button type="button" data-touch="left" aria-label="向左">◀</button><button type="button" data-touch="right" aria-label="向右">▶</button></div>
@@ -135,22 +147,25 @@ export function createForestOpeningPageMarkup(view: ForestOpeningPublicView): st
 export function projectForestOpeningView(
   snapshot: PrologueForestOpeningSnapshot,
   assets: RuntimeForestOpeningAssetExport,
+  loadedVisuals: LoadedForestOpeningVisualAssets | null = null,
+  actionPresentation: "push" | "drag" | "dig" | "observe" | null = null,
 ): ForestOpeningPublicView {
   const spatial = snapshot.runtime.spatial;
   if (spatial.camera.width !== FOREST_OPENING_VIEWPORT.width || spatial.camera.height !== FOREST_OPENING_VIEWPORT.height) {
     throw new Error("forest opening view requires the authored 640x360 camera");
   }
-  const approved = assets.status === "approved";
+  const approved = assets.status === "approved" && loadedVisuals?.packId === assets.packId;
   const velocity = spatial.player.velocity;
-  const animationId: ForestOpeningAnimationId = !spatial.player.grounded
+  const movementAnimation: ForestOpeningAnimationId = !spatial.player.grounded
     ? velocity.y < 0 ? "jump" : "fall"
     : Math.abs(velocity.x) >= 5 ? "run"
       : Math.abs(velocity.x) > 0 ? "walk" : "idle";
+  const animationId = actionPresentation ?? movementAnimation;
   const animationStride = animationId === "run" ? 3 : animationId === "walk" ? 6 : 10;
   const obstacle = snapshot.runtime.obstacle;
   const objects: readonly ForestOpeningWorldObjectView[] = Object.freeze([
     freezeObject("stream", "stream.shallow", manifest.obstacle.materialPocketPx,
-      obstacle.committedSolutionId ?? "flowing"),
+      obstacle.committedSolutionId ?? "flowing", obstacle.materialPocket),
     freezeObject("stone", "stream.stone.a", obstacle.stones.a.bounds, obstacle.stones.a.seated ? "seated" : "loose"),
     freezeObject("stone", "stream.stone.b", obstacle.stones.b.bounds, obstacle.stones.b.seated ? "seated" : "loose"),
     freezeObject("deadwood", "stream.deadwood", obstacle.deadwood.bounds,
@@ -168,8 +183,11 @@ export function projectForestOpeningView(
     x: spatial.player.position.x + spatial.player.body.width / 2,
     y: spatial.player.position.y + spatial.player.body.height / 2,
   };
-  const interactionPrompt = obstacle.committedSolutionId !== null
-    ? null
+  const interaction = obstacle.committedSolutionId !== null
+    ? snapshot.glyphObserved ? null : promptForNearest(
+      playerCenter,
+      objects.filter(({ kind }) => kind === "unknown_glyph"),
+    )
     : promptForNearest(playerCenter, objects);
 
   const farRole = approved ? "far_parallax_atlas" as const : null;
@@ -201,7 +219,8 @@ export function projectForestOpeningView(
     ]),
     obstacle: Object.freeze({
       solutionId: obstacle.committedSolutionId,
-      interactionPrompt,
+      interactionId: interaction?.interactionId ?? null,
+      interactionPrompt: interaction?.prompt ?? null,
       visuallyComplete: obstacle.committedSolutionId !== null,
       glyph: Object.freeze({
         wordId: "word.telo" as const,
@@ -230,23 +249,133 @@ export function projectForestOpeningView(
 export function renderForestOpeningView(
   context: CanvasRenderingContext2D,
   view: ForestOpeningPublicView,
+  loadedVisuals: LoadedForestOpeningVisualAssets | null = null,
 ): void {
   context.save();
   context.imageSmoothingEnabled = false;
   const phase = Math.max(0, Math.min(1, (view.worldMinute - 360) / 180));
-  context.fillStyle = blendHex("#122126", "#52604d", phase);
-  context.fillRect(0, 0, 640, 360);
-  drawForestDepth(context, view.camera, 0.15, "#1c3030", 54, 94);
-  drawForestDepth(context, view.camera, 0.42, "#142523", 34, 60);
-  context.fillStyle = "#0d1715";
-  context.fillRect(0, 300, 640, 60);
-  context.fillStyle = "#44513a";
-  context.fillRect(0, 296, 640, 4);
-
-  for (const object of view.environment[2]!.objects) drawWorldObject(context, view.camera, object);
-  for (const creature of view.creatures) drawCreature(context, view.camera, creature);
-  drawTraveler(context, view);
+  const approved = view.presentation.kind === "approved_asset_pack" &&
+    loadedVisuals?.packId === view.presentation.approvedAssetPackId;
+  if (approved) {
+    drawApprovedParallax(context, loadedVisuals.images.far_parallax_atlas, view.camera, 0.15);
+    drawApprovedParallax(context, loadedVisuals.images.mid_parallax_atlas, view.camera, 0.42);
+    context.drawImage(loadedVisuals.images.environment_atlas, 0, 0, 256, 256, 0, 104, 640, 256);
+    for (const object of view.environment[2]!.objects) {
+      drawApprovedWorldObject(context, view.camera, object, loadedVisuals.images.prop_glyph_atlas);
+    }
+    for (const creature of view.creatures) {
+      drawApprovedCreature(context, view.camera, creature, loadedVisuals.images.creature_atlas);
+    }
+    drawApprovedTraveler(context, view, loadedVisuals);
+    applyApprovedTimePalette(context, loadedVisuals, view.worldMinute);
+  } else {
+    context.fillStyle = blendHex("#122126", "#52604d", phase);
+    context.fillRect(0, 0, 640, 360);
+    drawForestDepth(context, view.camera, 0.15, "#1c3030", 54, 94);
+    drawForestDepth(context, view.camera, 0.42, "#142523", 34, 60);
+    context.fillStyle = "#0d1715";
+    context.fillRect(0, 300, 640, 60);
+    context.fillStyle = "#44513a";
+    context.fillRect(0, 296, 640, 4);
+    for (const object of view.environment[2]!.objects) drawWorldObject(context, view.camera, object);
+    for (const creature of view.creatures) drawCreature(context, view.camera, creature);
+    drawTraveler(context, view);
+  }
   context.restore();
+}
+
+function applyApprovedTimePalette(
+  context: CanvasRenderingContext2D,
+  assets: LoadedForestOpeningVisualAssets,
+  worldMinute: number,
+): void {
+  const palette = interpolatePalette(assets, worldMinute);
+  context.save();
+  context.globalCompositeOperation = "multiply";
+  context.globalAlpha = 0.24;
+  context.fillStyle = `rgb(${palette.multiply.map((value) => Math.round(value * 255)).join(",")})`;
+  context.fillRect(0, 0, 640, 360);
+  context.globalCompositeOperation = "source-over";
+  context.globalAlpha = 0.08;
+  context.fillStyle = `rgb(${palette.ambient.map((value) => Math.round(value)).join(",")})`;
+  context.fillRect(0, 0, 640, 360);
+  context.restore();
+}
+
+function interpolatePalette(
+  assets: LoadedForestOpeningVisualAssets,
+  worldMinute: number,
+): Readonly<{ multiply: readonly number[]; ambient: readonly number[] }> {
+  const states = assets.timePalette;
+  if (states.length !== 4) throw new Error("forest opening approved time palette is incomplete");
+  const anchors = [360, 720, 1_080, 1_320, 1_800] as const;
+  const normalized = ((worldMinute % 1_440) + 1_440) % 1_440;
+  const minute = normalized < 360 ? normalized + 1_440 : normalized;
+  let index = 0;
+  while (index < anchors.length - 2 && minute > anchors[index + 1]!) index += 1;
+  const left = states[index % 4]!;
+  const right = states[(index + 1) % 4]!;
+  const ratio = (minute - anchors[index]!) / (anchors[index + 1]! - anchors[index]!);
+  return Object.freeze({
+    multiply: Object.freeze(left.multiply.map((value, channel) =>
+      value + (right.multiply[channel]! - value) * ratio)),
+    ambient: Object.freeze(left.ambient.map((value, channel) =>
+      value + (right.ambient[channel]! - value) * ratio)),
+  });
+}
+
+function drawApprovedParallax(
+  context: CanvasRenderingContext2D,
+  image: CanvasImageSource,
+  camera: ForestCameraState,
+  ratio: number,
+): void {
+  const offset = -Math.floor((camera.x * ratio) % 640);
+  context.drawImage(image, offset, 0, 640, 360);
+  context.drawImage(image, offset + 640, 0, 640, 360);
+}
+
+function drawApprovedWorldObject(
+  context: CanvasRenderingContext2D,
+  camera: ForestCameraState,
+  object: ForestOpeningWorldObjectView,
+  atlas: CanvasImageSource,
+): void {
+  const x = Math.round(object.bounds.x - camera.x);
+  const y = Math.round(object.bounds.y - camera.y);
+  if (x + object.bounds.width < 0 || x > 640 || y + object.bounds.height < 0 || y > 360) return;
+  if (object.kind === "stone") context.drawImage(atlas, 0, 0, 28, 32, x, y, object.bounds.width, object.bounds.height);
+  else if (object.kind === "deadwood") context.drawImage(atlas, 0, 32, 64, 32, x, y, object.bounds.width, object.bounds.height);
+  else if (object.kind === "unknown_glyph") context.drawImage(atlas, 208, 88, 48, 40, x - 12, y - 12, 32, 32);
+  else drawWorldObject(context, camera, object);
+}
+
+function drawApprovedCreature(
+  context: CanvasRenderingContext2D,
+  camera: ForestCameraState,
+  creature: ForestOpeningCreatureView,
+  atlas: CanvasImageSource,
+): void {
+  const x = Math.round(creature.position.x - camera.x);
+  const y = Math.round(creature.position.y - camera.y);
+  const sourceX = creatureCellIndex(creature) * 25;
+  const sourceY = creature.speciesId === "forest.rabbit" ? 0 : 32;
+  context.drawImage(atlas, sourceX, sourceY, 25, 32, x - 10, y - 24, 25, 32);
+}
+
+function drawApprovedTraveler(
+  context: CanvasRenderingContext2D,
+  view: ForestOpeningPublicView,
+  assets: LoadedForestOpeningVisualAssets,
+): void {
+  const animation = assets.travelerAnimations[view.traveler.animationId];
+  const sourceX = (view.traveler.frame % animation.frames) * animation.frameWidthPx;
+  const sourceY = animation.footAnchorYPx - animation.frameHeightPx;
+  const x = Math.round(view.traveler.position.x - view.camera.x - (animation.frameWidthPx - 8) / 2);
+  const y = Math.round(view.traveler.position.y - view.camera.y - 6);
+  context.drawImage(assets.images.traveler_atlas, sourceX, sourceY,
+    animation.frameWidthPx, animation.frameHeightPx, x, y,
+    animation.frameWidthPx, animation.frameHeightPx);
 }
 
 function drawForestDepth(
@@ -271,10 +400,7 @@ function drawWorldObject(context: CanvasRenderingContext2D, camera: ForestCamera
   const y = Math.round(object.bounds.y - camera.y);
   if (x + object.bounds.width < 0 || x > 640 || y + object.bounds.height < 0 || y > 360) return;
   if (object.kind === "stream") {
-    context.fillStyle = "#21565d";
-    context.fillRect(x, y, object.bounds.width, object.bounds.height);
-    context.fillStyle = "#4d9290";
-    for (let line = 0; line < object.bounds.width; line += 17) context.fillRect(x + line, y + 4 + line % 5, 9, 1);
+    drawMaterialPocket(context, x, y, object);
   } else if (object.kind === "stone") {
     context.fillStyle = object.state === "seated" ? "#808878" : "#5c665e";
     context.fillRect(x, y, object.bounds.width, object.bounds.height);
@@ -327,8 +453,55 @@ function drawTraveler(context: CanvasRenderingContext2D, view: ForestOpeningPubl
 
 function freezeObject(
   kind: ForestOpeningWorldObjectView["kind"], id: string, bounds: Aabb, state: string,
+  materialPocket: ForestOpeningWorldObjectView["materialPocket"] = null,
 ): ForestOpeningWorldObjectView {
-  return Object.freeze({ kind, id, bounds: Object.freeze({ ...bounds }), state });
+  return Object.freeze({ kind, id, bounds: Object.freeze({ ...bounds }), state,
+    materialPocket: materialPocket === null ? null : Object.freeze({
+      width: materialPocket.width,
+      height: materialPocket.height,
+      cells: Object.freeze([...materialPocket.cells]),
+    }) });
+}
+
+function creatureCellIndex(creature: ForestOpeningCreatureView): number {
+  if (creature.speciesId === "forest.rabbit") {
+    return creature.animationId === "foraging" ? 1
+      : creature.animationId === "alert" ? 2
+        : creature.animationId === "fleeing" ? 3 : 4;
+  }
+  return creature.animationId === "wading" ? 2
+    : creature.animationId === "alert" ? 3 : 4;
+}
+
+const MATERIAL_COLORS = Object.freeze([
+  "transparent", "#21565d", "#6f5b3e", "#514734", "#817157", "#6f7770", "#5a3823", "#202923",
+] as const);
+
+function drawMaterialPocket(
+  context: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  object: ForestOpeningWorldObjectView,
+): void {
+  const pocket = object.materialPocket;
+  if (pocket === null) return;
+  for (let row = 0; row < pocket.height; row += 1) {
+    let start = 0;
+    while (start < pocket.width) {
+      const material = pocket.cells[row * pocket.width + start] ?? 0;
+      let end = start + 1;
+      while (end < pocket.width && pocket.cells[row * pocket.width + end] === material) end += 1;
+      if (material !== 0) {
+        context.fillStyle = MATERIAL_COLORS[material] ?? MATERIAL_COLORS[7];
+        context.fillRect(x + start, y + row, end - start, 1);
+      }
+      start = end;
+    }
+  }
+  if (object.state === "shallow_detour") {
+    context.fillStyle = "#9a875f";
+    for (let step = 0; step < pocket.width; step += 8) context.fillRect(x + step, y + 43 + step % 3, 5, 2);
+  }
 }
 
 function freezeLayer(
@@ -350,13 +523,27 @@ function freezeCreature(
     frame: Math.floor(modeTick / 8) % 4, hostile: false as const });
 }
 
-function promptForNearest(center: Vec2, objects: readonly ForestOpeningWorldObjectView[]): string | null {
-  const nearby = objects.find(({ kind, bounds }) => kind !== "stream" && kind !== "settlement_perimeter" &&
-    Math.hypot(center.x - (bounds.x + bounds.width / 2), center.y - (bounds.y + bounds.height / 2)) <= 52);
+function promptForNearest(
+  center: Vec2,
+  objects: readonly ForestOpeningWorldObjectView[],
+): Readonly<{ interactionId: ForestOpeningInteractionId; prompt: string }> | null {
+  const nearbyObjects = objects
+    .filter(({ kind }) => kind !== "settlement_perimeter")
+    .map((object) => ({ object, distance: gapToBounds(center, object.bounds) }))
+    .filter(({ distance }) => distance <= manifest.obstacle.interactionRadiusPx)
+    .sort((left, right) => left.distance - right.distance);
+  const nearby = (nearbyObjects.find(({ object }) => object.kind !== "stream") ?? nearbyObjects[0])?.object;
   if (!nearby) return null;
-  if (nearby.kind === "stone") return "E · 推动松石";
-  if (nearby.kind === "deadwood") return "E · 拖动枯木";
-  return "F · 观察未知刻痕";
+  if (nearby.kind === "stream") return Object.freeze({ interactionId: "enter_shallow_detour", prompt: "E · 涉水绕行" });
+  if (nearby.kind === "stone") return Object.freeze({ interactionId: "push_stone", prompt: "E · 推动松石" });
+  if (nearby.kind === "deadwood") return Object.freeze({ interactionId: "drag_deadwood", prompt: "E · 拖动枯木" });
+  return Object.freeze({ interactionId: "observe_glyph", prompt: "F · 观察未知刻痕" });
+}
+
+function gapToBounds(point: Vec2, bounds: Aabb): number {
+  const dx = Math.max(bounds.x - point.x, point.x - (bounds.x + bounds.width), 0);
+  const dy = Math.max(bounds.y - point.y, point.y - (bounds.y + bounds.height), 0);
+  return Math.hypot(dx, dy);
 }
 
 function objective(snapshot: PrologueForestOpeningSnapshot): string {

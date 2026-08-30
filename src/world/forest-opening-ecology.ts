@@ -125,6 +125,21 @@ export class ForestOpeningEcology {
     return this.snapshot();
   }
 
+  public disturb(perception: ForestOpeningPerceptionFrame): ForestOpeningEcologySnapshot {
+    validatePerception(perception);
+    if (this.rabbit.mode === "foraging" &&
+        perceives(this.rabbit.position, perception, RABBIT_SIGHT_RADIUS_PX, this.manifest.ecology.disturbanceRadiusPx)) {
+      this.rabbit = freezeRabbit({ ...this.rabbit, mode: "alert", modeTick: 0 });
+      this.revision += 1;
+    }
+    if (this.wetlandBird.mode === "wading" &&
+        perceives(this.wetlandBird.position, perception, RABBIT_SIGHT_RADIUS_PX, this.manifest.ecology.disturbanceRadiusPx)) {
+      this.wetlandBird = freezeBird({ ...this.wetlandBird, mode: "alert", modeTick: 0 });
+      this.revision += 1;
+    }
+    return this.snapshot();
+  }
+
   public resetAtTick(tick: number): ForestOpeningEcologySnapshot {
     if (!Number.isSafeInteger(tick) || tick < this.tick) throw new Error("forest opening ecology reset tick is invalid");
     this.tick = tick;

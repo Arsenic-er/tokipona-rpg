@@ -20,6 +20,7 @@
     "typecheck": "tsc -b --pretty false",
     "test": "vitest run",
     "test:e2e": "pnpm run build && playwright test",
+    "test:forest-opening": "pnpm exec vitest run src/content/runtime-forest-opening-manifest.test.ts scripts/content/forest-opening-runtime-artifact.test.ts src/assets/runtime-forest-opening-assets.test.ts src/world/forest-opening-obstacle.test.ts src/world/forest-opening-ecology.test.ts src/world/forest-opening-runtime.test.ts src/game/prologue-forest-opening.test.ts src/persistence/browser-forest-opening-persistence.test.ts src/visual/forest-opening-view.test.ts src/visual/browser-forest-opening-assets.test.ts src/audio/browser-forest-opening-audio.test.ts src/audio/web-audio-forest-opening-port.test.ts scripts/build/forest-chapter-bundle-boundary.test.ts src/forest-opening-main.test.ts && pnpm run build && pnpm run assets:check && pnpm exec playwright test e2e/forest-opening-slice.spec.ts",
     "test:watch": "vitest",
     "content:generate": "node --experimental-strip-types scripts/content/generate-runtime.ts",
     "content:check": "node --experimental-strip-types scripts/content/generate-runtime.ts --check"

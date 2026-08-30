@@ -97,6 +97,30 @@ describe("ForestGrayboxRuntime", () => {
     expect(runtime.setCheckpoint("checkpoint.sparse-corridor").position).toEqual(position);
   });
 
+  it("accepts settlement meadow recovery and rejects restored players outside authored recovery space", () => {
+    const meadow = createRuntime({ x: 2_500, y: 690 });
+    expect(meadow.setCheckpoint("checkpoint.forest.settlement_perimeter")).toMatchObject({
+      position: { x: 2_500, y: 690 },
+    });
+
+    const source = createRuntime().save();
+    const forged = { ...source, player: { ...source.player, x: 2_400, y: 100 } };
+    expect(() => ForestGrayboxRuntime.fromSave({ manifest, region }, forged)).toThrow(/save state/i);
+    const unreachable = { ...source, player: { ...source.player, x: source.player.x + 100 } };
+    expect(() => ForestGrayboxRuntime.fromSave({ manifest, region }, unreachable)).toThrow(/save state/i);
+    const futureCheckpoint = {
+      ...source,
+      checkpoint: { ...source.checkpoint, tick: source.tick + 1 },
+    };
+    expect(() => ForestGrayboxRuntime.fromSave({ manifest, region }, futureCheckpoint)).toThrow(/save state/i);
+
+    const detachedCamera = {
+      ...source,
+      camera: { ...source.camera, x: manifest.regionBoundsPx.width - manifest.viewportPx.width },
+    };
+    expect(() => ForestGrayboxRuntime.fromSave({ manifest, region }, detachedCamera)).toThrow(/save state/i);
+  });
+
   it("resets to the accepted checkpoint without crossing a capability gate", () => {
     const runtime = createRuntime();
     runtime.advanceTicks(10);
@@ -129,17 +153,19 @@ describe("ForestGrayboxRuntime", () => {
     const runtime = createRuntime();
     const reached = new Set<string>(["forest.arrival"]);
     let furthestX = runtime.snapshot().player.position.x;
-    let stagnantTicks = 0;
+    let stagnantSamples = 0;
 
-    for (let tick = 0; tick < 7_200 && furthestX < 5_000; tick += 1) {
-      const jump = stagnantTicks >= 120;
-      runtime.advanceTicks(1, { moveX: 1, jump });
+    // Advance every fixed tick, but inspect only every 32 ticks so this
+    // integration path stays stable under the full-suite worker load.
+    for (let sample = 0; sample < 225 && furthestX < 5_000; sample += 1) {
+      const jump = stagnantSamples >= 4;
+      runtime.advanceTicks(32, { moveX: 1, jump });
       const player = runtime.snapshot().player.position;
       if (player.x > furthestX + 0.25) {
         furthestX = player.x;
-        stagnantTicks = 0;
+        stagnantSamples = 0;
       } else {
-        stagnantTicks = jump ? 0 : stagnantTicks + 1;
+        stagnantSamples = jump ? 0 : stagnantSamples + 1;
       }
       if (player.x >= 1_280) reached.add("forest.stream");
       if (player.x >= 2_496) reached.add("forest.settlement");
@@ -155,7 +181,7 @@ describe("ForestGrayboxRuntime", () => {
       "forest.hermit_branch",
       "forest.waterwheel.approach",
     ]);
-  });
+  }, 10_000);
 
   it("keeps the final fixed-zoom camera deterministic and clamped", () => {
     const left = createRuntime({ x: 0, y: 0 }).snapshot().camera;

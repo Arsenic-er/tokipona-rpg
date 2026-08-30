@@ -1,5 +1,10 @@
 import { runtimeForestOpeningAssetExport } from "./assets/runtime-forest-opening-assets";
-import { BrowserForestOpeningAudio, mixForestOpeningAudioFrame } from "./audio/browser-forest-opening-audio";
+import {
+  BrowserForestOpeningAudio,
+  mixForestOpeningAudioFrame,
+  projectForestOpeningMovementAudioEvents,
+} from "./audio/browser-forest-opening-audio";
+import { createBrowserWebAudioForestOpeningPort } from "./audio/web-audio-forest-opening-port";
 import { PrologueForestOpeningSession } from "./game/prologue-forest-opening";
 import {
   BrowserForestOpeningPersistence,
@@ -13,9 +18,15 @@ import {
   renderForestOpeningView,
   type ForestOpeningPublicView,
   type ForestOpeningWorldObjectView,
+  type ForestOpeningAnimationId,
 } from "./visual/forest-opening-view";
+import {
+  loadBrowserForestOpeningVisualAssetsFromDocument,
+  type LoadedForestOpeningVisualAssets,
+} from "./visual/browser-forest-opening-assets";
 
 const SAVE_KEY = "tokipona.forest-opening.vertical-slice.v0.1";
+const MUTE_KEY = "tokipona.forest-opening.audio-muted.v0.1";
 const SESSION_ID = "browser.forest-opening.player";
 const SEED = "forest.chapter-one.opening";
 const persistence = new BrowserForestOpeningPersistence(localStorage, SAVE_KEY);
@@ -24,11 +35,15 @@ let session = loaded.ok
   ? persistence.restore(loaded.save)
   : PrologueForestOpeningSession.fresh({ sessionId: SESSION_ID, seed: SEED, currentMp: 12, maxMp: 24 });
 let blockedLoad: ForestOpeningLoadResult | null = !loaded.ok && loaded.reason !== "missing" ? loaded : null;
+let actionPresentation: Readonly<{
+  animationId: Extract<ForestOpeningAnimationId, "push" | "drag" | "dig" | "observe">;
+  untilTick: number;
+}> | null = null;
 let view = projectForestOpeningView(session.snapshot(), runtimeForestOpeningAssetExport);
+let visualAssets: LoadedForestOpeningVisualAssets | null = null;
 const app = requiredDocumentElement<HTMLElement>("#forest-opening-app");
 app.innerHTML = createForestOpeningPageMarkup(view);
 
-const root = requiredElement<HTMLElement>(".forest-opening");
 const canvas = requiredElement<HTMLCanvasElement>('canvas[data-surface="game"]');
 const context = requiredCanvasContext(canvas);
 const health = requiredElement<HTMLOutputElement>('[data-hud="health"]');
@@ -36,23 +51,39 @@ const mp = requiredElement<HTMLOutputElement>('[data-hud="mp"]');
 const objective = requiredElement<HTMLElement>('[data-hud="objective"]');
 const prompt = requiredElement<HTMLOutputElement>('[data-hud="prompt"]');
 const pauseButton = requiredElement<HTMLButtonElement>('[data-action="pause"]');
+const muteButton = requiredElement<HTMLButtonElement>('[data-action="mute"]');
 const pauseDialog = requiredElement<HTMLDialogElement>(".forest-opening__pause");
 const recovery = requiredElement<HTMLElement>('[data-recovery="status"]');
 const recoveryMessage = requiredElement<HTMLElement>('[data-recovery="message"]');
+const candidateLabel = requiredElement<HTMLElement>(".forest-opening__candidate");
 const held = new Set<"left" | "right">();
-const audio = new BrowserForestOpeningAudio(runtimeForestOpeningAssetExport, {
-  setLoopGain() {}, playOneShot() {}, suspend() {}, resume() {},
-});
+const audio = new BrowserForestOpeningAudio(
+  runtimeForestOpeningAssetExport,
+  createBrowserWebAudioForestOpeningPort(runtimeForestOpeningAssetExport),
+);
 
 let jumpQueued = false;
 let paused = false;
+let muted = localStorage.getItem(MUTE_KEY) === "true";
 let accumulator = 0;
 let lastFrame = performance.now();
 let operationSequence = 0;
+const operationNonce = crypto.randomUUID();
 let lastSavedTick = view.tick;
 
 bindControls();
-persistence.bindPagehide(window, () => session);
+updateMuteButton();
+persistence.bindLifecycle(window, document, () => blockedLoad === null ? session : null);
+void loadBrowserForestOpeningVisualAssetsFromDocument(runtimeForestOpeningAssetExport)
+  .then((result) => {
+    if (result.status === "approved_pack_load_failed") {
+      candidateLabel.textContent = "获批素材加载失败 · 已安全回退";
+      return;
+    }
+    if (result.status !== "ready") return;
+    visualAssets = result.assets;
+    render();
+  });
 if (blockedLoad) showRecovery(blockedLoad.reason);
 else if (!loaded.ok) persistence.save(session);
 render();
@@ -70,7 +101,16 @@ function loop(now: number): void {
       session.advanceTicks(1, { moveX, jump: jumpQueued });
       jumpQueued = false;
       accumulator -= fixedSeconds;
-      view = projectForestOpeningView(session.snapshot(), runtimeForestOpeningAssetExport);
+      const snapshot = session.snapshot();
+      view = project(snapshot);
+      applyAudio(projectForestOpeningMovementAudioEvents({
+        tick: view.tick,
+        grounded: snapshot.runtime.spatial.player.grounded,
+        velocityX: snapshot.runtime.spatial.player.velocity.x,
+        districtId: districtFor(view.traveler.position.x),
+        solutionId: snapshot.runtime.obstacle.committedSolutionId,
+        position: view.traveler.position,
+      }));
       tryEnterSettlement();
     }
     if (view.tick - lastSavedTick >= 120) persist();
@@ -81,14 +121,19 @@ function loop(now: number): void {
 
 function bindControls(): void {
   window.addEventListener("keydown", (event) => {
-    if (event.target instanceof HTMLButtonElement) return;
     const key = event.key.toLowerCase();
+    if (key === "escape" && !event.repeat) {
+      event.preventDefault();
+      togglePause();
+      return;
+    }
+    if (event.target instanceof HTMLButtonElement) return;
+    audio.activate();
     if (key === "a" || key === "arrowleft") held.add("left");
     if (key === "d" || key === "arrowright") held.add("right");
     if ((key === "w" || key === "arrowup" || key === " ") && !event.repeat) jumpQueued = true;
     if (key === "e" && !event.repeat) interact();
     if (key === "f" && !event.repeat) observe();
-    if (key === "escape" && !event.repeat) togglePause();
     if (["a", "d", "w", "e", "f", "arrowleft", "arrowright", "arrowup", " "].includes(key)) event.preventDefault();
   });
   window.addEventListener("keyup", (event) => {
@@ -100,10 +145,15 @@ function bindControls(): void {
   window.addEventListener("resize", render);
   canvas.addEventListener("pointerdown", () => { audio.activate(); }, { once: true });
   pauseButton.addEventListener("click", togglePause);
+  muteButton.addEventListener("click", toggleMute);
+  pauseDialog.addEventListener("cancel", (event) => {
+    event.preventDefault();
+    if (paused) closePause();
+  });
   requiredElement<HTMLButtonElement>('[data-action="resume"]').addEventListener("click", togglePause);
   requiredElement<HTMLButtonElement>('[data-action="checkpoint"]').addEventListener("click", () => {
     session.resetToCheckpoint();
-    view = projectForestOpeningView(session.snapshot(), runtimeForestOpeningAssetExport);
+    view = project(session.snapshot());
     persist();
     closePause();
   });
@@ -123,10 +173,13 @@ function bindTouch(button: HTMLButtonElement): void {
     if (pointer !== event.pointerId) return;
     if (action === "left" || action === "right") held.delete(action);
     pointer = null;
+    if (button.hasPointerCapture(event.pointerId)) button.releasePointerCapture(event.pointerId);
   };
   button.addEventListener("pointerdown", (event) => {
     if (pointer !== null) return;
+    audio.activate();
     pointer = event.pointerId;
+    button.setPointerCapture(event.pointerId);
     if (action === "left" || action === "right") held.add(action);
     else if (action === "jump") jumpQueued = true;
     else if (action === "interact") interact();
@@ -134,6 +187,11 @@ function bindTouch(button: HTMLButtonElement): void {
   });
   button.addEventListener("pointerup", release);
   button.addEventListener("pointercancel", release);
+  button.addEventListener("lostpointercapture", () => {
+    if (pointer === null) return;
+    if (action === "left" || action === "right") held.delete(action);
+    pointer = null;
+  });
   button.addEventListener("click", (event) => {
     if (event.detail !== 0) return;
     if (action === "jump") jumpQueued = true;
@@ -147,38 +205,44 @@ function interact(): void {
   const request = nearestInteraction(view);
   if (!request) return;
   const result = session.interact(operationId("interact"), request, session.snapshot().runtime.obstacle.revision);
-  view = projectForestOpeningView(result.snapshot, runtimeForestOpeningAssetExport);
   if (result.accepted) {
+    actionPresentation = { animationId: request.kind === "push_stone" ? "push"
+      : request.kind === "drag_deadwood" ? "drag" : "dig", untilTick: result.snapshot.runtime.tick + 24 };
+    view = project(result.snapshot);
     persist();
-    audio.apply(mixForestOpeningAudioFrame({
-      districtId: districtFor(view.traveler.position.x), listener: view.traveler.position,
-      streamPosition: { x: 1840, y: 704 }, muted: false, suspended: paused,
-      events: [{ kind: request.kind === "enter_shallow_detour" ? "water_entry" : "object_collision",
-        position: view.traveler.position }],
-    }));
-  }
+    applyAudio([{ kind: request.kind === "enter_shallow_detour" ? "water_entry" : "object_collision",
+      position: view.traveler.position }]);
+  } else view = project(result.snapshot);
 }
 
 function observe(): void {
   if (paused || blockedLoad !== null || view.mode !== "forest_opening") return;
+  if (view.obstacle.interactionId !== "observe_glyph") return;
   const result = session.observeGlyph(operationId("observe"));
-  view = projectForestOpeningView(result.snapshot, runtimeForestOpeningAssetExport);
-  if (result.accepted) persist();
+  if (result.accepted) {
+    actionPresentation = { animationId: "observe", untilTick: result.snapshot.runtime.tick + 24 };
+    view = project(result.snapshot);
+    persist();
+  } else view = project(result.snapshot);
 }
 
 function tryEnterSettlement(): void {
   if (!view.obstacle.visuallyComplete || view.mode !== "forest_opening") return;
   const perimeter = worldObjects(view).find(({ kind }) => kind === "settlement_perimeter");
-  if (!perimeter || view.traveler.position.x + 12 < perimeter.bounds.x) return;
+  if (!perimeter || view.traveler.position.x < perimeter.bounds.x) return;
   const result = session.enterSettlementPerimeter(operationId("settlement"));
-  view = projectForestOpeningView(result.snapshot, runtimeForestOpeningAssetExport);
+  view = project(result.snapshot);
   if (result.accepted) persist();
 }
 
 function nearestInteraction(current: ForestOpeningPublicView): ForestOpeningInteraction | null {
   const actor = { x: current.traveler.position.x + 6, y: current.traveler.position.y + 7 };
+  const interactionId = current.obstacle.interactionId;
+  const wantedKind = interactionId === "push_stone" ? "stone"
+    : interactionId === "drag_deadwood" ? "deadwood"
+      : null;
   const candidates = worldObjects(current)
-    .filter((object) => (object.kind === "stone" || object.kind === "deadwood") &&
+    .filter((object) => object.kind === wantedKind &&
       object.state !== "seated" && object.state !== "bridged")
     .map((object) => ({ object, distance: gap(actor, object) }))
     .filter(({ distance }) => distance <= 48)
@@ -186,13 +250,14 @@ function nearestInteraction(current: ForestOpeningPublicView): ForestOpeningInte
   const nearest = candidates[0]?.object;
   if (nearest?.kind === "stone") return { kind: "push_stone", objectId: nearest.id as "stream.stone.a" | "stream.stone.b", direction: 1 };
   if (nearest?.kind === "deadwood") return { kind: "drag_deadwood", objectId: "stream.deadwood", direction: 1 };
+  if (interactionId !== "enter_shallow_detour") return null;
   const stream = worldObjects(current).find(({ kind }) => kind === "stream");
   return stream && gap(actor, stream) <= 48 ? { kind: "enter_shallow_detour" } : null;
 }
 
 function render(): void {
-  view = projectForestOpeningView(session.snapshot(), runtimeForestOpeningAssetExport);
-  renderForestOpeningView(context, view);
+  view = project(session.snapshot());
+  renderForestOpeningView(context, view, visualAssets);
   const screenX = view.traveler.position.x - view.camera.x;
   const screenY = view.traveler.position.y - view.camera.y - 6;
   const crop = fitForestOpeningPresentation(
@@ -203,16 +268,45 @@ function render(): void {
   canvas.style.top = `${crop.top}px`;
   canvas.style.width = `${crop.width}px`;
   canvas.style.height = `${crop.height}px`;
-  root.dataset.mode = view.mode;
   health.value = `${view.hud.health}/${view.hud.maxHealth}`;
   mp.value = `${view.hud.mp}/${view.hud.maxMp}`;
   objective.textContent = view.hud.objective;
   prompt.textContent = view.obstacle.interactionPrompt ?? "";
+  candidateLabel.hidden = view.presentation.kind === "approved_asset_pack";
+}
+
+function project(snapshot: ReturnType<PrologueForestOpeningSession["snapshot"]>): ForestOpeningPublicView {
+  if (actionPresentation !== null && snapshot.runtime.tick > actionPresentation.untilTick) actionPresentation = null;
+  return projectForestOpeningView(snapshot, runtimeForestOpeningAssetExport, visualAssets,
+    actionPresentation?.animationId ?? null);
 }
 
 function persist(): void {
   persistence.save(session);
   lastSavedTick = view.tick;
+}
+
+function applyAudio(events: Parameters<typeof mixForestOpeningAudioFrame>[0]["events"] = []): void {
+  audio.apply(mixForestOpeningAudioFrame({
+    districtId: districtFor(view.traveler.position.x),
+    listener: view.traveler.position,
+    streamPosition: { x: 1_840, y: 704 },
+    muted,
+    suspended: paused,
+    events,
+  }));
+}
+
+function toggleMute(): void {
+  muted = !muted;
+  localStorage.setItem(MUTE_KEY, String(muted));
+  updateMuteButton();
+  applyAudio();
+}
+
+function updateMuteButton(): void {
+  muteButton.setAttribute("aria-pressed", String(muted));
+  muteButton.textContent = muted ? "声音：关" : "声音：开";
 }
 
 function togglePause(): void {
@@ -253,7 +347,7 @@ function downloadBackup(): void {
 
 function operationId(action: string): string {
   operationSequence += 1;
-  return `browser.forest-opening:${action}:${view.tick}:${operationSequence}`;
+  return `browser.forest-opening:${operationNonce}:${action}:${view.tick}:${operationSequence}`;
 }
 
 function worldObjects(current: ForestOpeningPublicView): readonly ForestOpeningWorldObjectView[] {

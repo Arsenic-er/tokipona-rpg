@@ -60,6 +60,14 @@ export function createTokiponaViteConfig(
           codeSplitting: {
             groups: [
               {
+                name: "extension-learning",
+                test: /[\\/]src[\\/](?:persistence[\\/]browser-learning-corpus-adapter|rpg-extension-learning-ui|generated[\\/]learning-corpus-packages\.v0\.1|learning[\\/]corpus-partition(?:-collection)?)(?:\.v0\.1)?\.(?:ts|json)$/,
+                priority: 100,
+                minSize: 0,
+                entriesAware: true,
+                includeDependenciesRecursively: false,
+              },
+              {
                 name: "rpg-ui",
                 test: /[\\/]src[\\/]rpg-(?!main)[^\\/]*\.ts$/,
                 priority: 50,

@@ -3,6 +3,7 @@ import { runtimeForestOpeningAssetExport } from "../assets/runtime-forest-openin
 import {
   BrowserForestOpeningAudio,
   mixForestOpeningAudioFrame,
+  projectForestOpeningMovementAudioEvents,
   type ForestOpeningAudioPort,
 } from "./browser-forest-opening-audio";
 
@@ -70,5 +71,28 @@ describe("browser forest opening audio", () => {
       expect(frame.loops).toEqual({ forest_ambience: 0, stream_ambience: 0 });
       expect(frame.oneShots).toEqual([]);
     }
+  });
+
+  it("emits one deterministic surface footstep only at grounded movement cadence", () => {
+    expect(projectForestOpeningMovementAudioEvents({
+      tick: 24, grounded: true, velocityX: 3, districtId: "forest.stream",
+      solutionId: "shallow_detour", position: { x: 1_840, y: 704 },
+    })).toEqual([{ kind: "footstep", surface: "mud", position: { x: 1_840, y: 704 } }]);
+    expect(projectForestOpeningMovementAudioEvents({
+      tick: 25, grounded: true, velocityX: 3, districtId: "forest.stream",
+      solutionId: "shallow_detour", position: { x: 1_840, y: 704 },
+    })).toEqual([]);
+    expect(projectForestOpeningMovementAudioEvents({
+      tick: 24, grounded: false, velocityX: 3, districtId: "forest.arrival",
+      solutionId: null, position: { x: 320, y: 600 },
+    })).toEqual([]);
+    expect(projectForestOpeningMovementAudioEvents({
+      tick: 36, grounded: true, velocityX: 3, districtId: "forest.stream",
+      solutionId: "stone_steps", position: { x: 1_900, y: 704 },
+    })[0]).toMatchObject({ kind: "footstep", surface: "stone" });
+    expect(projectForestOpeningMovementAudioEvents({
+      tick: 48, grounded: true, velocityX: 3, districtId: "forest.stream",
+      solutionId: "deadwood_bridge", position: { x: 1_950, y: 704 },
+    })[0]).toMatchObject({ kind: "footstep", surface: "deadwood" });
   });
 });

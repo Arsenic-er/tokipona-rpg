@@ -6,7 +6,7 @@ import {
   initializeForestCamera,
   type ForestCameraState,
 } from "../runtime/forest-camera";
-import { stepPlayerMotion, type PlayerMotionState } from "../runtime/player-motion";
+import { PLAYER_MOTION, stepPlayerMotion, type PlayerMotionState } from "../runtime/player-motion";
 import type {
   NormalizedRuntimeInput,
   PlayerState,
@@ -66,6 +66,7 @@ export class ForestGrayboxRuntime {
   private readonly manifest: RuntimeForestSpatialManifest;
   private readonly body: PlayerBody;
   private readonly recoveryClearanceVolumes: readonly ForestRegion["criticalRouteClearances"][number]["volumesPx"][number][];
+  private readonly meadowSurfaces: ForestRegion["meadowSurfaces"];
   private player: PlayerMotionState;
   private previousJump = false;
   private tickId = 0;
@@ -103,6 +104,7 @@ export class ForestGrayboxRuntime {
       maxRetainedChunks: options.maxRetainedChunks,
     });
     this.recoveryClearanceVolumes = arrivalRecoveryComponent(options.region, this.body);
+    this.meadowSurfaces = options.region.meadowSurfaces;
     this.checkpoint = freezeCheckpoint({
       id: "checkpoint.initial",
       position: initialPosition,
@@ -130,7 +132,14 @@ export class ForestGrayboxRuntime {
       throw new Error("forest graybox save timing is invalid");
     }
     if (typeof save.previousJump !== "boolean" || !isSavedMotionState(save.player) ||
-      !isSavedCamera(save.camera, runtime.manifest) || !isSavedCheckpoint(save.checkpoint) ||
+      !isSavedCamera(save.camera, runtime.manifest) ||
+      !cameraContainsPlayer(save.camera, save.player, runtime.body) ||
+      !isSavedCheckpoint(save.checkpoint) ||
+      !isCausallyReachable(runtime.player, save.player, save.tick, runtime.fixedHz) ||
+      save.checkpoint.tick > save.tick ||
+      !isCausallyReachable(runtime.player, save.checkpoint.position, save.checkpoint.tick, runtime.fixedHz) ||
+      runtime.chunkStream.isSolid({ x: save.player.x, y: save.player.y, ...runtime.body }) ||
+      !runtime.hasRecoveryRoute({ x: save.player.x, y: save.player.y }) ||
       runtime.chunkStream.isSolid({ ...save.checkpoint.position, ...runtime.body }) ||
       !runtime.hasRecoveryRoute(save.checkpoint.position)) {
       throw new Error("forest graybox save state is invalid");
@@ -144,7 +153,12 @@ export class ForestGrayboxRuntime {
     return runtime;
   }
 
-  public advanceFrame(elapsedSeconds: number, input: RuntimeInput = {}): number {
+  public advanceFrame(
+    elapsedSeconds: number,
+    input: RuntimeInput = {},
+    afterFixedStep?: () => void,
+    additionalCollision?: (bounds: Aabb) => boolean,
+  ): number {
     if (!Number.isFinite(elapsedSeconds) || elapsedSeconds < 0 || elapsedSeconds > MAX_FRAME_SECONDS) {
       throw new Error(`elapsedSeconds must be between 0 and ${MAX_FRAME_SECONDS}`);
     }
@@ -154,16 +168,25 @@ export class ForestGrayboxRuntime {
     while (this.accumulatorSeconds + EPSILON >= this.fixedSeconds) {
       this.accumulatorSeconds -= this.fixedSeconds;
       if (this.accumulatorSeconds < 0 && this.accumulatorSeconds > -EPSILON) this.accumulatorSeconds = 0;
-      this.stepFixed(normalized);
+      this.stepFixed(normalized, additionalCollision);
+      afterFixedStep?.();
       steps += 1;
     }
     return steps;
   }
 
-  public advanceTicks(ticks: number, input: RuntimeInput = {}): void {
+  public advanceTicks(
+    ticks: number,
+    input: RuntimeInput = {},
+    additionalCollision?: (bounds: Aabb) => boolean,
+  ): void {
     if (!Number.isInteger(ticks) || ticks < 0) throw new Error("ticks must be a non-negative integer");
     const normalized = normalizeInput(input);
-    for (let tick = 0; tick < ticks; tick += 1) this.stepFixed(normalized);
+    for (let tick = 0; tick < ticks; tick += 1) this.stepFixed(normalized, additionalCollision);
+  }
+
+  public playerSnapshot(): PlayerState {
+    return freezePlayer(this.player, this.body);
   }
 
   public snapshot(): ForestGrayboxSnapshot {
@@ -237,7 +260,7 @@ export class ForestGrayboxRuntime {
     return this.snapshot();
   }
 
-  private stepFixed(input: NormalizedRuntimeInput): void {
+  private stepFixed(input: NormalizedRuntimeInput, additionalCollision?: (bounds: Aabb) => boolean): void {
     this.tickId += 1;
     const motion = stepPlayerMotion({
       state: this.player,
@@ -245,7 +268,7 @@ export class ForestGrayboxRuntime {
       input,
       previousJump: this.previousJump,
       fixedSeconds: this.fixedSeconds,
-      collides: (bounds) => this.chunkStream.isSolid(bounds),
+      collides: (bounds) => this.chunkStream.isSolid(bounds) || additionalCollision?.(bounds) === true,
     });
     this.player = motion.state;
     this.previousJump = motion.previousJump;
@@ -262,10 +285,11 @@ export class ForestGrayboxRuntime {
   }
 
   private hasRecoveryRoute(position: Vec2): boolean {
-    return aabbCoveredByVolumes(
-      { ...position, ...this.body },
-      this.recoveryClearanceVolumes,
-    );
+    const bounds = { ...position, ...this.body };
+    return aabbCoveredByVolumes(bounds, this.recoveryClearanceVolumes) ||
+      this.meadowSurfaces.some((surface) =>
+        bounds.x >= surface.left && bounds.x + bounds.width <= surface.right &&
+        bounds.y >= 0 && bounds.y + bounds.height <= surface.y);
   }
 }
 
@@ -278,7 +302,21 @@ function normalizeInput(input: RuntimeInput): NormalizedRuntimeInput {
 
 function isSavedMotionState(value: PlayerMotionState): boolean {
   return [value.x, value.y, value.velocityX, value.velocityY].every(Number.isFinite) &&
+    Math.abs(value.velocityX) <= PLAYER_MOTION.moveSpeed + EPSILON &&
+    value.velocityY >= -PLAYER_MOTION.jumpSpeed - EPSILON &&
+    value.velocityY <= PLAYER_MOTION.maxFallSpeed + EPSILON &&
     typeof value.grounded === "boolean";
+}
+
+function isCausallyReachable(
+  origin: Readonly<{ x: number }>,
+  candidate: Readonly<{ x: number }>,
+  ticks: number,
+  fixedHz: number,
+): boolean {
+  if (!Number.isSafeInteger(ticks) || ticks < 0) return false;
+  const maximumHorizontalDistance = ticks * PLAYER_MOTION.moveSpeed / fixedHz;
+  return Math.abs(candidate.x - origin.x) <= maximumHorizontalDistance + EPSILON;
 }
 
 function isSavedCamera(value: ForestCameraState, manifest: RuntimeForestSpatialManifest): boolean {
@@ -288,6 +326,15 @@ function isSavedCamera(value: ForestCameraState, manifest: RuntimeForestSpatialM
     value.y <= manifest.regionBoundsPx.height - manifest.viewportPx.height &&
     value.width === manifest.viewportPx.width && value.height === manifest.viewportPx.height &&
     (value.facing === "left" || value.facing === "right");
+}
+
+function cameraContainsPlayer(
+  camera: ForestCameraState,
+  player: PlayerMotionState,
+  body: PlayerBody,
+): boolean {
+  return player.x >= camera.x && player.x + body.width <= camera.x + camera.width &&
+    player.y >= camera.y && player.y + body.height <= camera.y + camera.height;
 }
 
 function isSavedCheckpoint(value: ForestGrayboxCheckpoint): boolean {

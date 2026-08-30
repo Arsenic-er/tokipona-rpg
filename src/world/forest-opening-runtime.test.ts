@@ -4,6 +4,7 @@ import { sha256Canonical, type JsonValue } from "../canonical-json";
 import { readRuntimeForestOpeningManifest } from "../content/runtime-forest-opening-manifest";
 import { readRuntimeForestSpatialManifest } from "../content/runtime-forest-spatial-manifest";
 import { ForestOpeningRuntime, type ForestOpeningRuntimeSave } from "./forest-opening-runtime";
+import { ForestOpeningObstacle } from "./forest-opening-obstacle";
 
 const openingManifest = readRuntimeForestOpeningManifest(generated);
 const spatialManifest = readRuntimeForestSpatialManifest(generated);
@@ -40,11 +41,14 @@ describe("ForestOpeningRuntime", () => {
   it("produces the same fixed-step state under 30 and 60 render fps", () => {
     const atThirty = fresh("forest.opening.fps");
     const atSixty = fresh("forest.opening.fps");
+    const direct = fresh("forest.opening.fps");
 
     for (let frame = 0; frame < 30; frame += 1) atThirty.advanceFrame(1 / 30, { moveX: 1 });
     for (let frame = 0; frame < 60; frame += 1) atSixty.advanceFrame(1 / 60, { moveX: 1 });
+    direct.advanceTicks(60, { moveX: 1 });
 
     expect(atThirty.snapshot()).toEqual(atSixty.snapshot());
+    expect(atThirty.snapshot()).toEqual(direct.snapshot());
     expect(atThirty.snapshot()).toMatchObject({ tick: 60, worldMinute: 360.25 });
   });
 
@@ -71,6 +75,56 @@ describe("ForestOpeningRuntime", () => {
     expect(runtime.snapshot().ecology.tick).toBe(runtime.snapshot().tick);
   });
 
+  it("derives player movement sound as an authoritative ecology disturbance", () => {
+    const positioned = fresh("forest.opening.sound-disturbance");
+    expect(positioned.snapshot().ecology.rabbit.mode).toBe("foraging");
+
+    for (let tick = 0; tick < 60 && positioned.snapshot().ecology.rabbit.mode === "foraging"; tick += 1) {
+      positioned.advanceTicks(1, { moveX: 1 });
+    }
+
+    expect(positioned.snapshot().spatial.player.velocity.x).toBeGreaterThan(0.1);
+    expect(Math.hypot(
+      positioned.snapshot().spatial.player.position.x - positioned.snapshot().ecology.rabbit.position.x,
+      positioned.snapshot().spatial.player.position.y - positioned.snapshot().ecology.rabbit.position.y,
+    )).toBeLessThan(224);
+    expect(positioned.snapshot().ecology.rabbit.mode).toBe("alert");
+    expect(ForestOpeningRuntime.fromSave({ openingManifest, spatialManifest }, positioned.save())
+      .snapshot().ecology.rabbit.mode).toBe("alert");
+  });
+
+  it("blocks the damaged crossing until one physical route is committed", () => {
+    const runtime = fresh("forest.opening.crossing-gate");
+    const farEdge = openingManifest.obstacle.boundsPx.x + openingManifest.obstacle.boundsPx.width;
+    for (let batch = 0; batch < 60; batch += 1) {
+      runtime.advanceTicks(30, { moveX: 1, jump: batch % 16 === 15 });
+      if (runtime.snapshot().spatial.player.position.x + 12 >= farEdge - 0.001) break;
+    }
+    const blocked = runtime.snapshot().spatial.player;
+    expect(blocked.position.x + blocked.body.width).toBeLessThanOrEqual(farEdge + 0.001);
+    expect(blocked.position.x + blocked.body.width).toBeGreaterThan(farEdge - 1);
+
+    const clean = runtime.save();
+    const forgedX = farEdge + 20;
+    const forgedSpatial = {
+      ...clean.spatial,
+      player: { ...clean.spatial.player, x: forgedX },
+      checkpoint: { ...clean.spatial.checkpoint, position: { x: forgedX, y: clean.spatial.player.y }, tick: clean.spatial.tick },
+      camera: { ...clean.spatial.camera, x: Math.floor(forgedX - 320), y: Math.floor(clean.spatial.player.y - 180) },
+    };
+    expect(() => ForestOpeningRuntime.fromSave({ openingManifest, spatialManifest }, resign({
+      ...clean,
+      spatial: forgedSpatial,
+    }))).toThrow(/crossing|unsolved|save/i);
+
+    runtime.advanceTicks(180, { moveX: -1 });
+    expect(runtime.interact("gate.detour", { kind: "enter_shallow_detour" }, 0).ok).toBe(true);
+    for (let batch = 0; batch < 60 && runtime.snapshot().spatial.player.position.x <= farEdge; batch += 1) {
+      runtime.advanceTicks(30, { moveX: 1, jump: batch > 0 && batch % 16 === 0 });
+    }
+    expect(runtime.snapshot().spatial.player.position.x).toBeGreaterThan(farEdge);
+  }, 10_000);
+
   it("fails closed on checksum, unknown fields, and manifest mismatches", () => {
     const save = fresh("forest.opening.invalid").save();
     expect(() => ForestOpeningRuntime.fromSave(
@@ -88,39 +142,50 @@ describe("ForestOpeningRuntime", () => {
       { openingManifest, spatialManifest },
       wrongManifest,
     )).toThrow(/manifest/i);
+
+    const futureMaterial = ForestOpeningObstacle.fresh(openingManifest);
+    futureMaterial.advanceTicks(1);
+    expect(() => ForestOpeningRuntime.fromSave(
+      { openingManifest, spatialManifest },
+      resign({ ...save, obstacle: futureMaterial.save() }),
+    )).toThrow(/material|timeline|tick/i);
   });
 
   it("resets spatial progress while preserving a restored committed solution identity", () => {
-    const initial = fresh("forest.opening.reset");
-    const initialSave = initial.save();
-    const positioned = resign({
-      ...initialSave,
-      spatial: {
-        ...initialSave.spatial,
-        player: { ...initialSave.spatial.player, x: 1_832, y: 702 },
-      },
-    });
-    const source = ForestOpeningRuntime.fromSave({ openingManifest, spatialManifest }, positioned);
+    const source = fresh("forest.opening.reset");
     const checkpoint = source.snapshot().spatial.checkpoint;
-    expect(source.interact("stone-a", {
-      kind: "push_stone", objectId: "stream.stone.a", direction: 1,
-    }, 0)).toMatchObject({ ok: true });
-    expect(source.interact("stone-b", {
-      kind: "push_stone", objectId: "stream.stone.b", direction: 1,
-    }, 1)).toMatchObject({ ok: true });
-    expect(source.snapshot().obstacle.committedSolutionId).toBe("stone_steps");
+    const farEdge = openingManifest.obstacle.boundsPx.x + openingManifest.obstacle.boundsPx.width;
+    for (let batch = 0; batch < 60; batch += 1) {
+      source.advanceTicks(30, { moveX: 1, jump: batch % 16 === 15 });
+      if (source.snapshot().spatial.player.position.x + 12 >= farEdge - 1) break;
+    }
+    source.advanceTicks(180, { moveX: -1 });
+    expect(source.interact("reset.detour", { kind: "enter_shallow_detour" }, 0)).toMatchObject({ ok: true });
+    expect(source.snapshot().obstacle.committedSolutionId).toBe("shallow_detour");
     const restored = ForestOpeningRuntime.fromSave({ openingManifest, spatialManifest }, source.save());
     restored.advanceTicks(120, { moveX: 1 });
 
     const reset = restored.resetToCheckpoint();
 
     expect(reset.spatial.player.position).toEqual(checkpoint.position);
-    expect(reset.obstacle.committedSolutionId).toBe("stone_steps");
+    expect(reset.obstacle.committedSolutionId).toBe("shallow_detour");
     expect(reset.ecology).toMatchObject({
       tick: reset.tick,
       revision: 0,
       rabbit: { mode: "foraging" },
       wetlandBird: { mode: "wading" },
     });
+  });
+
+  it("keeps an uncommitted checkpoint reset on one recoverable material timeline", () => {
+    const source = fresh("forest.opening.uncommitted-reset");
+    source.advanceTicks(120, { moveX: 1 });
+
+    const reset = source.resetToCheckpoint();
+    const save = source.save();
+
+    expect(reset.tick).toBe(120);
+    expect(reset.obstacle.materialPocket.tick).toBe(120);
+    expect(ForestOpeningRuntime.fromSave({ openingManifest, spatialManifest }, save).save()).toEqual(save);
   });
 });

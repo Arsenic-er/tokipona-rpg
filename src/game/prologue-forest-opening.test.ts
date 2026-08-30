@@ -28,23 +28,25 @@ function resign<T extends Readonly<Record<string, unknown>>>(value: T): T {
 function atPosition(
   target: PrologueForestOpeningSession,
   x: number,
-  y: number,
+  _y: number,
 ): PrologueForestOpeningSession {
-  const save = target.toSave();
-  const runtime = resign({
-    ...save.runtime,
-    spatial: {
-      ...save.runtime.spatial,
-      player: {
-        ...save.runtime.spatial.player,
-        x,
-        y,
-        velocityX: 0,
-        velocityY: 0,
-      },
-    },
-  });
-  return PrologueForestOpeningSession.fromSave(resign({ ...save, runtime }));
+  for (let batch = 0; batch < 100 && target.snapshot().runtime.spatial.player.position.x < x - 200; batch += 1) {
+    target.advanceTicks(120, { moveX: 1, jump: batch > 0 && batch % 4 === 0 });
+  }
+  let furthestX = target.snapshot().runtime.spatial.player.position.x;
+  let stagnant = 0;
+  for (let batch = 0; batch < 300 && furthestX < x; batch += 1) {
+    target.advanceTicks(10, { moveX: 1, jump: stagnant >= 3 });
+    const nextX = target.snapshot().runtime.spatial.player.position.x;
+    if (nextX > furthestX + 0.25) {
+      furthestX = nextX;
+      stagnant = 0;
+    } else {
+      stagnant += 1;
+    }
+  }
+  expect(target.snapshot().runtime.spatial.player.position.x).toBeGreaterThanOrEqual(x);
+  return target;
 }
 
 function solveStoneSteps(target: PrologueForestOpeningSession): PrologueForestOpeningSession {
@@ -103,7 +105,7 @@ describe("PrologueForestOpeningSession", () => {
   it.each([
     ["stone_steps", (target: PrologueForestOpeningSession) => solveStoneSteps(target)],
     ["deadwood_bridge", (target: PrologueForestOpeningSession) => {
-      const positioned = atPosition(target, 1_928, 688);
+      const positioned = atPosition(target, 1_918, 688);
       expect(positioned.interact("deadwood", {
         kind: "drag_deadwood",
         objectId: "stream.deadwood",
@@ -130,7 +132,7 @@ describe("PrologueForestOpeningSession", () => {
   });
 
   it("records only a nearby unknown-glyph observation and cannot teach or cast telo", () => {
-    const target = atPosition(fresh("glyph"), 2_132, 668);
+    const target = atPosition(solveStoneSteps(fresh("glyph")), 2_132, 668);
     const before = target.snapshot().session;
 
     expect(target.observeGlyph("glyph.observe")).toMatchObject({
@@ -172,7 +174,7 @@ describe("PrologueForestOpeningSession", () => {
 
   it("enters the settlement perimeter only after physical completion and overlap, then reloads exactly", () => {
     const solved = solveStoneSteps(fresh("entry"));
-    const atEntrance = atPosition(solved, 2_490, 670);
+    const atEntrance = atPosition(solved, 2_500, 690);
 
     expect(atEntrance.enterSettlementPerimeter("settlement.entry")).toMatchObject({
       accepted: true,
@@ -184,25 +186,39 @@ describe("PrologueForestOpeningSession", () => {
       session: {
         checkpoint: { id: "checkpoint.forest.settlement_perimeter" },
       },
+      runtime: {
+        spatial: { checkpoint: { id: "checkpoint.forest.settlement_perimeter" } },
+      },
     });
     const save = atEntrance.toSave();
     expect(PrologueForestOpeningSession.fromSave(JSON.parse(JSON.stringify(save))).toSave()).toEqual(save);
+    const mismatchedRuntime = resign({
+      ...save.runtime,
+      spatial: {
+        ...save.runtime.spatial,
+        checkpoint: { ...save.runtime.spatial.checkpoint, id: "checkpoint.initial" },
+      },
+    });
+    expect(() => PrologueForestOpeningSession.fromSave(resign({
+      ...save,
+      runtime: mismatchedRuntime,
+    }))).toThrow(/checkpoint authorities disagree/i);
     expect(atEntrance.enterSettlementPerimeter("settlement.entry.again")).toMatchObject({
       accepted: true,
       duplicate: true,
       reason: "duplicate",
     });
-  });
+  }, 10_000);
 
   it("rejects early entry, solution conflicts, and re-signed forged story progress", () => {
-    const early = atPosition(fresh("early"), 2_490, 670);
+    const early = fresh("early");
     expect(early.enterSettlementPerimeter("entry.early")).toMatchObject({
       accepted: false,
       reason: "prerequisite_missing",
     });
 
     const solved = solveStoneSteps(fresh("conflict"));
-    expect(atPosition(solved, 1_928, 688).interact("conflicting.log", {
+    expect(atPosition(solved, 1_918, 688).interact("conflicting.log", {
       kind: "drag_deadwood",
       objectId: "stream.deadwood",
       direction: 1,

@@ -70,7 +70,8 @@ button { font: inherit; }
   cursor: pointer;
 }
 
-.forest-opening__hud button { grid-column: 3; grid-row: 1 / span 2; padding: 0 10px; }
+.forest-opening__settings { grid-column: 3; grid-row: 1 / span 2; display: flex; gap: 5px; }
+.forest-opening__hud button { padding: 0 8px; }
 button:hover, button:focus-visible { border-color: #cdbf77; color: #fff3c9; outline: none; }
 
 .forest-opening__touch { display: none; }
@@ -102,7 +103,7 @@ button:hover, button:focus-visible { border-color: #cdbf77; color: #fff3c9; outl
     grid-template-columns: auto 1fr auto;
     max-width: none;
   }
-  .forest-opening__candidate { display: none; }
+  .forest-opening__candidate { grid-column: 1 / span 2; }
   .forest-opening__touch {
     position: absolute;
     z-index: 4;

@@ -9,6 +9,7 @@ import {
   type BrowserForestOpeningSave,
   type ForestOpeningStorage,
   type PageHideTarget,
+  type VisibilityTarget,
 } from "./browser-forest-opening-persistence";
 
 class MemoryStorage implements ForestOpeningStorage {
@@ -27,6 +28,18 @@ class MemoryPageHideTarget implements PageHideTarget {
     if (type === "pagehide") this.listeners.delete(listener);
   }
   public hide(): void { for (const listener of this.listeners) listener(); }
+}
+
+class MemoryVisibilityTarget implements VisibilityTarget {
+  public visibilityState: "visible" | "hidden" = "visible";
+  private readonly listeners = new Set<() => void>();
+  public addEventListener(type: "visibilitychange", listener: () => void): void {
+    if (type === "visibilitychange") this.listeners.add(listener);
+  }
+  public removeEventListener(type: "visibilitychange", listener: () => void): void {
+    if (type === "visibilitychange") this.listeners.delete(listener);
+  }
+  public hide(): void { this.visibilityState = "hidden"; for (const listener of this.listeners) listener(); }
 }
 
 function fresh(suffix = "default"): PrologueForestOpeningSession {
@@ -54,11 +67,20 @@ describe("BrowserForestOpeningPersistence", () => {
     expect(written).toMatchObject({
       schema: BROWSER_FOREST_OPENING_SAVE_SCHEMA,
       savedAtTick: 90,
+      acceptance: { killCount: 0 },
       session: { sessionId: "browser.forest.roundtrip" },
       spatial: { spatial: { tick: 90 } },
     });
     expect(loaded).toEqual({ ok: true, save: written });
     expect(persistence.restore(written).toSave()).toEqual(target.toSave());
+  });
+
+  it("rejects a re-signed nonzero kill acceptance claim", () => {
+    const clean = createBrowserForestOpeningSave(fresh("kills"));
+    expect(() => readBrowserForestOpeningSave(resign({
+      ...clean,
+      acceptance: { killCount: 1 },
+    } as unknown as BrowserForestOpeningSave))).toThrow(/kill|acceptance|canonical/i);
   });
 
   it("distinguishes missing, invalid JSON, incompatible schema, and invalid save without erasing bytes", () => {
@@ -88,26 +110,11 @@ describe("BrowserForestOpeningPersistence", () => {
     }))).toThrow(/checksum|timeline|save/i);
     expect(() => readBrowserForestOpeningSave(resign({ ...clean, savedAtTick: 999 }))).toThrow(/tick|stale/i);
 
-    const solved = fresh("solved");
-    const positionedCoordinator = solved.toSave();
-    const positionedRuntime = {
-      ...positionedCoordinator.runtime,
-      spatial: {
-        ...positionedCoordinator.runtime.spatial,
-        player: { ...positionedCoordinator.runtime.spatial.player, x: 1_832, y: 702 },
-      },
-    };
-    const runtimeBody = Object.fromEntries(Object.entries(positionedRuntime).filter(([key]) => key !== "checksum"));
-    const positioned = PrologueForestOpeningSession.fromSave({
-      ...positionedCoordinator,
-      runtime: { ...positionedRuntime, checksum: sha256Canonical(runtimeBody as JsonValue) },
-      checksum: sha256Canonical({
-        schema: positionedCoordinator.schema,
-        manifestDigest: positionedCoordinator.manifestDigest,
-        session: positionedCoordinator.session,
-        runtime: { ...positionedRuntime, checksum: sha256Canonical(runtimeBody as JsonValue) },
-      } as unknown as JsonValue),
-    });
+    const positioned = fresh("solved");
+    for (let batch = 0; batch < 300 && positioned.snapshot().runtime.spatial.player.position.x < 1_832; batch += 1) {
+      positioned.advanceTicks(10, { moveX: 1, jump: batch > 0 && batch % 12 === 0 });
+    }
+    expect(positioned.snapshot().runtime.spatial.player.position.x).toBeGreaterThanOrEqual(1_832);
     positioned.interact("stone.a", { kind: "push_stone", objectId: "stream.stone.a", direction: 1 }, 0);
     positioned.interact("stone.b", { kind: "push_stone", objectId: "stream.stone.b", direction: 1 }, 1);
     const solvedSave = createBrowserForestOpeningSave(positioned);
@@ -133,6 +140,33 @@ describe("BrowserForestOpeningPersistence", () => {
     target.advanceTicks(1, { moveX: 1 });
     page.hide();
     expect(persistence.load()).toMatchObject({ ok: true, save: { savedAtTick: 17 } });
+  });
+
+  it("does not overwrite blocked recovery bytes when pagehide has no save authority", () => {
+    const storage = new MemoryStorage();
+    const page = new MemoryPageHideTarget();
+    const persistence = new BrowserForestOpeningPersistence(storage, "forest.opening");
+    storage.setItem("forest.opening", "{corrupt-json");
+    persistence.bindPagehide(page, () => null);
+
+    page.hide();
+
+    expect(storage.getItem("forest.opening")).toBe("{corrupt-json");
+  });
+
+  it("flushes the latest authorized state when the document becomes hidden", () => {
+    const storage = new MemoryStorage();
+    const page = new MemoryPageHideTarget();
+    const visibility = new MemoryVisibilityTarget();
+    const persistence = new BrowserForestOpeningPersistence(storage, "forest.opening");
+    const target = fresh("visibility");
+    const dispose = persistence.bindLifecycle(page, visibility, () => target);
+    target.advanceTicks(23, { moveX: 1 });
+
+    visibility.hide();
+
+    expect(persistence.load()).toMatchObject({ ok: true, save: { savedAtTick: 23 } });
+    dispose();
   });
 
   it("exports the original backup and resets only through an explicit destructive call", () => {

@@ -12,6 +12,7 @@ export const BROWSER_FOREST_OPENING_SAVE_SCHEMA = "tokipona.browser-forest-openi
 export interface BrowserForestOpeningSave {
   readonly schema: typeof BROWSER_FOREST_OPENING_SAVE_SCHEMA;
   readonly savedAtTick: number;
+  readonly acceptance: Readonly<{ readonly killCount: 0 }>;
   readonly session: GameSessionSave;
   readonly spatial: ForestOpeningRuntimeSave;
   readonly checksum: `sha256:${string}`;
@@ -32,13 +33,21 @@ export interface PageHideTarget {
   removeEventListener(type: "pagehide", listener: () => void): void;
 }
 
+export interface VisibilityTarget {
+  readonly visibilityState: "visible" | "hidden" | "prerender";
+  addEventListener(type: "visibilitychange", listener: () => void): void;
+  removeEventListener(type: "visibilitychange", listener: () => void): void;
+}
+
 export function createBrowserForestOpeningSave(
   session: PrologueForestOpeningSession,
 ): BrowserForestOpeningSave {
   const source = session.toSave();
+  const snapshot = session.snapshot();
   const body = {
     schema: BROWSER_FOREST_OPENING_SAVE_SCHEMA,
     savedAtTick: source.runtime.spatial.tick,
+    acceptance: Object.freeze({ killCount: snapshot.killCount }),
     session: source.session,
     spatial: source.runtime,
   };
@@ -47,11 +56,14 @@ export function createBrowserForestOpeningSave(
 
 export function readBrowserForestOpeningSave(candidate: unknown): BrowserForestOpeningSave {
   const raw = record(candidate, "browser forest opening save");
-  exactKeys(raw, ["schema", "savedAtTick", "session", "spatial", "checksum"], "browser forest opening save");
+  exactKeys(raw, ["schema", "savedAtTick", "acceptance", "session", "spatial", "checksum"], "browser forest opening save");
   if (raw.schema !== BROWSER_FOREST_OPENING_SAVE_SCHEMA) throw new Error("browser forest opening save is incompatible");
   if (!Number.isSafeInteger(raw.savedAtTick) || (raw.savedAtTick as number) < 0) {
     throw new Error("browser forest opening saved tick is invalid");
   }
+  const acceptance = record(raw.acceptance, "browser forest opening acceptance");
+  exactKeys(acceptance, ["killCount"], "browser forest opening acceptance");
+  if (acceptance.killCount !== 0) throw new Error("browser forest opening acceptance kill count is invalid");
   const checksum = sha(raw.checksum, "browser forest opening checksum");
   const body = Object.fromEntries(Object.entries(raw).filter(([key]) => key !== "checksum"));
   if (sha256Canonical(body as JsonValue) !== checksum) throw new Error("browser forest opening checksum mismatch");
@@ -117,11 +129,32 @@ export class BrowserForestOpeningPersistence {
 
   public bindPagehide(
     target: PageHideTarget,
-    current: () => PrologueForestOpeningSession,
+    current: () => PrologueForestOpeningSession | null,
   ): () => void {
-    const listener = (): void => { this.save(current()); };
+    const listener = (): void => {
+      const session = current();
+      if (session !== null) this.save(session);
+    };
     target.addEventListener("pagehide", listener);
     return (): void => { target.removeEventListener("pagehide", listener); };
+  }
+
+  public bindLifecycle(
+    page: PageHideTarget,
+    visibility: VisibilityTarget,
+    current: () => PrologueForestOpeningSession | null,
+  ): () => void {
+    const flush = (): void => {
+      const session = current();
+      if (session !== null) this.save(session);
+    };
+    const hidden = (): void => { if (visibility.visibilityState === "hidden") flush(); };
+    page.addEventListener("pagehide", flush);
+    visibility.addEventListener("visibilitychange", hidden);
+    return (): void => {
+      page.removeEventListener("pagehide", flush);
+      visibility.removeEventListener("visibilitychange", hidden);
+    };
   }
 }
 

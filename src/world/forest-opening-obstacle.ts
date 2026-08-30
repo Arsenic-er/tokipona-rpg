@@ -153,7 +153,8 @@ export class ForestOpeningObstacle {
     if (!Number.isSafeInteger(context.expectedRevision) || context.expectedRevision !== this.revision) {
       return failure("stale_revision", this.snapshot());
     }
-    if (this.committedSolutionId !== null && requestedSolution(request) !== this.committedSolutionId) {
+    const activeSolution = this.activeSolution();
+    if (activeSolution !== null && requestedSolution(request) !== activeSolution) {
       return failure("solution_conflict", this.snapshot());
     }
     const target = targetBounds(request, this.stones, this.deadwood, this.manifest.obstacle.materialPocketPx);
@@ -174,10 +175,10 @@ export class ForestOpeningObstacle {
 
   public advanceTicks(ticks: number): ForestOpeningObstacleSnapshot {
     if (!Number.isSafeInteger(ticks) || ticks < 0) throw new Error("forest opening material ticks must be non-negative");
-    for (let index = 0; index < ticks; index += 1) {
-      this.materialCells = stepMaterialCells(this.materialCells, this.materialTick);
-      this.materialTick += 1;
-    }
+    const nextTick = this.materialTick + ticks;
+    if (!Number.isSafeInteger(nextTick)) throw new Error("forest opening material tick overflow");
+    this.materialTick = nextTick;
+    this.materialCells = materialCellsAtTick(nextTick);
     return this.snapshot();
   }
 
@@ -188,7 +189,31 @@ export class ForestOpeningObstacle {
     return this.materialCells[y * WIDTH + x] as ForestOpeningMaterial;
   }
 
-  public resetToCommittedState(): ForestOpeningObstacleSnapshot {
+  public blocksTraversal(bounds: Aabb): boolean {
+    if (this.committedSolutionId === "stone_steps") {
+      return (this.stones.a.seated && intersects(bounds, this.stones.a.bounds)) ||
+        (this.stones.b.seated && intersects(bounds, this.stones.b.bounds));
+    }
+    if (this.committedSolutionId === "deadwood_bridge") {
+      return this.deadwood.bridged && intersects(bounds, this.deadwood.bounds);
+    }
+    if (this.committedSolutionId === "shallow_detour") {
+      return this.materialPocketBlocks(bounds);
+    }
+    const road = this.manifest.obstacle.boundsPx;
+    const crossingGate = {
+      x: road.x + road.width,
+      y: road.y,
+      width: 16,
+      height: road.height,
+    };
+    return intersects(bounds, crossingGate);
+  }
+
+  public resetToCommittedState(materialTick = this.materialTick): ForestOpeningObstacleSnapshot {
+    if (!Number.isSafeInteger(materialTick) || materialTick < 0) {
+      throw new Error("forest opening reset material tick is invalid");
+    }
     if (this.committedSolutionId !== null) return this.snapshot();
     const fresh = ForestOpeningObstacle.fresh(this.manifest);
     this.revision = fresh.revision;
@@ -196,8 +221,8 @@ export class ForestOpeningObstacle {
     this.stones = fresh.stones;
     this.deadwood = fresh.deadwood;
     this.shallowDetourEntered = fresh.shallowDetourEntered;
-    this.materialTick = fresh.materialTick;
-    this.materialCells = fresh.materialCells.slice();
+    this.materialTick = materialTick;
+    this.materialCells = materialCellsAtTick(materialTick);
     this.operationReceipts.clear();
     return this.snapshot();
   }
@@ -277,6 +302,33 @@ export class ForestOpeningObstacle {
     else if (this.deadwood.bridged) this.committedSolutionId = "deadwood_bridge";
     else if (this.shallowDetourEntered) this.committedSolutionId = "shallow_detour";
   }
+
+  private activeSolution(): ForestOpeningSolutionId | null {
+    if (this.committedSolutionId !== null) return this.committedSolutionId;
+    if (this.stones.a.seated || this.stones.b.seated) return "stone_steps";
+    if (this.deadwood.bridged) return "deadwood_bridge";
+    if (this.shallowDetourEntered) return "shallow_detour";
+    return null;
+  }
+
+  private materialPocketBlocks(bounds: Aabb): boolean {
+    const pocket = this.manifest.obstacle.materialPocketPx;
+    if (!intersects(bounds, pocket)) return false;
+    const left = Math.max(0, Math.floor(bounds.x - pocket.x));
+    const right = Math.min(WIDTH - 1, Math.ceil(bounds.x + bounds.width - pocket.x) - 1);
+    const top = Math.max(0, Math.floor(bounds.y - pocket.y));
+    const bottom = Math.min(HEIGHT - 1, Math.ceil(bounds.y + bounds.height - pocket.y) - 1);
+    for (let y = top; y <= bottom; y += 1) {
+      for (let x = left; x <= right; x += 1) {
+        const material = this.materialAt(x, y);
+        if (material === FOREST_OPENING_MATERIAL.soft_soil ||
+            material === FOREST_OPENING_MATERIAL.mud ||
+            material === FOREST_OPENING_MATERIAL.stone ||
+            material === FOREST_OPENING_MATERIAL.deadwood) return true;
+      }
+    }
+    return false;
+  }
 }
 
 export function countForestOpeningMaterials(cells: readonly number[]): Record<keyof typeof FOREST_OPENING_MATERIAL, number> {
@@ -308,31 +360,16 @@ function initialMaterialCells(): Uint8Array {
   return cells;
 }
 
-function stepMaterialCells(source: Uint8Array, tick: number): Uint8Array {
-  const result = source.slice();
-  const direction = tick % 2 === 0 ? 1 : -1;
-  for (let y = 0; y < HEIGHT; y += 1) {
-    const start = direction === 1 ? 0 : WIDTH - 1;
-    const end = direction === 1 ? WIDTH : -1;
-    for (let x = start; x !== end; x += direction) {
-      const index = y * WIDTH + x;
-      const material = source[index];
-      if (material === FOREST_OPENING_MATERIAL.light_debris) {
-        const targetX = x + direction;
-        if (targetX >= 0 && targetX < WIDTH && y + 2 < HEIGHT &&
-            source[y * WIDTH + targetX] === FOREST_OPENING_MATERIAL.air &&
-            source[(y + 2) * WIDTH + x] === FOREST_OPENING_MATERIAL.water &&
-            source[(y + 2) * WIDTH + targetX] === FOREST_OPENING_MATERIAL.water) {
-          result[index] = FOREST_OPENING_MATERIAL.air;
-          result[y * WIDTH + targetX] = FOREST_OPENING_MATERIAL.light_debris;
-        }
-      } else if (material === FOREST_OPENING_MATERIAL.soft_soil && y > 0 &&
-          source[(y - 1) * WIDTH + x] === FOREST_OPENING_MATERIAL.water) {
-        result[index] = FOREST_OPENING_MATERIAL.mud;
-      }
-    }
+function materialCellsAtTick(tick: number): Uint8Array {
+  if (!Number.isSafeInteger(tick) || tick < 0) throw new Error("forest opening material tick is invalid");
+  const cells = initialMaterialCells();
+  if (tick === 0) return cells;
+  for (let x = 4; x < WIDTH - 4; x += 1) {
+    cells[48 * WIDTH + x] = FOREST_OPENING_MATERIAL.mud;
   }
-  return result;
+  cells[38 * WIDTH + 48] = FOREST_OPENING_MATERIAL.air;
+  cells[38 * WIDTH + (tick % 2 === 1 ? 49 : 48)] = FOREST_OPENING_MATERIAL.light_debris;
+  return cells;
 }
 
 function validateRequest(request: ForestOpeningInteraction): void {
@@ -433,13 +470,22 @@ function validateSavedPhysicalState(
       !sameAabb(save.deadwood.bounds, expectedDeadwood)) {
     throw new Error("forest opening saved physical object state is invalid");
   }
-  const completed = [
-    save.stones.a.seated && save.stones.b.seated ? "stone_steps" : null,
-    save.deadwood.bridged ? "deadwood_bridge" : null,
-    save.shallowDetourEntered ? "shallow_detour" : null,
-  ].filter((value): value is ForestOpeningSolutionId => value !== null);
-  if (completed.length > 1 || (completed[0] ?? null) !== save.committedSolutionId) {
+  const stoneWork = save.stones.a.seated || save.stones.b.seated;
+  const stoneComplete = save.stones.a.seated && save.stones.b.seated;
+  const activeWork = Number(stoneWork) + Number(save.deadwood.bridged) + Number(save.shallowDetourEntered);
+  const canonical = save.committedSolutionId === null
+    ? activeWork <= 1 && !stoneComplete && !save.deadwood.bridged && !save.shallowDetourEntered
+    : save.committedSolutionId === "stone_steps"
+      ? stoneComplete && !save.deadwood.bridged && !save.shallowDetourEntered
+      : save.committedSolutionId === "deadwood_bridge"
+        ? !stoneWork && save.deadwood.bridged && !save.shallowDetourEntered
+        : !stoneWork && !save.deadwood.bridged && save.shallowDetourEntered;
+  if (!canonical) {
     throw new Error("forest opening saved solution does not match physical state");
+  }
+  const expectedMaterials = materialCellsAtTick(save.materialTick);
+  if (save.materialCells.some((material, index) => material !== expectedMaterials[index])) {
+    throw new Error("forest opening saved material state is invalid for its tick");
   }
 }
 

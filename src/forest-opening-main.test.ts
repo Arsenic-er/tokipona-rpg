@@ -18,6 +18,7 @@ describe("forest opening formal browser entry", () => {
     expect(markup).toContain('data-surface="game"');
     expect(markup).toContain('data-touch="interact"');
     expect(markup).toContain('data-action="pause"');
+    expect(markup).toContain('data-action="mute"');
     expect(markup).toContain('data-recovery="status"');
     for (const forbidden of ["seed", "topology", "digest", "audit", "profile", "setPosition", "teleport", "damage override"])
       expect(markup.toLowerCase()).not.toContain(forbidden.toLowerCase());
@@ -36,13 +37,26 @@ describe("forest opening formal browser entry", () => {
   });
 
   it("wires only the formal coordinator, narrow view, persistence, and semantic controls", () => {
+    const session = PrologueForestOpeningSession.fresh({ sessionId: "browser.boundary", seed: "browser.boundary.seed" });
+    const markup = createForestOpeningPageMarkup(projectForestOpeningView(
+      session.snapshot(), runtimeForestOpeningAssetExport,
+    ));
     expect(mainSource).toContain("PrologueForestOpeningSession");
     expect(mainSource).toContain("BrowserForestOpeningPersistence");
+    expect(mainSource).toContain("bindLifecycle");
     expect(mainSource).toContain("projectForestOpeningView");
     expect(mainSource).toContain("renderForestOpeningView");
+    expect(mainSource).toContain("loadBrowserForestOpeningVisualAssetsFromDocument");
+    expect(mainSource).toContain("createBrowserWebAudioForestOpeningPort");
+    expect(mainSource).toContain("projectForestOpeningMovementAudioEvents");
+    expect(mainSource).toContain("crypto.randomUUID");
+    expect(mainSource).toContain('pauseDialog.addEventListener("cancel"');
+    expect(mainSource).toContain("MUTE_KEY");
     expect(mainSource).toContain("enterSettlementPerimeter");
     expect(mainSource).not.toContain("ForestGrayboxController");
     expect(mainSource).not.toContain("world-scale");
     expect(mainSource).not.toMatch(/private|review\/|candidate-export|relocatePlayer|teleport|setPosition/);
+    expect(mainSource).not.toMatch(/dataset\.(mode|travelerScreenX|travelerScreenY)/);
+    expect(markup).not.toMatch(/data-(?:mode|traveler-screen)/);
   });
 });

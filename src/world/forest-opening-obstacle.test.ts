@@ -112,6 +112,51 @@ describe("ForestOpeningObstacle", () => {
     expect(first.snapshot.committedSolutionId).toBe("deadwood_bridge");
   });
 
+  it("locks the route on the first partial action and never preserves hybrid physical work", () => {
+    const obstacle = ForestOpeningObstacle.fresh(manifest);
+    expect(apply(obstacle, "partial-stone", {
+      kind: "push_stone", objectId: "stream.stone.a", direction: 1,
+    })).toMatchObject({ ok: true });
+    expect(apply(obstacle, "hybrid-detour", { kind: "enter_shallow_detour" }, {
+      ...manifest.obstacle.materialPocketPx,
+    })).toMatchObject({ ok: false, reason: "solution_conflict" });
+    expect(apply(obstacle, "hybrid-log", {
+      kind: "drag_deadwood", objectId: "stream.deadwood", direction: 1,
+    }, actorNear(manifest.obstacle.objectAnchorsPx.deadwood)))
+      .toMatchObject({ ok: false, reason: "solution_conflict" });
+    expect(obstacle.snapshot()).toMatchObject({
+      committedSolutionId: null,
+      stones: { a: { seated: true }, b: { seated: false } },
+      deadwood: { bridged: false },
+      shallowDetourEntered: false,
+    });
+  });
+
+  it("projects distinct stone, bridge, and shallow material collision geometry", () => {
+    const gate = { x: manifest.obstacle.boundsPx.x + manifest.obstacle.boundsPx.width, y: 700, width: 12, height: 14 };
+    const freshObstacle = ForestOpeningObstacle.fresh(manifest);
+    expect(freshObstacle.blocksTraversal(gate)).toBe(true);
+
+    const stones = ForestOpeningObstacle.fresh(manifest);
+    apply(stones, "stone-a", { kind: "push_stone", objectId: "stream.stone.a", direction: 1 });
+    apply(stones, "stone-b", { kind: "push_stone", objectId: "stream.stone.b", direction: 1 },
+      actorNear(manifest.obstacle.objectAnchorsPx.stoneB));
+    expect(stones.blocksTraversal(stones.snapshot().stones.a.bounds)).toBe(true);
+    expect(stones.blocksTraversal(stones.snapshot().deadwood.bounds)).toBe(false);
+
+    const bridge = ForestOpeningObstacle.fresh(manifest);
+    apply(bridge, "bridge", { kind: "drag_deadwood", objectId: "stream.deadwood", direction: 1 },
+      actorNear(manifest.obstacle.objectAnchorsPx.deadwood));
+    expect(bridge.blocksTraversal(bridge.snapshot().deadwood.bounds)).toBe(true);
+    expect(bridge.blocksTraversal(bridge.snapshot().stones.a.bounds)).toBe(false);
+
+    const detour = ForestOpeningObstacle.fresh(manifest);
+    apply(detour, "detour", { kind: "enter_shallow_detour" }, { ...manifest.obstacle.materialPocketPx });
+    expect(detour.blocksTraversal({ x: manifest.obstacle.materialPocketPx.x + 4,
+      y: manifest.obstacle.materialPocketPx.y + 48, width: 1, height: 1 })).toBe(true);
+    expect(detour.blocksTraversal(detour.snapshot().stones.a.bounds)).toBe(false);
+  });
+
   it("resets partial work but preserves a committed solution", () => {
     const partial = ForestOpeningObstacle.fresh(manifest);
     apply(partial, "partial-stone", {
@@ -180,5 +225,19 @@ describe("ForestOpeningObstacle", () => {
         a: { bounds: { x: 0, y: 0, width: 12, height: 12 }, seated: true },
       },
     })).toThrow(/physical|stone|state/i);
+    expect(() => ForestOpeningObstacle.fromSave(manifest, {
+      ...save,
+      committedSolutionId: "shallow_detour",
+      stones: {
+        ...save.stones,
+        a: { bounds: { x: 1872, y: 736, width: 12, height: 12 }, seated: true },
+      },
+      shallowDetourEntered: true,
+    })).toThrow(/physical|solution|state/i);
+    expect(() => ForestOpeningObstacle.fromSave(manifest, {
+      ...save,
+      materialTick: 1,
+      materialCells: Array.from({ length: 128 * 64 }, () => FOREST_OPENING_MATERIAL.protected_mass),
+    })).toThrow(/material|tick|state/i);
   });
 });

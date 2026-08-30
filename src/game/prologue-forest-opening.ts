@@ -205,7 +205,7 @@ export class PrologueForestOpeningSession {
     if (current.runtime.obstacle.committedSolutionId === null || !current.storyRouteReady) {
       return this.result(false, false, "prerequisite_missing");
     }
-    if (!intersectsStrict(this.actorBounds(), openingManifest.obstacle.settlementEntranceBoundsPx)) {
+    if (!hasReachedSettlementEntrance(this.actorBounds())) {
       return this.result(false, false, "out_of_range");
     }
     const trial = PrologueFlowSession.fromSave(this.flow.toSave());
@@ -213,6 +213,11 @@ export class PrologueForestOpeningSession {
     try {
       const checkpoint = trial.setCheckpoint(operationId, openingManifest.completion.settlementCheckpointId);
       if (!checkpoint.accepted) return this.result(false, false, "session_rejected");
+    } catch {
+      return this.result(false, false, "session_rejected");
+    }
+    try {
+      this.runtime.setCheckpoint(openingManifest.completion.settlementCheckpointId);
     } catch {
       return this.result(false, false, "session_rejected");
     }
@@ -272,6 +277,11 @@ export class PrologueForestOpeningSession {
     }
     if (flow.mode === "settlement" && (solution === null || !hasReachedSettlementEntrance(this.actorBounds()))) {
       throw new Error("forest opening settlement story has no physical entrance proof");
+    }
+    if (flow.mode === "settlement" &&
+        (flow.session.checkpoint?.id !== openingManifest.completion.settlementCheckpointId ||
+          this.runtime.snapshot().spatial.checkpoint.id !== openingManifest.completion.settlementCheckpointId)) {
+      throw new Error("forest opening settlement checkpoint authorities disagree");
     }
     const glyph = flow.session.receiptIndex[GLYPH_RECEIPT_ID];
     if (glyph && (glyph.domain !== "world" || glyph.payloadHash !== GLYPH_RECEIPT_HASH)) {
@@ -339,8 +349,8 @@ function intersectsStrict(left: Aabb, right: Aabb): boolean {
 }
 
 function hasReachedSettlementEntrance(actor: Aabb): boolean {
-  return intersectsStrict(actor, openingManifest.obstacle.settlementEntranceBoundsPx) ||
-    actor.x + actor.width > openingManifest.obstacle.settlementEntranceBoundsPx.x;
+  const entrance = openingManifest.obstacle.settlementEntranceBoundsPx;
+  return actor.x >= entrance.x && intersectsStrict(actor, entrance);
 }
 
 function readSave(candidate: unknown): PrologueForestOpeningSave {
