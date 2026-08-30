@@ -1,7 +1,6 @@
 import { sha256Canonical, type JsonValue } from "../canonical-json";
 import {
   isVerifiedRuntimeForestOpeningManifest,
-  type ForestOpeningSolutionId,
   type RuntimeForestOpeningManifest,
 } from "../content/runtime-forest-opening-manifest";
 import {
@@ -9,6 +8,13 @@ import {
   type RuntimeForestSpatialManifest,
 } from "../content/runtime-forest-spatial-manifest";
 import type { RuntimeInput } from "../runtime";
+import {
+  ForestOpeningObstacle,
+  type ForestOpeningInteraction,
+  type ForestOpeningObstacleActionResult,
+  type ForestOpeningObstacleSave,
+  type ForestOpeningObstacleSnapshot,
+} from "./forest-opening-obstacle";
 import {
   ForestGrayboxRuntime,
   type ForestGrayboxCheckpoint,
@@ -18,16 +24,9 @@ import {
 import { generateForestRegion } from "./forest-region-generator";
 
 const OPENING_SCHEMA = "tokipona.forest-opening-runtime.v0.1" as const;
-const OBSTACLE_SCHEMA = "tokipona.forest-opening-obstacle.v0.1" as const;
 const ECOLOGY_SCHEMA = "tokipona.forest-opening-ecology.v0.1" as const;
 const INITIAL_WORLD_MINUTE = 360;
 const TICKS_PER_WORLD_MINUTE = 240;
-
-export interface ForestOpeningObstacleSave {
-  readonly schema: typeof OBSTACLE_SCHEMA;
-  readonly revision: number;
-  readonly committedSolutionId: ForestOpeningSolutionId | null;
-}
 
 export interface ForestOpeningEcologySave {
   readonly schema: typeof ECOLOGY_SCHEMA;
@@ -43,10 +42,6 @@ export interface ForestOpeningRuntimeSave {
   readonly ecology: ForestOpeningEcologySave;
   readonly worldMinute: number;
   readonly checksum: `sha256:${string}`;
-}
-
-export interface ForestOpeningObstacleSnapshot extends ForestOpeningObstacleSave {
-  readonly stateDigest: `sha256:${string}`;
 }
 
 export interface ForestOpeningEcologySnapshot extends ForestOpeningEcologySave {
@@ -76,18 +71,18 @@ export interface ForestOpeningRuntimeRestoreOptions {
 export class ForestOpeningRuntime {
   private readonly openingManifest: RuntimeForestOpeningManifest;
   private readonly spatialRuntime: ForestGrayboxRuntime;
-  private obstacle: ForestOpeningObstacleSave;
+  private readonly obstacle: ForestOpeningObstacle;
   private ecologyRevision: number;
 
   private constructor(
     openingManifest: RuntimeForestOpeningManifest,
     spatialRuntime: ForestGrayboxRuntime,
-    obstacle: ForestOpeningObstacleSave,
+    obstacle: ForestOpeningObstacle,
     ecologyRevision: number,
   ) {
     this.openingManifest = openingManifest;
     this.spatialRuntime = spatialRuntime;
-    this.obstacle = freezeObstacle(obstacle);
+    this.obstacle = obstacle;
     this.ecologyRevision = ecologyRevision;
   }
 
@@ -99,7 +94,7 @@ export class ForestOpeningRuntime {
     return new ForestOpeningRuntime(
       options.openingManifest,
       spatial,
-      { schema: OBSTACLE_SCHEMA, revision: 0, committedSolutionId: null },
+      ForestOpeningObstacle.fresh(options.openingManifest),
       0,
     );
   }
@@ -109,7 +104,7 @@ export class ForestOpeningRuntime {
     candidate: unknown,
   ): ForestOpeningRuntime {
     assertVerifiedManifests(options.openingManifest, options.spatialManifest);
-    const save = readSave(candidate);
+    const save = readSave(candidate, options.openingManifest);
     if (save.manifestDigest !== options.openingManifest.sourceDigest) {
       throw new Error("forest opening save manifest mismatch");
     }
@@ -125,18 +120,33 @@ export class ForestOpeningRuntime {
     return new ForestOpeningRuntime(
       options.openingManifest,
       spatial,
-      save.obstacle,
+      ForestOpeningObstacle.fromSave(options.openingManifest, save.obstacle),
       save.ecology.revision,
     );
   }
 
   public advanceFrame(elapsedSeconds: number, input: RuntimeInput = {}): number {
-    return this.spatialRuntime.advanceFrame(elapsedSeconds, input);
+    const steps = this.spatialRuntime.advanceFrame(elapsedSeconds, input);
+    this.obstacle.advanceTicks(steps);
+    return steps;
   }
 
   public advanceTicks(ticks: number, input: RuntimeInput = {}): ForestOpeningSnapshot {
     this.spatialRuntime.advanceTicks(ticks, input);
+    this.obstacle.advanceTicks(ticks);
     return this.snapshot();
+  }
+
+  public interact(
+    operationId: string,
+    request: ForestOpeningInteraction,
+    expectedObstacleRevision: number,
+  ): ForestOpeningObstacleActionResult {
+    const player = this.spatialRuntime.snapshot().player;
+    return this.obstacle.applyInteraction(operationId, request, {
+      actorBounds: { ...player.position, ...player.body },
+      expectedRevision: expectedObstacleRevision,
+    });
   }
 
   public setCheckpoint(id: string): ForestGrayboxCheckpoint {
@@ -145,12 +155,13 @@ export class ForestOpeningRuntime {
 
   public resetToCheckpoint(): ForestOpeningSnapshot {
     this.spatialRuntime.resetToCheckpoint();
+    this.obstacle.resetToCommittedState();
     return this.snapshot();
   }
 
   public snapshot(): ForestOpeningSnapshot {
     const spatial = this.spatialRuntime.snapshot();
-    const obstacle = freezeObstacleSnapshot(this.obstacle);
+    const obstacle = this.obstacle.snapshot();
     const ecology = freezeEcologySnapshot({
       schema: ECOLOGY_SCHEMA,
       revision: this.ecologyRevision,
@@ -180,7 +191,7 @@ export class ForestOpeningRuntime {
       schema: OPENING_SCHEMA,
       manifestDigest: this.openingManifest.sourceDigest,
       spatial: this.spatialRuntime.save(),
-      obstacle: freezeObstacle(this.obstacle),
+      obstacle: this.obstacle.save(),
       ecology: freezeEcology({
         schema: ECOLOGY_SCHEMA,
         revision: this.ecologyRevision,
@@ -207,7 +218,10 @@ function assertVerifiedManifests(
   }
 }
 
-function readSave(candidate: unknown): ForestOpeningRuntimeSave {
+function readSave(
+  candidate: unknown,
+  openingManifest: RuntimeForestOpeningManifest,
+): ForestOpeningRuntimeSave {
   const raw = record(candidate, "forest opening save");
   exactKeys(raw, ["schema", "manifestDigest", "spatial", "obstacle", "ecology", "worldMinute", "checksum"], "forest opening save");
   if (raw.schema !== OPENING_SCHEMA) throw new Error("forest opening save schema is invalid");
@@ -216,7 +230,7 @@ function readSave(candidate: unknown): ForestOpeningRuntimeSave {
   if (sha256Canonical(body as JsonValue) !== checksum) throw new Error("forest opening save checksum mismatch");
   const manifestDigest = sha(raw.manifestDigest, "forest opening manifest digest");
   const spatial = readSpatialSave(raw.spatial);
-  const obstacle = readObstacleSave(raw.obstacle);
+  const obstacle = ForestOpeningObstacle.fromSave(openingManifest, raw.obstacle).save();
   const ecology = readEcologySave(raw.ecology);
   if (!Number.isFinite(raw.worldMinute)) throw new Error("forest opening world minute is invalid");
   return Object.freeze({
@@ -241,16 +255,6 @@ function readSpatialSave(value: unknown): ForestGrayboxSave {
   return structuredClone(raw) as unknown as ForestGrayboxSave;
 }
 
-function readObstacleSave(value: unknown): ForestOpeningObstacleSave {
-  const raw = record(value, "forest opening obstacle save");
-  exactKeys(raw, ["schema", "revision", "committedSolutionId"], "forest opening obstacle save");
-  if (raw.schema !== OBSTACLE_SCHEMA || !Number.isSafeInteger(raw.revision) || (raw.revision as number) < 0 ||
-      !(raw.committedSolutionId === null || ["stone_steps", "deadwood_bridge", "shallow_detour"].includes(raw.committedSolutionId as string))) {
-    throw new Error("forest opening obstacle save is invalid");
-  }
-  return freezeObstacle(raw as unknown as ForestOpeningObstacleSave);
-}
-
 function readEcologySave(value: unknown): ForestOpeningEcologySave {
   const raw = record(value, "forest opening ecology save");
   exactKeys(raw, ["schema", "revision", "tick"], "forest opening ecology save");
@@ -261,21 +265,8 @@ function readEcologySave(value: unknown): ForestOpeningEcologySave {
   return freezeEcology(raw as unknown as ForestOpeningEcologySave);
 }
 
-function freezeObstacle(value: ForestOpeningObstacleSave): ForestOpeningObstacleSave {
-  return Object.freeze({
-    schema: OBSTACLE_SCHEMA,
-    revision: value.revision,
-    committedSolutionId: value.committedSolutionId,
-  });
-}
-
 function freezeEcology(value: ForestOpeningEcologySave): ForestOpeningEcologySave {
   return Object.freeze({ schema: ECOLOGY_SCHEMA, revision: value.revision, tick: value.tick });
-}
-
-function freezeObstacleSnapshot(value: ForestOpeningObstacleSave): ForestOpeningObstacleSnapshot {
-  const body = freezeObstacle(value);
-  return Object.freeze({ ...body, stateDigest: sha256Canonical(body as unknown as JsonValue) });
 }
 
 function freezeEcologySnapshot(value: ForestOpeningEcologySave): ForestOpeningEcologySnapshot {

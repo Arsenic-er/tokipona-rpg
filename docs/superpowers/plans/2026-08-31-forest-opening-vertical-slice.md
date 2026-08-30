@@ -286,8 +286,6 @@
 - Create: `src/world/forest-opening-obstacle.test.ts`
 - Modify: `src/world/forest-opening-runtime.ts`
 - Modify: `src/world/forest-opening-runtime.test.ts`
-- Modify: `src/world/forest-chunk-stream.ts`
-- Modify: `src/world/forest-chunk-stream.test.ts`
 
 **Interfaces:**
 - Consumes: exact manifest solution IDs and authored stream obstacle bounds.
@@ -312,7 +310,7 @@
 
 - [ ] **Step 3: Verify RED**
 
-  Run: `pnpm exec vitest run src/world/forest-opening-obstacle.test.ts src/world/forest-chunk-stream.test.ts`
+  Run: `pnpm exec vitest run src/world/forest-opening-obstacle.test.ts`
 
 - [ ] **Step 4: Implement the minimal state machine and material pocket**
 
@@ -327,7 +325,7 @@
   ```powershell
   pnpm exec vitest run src/world/forest-opening-obstacle.test.ts src/world/forest-opening-runtime.test.ts src/world/forest-chunk-stream.test.ts
   pnpm run typecheck
-  git add src/world/forest-opening-obstacle.ts src/world/forest-opening-obstacle.test.ts src/world/forest-opening-runtime.ts src/world/forest-opening-runtime.test.ts src/world/forest-chunk-stream.ts src/world/forest-chunk-stream.test.ts
+  git add src/world/forest-opening-obstacle.ts src/world/forest-opening-obstacle.test.ts src/world/forest-opening-runtime.ts src/world/forest-opening-runtime.test.ts docs/superpowers/plans/2026-08-31-forest-opening-vertical-slice.md
   git commit -m "feat(world): add damaged stream-road solutions"
   ```
 

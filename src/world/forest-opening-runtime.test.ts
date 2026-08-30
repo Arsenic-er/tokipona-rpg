@@ -77,15 +77,25 @@ describe("ForestOpeningRuntime", () => {
   });
 
   it("resets spatial progress while preserving a restored committed solution identity", () => {
-    const source = fresh("forest.opening.reset");
-    source.advanceTicks(120, { moveX: 1 });
-    const checkpoint = source.setCheckpoint("checkpoint.forest.opening.test");
-    const save = source.save();
-    const committed = resign({
-      ...save,
-      obstacle: { ...save.obstacle, revision: 1, committedSolutionId: "stone_steps" },
+    const initial = fresh("forest.opening.reset");
+    const initialSave = initial.save();
+    const positioned = resign({
+      ...initialSave,
+      spatial: {
+        ...initialSave.spatial,
+        player: { ...initialSave.spatial.player, x: 1_832, y: 702 },
+      },
     });
-    const restored = ForestOpeningRuntime.fromSave({ openingManifest, spatialManifest }, committed);
+    const source = ForestOpeningRuntime.fromSave({ openingManifest, spatialManifest }, positioned);
+    const checkpoint = source.snapshot().spatial.checkpoint;
+    expect(source.interact("stone-a", {
+      kind: "push_stone", objectId: "stream.stone.a", direction: 1,
+    }, 0)).toMatchObject({ ok: true });
+    expect(source.interact("stone-b", {
+      kind: "push_stone", objectId: "stream.stone.b", direction: 1,
+    }, 1)).toMatchObject({ ok: true });
+    expect(source.snapshot().obstacle.committedSolutionId).toBe("stone_steps");
+    const restored = ForestOpeningRuntime.fromSave({ openingManifest, spatialManifest }, source.save());
     restored.advanceTicks(120, { moveX: 1 });
 
     const reset = restored.resetToCheckpoint();
