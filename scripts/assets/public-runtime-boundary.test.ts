@@ -7,6 +7,7 @@ import generated from "../../src/generated/content-runtime.v0.1.json";
 import currentRelease from "../../src/assets/runtime-release-contract.v0.1.json";
 import currentPrivateExport from "../../src/assets/runtime-core120-private-export.v0.3.json";
 import currentForestVisualExport from "../../src/assets/runtime-forest-visual-private-export.v0.1.json";
+import currentForestOpeningExport from "../../src/assets/runtime-forest-opening-private-export.v0.1.json";
 import currentCatalog from "../../data/language/pu-120-glyph-catalog.v0.2.json";
 import {
   computeRuntimeCore120CurriculumDigest,
@@ -31,6 +32,7 @@ describe("public runtime asset boundary", () => {
       glyphCatalog: currentCatalog,
       privateAssetExport: currentPrivateExport,
       forestVisualAssetExport: currentForestVisualExport,
+      forestOpeningAssetExport: currentForestOpeningExport,
     })).toEqual({
       schemaVersion: "tokipona.public-asset-boundary-check.v0.3",
       status: "safe_blocked_pending_external_approval",
@@ -51,6 +53,15 @@ describe("public runtime asset boundary", () => {
       approvedPrivateExportPresent: true,
       missingExportPlaceholderPresent: false,
     });
+  });
+
+  it("does not claim full approval while the opening-slice export is still missing", () => {
+    const fixture = approvedFixture();
+    rmSync(join(fixture.root, "public/assets/forest-chapter/opening-slice"), { recursive: true });
+    expect(checkPublicRuntimeAssetBoundary({
+      ...fixture.input,
+      forestOpeningAssetExport: currentForestOpeningExport,
+    } as any).status).toBe("safe_blocked_pending_external_approval");
   });
 
   it("rejects missing, changed, and undeclared runtime files", () => {
@@ -137,6 +148,7 @@ function approvedFixture(): Readonly<{
   const manifest = readRuntimeCore120CurriculumManifest(runtimeArtifact);
   const privateAssetExport = approvedPrivateExport(manifest, root);
   const forestVisualAssetExport = approvedForestVisualExport(root);
+  const forestOpeningAssetExport = approvedForestOpeningExport(root);
   const releaseContract = approvedRelease();
   const glyphCatalog = approvedCatalog();
   return Object.freeze({
@@ -148,8 +160,57 @@ function approvedFixture(): Readonly<{
       glyphCatalog,
       privateAssetExport,
       forestVisualAssetExport,
+      forestOpeningAssetExport,
     },
   });
+}
+
+function approvedForestOpeningExport(root: string): any {
+  const openingRoot = join(root, "public/assets/forest-chapter/opening-slice/v0.1");
+  mkdirSync(openingRoot, { recursive: true });
+  const specs = [
+    ["far_parallax_atlas", "far-parallax.png", 640, 360],
+    ["mid_parallax_atlas", "mid-parallax.png", 640, 360],
+    ["environment_atlas", "environment-atlas.png", 256, 256],
+    ["prop_glyph_atlas", "prop-glyph-atlas.png", 256, 128],
+    ["traveler_atlas", "traveler-atlas.png", 256, 256],
+    ["creature_atlas", "creature-atlas.png", 128, 64],
+    ["animation_manifest", "animation-manifest.json", 0, 0],
+    ["time_palette", "time-palette.json", 0, 0],
+    ["audio_manifest", "audio-manifest.json", 0, 0],
+    ["forest_ambience", "forest-ambience.wav", 0, 0],
+    ["stream_ambience", "stream-ambience.wav", 0, 0],
+    ["foley_bank", "foley-bank.wav", 0, 0],
+    ["dialogue_blip_bank", "dialogue-blip-bank.wav", 0, 0],
+  ] as const;
+  const files = specs.map(([role, filename, width, height]) =>
+    forestOpeningRuntimeFile(openingRoot, role, filename, width, height));
+  return {
+    schemaVersion: "tokipona.forest-opening-private-export.v0.1",
+    status: "approved",
+    packId: "forest.opening.vertical-slice.v001",
+    manifestDigest: hash(Buffer.from("forest-opening-runtime-manifest")),
+    files,
+    constraints: { spriteBinaryAlpha: true, maxPaletteColors: 64,
+      travelerMaxFrameHeightPx: 20, audioPeakDbfsMax: -1, audioClippedSamples: 0 },
+    approvals: { source: "approved", license: "approved", pixel: "approved",
+      animation: "approved", audio: "approved", accessibility: "approved", hashes: "approved" },
+    privacy: { containsPrivatePaths: false, containsPrivateAssets: false,
+      containsConceptAssets: false, containsReviewMedia: false },
+  };
+}
+
+function forestOpeningRuntimeFile(
+  root: string,
+  role: string,
+  filename: string,
+  width: number,
+  height: number,
+): any {
+  const bytes = Buffer.from(`opening:${role}`);
+  writeFileSync(join(root, filename), bytes);
+  return { role, publicPath: `assets/forest-chapter/opening-slice/v0.1/${filename}`,
+    width, height, sha256: hash(bytes) };
 }
 
 function approvedForestVisualExport(root: string): any {

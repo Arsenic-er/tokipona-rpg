@@ -139,6 +139,10 @@ describe("asset release gate", () => {
     expect(auditAssetRelease(approvedForestFixture()).decision).toBe("allow");
   });
 
+  it("allows an approved opening pack with runtime audio under its dedicated forest root", () => {
+    expect(auditAssetRelease(approvedForestOpeningFixture()).decision).toBe("allow");
+  });
+
   it("rejects forest review media even when it is declared as a runtime layer", () => {
     expect(auditAssetRelease(forestFixtureWithReviewPng()).decision).toBe("deny");
   });
@@ -345,6 +349,48 @@ function approvedForestFixture(options: {
 
 function forestFixtureWithReviewPng() {
   return approvedForestFixture({ reviewPng: true });
+}
+
+function approvedForestOpeningFixture() {
+  const root = mkdtempSync(join(tmpdir(), "tokipona-forest-opening-release-gate-"));
+  temporaryRoots.push(root);
+  const assetRoot = join(root, "asset-private");
+  const publicRoot = join(root, "game-public");
+  for (const directory of ["manifests", "runtime", "records", "provenance"]) {
+    mkdirSync(join(assetRoot, directory), { recursive: true });
+  }
+  mkdirSync(publicRoot, { recursive: true });
+  const releaseFiles = [
+    forestReleaseFile("runtime/far.png", "far.png", "runtime_layer"),
+    forestReleaseFile("runtime/traveler.png", "traveler.png", "runtime_atlas"),
+    forestReleaseFile("runtime/palette.json", "palette.json", "runtime_palette"),
+    forestReleaseFile("runtime/manifest.json", "manifest.json", "runtime_manifest"),
+    forestReleaseFile("runtime/forest.wav", "forest.wav", "runtime_audio"),
+  ];
+  for (const file of releaseFiles) {
+    const path = join(assetRoot, ...file.source.split("/"));
+    mkdirSync(join(path, ".."), { recursive: true });
+    writeFileSync(path, file.content);
+  }
+  writeFileSync(join(assetRoot, "provenance", "license.txt"), "opening-license");
+  writeFileSync(join(assetRoot, "records", "license.yaml"), stringify({
+    status: "approved", source_url: "https://example.invalid/opening",
+    source_url_status: "verified", redistribution_status: "approved", license_spdx: "CC0-1.0",
+    files: { license: { path: "provenance/license.txt", sha256: sha256("opening-license") } },
+  }));
+  writeFileSync(join(assetRoot, "manifests", "opening.yaml"), stringify({
+    asset_id: "forest.opening.vertical-slice.v001", runtime_ready: true,
+    outputs: { public_export: {
+      release_status: "approved", destination_root: "forest_chapter_opening",
+      destination: "opening-slice/v0.1", license_record: "records/license.yaml",
+      approvals: Object.fromEntries(
+        ["source", "license", "pixel", "animation", "audio", "accessibility", "hashes"]
+          .map((approval) => [approval, "approved"]),
+      ),
+      files: releaseFiles.map(({ content: _content, ...file }) => file),
+    } },
+  }));
+  return { assetRoot, publicRepositoryRoot: publicRoot, manifestPath: "manifests/opening.yaml" };
 }
 
 function forestReleaseFile(source: string, target: string, role: string) {

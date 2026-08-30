@@ -88,6 +88,7 @@ type RuntimeRootId = keyof typeof RUNTIME_ROOTS;
 const RUNTIME_ROOTS = {
   magic_glyphs: PUBLIC_RUNTIME_ROOT,
   forest_chapter_visuals: PUBLIC_FOREST_VISUAL_ROOT,
+  forest_chapter_opening: PUBLIC_FOREST_VISUAL_ROOT,
 } as const;
 
 const FOREST_VISUAL_REQUIRED_APPROVALS = [
@@ -99,6 +100,16 @@ const FOREST_VISUAL_REQUIRED_APPROVALS = [
   "hashes",
 ] as const;
 
+const FOREST_OPENING_REQUIRED_APPROVALS = [
+  "source",
+  "license",
+  "pixel",
+  "animation",
+  "audio",
+  "accessibility",
+  "hashes",
+] as const;
+
 const ROLE_EXTENSIONS = {
   runtime_layer: [".png"],
   runtime_atlas: [".png"],
@@ -106,6 +117,7 @@ const ROLE_EXTENSIONS = {
   runtime_animation: [".apng"],
   runtime_palette: [".json"],
   runtime_manifest: [".json"],
+  runtime_audio: [".ogg", ".wav"],
 } as const;
 
 const ROOT_ROLES = {
@@ -121,6 +133,13 @@ const ROOT_ROLES = {
     "runtime_atlas",
     "runtime_palette",
     "runtime_manifest",
+  ]),
+  forest_chapter_opening: new Set<RuntimeFileRole>([
+    "runtime_layer",
+    "runtime_atlas",
+    "runtime_palette",
+    "runtime_manifest",
+    "runtime_audio",
   ]),
 } as const;
 
@@ -279,7 +298,7 @@ function parseRelease(options: AuditAssetReleaseOptions): ParsedRelease {
 function parseRuntimeRoot(value: unknown): RuntimeRootId {
   if (value === undefined || value === null) return "magic_glyphs";
   const root = stringValue(value);
-  if (root === "magic_glyphs" || root === "forest_chapter_visuals") return root;
+  if (root === "magic_glyphs" || root === "forest_chapter_visuals" || root === "forest_chapter_opening") return root;
   throw new Error("destination_root_invalid");
 }
 
@@ -302,7 +321,9 @@ function auditApprovals(
   const approvals = recordValue(publicExport?.approvals);
   const requiredApprovals = destinationRoot === "forest_chapter_visuals"
     ? FOREST_VISUAL_REQUIRED_APPROVALS
-    : REQUIRED_APPROVALS;
+    : destinationRoot === "forest_chapter_opening"
+      ? FOREST_OPENING_REQUIRED_APPROVALS
+      : REQUIRED_APPROVALS;
   for (const approval of requiredApprovals) {
     const passed = approvals?.[approval] === "approved";
     checks.push({
@@ -473,7 +494,8 @@ function validateRuntimeFilePath(
   if (FORBIDDEN_FILE_MARKERS.some((marker) => filename.includes(marker))) {
     throw new Error("review_or_engineering_file_forbidden");
   }
-  if (destinationRoot === "forest_chapter_visuals" && segments.some((segment) =>
+  if ((destinationRoot === "forest_chapter_visuals" || destinationRoot === "forest_chapter_opening") &&
+      segments.some((segment) =>
     FOREST_VISUAL_FORBIDDEN_PATH_MARKERS.some((marker) =>
       segment.toLowerCase().includes(marker)))) {
     throw new Error("private_asset_class_forbidden");

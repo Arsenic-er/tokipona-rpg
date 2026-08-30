@@ -11,6 +11,10 @@ import {
   type RuntimeForestVisualAssetExport,
 } from "../../src/assets/runtime-forest-visual-assets.ts";
 import {
+  readRuntimeForestOpeningAssetExport,
+  type RuntimeForestOpeningAssetExport,
+} from "../../src/assets/runtime-forest-opening-assets.ts";
+import {
   readRuntimeCore120CurriculumManifest,
   type RuntimeCore120CurriculumManifest,
 } from "../../src/content/runtime-core120-curriculum-manifest.ts";
@@ -25,6 +29,7 @@ export interface PublicRuntimeAssetBoundaryInput {
   readonly glyphCatalog: unknown;
   readonly privateAssetExport: unknown;
   readonly forestVisualAssetExport: unknown;
+  readonly forestOpeningAssetExport: unknown;
 }
 
 export interface PublicRuntimeAssetBoundaryReport {
@@ -53,6 +58,9 @@ export function readRepositoryPublicRuntimeAssetBoundary(
     forestVisualAssetExport: readJson(
       "src/assets/runtime-forest-visual-private-export.v0.1.json",
     ),
+    forestOpeningAssetExport: readJson(
+      "src/assets/runtime-forest-opening-private-export.v0.1.json",
+    ),
   });
 }
 
@@ -70,6 +78,9 @@ export function checkPublicRuntimeAssetBoundary(
   );
   const forestVisualAssetExport = readRuntimeForestVisualAssetExport(
     input.forestVisualAssetExport,
+  );
+  const forestOpeningAssetExport = readRuntimeForestOpeningAssetExport(
+    input.forestOpeningAssetExport,
   );
   readCatalog(input.glyphCatalog, manifest);
   const publicFiles = readPublicAssetFiles(repositoryRoot);
@@ -113,9 +124,10 @@ export function checkPublicRuntimeAssetBoundary(
       "unapproved_glyph_runtime_present");
   }
 
-  verifyForestVisualFiles(repositoryRoot, forestVisualAssetExport, publicFiles.forestFiles);
+  verifyForestRuntimeFiles(repositoryRoot, forestVisualAssetExport,
+    forestOpeningAssetExport, publicFiles.forestFiles);
   const allRuntimeAssetsApproved = readiness.playableContentMayClaimFullAssetAcceptance &&
-    forestVisualAssetExport.status === "approved";
+    forestVisualAssetExport.status === "approved" && forestOpeningAssetExport.status === "approved";
   return freezeReport({
     status: allRuntimeAssetsApproved
       ? "approved_runtime_assets_verified"
@@ -126,22 +138,23 @@ export function checkPublicRuntimeAssetBoundary(
   });
 }
 
-function verifyForestVisualFiles(
+function verifyForestRuntimeFiles(
   repositoryRoot: string,
   forestVisualAssetExport: RuntimeForestVisualAssetExport,
+  forestOpeningAssetExport: RuntimeForestOpeningAssetExport,
   publicForestFiles: readonly string[],
 ): void {
-  if (forestVisualAssetExport.status === "missing") {
-    assertSameFileSet(publicForestFiles, new Set(), "unapproved_forest_runtime_present");
-    return;
-  }
   const expectedForestFiles = new Set<string>();
-  for (const file of forestVisualAssetExport.files) {
-    const repositoryPath = repositoryPathForPublicAsset(file.publicPath);
-    expectedForestFiles.add(repositoryPath);
-    assertFileHash(repositoryRoot, repositoryPath, file.sha256);
+  for (const assetExport of [forestVisualAssetExport, forestOpeningAssetExport]) {
+    if (assetExport.status === "missing") continue;
+    for (const file of assetExport.files) {
+      const repositoryPath = repositoryPathForPublicAsset(file.publicPath);
+      expectedForestFiles.add(repositoryPath);
+      assertFileHash(repositoryRoot, repositoryPath, file.sha256);
+    }
   }
-  assertSameFileSet(publicForestFiles, expectedForestFiles, "public_forest_file_set_invalid");
+  assertSameFileSet(publicForestFiles, expectedForestFiles,
+    expectedForestFiles.size === 0 ? "unapproved_forest_runtime_present" : "public_forest_file_set_invalid");
 }
 
 function assertRuntimeAtlasMatches(
