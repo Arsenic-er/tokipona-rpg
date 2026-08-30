@@ -2,7 +2,7 @@ import {
   isVerifiedRuntimeForestSpatialManifest,
   type RuntimeForestSpatialManifest,
 } from "../content/runtime-forest-spatial-manifest";
-import type { Vec2 } from "../runtime/geometry";
+import type { Aabb, Vec2 } from "../runtime/geometry";
 import type { ForestGrayboxSnapshot } from "../world/forest-graybox-runtime";
 import {
   generateForestRegion,
@@ -33,10 +33,13 @@ let cachedRegion: Readonly<{
   region: ForestRegion;
 }> | null = null;
 
+export type ForestSpatialSolidQuery = (bounds: Aabb) => boolean;
+
 /** Projects read-only location facts from a graybox snapshot. */
 export function projectForestSpatialLocation(
   manifest: RuntimeForestSpatialManifest,
   runtime: ForestGrayboxSnapshot,
+  isSolid?: ForestSpatialSolidQuery,
 ): ForestSpatialLocation {
   if (!isVerifiedRuntimeForestSpatialManifest(manifest)) {
     throw new ForestSpatialProjectionError("reader-verified manifest required");
@@ -48,15 +51,26 @@ export function projectForestSpatialLocation(
   }
 
   const position = runtime.player.position;
+  const bodyBounds = { ...position, ...runtime.player.body };
   const allClearanceVolumes = region.criticalRouteClearances.flatMap((clearance) => clearance.volumesPx);
-  if (!allClearanceVolumes.some((volume) => containsInclusive(volume, position))) {
-    throw new ForestSpatialProjectionError("position is outside traversable authored route clearance");
-  }
+  const inRouteClearance = allClearanceVolumes.some((volume) => containsInclusive(volume, position));
 
   const directDistricts = manifest.districts.filter((district) =>
     containsInclusive(district.boundsPx, position));
   if (directDistricts.length > 1) {
     throw new ForestSpatialProjectionError("position belongs to multiple authored districts");
+  }
+  const inAuthoredMeadowAir = region.meadowSurfaces.some((surface) =>
+    bodyBounds.x >= surface.left &&
+    bodyBounds.x + bodyBounds.width <= surface.right &&
+    bodyBounds.y + bodyBounds.height <= surface.y);
+  if (!inRouteClearance) {
+    if (!(directDistricts.length === 1 && inAuthoredMeadowAir)) {
+      throw new ForestSpatialProjectionError("position is outside traversable authored route clearance");
+    }
+    if (isSolid === undefined || isSolid(bodyBounds)) {
+      throw new ForestSpatialProjectionError("position intersects generated solid material");
+    }
   }
 
   const corridorHits = region.routeCorridors

@@ -125,6 +125,38 @@ describe("ForestGrayboxRuntime", () => {
     expect(replay.snapshot().stateDigest).toBe(source.snapshot().stateDigest);
   });
 
+  it("physically traverses arrival, settlement east egress, hermit branch, and waterwheel approach", () => {
+    const runtime = createRuntime();
+    const reached = new Set<string>(["forest.arrival"]);
+    let furthestX = runtime.snapshot().player.position.x;
+    let stagnantTicks = 0;
+
+    for (let tick = 0; tick < 7_200 && furthestX < 5_000; tick += 1) {
+      const jump = stagnantTicks >= 120;
+      runtime.advanceTicks(1, { moveX: 1, jump });
+      const player = runtime.snapshot().player.position;
+      if (player.x > furthestX + 0.25) {
+        furthestX = player.x;
+        stagnantTicks = 0;
+      } else {
+        stagnantTicks = jump ? 0 : stagnantTicks + 1;
+      }
+      if (player.x >= 1_280) reached.add("forest.stream");
+      if (player.x >= 2_496) reached.add("forest.settlement");
+      if (player.x >= 3_776) reached.add("forest.hermit_branch");
+      if (player.x >= 5_000) reached.add("forest.waterwheel.approach");
+    }
+
+    expect(furthestX).toBeGreaterThanOrEqual(5_000);
+    expect([...reached]).toEqual([
+      "forest.arrival",
+      "forest.stream",
+      "forest.settlement",
+      "forest.hermit_branch",
+      "forest.waterwheel.approach",
+    ]);
+  });
+
   it("keeps the final fixed-zoom camera deterministic and clamped", () => {
     const left = createRuntime({ x: 0, y: 0 }).snapshot().camera;
     const right = createRuntime({ x: 10_220, y: 2_850 }).snapshot().camera;

@@ -45,6 +45,25 @@ describe("ForestChunkStream", () => {
     expect(stream.isSolid({ x: 3000, y: 762, width: 1, height: 1 })).toBe(false);
   });
 
+  it("keeps authored meadow air open and carves a body-safe settlement east egress", () => {
+    const stream = new ForestChunkStream(manifest, region);
+    const meadow = region.meadowSurfaces[0]!;
+    const meadowProbeX = meadow.right - 32;
+
+    expect(stream.materialAt(meadowProbeX, meadow.y - 1)).toBe(FOREST_MATERIAL.air);
+    expect(stream.materialAt(meadowProbeX, meadow.y)).toBe(FOREST_MATERIAL.soil);
+    expect(stream.materialAt(meadowProbeX, meadow.y + 11)).toBe(FOREST_MATERIAL.soil);
+    expect(stream.materialAt(meadowProbeX, meadow.y + 12)).toBe(FOREST_MATERIAL.stone);
+
+    const egress = region.routeCorridors.find((corridor) => corridor.edgeId === "settlement.hermit")!;
+    for (const cellId of egress.cellIds) {
+      const position = region.traversableCells.find((cell) => cell.cellId === cellId)!.positionPx;
+      expect(stream.isSolid({ ...position, width: 12, height: 14 }), cellId).toBe(false);
+    }
+
+    expect(stream.materialAt(3330, 180)).toBe(FOREST_MATERIAL.protected_mass);
+  });
+
   it("does not expose cached material payloads to caller mutation", () => {
     const stream = new ForestChunkStream(manifest, region);
     const camera = { x: 512, y: 480, width: 1, height: 1 };

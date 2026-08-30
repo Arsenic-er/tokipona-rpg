@@ -121,6 +121,32 @@ describe("forest graybox view", () => {
     expect(target.uploads()).toBe(1);
   });
 
+  it("reuses one caller-owned RGBA buffer and one per-context ImageData across frames", () => {
+    const snapshot = snapshotAt({
+      cameraX: 192,
+      cameraY: 304,
+      districtId: "forest.arrival",
+      sceneId: "scene.valley.arrival_shelf",
+    });
+    const rgba = new Uint8ClampedArray(640 * 360 * 4);
+    const first = projectForestGrayboxView(snapshot, { materialPixels: rgba });
+    const second = projectForestGrayboxView(snapshot, { materialPixels: rgba });
+    const firstPixels = first.commands.find((command) => command.kind === "material-pixels")!;
+    const secondPixels = second.commands.find((command) => command.kind === "material-pixels")!;
+    const target = fakeCanvasTarget();
+
+    expect(firstPixels.kind === "material-pixels" && firstPixels.pixels === rgba).toBe(true);
+    expect(secondPixels.kind === "material-pixels" && secondPixels.pixels === rgba).toBe(true);
+    renderForestGrayboxView(target.context, first);
+    renderForestGrayboxView(target.context, second);
+
+    expect(target.imageDataAllocations()).toBe(1);
+    expect(target.uploads()).toBe(2);
+    expect(() => projectForestGrayboxView(snapshot, {
+      materialPixels: new Uint8ClampedArray(640 * 360 * 4 - 1),
+    })).toThrow(/640×360 RGBA/);
+  });
+
   it("builds a full-screen page shell without the retired scale controls or audit drawer", () => {
     const view = projectForestGrayboxView(snapshotAt({
       cameraX: 192,
@@ -187,12 +213,18 @@ function snapshotAt(options: {
   });
 }
 
-function fakeCanvasTarget(): { readonly context: CanvasRenderingContext2D; readonly uploads: () => number } {
+function fakeCanvasTarget(): {
+  readonly context: CanvasRenderingContext2D;
+  readonly uploads: () => number;
+  readonly imageDataAllocations: () => number;
+} {
   let uploadCount = 0;
+  let imageDataAllocationCount = 0;
   const materialContext = {
-    createImageData: (width: number, height: number) => ({
-      data: new Uint8ClampedArray(width * height * 4), width, height, colorSpace: "srgb",
-    }),
+    createImageData: (width: number, height: number) => {
+      imageDataAllocationCount += 1;
+      return { data: new Uint8ClampedArray(width * height * 4), width, height, colorSpace: "srgb" };
+    },
     putImageData: () => { uploadCount += 1; },
   };
   const surface = { width: 0, height: 0, getContext: () => materialContext };
@@ -204,7 +236,11 @@ function fakeCanvasTarget(): { readonly context: CanvasRenderingContext2D; reado
     fillRect: noop, strokeRect: noop, beginPath: noop, closePath: noop, moveTo: noop,
     lineTo: noop, arc: noop, fill: noop, stroke: noop, save: noop, restore: noop, drawImage: noop,
   } as unknown as CanvasRenderingContext2D;
-  return { context, uploads: () => uploadCount };
+  return {
+    context,
+    uploads: () => uploadCount,
+    imageDataAllocations: () => imageDataAllocationCount,
+  };
 }
 
 function touchHarness(): {

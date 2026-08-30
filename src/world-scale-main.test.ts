@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { ForestGrayboxController } from "./visual/forest-graybox-controller";
+import {
+  advanceForestGrayboxAuditFrame,
+  ForestGrayboxController,
+} from "./visual/forest-graybox-controller";
 import {
   createForestGrayboxPageMarkup,
   projectForestGrayboxView,
@@ -17,6 +20,10 @@ describe("world scale browser surface", () => {
     expect(markup).toContain('data-district-id="forest.arrival"');
     expect(markup).not.toContain("data-profile");
     expect(markup).not.toContain("world-review__audit");
+    expect(snapshot.diagnostics.laterGates).toEqual([
+      { anchorId: "forest.safe_range", blocked: true },
+      { anchorId: "forest.old_mine", blocked: true },
+    ]);
   });
 
   it("keeps browser movement semantic and the camera fixed while the HUD advances", () => {
@@ -43,5 +50,19 @@ describe("world scale browser surface", () => {
     expect(reset.runtime.player.position).toEqual(initial.runtime.player.position);
     expect(markup).toContain('data-action="reset"');
     expect(markup).not.toContain('data-touch="interact"');
+  });
+
+  it("batches at most one audit second through all exact fixed steps", () => {
+    const oneSecond = ForestGrayboxController.fresh({ seed: "forest.audit.catchup" });
+    const directTicks = ForestGrayboxController.fresh({ seed: "forest.audit.catchup" });
+    const capped = ForestGrayboxController.fresh({ seed: "forest.audit.catchup" });
+
+    const batched = advanceForestGrayboxAuditFrame(oneSecond, 1, { moveX: 1 });
+    const direct = directTicks.advanceTicks(60, { moveX: 1 });
+    const overLimit = advanceForestGrayboxAuditFrame(capped, 4, { moveX: 1 });
+
+    expect(batched.runtime.tick).toBe(60);
+    expect(batched).toEqual(direct);
+    expect(overLimit).toEqual(direct);
   });
 });

@@ -75,9 +75,21 @@ describe("forest region generator", () => {
   it("is byte-stable for a reader-verified manifest and seed", () => {
     const first = generateForestRegion(manifest, "forest.chapter-one.audit");
     const second = generateForestRegion(manifest, "forest.chapter-one.audit");
+    const initialReachable = reachableCellIds(first, []);
 
     expect(serializeForestRegion(first)).toBe(serializeForestRegion(second));
     expect(first.topologyDigest).toBe(second.topologyDigest);
+    expect({
+      digest: first.topologyDigest,
+      reachable: initialReachable.size,
+      total: first.traversableCells.length,
+      ratio: initialReachable.size / first.traversableCells.length,
+    }).toEqual({
+      digest: "sha256:e7f9c2044552ff24e3a6a41535d3e84128de055a4bc0fd370975f05dd87f2432",
+      reachable: 38,
+      total: 100,
+      ratio: 0.38,
+    });
   });
 
   it.each(FIXED_SEEDS)("keeps the authored topology invariant for %s", (seed) => {
@@ -204,6 +216,21 @@ describe("forest region generator", () => {
         expect.objectContaining({ districtId: corridor.fromDistrictId, fromT: 0, toT: 0.5, includesEnd: false }),
         expect.objectContaining({ districtId: corridor.toDistrictId, fromT: 0.5, toT: 1, includesStart: true }),
       ]);
+    }
+  });
+
+  it("keeps the initial settlement egress clearance continuous for the 12x14 player body", () => {
+    const region = generateForestRegion(manifest, "forest.chapter-one.audit");
+    const egress = region.routeCorridors.find((corridor) => corridor.edgeId === "settlement.hermit")!;
+
+    for (let index = 0; index < egress.clearanceVolumesPx.length - 1; index += 1) {
+      const left = egress.clearanceVolumesPx[index]!;
+      const right = egress.clearanceVolumesPx[index + 1]!;
+      const overlapWidth = Math.min(left.x + left.width, right.x + right.width) - Math.max(left.x, right.x);
+      const overlapHeight = Math.min(left.y + left.height, right.y + right.height) - Math.max(left.y, right.y);
+
+      expect(overlapWidth, `egress clearance overlap ${index} width`).toBeGreaterThanOrEqual(12);
+      expect(overlapHeight, `egress clearance overlap ${index} height`).toBeGreaterThanOrEqual(14);
     }
   });
 

@@ -175,6 +175,7 @@ const manifest = readRuntimeForestSpatialManifest(generatedRuntimeArtifact);
 const materialSurfaces = new WeakMap<object, Readonly<{
   canvas: HTMLCanvasElement;
   context: CanvasRenderingContext2D;
+  image: ImageData;
 }>>();
 let cachedRegion: Readonly<{ seed: string; region: ForestRegion }> | null = null;
 
@@ -206,6 +207,7 @@ const MATERIAL_COLORS: Readonly<Record<number, readonly [number, number, number,
 
 export function projectForestGrayboxView(
   snapshot: ForestGrayboxControllerSnapshot,
+  options: Readonly<{ materialPixels?: Uint8ClampedArray }> = {},
 ): ForestGrayboxViewProjection {
   const camera = snapshot.runtime.camera;
   if (camera.width !== FOREST_GRAYBOX_VIEWPORT.width || camera.height !== FOREST_GRAYBOX_VIEWPORT.height) {
@@ -214,6 +216,10 @@ export function projectForestGrayboxView(
   const region = regionFor(snapshot.runtime.seed);
   if (region.topologyDigest !== snapshot.runtime.topologyDigest) {
     throw new Error("forest graybox view topology does not match the controller snapshot");
+  }
+  const expectedPixelLength = FOREST_GRAYBOX_VIEWPORT.width * FOREST_GRAYBOX_VIEWPORT.height * 4;
+  if (options.materialPixels !== undefined && options.materialPixels.length !== expectedPixelLength) {
+    throw new Error("forest graybox materialPixels must be an exact 640×360 RGBA buffer");
   }
 
   const commands: ForestGrayboxRenderCommand[] = [regionalField(snapshot.location.districtId)];
@@ -236,7 +242,7 @@ export function projectForestGrayboxView(
     kind: "material-pixels" as const,
     width: FOREST_GRAYBOX_VIEWPORT.width,
     height: FOREST_GRAYBOX_VIEWPORT.height,
-    pixels: rasterizeMaterialPixels(snapshot.streamedChunks, camera),
+    pixels: rasterizeMaterialPixels(snapshot.streamedChunks, camera, options.materialPixels),
   }));
   commands.push(...waterCourseCommands(camera));
 
@@ -426,8 +432,12 @@ function projectMeadow(camera: ForestCameraState): ForestGrayboxMeadowProjection
 function rasterizeMaterialPixels(
   chunks: readonly ForestMaterialChunk[],
   camera: ForestCameraState,
+  target?: Uint8ClampedArray,
 ): Uint8ClampedArray {
-  const pixels = new Uint8ClampedArray(FOREST_GRAYBOX_VIEWPORT.width * FOREST_GRAYBOX_VIEWPORT.height * 4);
+  const pixels = target ?? new Uint8ClampedArray(
+    FOREST_GRAYBOX_VIEWPORT.width * FOREST_GRAYBOX_VIEWPORT.height * 4,
+  );
+  pixels.fill(0);
   for (const chunk of chunks) {
     const originX = chunk.chunkX * 16 - camera.x;
     const originY = chunk.chunkY * 16 - camera.y;
@@ -587,12 +597,15 @@ function uploadMaterialPixels(
     canvas.height = command.height;
     const materialContext = canvas.getContext("2d", { alpha: true });
     if (!materialContext) throw new Error("forest graybox material surface is unavailable");
-    surface = Object.freeze({ canvas, context: materialContext });
+    surface = Object.freeze({
+      canvas,
+      context: materialContext,
+      image: materialContext.createImageData(command.width, command.height),
+    });
     materialSurfaces.set(context, surface);
   }
-  const image = surface.context.createImageData(command.width, command.height);
-  image.data.set(command.pixels);
-  surface.context.putImageData(image, 0, 0);
+  surface.image.data.set(command.pixels);
+  surface.context.putImageData(surface.image, 0, 0);
   context.drawImage(surface.canvas, 0, 0);
 }
 

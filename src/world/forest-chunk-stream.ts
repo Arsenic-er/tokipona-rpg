@@ -188,10 +188,14 @@ export class ForestChunkStream {
     if (this.isWaterPixel(x, y)) return FOREST_MATERIAL.water;
 
     const meadow = this.region.meadowSurfaces.find((surface) =>
-      x >= surface.left && x < surface.right && y >= surface.y);
-    if (meadow) return y < meadow.y + 12 ? FOREST_MATERIAL.soil : FOREST_MATERIAL.stone;
+      x >= surface.left && x < surface.right);
 
     if (inClearance) return FOREST_MATERIAL.air;
+
+    if (meadow) {
+      if (y < meadow.y) return FOREST_MATERIAL.air;
+      return y < meadow.y + 12 ? FOREST_MATERIAL.soil : FOREST_MATERIAL.stone;
+    }
 
     const pocket = (context?.pockets ?? this.region.pockets)
       .find((candidate) => contains(candidate.boundsPx, x, y));

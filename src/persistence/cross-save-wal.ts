@@ -1,6 +1,6 @@
-import { canonicalJson, sha256Canonical, type JsonValue } from "../canonical-json";
+import { canonicalJson, sha256Canonical, type JsonValue } from "../canonical-json.ts";
 
-export { canonicalJson, sha256Canonical, type JsonValue } from "../canonical-json";
+export { canonicalJson, sha256Canonical, type JsonValue } from "../canonical-json.ts";
 
 /** Storage-agnostic cross-save WAL. A durable store is mandatory in production. */
 export const CROSS_SAVE_WAL_SCHEMA = "tokipona.cross-save-wal.v0.1" as const;

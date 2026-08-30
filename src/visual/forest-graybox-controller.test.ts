@@ -20,7 +20,54 @@ describe("ForestGrayboxController", () => {
       seed: "forest.controller.audit",
       topologyDigest: first.runtime.topologyDigest,
       cache: { retained: expect.any(Number), materialized: expect.any(Number) },
+      laterGates: [
+        { anchorId: "forest.safe_range", blocked: true },
+        { anchorId: "forest.old_mine", blocked: true },
+      ],
     });
+  });
+
+  it("registers checkpoints only after real movement reaches a new accessible district", () => {
+    const controller = ForestGrayboxController.fresh({ seed: "forest.controller.checkpoint" });
+    const initial = controller.snapshot();
+    let previousDistrictId = initial.location.districtId;
+    let previousX = initial.runtime.player.position.x;
+    let stalledBatches = 0;
+    const transitions: string[] = [];
+
+    for (let batch = 0; batch < 60; batch += 1) {
+      const next = controller.advanceTicks(60, { moveX: 1 });
+      if (next.location.districtId !== previousDistrictId) {
+        transitions.push(`${previousDistrictId}->${next.location.districtId}`);
+        previousDistrictId = next.location.districtId;
+      }
+      if (next.runtime.checkpoint.id === "checkpoint.forest.settlement") {
+        expect(next.runtime.checkpoint).toMatchObject({
+          id: "checkpoint.forest.settlement",
+          position: next.runtime.player.position,
+        });
+        expect(next.runtime.player.grounded).toBe(true);
+        break;
+      } else {
+        expect(next.runtime.checkpoint).toEqual(initial.runtime.checkpoint);
+      }
+      if (next.runtime.player.position.x <= previousX + 0.25) stalledBatches += 1;
+      else stalledBatches = 0;
+      previousX = next.runtime.player.position.x;
+      if (stalledBatches >= 2) {
+        controller.advanceTicks(1, { moveX: 1, jump: true });
+        stalledBatches = 0;
+      }
+    }
+
+    const reached = controller.snapshot();
+    expect(transitions).toContain("forest.stream->forest.settlement");
+    expect(reached.runtime.checkpoint.id).toBe("checkpoint.forest.settlement");
+    expect(reached.runtime.checkpoint.position).not.toEqual(initial.runtime.checkpoint.position);
+    const checkpoint = reached.runtime.checkpoint;
+    controller.advanceTicks(60);
+    expect(controller.resetToCheckpoint().runtime.player.position).toEqual(checkpoint.position);
+    expect(controller.advanceTicks(60).runtime.player.position).toEqual(checkpoint.position);
   });
 
   it("accepts semantic RuntimeInput only and fails closed on domain-shaped commands", () => {
@@ -62,10 +109,19 @@ describe("ForestGrayboxController", () => {
     const beforeBytes = JSON.stringify(flow.toSave());
     const controller = ForestGrayboxController.fresh({ seed: "forest.controller.route" });
     const visited = new Set([controller.snapshot().location.districtId]);
+    let previousX = controller.snapshot().runtime.player.position.x;
+    let stalledBatches = 0;
 
-    for (let cycle = 0; cycle < 48; cycle += 1) {
-      visited.add(controller.advanceTicks(1, { moveX: 1, jump: true }).location.districtId);
-      visited.add(controller.advanceTicks(74, { moveX: 1, jump: false }).location.districtId);
+    for (let cycle = 0; cycle < 60; cycle += 1) {
+      const next = controller.advanceTicks(60, { moveX: 1 });
+      visited.add(next.location.districtId);
+      if (next.runtime.player.position.x <= previousX + 0.25) stalledBatches += 1;
+      else stalledBatches = 0;
+      previousX = next.runtime.player.position.x;
+      if (stalledBatches >= 2) {
+        visited.add(controller.advanceTicks(1, { moveX: 1, jump: true }).location.districtId);
+        stalledBatches = 0;
+      }
     }
 
     const final = controller.snapshot();

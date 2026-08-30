@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import generated from "../generated/content-runtime.v0.1.json";
 import { readRuntimeForestSpatialManifest } from "../content/runtime-forest-spatial-manifest";
 import { ForestGrayboxRuntime } from "../world/forest-graybox-runtime";
+import { ForestChunkStream } from "../world/forest-chunk-stream";
 import { generateForestRegion } from "../world/forest-region-generator";
 import {
   FOREST_NEARBY_ANCHOR_DISTANCE_PX,
@@ -12,6 +13,7 @@ import {
 const manifest = readRuntimeForestSpatialManifest(generated);
 const seed = "forest.spatial-projection.test";
 const region = generateForestRegion(manifest, seed);
+const stream = new ForestChunkStream(manifest, region);
 
 function snapshotAt(position: Readonly<{ x: number; y: number }>) {
   return new ForestGrayboxRuntime({ manifest, region, initialPosition: position }).snapshot();
@@ -49,8 +51,24 @@ describe("forest spatial projection", () => {
     expect(projectForestSpatialLocation(manifest, at(0.5)).districtId).toBe("forest.hermit_branch");
   });
 
-  it("fails closed at an overlapping authored boundary and in non-traversable unresolved space", () => {
+  it("projects collision-safe authored meadow space beyond the narrow route clearance", () => {
+    const runtime = snapshotAt({ x: 3_744, y: 690 });
+
+    expect(projectForestSpatialLocation(manifest, runtime, (bounds) => stream.isSolid(bounds))).toMatchObject({
+      districtId: "forest.settlement",
+      sceneId: "scene.valley.settlement",
+      position: runtime.player.position,
+    });
+  });
+
+  it("fails closed at an overlapping boundary, solid meadow floor, and non-traversable unresolved space", () => {
     expect(() => projectForestSpatialLocation(manifest, snapshotAt({ x: 1_280, y: 620 })))
+      .toThrow(ForestSpatialProjectionError);
+    expect(() => projectForestSpatialLocation(
+      manifest,
+      snapshotAt({ x: 3_744, y: 704 }),
+      (bounds) => stream.isSolid(bounds),
+    ))
       .toThrow(ForestSpatialProjectionError);
     expect(() => projectForestSpatialLocation(manifest, snapshotAt({ x: 100, y: 100 })))
       .toThrow(ForestSpatialProjectionError);

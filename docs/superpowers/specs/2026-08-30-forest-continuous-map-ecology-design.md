@@ -8,6 +8,16 @@
 
 **Preserves:** existing first-chapter domain logic, learning, survival, economy, reputation, persistence, and cross-save WAL
 
+## Implementation Status — Continuous Graybox Audit Candidate
+
+- Accepted deterministic seed: `forest.chapter-one.audit`.
+- Topology digest: `sha256:e7f9c2044552ff24e3a6a41535d3e84128de055a4bc0fd370975f05dd87f2432`.
+- Initial accessible topology: exactly `38 / 100` generated traversable cells (`0.38`, or `38%`), within the approved `35%–40%` band.
+- Browser audit URLs: development `http://127.0.0.1:5174/world-scale.html`; production-preview acceptance `http://127.0.0.1:4173/world-scale.html`.
+- Automated graybox gates cover desktop `1440×900` keyboard and mobile `390×844` touch traversal from arrival through stream, meadow settlement, hermit branch, and the waterwheel approach; fixed `640×360` camera/backing surface; stable runtime region with changing district; partial-only waterwheel reveal; sealed later gates; grounded safe-checkpoint reset; unchanged RPG local-storage bytes; zero page errors; and steady-state reuse of the full-frame RGBA upload allocation.
+- Known graybox Minor for visual audit: overlapping authored settlement/hermit corridor volumes can briefly alternate the read-only district label while descending. Every observed transition remains on an authored adjacent graph edge, world progress does not reverse, and no scene load occurs.
+- The graybox is ready for the separate user visual-audit gate. Ecology simulation, visible species, final environment art, final character modeling/animation, weather/special-state variants, and RPG `GameSession` spatial writes remain explicitly unimplemented.
+
 ## 1. Decision Summary
 
 The first-chapter forest becomes one continuous side-view region map. Existing N00–N07 scene identifiers remain authoritative logic districts, task boundaries, and save/recovery references, but are no longer presented as isolated stage screens.
