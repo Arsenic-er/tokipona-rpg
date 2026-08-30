@@ -83,7 +83,7 @@ for (const audit of [
         waterwheelFullyVisible: false,
         laterGatesBlocked: true,
       });
-      await expectRenderedTravelerVisible(page, audit.viewport, initial);
+      await expectRenderedTravelerVisible(page, audit.viewport);
       await captureAuditScreenshot(page, testInfo, "initial");
 
       const allocationBaseline = await allocationCounts(page);
@@ -129,7 +129,7 @@ for (const audit of [
       expect(atWaterwheel.waterwheelVisibleComponents).toBeGreaterThan(0);
       expect(atWaterwheel.waterwheelVisibleComponents).toBeLessThan(atWaterwheel.waterwheelTotalComponents);
       expect(atWaterwheel.laterGatesBlocked).toBe(true);
-      await expectRenderedTravelerVisible(page, audit.viewport, atWaterwheel);
+      await expectRenderedTravelerVisible(page, audit.viewport);
       await captureAuditScreenshot(page, testInfo, "waterwheel");
 
       await page.clock.fastForward(100);
@@ -148,8 +148,7 @@ for (const audit of [
       expect(checkpoint.id).toBe("checkpoint.forest.waterwheel");
       await moveFor(page, audit.routeInput, 1_000);
       expect((await readAuditState(page)).playerX).toBeGreaterThan(checkpoint.x);
-      await page.getByRole("button", { name: "返回最近的灰盒检查点" }).click();
-      await expect.poll(() => readAuditState(page)).toMatchObject({
+      expect(await resetToCheckpointAndReadPosition(page)).toEqual({
         playerX: checkpoint.x,
         playerY: checkpoint.y,
       });
@@ -226,7 +225,7 @@ async function traverseToWaterwheel(
       await page.clock.fastForward(1_000);
       slowestBatchMilliseconds = Math.max(slowestBatchMilliseconds, Date.now() - batchStarted);
       const state = await readAuditState(page);
-      await expectRenderedTravelerVisible(page, viewport, state);
+      await expectRenderedTravelerVisible(page, viewport);
       regionIds.push(state.regionId);
       if (!firstVisits.includes(state.districtId)) firstVisits.push(state.districtId);
       if (previousDistrictId !== null && previousDistrictId !== state.districtId) {
@@ -341,23 +340,56 @@ async function readAuditState(page: Page): Promise<AuditState> {
   });
 }
 
+async function resetToCheckpointAndReadPosition(
+  page: Page,
+): Promise<Readonly<{ playerX: number; playerY: number }>> {
+  return page.locator(".forest-graybox").evaluate((element) => {
+    const root = element as HTMLElement;
+    const reset = root.querySelector<HTMLButtonElement>('[data-action="reset"]');
+    if (!reset) throw new Error("forest graybox reset control is missing");
+    reset.click();
+    const number = (name: string): number => {
+      const value = Number(root.dataset[name]);
+      if (!Number.isFinite(value)) throw new Error(`non-finite graybox audit field: ${name}`);
+      return value;
+    };
+    return { playerX: number("playerX"), playerY: number("playerY") };
+  });
+}
+
 async function expectRenderedTravelerVisible(
   page: Page,
   viewport: Readonly<{ width: number; height: number }>,
-  state: AuditState,
 ): Promise<void> {
-  const canvas = page.locator('canvas[aria-label*="可操作的连续森林"]');
-  const box = await canvas.boundingBox();
-  expect(box).not.toBeNull();
-  const scaleX = box!.width / 640;
-  const scaleY = box!.height / 360;
+  const projection = await page.locator(".forest-graybox").evaluate((element) => {
+    const root = element as HTMLElement;
+    const canvas = root.querySelector<HTMLCanvasElement>('canvas[aria-label*="可操作的连续森林"]');
+    if (!canvas) throw new Error("forest graybox canvas is missing");
+    const number = (name: string): number => {
+      const value = Number(root.dataset[name]);
+      if (!Number.isFinite(value)) throw new Error(`non-finite graybox audit field: ${name}`);
+      return value;
+    };
+    const box = canvas.getBoundingClientRect();
+    const scaleX = box.width / 640;
+    const scaleY = box.height / 360;
+    const travelerScreenX = number("travelerScreenX");
+    const travelerScreenY = number("travelerScreenY");
+    const travelerScreenWidth = number("travelerScreenWidth");
+    const travelerScreenHeight = number("travelerScreenHeight");
+    return {
+      scaleX,
+      scaleY,
+      physical: {
+        left: box.x + travelerScreenX * scaleX,
+        top: box.y + travelerScreenY * scaleY,
+        right: box.x + (travelerScreenX + travelerScreenWidth) * scaleX,
+        bottom: box.y + (travelerScreenY + travelerScreenHeight) * scaleY,
+      },
+    };
+  });
+  const { physical, scaleX, scaleY } = projection;
   expect(scaleX).toBeCloseTo(scaleY, 4);
-  const physical = {
-    left: box!.x + state.travelerScreenX * scaleX,
-    top: box!.y + state.travelerScreenY * scaleY,
-    right: box!.x + (state.travelerScreenX + state.travelerScreenWidth) * scaleX,
-    bottom: box!.y + (state.travelerScreenY + state.travelerScreenHeight) * scaleY,
-  };
   expect(physical.right, `traveler bounds ${JSON.stringify(physical)}`).toBeGreaterThan(0);
   expect(physical.left, `traveler bounds ${JSON.stringify(physical)}`).toBeLessThan(viewport.width);
   expect(physical.bottom, `traveler bounds ${JSON.stringify(physical)}`).toBeGreaterThan(0);
