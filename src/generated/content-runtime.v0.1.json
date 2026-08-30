@@ -15911,6 +15911,160 @@
       }
     ]
   },
+  "forestOpening": {
+    "sourceDigest": "sha256:7ca24611dcfb967df3316ad65cda02283373f476435ed9cd3a346879ea919a28",
+    "sourcePath": "data/chapters/ch01-opening-slice.v0.1.yaml",
+    "contentVersion": "forest-opening.0.1",
+    "sliceId": "ch01_forest_opening_vertical_slice",
+    "chapterFlowId": "ch01_world_literacy_prologue",
+    "durationMinutes": [
+      10,
+      15
+    ],
+    "districtIds": [
+      "forest.arrival",
+      "forest.stream",
+      "forest.settlement"
+    ],
+    "sceneIds": [
+      "scene.valley.arrival_shelf",
+      "scene.valley.stream_section",
+      "scene.valley.settlement"
+    ],
+    "route": [
+      {
+        "districtId": "forest.arrival",
+        "sceneId": "scene.valley.arrival_shelf"
+      },
+      {
+        "districtId": "forest.stream",
+        "sceneId": "scene.valley.stream_section"
+      },
+      {
+        "districtId": "forest.settlement",
+        "sceneId": "scene.valley.settlement"
+      }
+    ],
+    "obstacle": {
+      "obstacleId": "damaged_stream_road",
+      "boundsPx": {
+        "x": 1760,
+        "y": 688,
+        "width": 320,
+        "height": 128
+      },
+      "interactionRadiusPx": 48,
+      "materialPocketPx": {
+        "x": 1808,
+        "y": 704,
+        "width": 128,
+        "height": 64
+      },
+      "settlementEntranceBoundsPx": {
+        "x": 2496,
+        "y": 640,
+        "width": 32,
+        "height": 96
+      },
+      "objectAnchorsPx": {
+        "stoneA": [
+          1840,
+          704
+        ],
+        "stoneB": [
+          1888,
+          704
+        ],
+        "deadwood": [
+          1968,
+          688
+        ],
+        "unknownGlyph": [
+          2144,
+          672
+        ]
+      }
+    },
+    "solutions": [
+      {
+        "solutionId": "stone_steps",
+        "semanticAction": "pushLooseStone"
+      },
+      {
+        "solutionId": "deadwood_bridge",
+        "semanticAction": "placeRottenLog"
+      },
+      {
+        "solutionId": "shallow_detour",
+        "semanticAction": "digSoftSoil"
+      }
+    ],
+    "glyphObservation": {
+      "wordId": "word.telo",
+      "positionPx": [
+        2144,
+        672
+      ],
+      "grantsMeaning": false,
+      "grantsPronunciation": false,
+      "grantsLearningEvidence": false,
+      "grantsSpellAccess": false
+    },
+    "ecology": {
+      "disturbanceRadiusPx": 224,
+      "visibleSpecies": [
+        {
+          "speciesId": "forest.rabbit",
+          "initialMode": "foraging",
+          "spawnPx": [
+            768,
+            480
+          ],
+          "escapeAnchorPx": [
+            960,
+            480
+          ]
+        },
+        {
+          "speciesId": "forest.wetland_bird",
+          "initialMode": "wading",
+          "spawnPx": [
+            1488,
+            672
+          ],
+          "escapeAnchorPx": [
+            1664,
+            544
+          ]
+        }
+      ]
+    },
+    "visibleSpeciesIds": [
+      "forest.rabbit",
+      "forest.wetland_bird"
+    ],
+    "audioRoles": [
+      "forest_ambience",
+      "stream_ambience",
+      "foley_bank",
+      "dialogue_blip_bank"
+    ],
+    "assetRoles": [
+      "far_parallax_atlas",
+      "mid_parallax_atlas",
+      "environment_atlas",
+      "prop_glyph_atlas",
+      "traveler_atlas",
+      "creature_atlas",
+      "animation_manifest",
+      "time_palette",
+      "audio_manifest"
+    ],
+    "completion": {
+      "zeroKillRequired": true,
+      "settlementCheckpointId": "checkpoint.forest.settlement_perimeter"
+    }
+  },
   "capabilityProgression": {
     "sourcePath": "data/chapters/ch01-world-literacy-prologue.v0.1.yaml",
     "sourceDigest": "sha256:f1b6ec610915f8d963cbca3a8643b13949dfa26a028502122bed66d900c9bd88",

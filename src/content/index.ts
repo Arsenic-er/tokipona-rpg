@@ -19,6 +19,14 @@ export { readRuntimeEcologyManifest } from "./runtime-ecology-manifest";
 export type { RuntimeEcologyManifest, RuntimeWildlifeSpeciesManifest, RuntimeWildlifeSpatialBinding } from "./runtime-ecology-manifest";
 
 export { isVerifiedRuntimeForestChapterManifest, readRuntimeForestChapterManifest } from "./runtime-forest-chapter-manifest";
+export {
+  isVerifiedRuntimeForestOpeningManifest,
+  readRuntimeForestOpeningManifest,
+} from "./runtime-forest-opening-manifest";
+export type {
+  ForestOpeningSolutionId,
+  RuntimeForestOpeningManifest,
+} from "./runtime-forest-opening-manifest";
 export type { RuntimeForestChapterManifest } from "./runtime-forest-chapter-manifest";
 
 export { readRuntimeSceneManifestIndex } from "./runtime-scene-manifest";

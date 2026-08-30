@@ -20,6 +20,7 @@ export type ContentKind =
   | "chapter"
   | "dialogue_audio"
   | "ecology"
+  | "forest_opening"
   | "glyph_catalog"
   | "glyph_progression"
   | "learning_progression"

@@ -1,0 +1,63 @@
+schema_version: "g01.forest-opening.v0.1"
+content_version: "forest-opening.0.1"
+slice_id: "ch01_forest_opening_vertical_slice"
+chapter_flow_id: "ch01_world_literacy_prologue"
+duration_minutes: [10, 15]
+combat_required: false
+
+route:
+  - {district_id: "forest.arrival", scene_id: "scene.valley.arrival_shelf"}
+  - {district_id: "forest.stream", scene_id: "scene.valley.stream_section"}
+  - {district_id: "forest.settlement", scene_id: "scene.valley.settlement"}
+
+obstacle:
+  obstacle_id: "damaged_stream_road"
+  bounds_px: [1760, 688, 320, 128]
+  interaction_radius_px: 48
+  material_pocket_px: [1808, 704, 128, 64]
+  settlement_entrance_bounds_px: [2496, 640, 32, 96]
+  object_anchors_px:
+    stone_a: [1840, 704]
+    stone_b: [1888, 704]
+    deadwood: [1968, 688]
+    unknown_glyph: [2144, 672]
+
+solutions:
+  - {solution_id: "stone_steps", semantic_action: "pushLooseStone"}
+  - {solution_id: "deadwood_bridge", semantic_action: "placeRottenLog"}
+  - {solution_id: "shallow_detour", semantic_action: "digSoftSoil"}
+
+glyph_observation:
+  word_id: "word.telo"
+  position_px: [2144, 672]
+  grants_meaning: false
+  grants_pronunciation: false
+  grants_learning_evidence: false
+  grants_spell_access: false
+
+ecology:
+  disturbance_radius_px: 224
+  visible_species:
+    - {species_id: "forest.rabbit", initial_mode: "foraging", spawn_px: [768, 480], escape_anchor_px: [960, 480]}
+    - {species_id: "forest.wetland_bird", initial_mode: "wading", spawn_px: [1488, 672], escape_anchor_px: [1664, 544]}
+
+audio_roles:
+  - "forest_ambience"
+  - "stream_ambience"
+  - "foley_bank"
+  - "dialogue_blip_bank"
+
+asset_roles:
+  - "far_parallax_atlas"
+  - "mid_parallax_atlas"
+  - "environment_atlas"
+  - "prop_glyph_atlas"
+  - "traveler_atlas"
+  - "creature_atlas"
+  - "animation_manifest"
+  - "time_palette"
+  - "audio_manifest"
+
+completion:
+  zero_kill_required: true
+  settlement_checkpoint_id: "checkpoint.forest.settlement_perimeter"

@@ -121,8 +121,10 @@
 - Create: `scripts/content/forest-opening-runtime-artifact.test.ts`
 - Create: `src/content/runtime-forest-opening-manifest.ts`
 - Create: `src/content/runtime-forest-opening-manifest.test.ts`
+- Modify: `src/content/types.ts`
+- Modify: `src/content/compiler.ts`
+- Modify: `src/content/index.ts`
 - Modify: `scripts/content/runtime-artifact.ts`
-- Modify: `scripts/content/generate-runtime.ts`
 - Modify: `src/generated/content-runtime.v0.1.json`
 
 **Interfaces:**
@@ -206,7 +208,7 @@
 - [ ] **Step 6: Commit**
 
   ```powershell
-  git add data/chapters/ch01-opening-slice.v0.1.yaml scripts/content/forest-opening-runtime-artifact.ts scripts/content/forest-opening-runtime-artifact.test.ts scripts/content/runtime-artifact.ts scripts/content/generate-runtime.ts src/content/runtime-forest-opening-manifest.ts src/content/runtime-forest-opening-manifest.test.ts src/generated/content-runtime.v0.1.json
+  git add data/chapters/ch01-opening-slice.v0.1.yaml scripts/content/forest-opening-runtime-artifact.ts scripts/content/forest-opening-runtime-artifact.test.ts scripts/content/runtime-artifact.ts src/content/types.ts src/content/compiler.ts src/content/index.ts src/content/runtime-forest-opening-manifest.ts src/content/runtime-forest-opening-manifest.test.ts src/generated/content-runtime.v0.1.json
   git commit -m "feat(content): author forest opening slice contract"
   ```
 

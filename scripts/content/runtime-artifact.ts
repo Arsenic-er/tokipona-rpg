@@ -9,7 +9,9 @@ import {
 import { projectPrologueAcceptance } from "./prologue-acceptance-runtime-artifact.ts";
 import { projectForestChapterRuntimeManifest } from "./forest-chapter-runtime-artifact.ts";
 import { projectForestSpatialRuntimeManifest } from "./forest-spatial-runtime-artifact.ts";
+import { projectForestOpeningRuntimeManifest } from "./forest-opening-runtime-artifact.ts";
 import type { RuntimeSafeRangeManifest } from "../../src/content/runtime-safe-range-manifest.ts";
+import type { RuntimeForestOpeningManifest } from "../../src/content/runtime-forest-opening-manifest.ts";
 import type { RuntimeP0CurriculumManifest } from "../../src/content/runtime-p0-curriculum-manifest.ts";
 import type { RuntimeCore120CurriculumManifest } from "../../src/content/runtime-core120-curriculum-manifest.ts";
 import {
@@ -100,6 +102,7 @@ export interface RuntimeContentArtifact {
   readonly prologueAcceptance: RuntimePrologueAcceptanceManifest;
   readonly forestChapter: RuntimeForestChapterManifest;
   readonly forestSpatial: RuntimeForestSpatialManifest;
+  readonly forestOpening: RuntimeForestOpeningManifest;
   readonly capabilityProgression: CapabilityMilestoneMachineProjection;
   readonly ecology: RuntimeEcologyManifest;
   readonly wildlifeProcessing: RuntimeWildlifeProcessingManifest;
@@ -156,6 +159,7 @@ export function buildRuntimeContentArtifact(manifest: ContentManifest): RuntimeC
   const prologueAcceptance = projectPrologueAcceptance(manifest);
   const forestChapter = projectForestChapterRuntimeManifest(manifest);
   const forestSpatial = projectForestSpatialRuntimeManifest(manifest);
+  const forestOpening = projectForestOpeningRuntimeManifest(manifest);
   const authoredMilestones = requireObjectArray(chapterSource.content, ["capacity_progression", "milestones"]);
   const capacityMilestones = authoredMilestones.flatMap((milestone) => {
     const resultingState = requireObject(milestone, ["resulting_state"]);
@@ -647,6 +651,7 @@ export function buildRuntimeContentArtifact(manifest: ContentManifest): RuntimeC
     prologueAcceptance,
     forestChapter,
     forestSpatial,
+    forestOpening,
     capabilityProgression,
     ecology,
     wildlifeProcessing,

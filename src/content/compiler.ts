@@ -34,6 +34,7 @@ const ALL_KINDS: readonly ContentKind[] = [
   "chapter",
   "dialogue_audio",
   "ecology",
+  "forest_opening",
   "glyph_catalog",
   "glyph_progression",
   "learning_progression",
@@ -241,6 +242,8 @@ function validateSource(
       validateArrayIds(source, "events", "event_id", issues);
       validateArrayIds(source, "golden_tests", "id", issues);
       validateEcologySource(source, issues);
+      break;
+    case "forest_opening":
       break;
     case "wildlife_economy":
       validateArrayIds(source, "item_definitions", "item_id", issues);
@@ -683,6 +686,7 @@ function validateRequiredKinds(sources: readonly CompiledSource[], issues: Conte
     "dialogue_audio",
     "region",
     "ecology",
+    "forest_opening",
     "wildlife_economy",
     "settlement_trade",
     "persistence",
@@ -736,6 +740,8 @@ function buildIndexes(sources: readonly CompiledSource[], issues: ContentIssue[]
         break;
       case "ecology":
         indexRoot(source, "ecology_id", indexes.ecologies, issues);
+        break;
+      case "forest_opening":
         break;
       case "wildlife_economy":
         indexRoot(source, "economy_id", indexes.economies, issues);
@@ -2714,6 +2720,7 @@ function classifySchema(schema: string): ContentKind | null {
   if (schema.startsWith("g01.region.")) return "region";
   if (schema.startsWith("g01.scene.")) return "scene";
   if (schema.startsWith("w03.ecology.")) return "ecology";
+  if (schema.startsWith("g01.forest-opening.")) return "forest_opening";
   if (schema.startsWith("w03.wildlife-economy.")) return "wildlife_economy";
   if (schema.startsWith("economy.settlement-trade.")) return "settlement_trade";
   if (schema.startsWith("w04.cross-save-wal.")) return "persistence";
