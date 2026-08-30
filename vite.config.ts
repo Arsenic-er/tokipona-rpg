@@ -46,7 +46,15 @@ export function createTokiponaViteConfig(
       target: "es2022",
       manifest: true,
       rolldownOptions: {
-        input: ["index.html", "survival.html", "trade.html", "cistern.html", "rpg.html", "world-scale.html"],
+        input: [
+          "index.html",
+          "survival.html",
+          "trade.html",
+          "cistern.html",
+          "rpg.html",
+          "world-scale.html",
+          "chapter-one.html",
+        ],
         output: {
           strictExecutionOrder: true,
           codeSplitting: {
@@ -65,6 +73,7 @@ export function createTokiponaViteConfig(
                 priority: 40,
                 minSize: 8 * 1024,
                 entriesAware: true,
+                entriesAwareMergeThreshold: 64 * 1024,
                 includeDependenciesRecursively: false,
               },
               {

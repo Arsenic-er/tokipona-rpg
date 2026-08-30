@@ -1,0 +1,131 @@
+:root {
+  color-scheme: dark;
+  font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+  color: #e8e1c7;
+  background: #050909;
+}
+
+* { box-sizing: border-box; }
+
+html,
+body,
+#forest-opening-app,
+.forest-opening,
+.forest-opening__stage {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+}
+
+body { overflow: hidden; background: #050909; }
+button { font: inherit; }
+
+.forest-opening,
+.forest-opening__stage {
+  position: relative;
+  overflow: hidden;
+}
+
+.forest-opening canvas {
+  position: absolute;
+  display: block;
+  max-width: none;
+  max-height: none;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  outline: none;
+}
+
+.forest-opening canvas:focus-visible { outline: 1px solid #d8ca88; outline-offset: -2px; }
+
+.forest-opening__hud {
+  position: absolute;
+  z-index: 3;
+  inset: 12px auto auto 12px;
+  display: grid;
+  grid-template-columns: auto minmax(180px, 480px) auto;
+  align-items: center;
+  gap: 5px 12px;
+  max-width: calc(100vw - 24px);
+  padding: 7px 8px;
+  border: 1px solid rgb(214 201 145 / 20%);
+  background: rgb(3 8 8 / 70%);
+  box-shadow: 0 5px 22px rgb(0 0 0 / 24%);
+  backdrop-filter: blur(5px);
+}
+
+.forest-opening__hud p { margin: 0; color: #d8d2b7; font-size: 11px; }
+.forest-opening__meters { display: flex; gap: 10px; color: #9fa996; font-size: 10px; }
+.forest-opening__meters output { color: #ece3bd; }
+.forest-opening__hud [data-hud="prompt"] { grid-column: 2; color: #d7c879; font-size: 10px; min-height: 1em; }
+.forest-opening__candidate { grid-column: 1; color: #77847b; font-size: 8px; }
+
+.forest-opening__hud button,
+.forest-opening__pause button,
+.forest-opening__recovery button {
+  min-height: 30px;
+  border: 1px solid rgb(214 201 145 / 24%);
+  background: #0a1211cc;
+  color: #d8d2b7;
+  cursor: pointer;
+}
+
+.forest-opening__hud button { grid-column: 3; grid-row: 1 / span 2; padding: 0 10px; }
+button:hover, button:focus-visible { border-color: #cdbf77; color: #fff3c9; outline: none; }
+
+.forest-opening__touch { display: none; }
+
+.forest-opening__pause,
+.forest-opening__recovery {
+  z-index: 6;
+  width: min(420px, calc(100vw - 32px));
+  padding: 18px;
+  border: 1px solid #77735a;
+  background: #09100ff2;
+  color: #e8e1c7;
+}
+
+.forest-opening__pause::backdrop { background: rgb(0 0 0 / 62%); }
+.forest-opening__pause h2, .forest-opening__recovery h2 { margin: 0 0 8px; font-size: 16px; }
+.forest-opening__pause p, .forest-opening__recovery p { color: #aeb4a4; font-size: 11px; }
+.forest-opening__pause button, .forest-opening__recovery button { padding: 0 12px; margin-right: 7px; }
+
+.forest-opening__recovery {
+  position: absolute;
+  inset: 50% auto auto 50%;
+  transform: translate(-50%, -50%);
+}
+
+@media (pointer: coarse), (max-width: 760px) {
+  .forest-opening__hud {
+    inset: 8px 8px auto;
+    grid-template-columns: auto 1fr auto;
+    max-width: none;
+  }
+  .forest-opening__candidate { display: none; }
+  .forest-opening__touch {
+    position: absolute;
+    z-index: 4;
+    inset: auto 12px 12px;
+    display: flex;
+    justify-content: space-between;
+    pointer-events: none;
+  }
+  .forest-opening__touch > div { display: flex; gap: 7px; }
+  .forest-opening__touch button {
+    width: 48px;
+    height: 48px;
+    border: 1px solid rgb(229 220 178 / 28%);
+    border-radius: 50%;
+    background: rgb(4 10 9 / 58%);
+    color: #eee4bd;
+    pointer-events: auto;
+    touch-action: none;
+    backdrop-filter: blur(4px);
+  }
+  .forest-opening__touch button:active { background: rgb(126 137 102 / 36%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+}

@@ -5,18 +5,21 @@ export const EXPECTED_BUILD_ENTRIES = Object.freeze([
   "cistern.html",
   "rpg.html",
   "world-scale.html",
+  "chapter-one.html",
 ] as const);
 
 export const BUNDLE_BUDGETS = Object.freeze({
   maximumChunkBytes: 320 * 1024,
   maximumTradeInitialBytes: 400 * 1024,
   maximumTradeInitialRequests: 8,
+  maximumChapterOneInitialBytes: 1_000 * 1024,
+  maximumChapterOneInitialRequests: 20,
   maximumRpgShellBytes: 64 * 1024,
   maximumRpgInitialBytes: 1_100 * 1024,
   maximumRpgInitialRequests: 18,
 });
 
-const REQUIRED_RPG_CHUNK_NAMES = Object.freeze([
+const REQUIRED_RPG_CHUNK_REQUIREMENTS = Object.freeze([
   "content-runtime.v0.1",
   "app-support~rpg",
   "game-runtime~rpg",
@@ -101,10 +104,16 @@ export function assertBundleBudget(
 
   const rpg = required(entries.find((entry) => entry.entry === "rpg.html"), "bundle_rpg_entry_missing");
   const trade = required(entries.find((entry) => entry.entry === "trade.html"), "bundle_trade_entry_missing");
+  const chapterOne = required(entries.find((entry) => entry.entry === "chapter-one.html"),
+    "bundle_chapter_one_entry_missing");
   assert(trade.initialJsBytes <= BUNDLE_BUDGETS.maximumTradeInitialBytes,
     `bundle_trade_initial_budget_exceeded:${trade.initialJsBytes}`);
   assert(trade.initialJsRequests <= BUNDLE_BUDGETS.maximumTradeInitialRequests,
     `bundle_trade_request_budget_exceeded:${trade.initialJsRequests}`);
+  assert(chapterOne.initialJsBytes <= BUNDLE_BUDGETS.maximumChapterOneInitialBytes,
+    `bundle_chapter_one_initial_budget_exceeded:${chapterOne.initialJsBytes}`);
+  assert(chapterOne.initialJsRequests <= BUNDLE_BUDGETS.maximumChapterOneInitialRequests,
+    `bundle_chapter_one_request_budget_exceeded:${chapterOne.initialJsRequests}`);
   assert(rpg.entryBytes <= BUNDLE_BUDGETS.maximumRpgShellBytes,
     `bundle_rpg_shell_budget_exceeded:${rpg.entryBytes}`);
   assert(rpg.initialJsBytes <= BUNDLE_BUDGETS.maximumRpgInitialBytes,
@@ -115,8 +124,12 @@ export function assertBundleBudget(
   const rpgNames = new Set([...staticClosure("rpg.html", manifest)]
     .map((key) => required(manifest.get(key), `bundle_chunk_missing:${key}`).name)
     .filter((name): name is string => name !== null));
-  for (const requiredName of REQUIRED_RPG_CHUNK_NAMES) {
-    assert(rpgNames.has(requiredName), `bundle_rpg_domain_chunk_missing:${requiredName}`);
+  for (const requirement of REQUIRED_RPG_CHUNK_REQUIREMENTS) {
+    const [owner, requiredEntry] = requirement.split("~");
+    const matched = [...rpgNames].some((name) => name === requirement || (
+      requiredEntry !== undefined && name.split("~")[0] === owner && name.split("~").includes(requiredEntry)
+    ));
+    assert(matched, `bundle_rpg_domain_chunk_missing:${requirement}`);
   }
 
   const worldScaleNames = new Set([...staticClosure("world-scale.html", manifest)]

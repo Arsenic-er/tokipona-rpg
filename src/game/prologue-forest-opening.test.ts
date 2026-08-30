@@ -157,6 +157,19 @@ describe("PrologueForestOpeningSession", () => {
     expect(target.toSave()).toEqual(before);
   });
 
+  it("resets only spatial task-local state to the durable opening checkpoint", () => {
+    const target = fresh("checkpoint.reset");
+    const initial = target.snapshot().runtime.spatial.checkpoint;
+    target.advanceTicks(120, { moveX: 1 });
+    expect(target.snapshot().runtime.spatial.player.position.x).toBeGreaterThan(initial.position.x);
+
+    const reset = target.resetToCheckpoint();
+
+    expect(reset.runtime.spatial.player.position).toEqual(initial.position);
+    expect(reset.runtime.spatial.checkpoint).toEqual(initial);
+    expect(reset.session.learning.words.telo).toBeUndefined();
+  });
+
   it("enters the settlement perimeter only after physical completion and overlap, then reloads exactly", () => {
     const solved = solveStoneSteps(fresh("entry"));
     const atEntrance = atPosition(solved, 2_490, 670);

@@ -138,6 +138,13 @@ export class PrologueForestOpeningSession {
     return this.snapshot();
   }
 
+  public resetToCheckpoint(): PrologueForestOpeningSnapshot {
+    if (this.snapshot().mode === "settlement_perimeter") return this.snapshot();
+    this.runtime.resetToCheckpoint();
+    this.assertConsistent();
+    return this.snapshot();
+  }
+
   public interact(
     operationId: string,
     request: ForestOpeningInteraction,

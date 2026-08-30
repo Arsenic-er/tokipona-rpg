@@ -2,6 +2,18 @@ import { describe, expect, it } from "vitest";
 import { assertBundleBudget, BUNDLE_BUDGETS, EXPECTED_BUILD_ENTRIES } from "./bundle-budget";
 
 describe("production bundle budget", () => {
+  it("includes the formal Chapter 1 opening as a production entry", () => {
+    expect(EXPECTED_BUILD_ENTRIES).toEqual([
+      "index.html",
+      "survival.html",
+      "trade.html",
+      "cistern.html",
+      "rpg.html",
+      "world-scale.html",
+      "chapter-one.html",
+    ]);
+  });
+
   it("accepts the six-entry build with an isolated world-scale prototype", () => {
     const fixture = createFixture();
     const report = assertBundleBudget(fixture.manifest, (file) => fixture.sizes[file] ?? 0);
@@ -94,6 +106,30 @@ describe("production bundle budget", () => {
       requests.manifest["trade.html"].imports?.push(key);
     }
     expect(() => assertFixture(requests)).toThrow("bundle_trade_request_budget_exceeded");
+  });
+
+  it("rejects Chapter 1 opening initial-byte and request regressions", () => {
+    const bytes = createFixture();
+    for (const file of Object.keys(bytes.sizes)) bytes.sizes[file] = 1;
+    for (let index = 0; index < 4; index += 1) {
+      const key = `_chapter-${index}`;
+      const file = `assets/chapter-${index}.js`;
+      bytes.manifest[key] = chunkRecord(file, `chapter-${index}`);
+      bytes.sizes[file] = 260 * 1024;
+      bytes.manifest["chapter-one.html"].imports?.push(key);
+    }
+    expect(() => assertFixture(bytes)).toThrow("bundle_chapter_one_initial_budget_exceeded");
+
+    const requests = createFixture();
+    for (const file of Object.keys(requests.sizes)) requests.sizes[file] = 1;
+    for (let index = 0; index < 20; index += 1) {
+      const key = `_chapter-request-${index}`;
+      const file = `assets/chapter-request-${index}.js`;
+      requests.manifest[key] = chunkRecord(file, `chapter-request-${index}`);
+      requests.sizes[file] = 1;
+      requests.manifest["chapter-one.html"].imports?.push(key);
+    }
+    expect(() => assertFixture(requests)).toThrow("bundle_chapter_one_request_budget_exceeded");
   });
 
   it("rejects missing domain groups and reverse imports into an HTML entry", () => {
