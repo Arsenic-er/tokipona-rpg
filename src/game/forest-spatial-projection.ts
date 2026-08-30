@@ -39,7 +39,7 @@ export type ForestSpatialSolidQuery = (bounds: Aabb) => boolean;
 export function projectForestSpatialLocation(
   manifest: RuntimeForestSpatialManifest,
   runtime: ForestGrayboxSnapshot,
-  isSolid?: ForestSpatialSolidQuery,
+  isSolid: ForestSpatialSolidQuery,
 ): ForestSpatialLocation {
   if (!isVerifiedRuntimeForestSpatialManifest(manifest)) {
     throw new ForestSpatialProjectionError("reader-verified manifest required");
@@ -47,18 +47,21 @@ export function projectForestSpatialLocation(
   validateRuntimeFacts(runtime);
   const region = regionFor(manifest, runtime.seed);
   if (region.seed !== runtime.seed || region.topologyDigest !== runtime.topologyDigest) {
-    throw new ForestSpatialProjectionError("runtime topology does not match generated region");
+    throw new ForestSpatialProjectionError("runtime topology mismatch");
   }
 
   const position = runtime.player.position;
   const bodyBounds = { ...position, ...runtime.player.body };
+  if (isSolid(bodyBounds)) {
+    throw new ForestSpatialProjectionError("12×14 body intersects solid material");
+  }
   const allClearanceVolumes = region.criticalRouteClearances.flatMap((clearance) => clearance.volumesPx);
   const inRouteClearance = allClearanceVolumes.some((volume) => containsInclusive(volume, position));
 
   const directDistricts = manifest.districts.filter((district) =>
     containsInclusive(district.boundsPx, position));
   if (directDistricts.length > 1) {
-    throw new ForestSpatialProjectionError("position belongs to multiple authored districts");
+    throw new ForestSpatialProjectionError("multiple authored districts");
   }
   const inAuthoredMeadowAir = region.meadowSurfaces.some((surface) =>
     bodyBounds.x >= surface.left &&
@@ -66,10 +69,7 @@ export function projectForestSpatialLocation(
     bodyBounds.y + bodyBounds.height <= surface.y);
   if (!inRouteClearance) {
     if (!(directDistricts.length === 1 && inAuthoredMeadowAir)) {
-      throw new ForestSpatialProjectionError("position is outside traversable authored route clearance");
-    }
-    if (isSolid === undefined || isSolid(bodyBounds)) {
-      throw new ForestSpatialProjectionError("position intersects generated solid material");
+      throw new ForestSpatialProjectionError("outside authored route clearance");
     }
   }
 
@@ -88,7 +88,7 @@ export function projectForestSpatialLocation(
     corridorDistrictIds.add(t < 0.5 ? corridor.fromDistrictId : corridor.toDistrictId);
   }
   if (corridorDistrictIds.size > 1) {
-    throw new ForestSpatialProjectionError("position resolves to multiple route-corridor districts");
+    throw new ForestSpatialProjectionError("multiple route-corridor districts");
   }
 
   const districtId = corridorDistrictIds.values().next().value ?? directDistricts[0]?.districtId;
@@ -96,7 +96,7 @@ export function projectForestSpatialLocation(
     throw new ForestSpatialProjectionError("position does not resolve to an authored district");
   }
   const district = manifest.districts.find((candidate) => candidate.districtId === districtId);
-  if (!district) throw new ForestSpatialProjectionError("route-corridor district is not authored");
+  if (!district) throw new ForestSpatialProjectionError("unauthored route-corridor district");
 
   const nearbyAnchorIds = manifest.anchors
     .filter((anchor) => squaredDistance(position, {
@@ -154,15 +154,14 @@ function validateRuntimeFacts(runtime: ForestGrayboxSnapshot): void {
       !Number.isFinite(runtime.player.position.x) || !Number.isFinite(runtime.player.position.y) ||
       !Number.isFinite(runtime.player.velocity.x) || !Number.isFinite(runtime.player.velocity.y) ||
       typeof runtime.player.grounded !== "boolean" ||
-      !Number.isFinite(runtime.player.body.width) || !Number.isFinite(runtime.player.body.height) ||
-      runtime.player.body.width <= 0 || runtime.player.body.height <= 0 ||
+      runtime.player.body.width !== 12 || runtime.player.body.height !== 14 ||
       !Number.isFinite(runtime.camera.x) || !Number.isFinite(runtime.camera.y) ||
       runtime.camera.width !== 640 || runtime.camera.height !== 360 ||
       (runtime.camera.facing !== "left" && runtime.camera.facing !== "right") ||
       typeof runtime.checkpoint.id !== "string" || runtime.checkpoint.id.trim().length === 0 ||
       !Number.isSafeInteger(runtime.checkpoint.tick) || runtime.checkpoint.tick < 0 ||
       !Number.isFinite(runtime.checkpoint.position.x) || !Number.isFinite(runtime.checkpoint.position.y)) {
-    throw new ForestSpatialProjectionError("runtime facts are invalid");
+    throw new ForestSpatialProjectionError("runtime facts are invalid; exact 12×14 body required");
   }
 }
 

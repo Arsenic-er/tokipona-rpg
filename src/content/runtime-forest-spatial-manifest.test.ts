@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import generated from "../generated/content-runtime.v0.1.json";
+import { computeRuntimeManifestDigest } from "./runtime-manifest-digest";
 import {
   isVerifiedRuntimeForestSpatialManifest,
   readRuntimeForestSpatialManifest,
@@ -58,5 +59,18 @@ describe("runtime forest spatial manifest reader", () => {
     const stale = candidate();
     (stale.forestSpatial as Record<string, unknown>).sourceDigest = "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
     expect(() => readRuntimeForestSpatialManifest(stale)).toThrow(/digest/i);
+  });
+
+  it("rejects a re-signed noncanonical district-to-scene mapping", () => {
+    const changed = candidate();
+    const forest = changed.forestSpatial as Record<string, unknown>;
+    const district = (forest.districts as Record<string, unknown>[])[0]!;
+    district.sceneId = "scene.valley.waterwheel";
+    const payload = Object.fromEntries(
+      Object.entries(forest).filter(([key]) => key !== "sourceDigest"),
+    );
+    forest.sourceDigest = computeRuntimeManifestDigest(payload);
+
+    expect(() => readRuntimeForestSpatialManifest(changed)).toThrow(/district.*mapping/i);
   });
 });

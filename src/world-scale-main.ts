@@ -4,6 +4,7 @@ import {
 } from "./visual/forest-graybox-controller";
 import {
   bindForestGrayboxTouchControl,
+  computeForestGrayboxPresentationCrop,
   createForestGrayboxPageMarkup,
   FOREST_GRAYBOX_VIEWPORT,
   projectForestGrayboxView,
@@ -117,6 +118,14 @@ function loop(now: number): void {
 
 function render(next: ForestGrayboxViewProjection): void {
   renderForestGrayboxView(context, next);
+  const crop = computeForestGrayboxPresentationCrop(
+    { width: window.innerWidth, height: window.innerHeight },
+    next.traveler.visualBounds,
+  );
+  canvas.style.left = `${crop.left}px`;
+  canvas.style.top = `${crop.top}px`;
+  canvas.style.width = `${crop.width}px`;
+  canvas.style.height = `${crop.height}px`;
   const landmark = next.landmarks.find((candidate) =>
     candidate.landmarkId === "forest.waterwheel_structure");
   if (!landmark) throw new Error("forest graybox waterwheel audit projection is missing");
@@ -135,6 +144,10 @@ function render(next: ForestGrayboxViewProjection): void {
     latest.diagnostics.laterGates.length > 0 &&
     latest.diagnostics.laterGates.every((gate) => gate.blocked),
   );
+  root.dataset.travelerScreenX = String(next.traveler.visualBounds.x);
+  root.dataset.travelerScreenY = String(next.traveler.visualBounds.y);
+  root.dataset.travelerScreenWidth = String(next.traveler.visualBounds.width);
+  root.dataset.travelerScreenHeight = String(next.traveler.visualBounds.height);
   district.textContent = next.hud.districtLabel;
   seedOutput.textContent = next.hud.seed;
   tickOutput.textContent = String(next.hud.tick);

@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page, type TestInfo } from "@playwright/test";
 
 const RPG_STORAGE = Object.freeze({
   "tokipona.rpg.prologue.v0.3": "primary-byte-sentinel",
@@ -22,6 +22,10 @@ type AuditState = Readonly<{
   waterwheelVisibleComponents: number;
   waterwheelTotalComponents: number;
   laterGatesBlocked: boolean;
+  travelerScreenX: number;
+  travelerScreenY: number;
+  travelerScreenWidth: number;
+  travelerScreenHeight: number;
 }>;
 
 type RouteInput = "keyboard" | "touch";
@@ -51,7 +55,7 @@ for (const audit of [
   test.describe(audit.name, () => {
     test.use({ viewport: audit.viewport, hasTouch: audit.hasTouch });
 
-    test("crosses the continuous forest with fixed camera, safe recovery, and bounded RGBA allocation", async ({ page }) => {
+    test("crosses the continuous forest with fixed camera, safe recovery, and bounded RGBA allocation", async ({ page }, testInfo) => {
       test.setTimeout(180_000);
       const pageErrors: string[] = [];
       page.on("pageerror", (error) => pageErrors.push(error.message));
@@ -79,6 +83,8 @@ for (const audit of [
         waterwheelFullyVisible: false,
         laterGatesBlocked: true,
       });
+      await expectRenderedTravelerVisible(page, audit.viewport, initial);
+      await captureAuditScreenshot(page, testInfo, "initial");
 
       const allocationBaseline = await allocationCounts(page);
       for (let frame = 0; frame < 8; frame += 1) await page.clock.fastForward(17);
@@ -95,7 +101,7 @@ for (const audit of [
 
       await restoreNativeAllocationConstructors(page);
       await expectEquivalentKeyboardAndTouchStep(page, audit.hasTouch);
-      const route = await traverseToWaterwheel(page, audit.routeInput);
+      const route = await traverseToWaterwheel(page, audit.routeInput, audit.viewport);
       expect(route.firstVisits).toEqual([
         "forest.arrival",
         "forest.stream",
@@ -123,6 +129,8 @@ for (const audit of [
       expect(atWaterwheel.waterwheelVisibleComponents).toBeGreaterThan(0);
       expect(atWaterwheel.waterwheelVisibleComponents).toBeLessThan(atWaterwheel.waterwheelTotalComponents);
       expect(atWaterwheel.laterGatesBlocked).toBe(true);
+      await expectRenderedTravelerVisible(page, audit.viewport, atWaterwheel);
+      await captureAuditScreenshot(page, testInfo, "waterwheel");
 
       await page.clock.fastForward(100);
       const stableWaterwheel = await readAuditState(page);
@@ -196,7 +204,11 @@ async function expectEquivalentKeyboardAndTouchStep(page: Page, hasTouch: boolea
   await page.getByRole("button", { name: "返回最近的灰盒检查点" }).click();
 }
 
-async function traverseToWaterwheel(page: Page, input: RouteInput): Promise<RouteEvidence> {
+async function traverseToWaterwheel(
+  page: Page,
+  input: RouteInput,
+  viewport: Readonly<{ width: number; height: number }>,
+): Promise<RouteEvidence> {
   const firstVisits: string[] = [];
   const transitions: { from: string; to: string }[] = [];
   const regionIds: string[] = [];
@@ -214,6 +226,7 @@ async function traverseToWaterwheel(page: Page, input: RouteInput): Promise<Rout
       await page.clock.fastForward(1_000);
       slowestBatchMilliseconds = Math.max(slowestBatchMilliseconds, Date.now() - batchStarted);
       const state = await readAuditState(page);
+      await expectRenderedTravelerVisible(page, viewport, state);
       regionIds.push(state.regionId);
       if (!firstVisits.includes(state.districtId)) firstVisits.push(state.districtId);
       if (previousDistrictId !== null && previousDistrictId !== state.districtId) {
@@ -320,7 +333,45 @@ async function readAuditState(page: Page): Promise<AuditState> {
       waterwheelVisibleComponents: number("waterwheelVisibleComponents"),
       waterwheelTotalComponents: number("waterwheelTotalComponents"),
       laterGatesBlocked: boolean("laterGatesBlocked"),
+      travelerScreenX: number("travelerScreenX"),
+      travelerScreenY: number("travelerScreenY"),
+      travelerScreenWidth: number("travelerScreenWidth"),
+      travelerScreenHeight: number("travelerScreenHeight"),
     };
+  });
+}
+
+async function expectRenderedTravelerVisible(
+  page: Page,
+  viewport: Readonly<{ width: number; height: number }>,
+  state: AuditState,
+): Promise<void> {
+  const canvas = page.locator('canvas[aria-label*="可操作的连续森林"]');
+  const box = await canvas.boundingBox();
+  expect(box).not.toBeNull();
+  const scaleX = box!.width / 640;
+  const scaleY = box!.height / 360;
+  expect(scaleX).toBeCloseTo(scaleY, 4);
+  const physical = {
+    left: box!.x + state.travelerScreenX * scaleX,
+    top: box!.y + state.travelerScreenY * scaleY,
+    right: box!.x + (state.travelerScreenX + state.travelerScreenWidth) * scaleX,
+    bottom: box!.y + (state.travelerScreenY + state.travelerScreenHeight) * scaleY,
+  };
+  expect(physical.right, `traveler bounds ${JSON.stringify(physical)}`).toBeGreaterThan(0);
+  expect(physical.left, `traveler bounds ${JSON.stringify(physical)}`).toBeLessThan(viewport.width);
+  expect(physical.bottom, `traveler bounds ${JSON.stringify(physical)}`).toBeGreaterThan(0);
+  expect(physical.top, `traveler bounds ${JSON.stringify(physical)}`).toBeLessThan(viewport.height);
+}
+
+async function captureAuditScreenshot(
+  page: Page,
+  testInfo: TestInfo,
+  phase: "initial" | "waterwheel",
+): Promise<void> {
+  await page.screenshot({
+    path: testInfo.outputPath(`forest-graybox-${phase}.png`),
+    animations: "disabled",
   });
 }
 

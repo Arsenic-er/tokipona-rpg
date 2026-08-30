@@ -17,6 +17,52 @@ export interface ForestGrayboxTouchPort {
   readonly setHeld: (action: ForestGrayboxTouchAction, active: boolean) => void;
 }
 
+export interface ForestGrayboxPresentationCrop {
+  readonly left: number;
+  readonly top: number;
+  readonly width: number;
+  readonly height: number;
+  readonly scale: number;
+}
+
+const PRESENTATION_TRAVELER_INSET_PX = 12;
+
+/**
+ * Positions the fixed logical camera inside an undistorted cover surface.
+ * The centered crop is retained unless the rendered traveler would leave the viewport.
+ */
+export function computeForestGrayboxPresentationCrop(
+  viewport: Readonly<{ width: number; height: number }>,
+  traveler: Readonly<{ x: number; y: number; width: number; height: number }>,
+): ForestGrayboxPresentationCrop {
+  if (!finitePositiveRect({ x: 0, y: 0, ...viewport }) || !finitePositiveRect(traveler)) {
+    throw new Error("forest graybox presentation requires finite positive viewport and traveler bounds");
+  }
+  const scale = Math.max(
+    viewport.width / FOREST_GRAYBOX_VIEWPORT.width,
+    viewport.height / FOREST_GRAYBOX_VIEWPORT.height,
+  );
+  const width = FOREST_GRAYBOX_VIEWPORT.width * scale;
+  const height = FOREST_GRAYBOX_VIEWPORT.height * scale;
+  const centeredLeft = (viewport.width - width) / 2;
+  const centeredTop = (viewport.height - height) / 2;
+  const left = keepBoundsVisible(
+    centeredLeft,
+    width,
+    viewport.width,
+    traveler.x * scale,
+    (traveler.x + traveler.width) * scale,
+  );
+  const top = keepBoundsVisible(
+    centeredTop,
+    height,
+    viewport.height,
+    traveler.y * scale,
+    (traveler.y + traveler.height) * scale,
+  );
+  return Object.freeze({ left, top, width, height, scale });
+}
+
 /** Bind pointer and keyboard/AT activation without replaying a synthesized pointer click. */
 export function bindForestGrayboxTouchControl(
   button: HTMLButtonElement,
@@ -655,4 +701,26 @@ function text(value: string): string {
 
 function attribute(value: string): string {
   return text(value).replaceAll('"', "&quot;").replaceAll("'", "&#39;");
+}
+
+function keepBoundsVisible(
+  centeredOffset: number,
+  surfaceSize: number,
+  viewportSize: number,
+  localStart: number,
+  localEnd: number,
+): number {
+  const inset = Math.min(PRESENTATION_TRAVELER_INSET_PX, viewportSize / 4);
+  let offset = centeredOffset;
+  if (offset + localStart < inset) offset = inset - localStart;
+  if (offset + localEnd > viewportSize - inset) offset = viewportSize - inset - localEnd;
+  return Math.min(0, Math.max(viewportSize - surfaceSize, offset));
+}
+
+function finitePositiveRect(
+  value: Readonly<{ x: number; y: number; width: number; height: number }>,
+): boolean {
+  return Number.isFinite(value.x) && Number.isFinite(value.y) &&
+    Number.isFinite(value.width) && Number.isFinite(value.height) &&
+    value.width > 0 && value.height > 0;
 }

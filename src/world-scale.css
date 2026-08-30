@@ -32,12 +32,12 @@ button { font: inherit; }
 }
 
 .forest-graybox__stage {
-  display: grid;
-  place-items: center;
   background: #050909;
 }
 
 .forest-graybox canvas {
+  position: absolute;
+  inset: 0 auto auto 0;
   display: block;
   width: max(100vw, calc(100vh * 16 / 9));
   height: max(100vh, calc(100vw * 9 / 16));

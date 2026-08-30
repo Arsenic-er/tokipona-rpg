@@ -3,6 +3,7 @@ import type { ForestGrayboxControllerSnapshot } from "./forest-graybox-controlle
 import { ForestGrayboxController } from "./forest-graybox-controller";
 import {
   bindForestGrayboxTouchControl,
+  computeForestGrayboxPresentationCrop,
   createForestGrayboxPageMarkup,
   projectForestGrayboxView,
   renderForestGrayboxView,
@@ -12,6 +13,26 @@ import {
 const seed = "forest.graybox.view.audit";
 
 describe("forest graybox view", () => {
+  it("keeps the real traveler visible while preserving an undistorted cover crop", () => {
+    const traveler = { x: 201, y: 176, width: 8 as const, height: 18 as const };
+    const desktop = computeForestGrayboxPresentationCrop(
+      { width: 1_440, height: 900 },
+      traveler,
+    );
+    const mobile = computeForestGrayboxPresentationCrop(
+      { width: 390, height: 844 },
+      traveler,
+    );
+
+    expect(desktop).toMatchObject({ left: -80, top: 0, width: 1_600, height: 900 });
+    expect(mobile.width / mobile.height).toBeCloseTo(16 / 9, 10);
+    expect(mobile.width).toBeGreaterThan(390);
+    expect(mobile.height).toBe(844);
+    expect(mobile.left).toBeCloseTo(-459.2, 1);
+    expect(mobile.left + traveler.x * mobile.scale).toBeCloseTo(12, 8);
+    expect(mobile.left + (traveler.x + traveler.width) * mobile.scale).toBeLessThan(390);
+  });
+
   it("keeps the logical surface fixed and makes terrain continue through the frame", () => {
     const view = projectForestGrayboxView(snapshotAt({
       cameraX: 192,
