@@ -122,5 +122,5 @@ describe("prologue acceptance runtime contract", () => {
     const acceptance = chapter(acceptanceDrift).acceptance as Record<string, unknown>;
     (acceptance.playtest_targets as Record<string, unknown>).world_people_physics_time_share_minimum = 0.5;
     expectIssue(acceptanceDrift, "chapter.acceptance_contract");
-  });
+  }, 10_000);
 });

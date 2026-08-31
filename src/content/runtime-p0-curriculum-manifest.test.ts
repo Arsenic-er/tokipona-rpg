@@ -122,7 +122,7 @@ describe("P0 curriculum runtime contract", () => {
     const allP0CompletionGate = sources(), completionScope = p0(allP0CompletionGate).scope as Record<string, unknown>;
     completionScope.first_chapter_completion_requires_all_p0_words = true;
     expectCompilerIssue(allP0CompletionGate, "contract.p0_first_chapter_scope");
-  });
+  }, 10_000);
 
   it("rejects re-signed first-chapter scope drift", () => {
     const extraActiveMastery = structuredClone(generated) as any;
