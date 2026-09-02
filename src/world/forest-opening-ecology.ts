@@ -50,10 +50,22 @@ export interface ForestOpeningEcologySnapshot {
   readonly stateDigest: `sha256:${string}`;
 }
 
+export interface ForestOpeningEcologyPlacement {
+  readonly rabbitGround: (desired: Vec2) => Vec2;
+  readonly birdGround: (desired: Vec2) => Vec2;
+  readonly birdFlight: (desired: Vec2) => Vec2;
+}
+
 const SCHEMA = "tokipona.forest-opening-ecology.v0.1" as const;
 const RABBIT_SIGHT_RADIUS_PX = 168;
 const RABBIT_SPEED_PX_PER_TICK = 2;
+const RABBIT_LOCAL_SHELTER_TICKS = 180;
 const BIRD_SPEED_PX_PER_TICK = 3;
+const IDENTITY_PLACEMENT: ForestOpeningEcologyPlacement = Object.freeze({
+  rabbitGround: (desired: Vec2) => point([desired.x, desired.y]),
+  birdGround: (desired: Vec2) => point([desired.x, desired.y]),
+  birdFlight: (desired: Vec2) => point([desired.x, desired.y]),
+});
 
 export class ForestOpeningEcology {
   private readonly manifest: RuntimeForestOpeningManifest;
@@ -63,6 +75,7 @@ export class ForestOpeningEcology {
   private readonly birdSpawn: Vec2;
   private readonly birdExit: Vec2;
   private readonly idlePhase: number;
+  private readonly placement: ForestOpeningEcologyPlacement;
   private revision: number;
   private tick: number;
   private rabbit: ForestOpeningRabbitState;
@@ -71,23 +84,34 @@ export class ForestOpeningEcology {
   private constructor(
     manifest: RuntimeForestOpeningManifest,
     save: Omit<ForestOpeningEcologySave, "checksum" | "manifestDigest" | "schema">,
+    placement: ForestOpeningEcologyPlacement,
   ) {
     this.manifest = manifest;
     this.seed = save.seed;
     const rabbit = manifest.ecology.visibleSpecies.find(({ speciesId }) => speciesId === "forest.rabbit")!;
     const bird = manifest.ecology.visibleSpecies.find(({ speciesId }) => speciesId === "forest.wetland_bird")!;
-    this.rabbitSpawn = point(rabbit.spawnPx);
-    this.rabbitRefuge = point(rabbit.escapeAnchorPx);
-    this.birdSpawn = point(bird.spawnPx);
-    this.birdExit = point(bird.escapeAnchorPx);
+    this.placement = placement;
+    this.rabbitSpawn = placement.rabbitGround(point(rabbit.spawnPx));
+    this.rabbitRefuge = placement.rabbitGround(point(rabbit.escapeAnchorPx));
+    this.birdSpawn = placement.birdGround(point(bird.spawnPx));
+    this.birdExit = placement.birdFlight(point(bird.escapeAnchorPx));
     this.idlePhase = seedPhase(save.seed);
     this.revision = save.revision;
     this.tick = save.tick;
-    this.rabbit = freezeRabbit(save.rabbit);
-    this.wetlandBird = freezeBird(save.wetlandBird);
+    this.rabbit = freezeRabbit({ ...save.rabbit, position: placement.rabbitGround(save.rabbit.position) });
+    this.wetlandBird = freezeBird({
+      ...save.wetlandBird,
+      position: save.wetlandBird.mode === "wading"
+        ? placement.birdGround(save.wetlandBird.position)
+        : placement.birdFlight(save.wetlandBird.position),
+    });
   }
 
-  public static fresh(manifest: RuntimeForestOpeningManifest, seed: string): ForestOpeningEcology {
+  public static fresh(
+    manifest: RuntimeForestOpeningManifest,
+    seed: string,
+    placement: ForestOpeningEcologyPlacement = IDENTITY_PLACEMENT,
+  ): ForestOpeningEcology {
     assertManifest(manifest);
     if (!seed.trim()) throw new Error("forest opening ecology seed must not be empty");
     const rabbit = manifest.ecology.visibleSpecies.find(({ speciesId }) => speciesId === "forest.rabbit")!;
@@ -98,17 +122,18 @@ export class ForestOpeningEcology {
       tick: 0,
       rabbit: { mode: "foraging", position: point(rabbit.spawnPx), modeTick: 0 },
       wetlandBird: { mode: "wading", position: point(bird.spawnPx), modeTick: 0 },
-    });
+    }, placement);
   }
 
   public static fromSave(
     manifest: RuntimeForestOpeningManifest,
     candidate: unknown,
+    placement: ForestOpeningEcologyPlacement = IDENTITY_PLACEMENT,
   ): ForestOpeningEcology {
     assertManifest(manifest);
     const save = readEcologySave(candidate);
     if (save.manifestDigest !== manifest.sourceDigest) throw new Error("forest opening ecology manifest mismatch");
-    return new ForestOpeningEcology(manifest, save);
+    return new ForestOpeningEcology(manifest, save, placement);
   }
 
   public advanceTicks(
@@ -183,7 +208,7 @@ export class ForestOpeningEcology {
       const offset = Math.round(Math.sin((this.tick + this.idlePhase) / 30) * 12);
       this.rabbit = freezeRabbit({
         ...this.rabbit,
-        position: { x: this.rabbitSpawn.x + offset, y: this.rabbitSpawn.y },
+        position: this.placement.rabbitGround({ x: this.rabbitSpawn.x + offset, y: this.rabbitSpawn.y }),
         modeTick: this.rabbit.modeTick + 1,
       });
       return;
@@ -194,8 +219,12 @@ export class ForestOpeningEcology {
       return;
     }
     if (this.rabbit.mode === "fleeing") {
-      const moved = moveToward(this.rabbit.position, this.rabbitRefuge, RABBIT_SPEED_PX_PER_TICK);
-      const arrived = samePoint(moved, this.rabbitRefuge);
+      const desired = moveToward(this.rabbit.position, this.rabbitRefuge, RABBIT_SPEED_PX_PER_TICK);
+      const moved = this.placement.rabbitGround(desired);
+      const locallySheltered = distance(moved, this.rabbitRefuge) >=
+        distance(this.rabbit.position, this.rabbitRefuge) - 1e-7;
+      const arrived = samePoint(desired, this.rabbitRefuge) ||
+        (locallySheltered && this.rabbit.modeTick >= RABBIT_LOCAL_SHELTER_TICKS);
       this.rabbit = freezeRabbit({
         mode: arrived ? "sheltered" : "fleeing",
         position: moved,
@@ -215,20 +244,23 @@ export class ForestOpeningEcology {
       const offset = Math.round(Math.sin((this.tick + this.idlePhase * 3) / 45) * 4);
       this.wetlandBird = freezeBird({
         ...this.wetlandBird,
-        position: { x: this.birdSpawn.x + offset, y: this.birdSpawn.y },
+        position: this.placement.birdGround({ x: this.birdSpawn.x + offset, y: this.birdSpawn.y }),
         modeTick: this.wetlandBird.modeTick + 1,
       });
       return;
     }
     if (this.wetlandBird.mode === "alert") {
-      const moved = moveToward(this.wetlandBird.position, this.birdExit, BIRD_SPEED_PX_PER_TICK);
+      const moved = this.placement.birdFlight(
+        moveToward(this.wetlandBird.position, this.birdExit, BIRD_SPEED_PX_PER_TICK),
+      );
       this.wetlandBird = freezeBird({ mode: "taking_off", position: moved, modeTick: 0 });
       this.revision += 1;
       return;
     }
     if (this.wetlandBird.mode === "taking_off") {
-      const moved = moveToward(this.wetlandBird.position, this.birdExit, BIRD_SPEED_PX_PER_TICK);
-      const arrived = samePoint(moved, this.birdExit);
+      const desired = moveToward(this.wetlandBird.position, this.birdExit, BIRD_SPEED_PX_PER_TICK);
+      const moved = this.placement.birdFlight(desired);
+      const arrived = samePoint(desired, this.birdExit);
       this.wetlandBird = freezeBird({
         mode: arrived ? "departed" : "taking_off",
         position: moved,

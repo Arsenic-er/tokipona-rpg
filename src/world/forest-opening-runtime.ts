@@ -29,6 +29,7 @@ import {
 } from "./forest-graybox-runtime";
 import { generateForestRegion } from "./forest-region-generator";
 import type { ForestMaterialChunk } from "./forest-chunk-stream";
+import { createForestOpeningCreaturePlacement } from "./forest-opening-creature-habitat";
 
 const OPENING_SCHEMA = "tokipona.forest-opening-runtime.v0.1" as const;
 const INITIAL_WORLD_MINUTE = 360;
@@ -87,11 +88,19 @@ export class ForestOpeningRuntime {
     if (!options.seed.trim()) throw new Error("forest opening seed must not be empty");
     const region = generateForestRegion(options.spatialManifest, options.seed);
     const spatial = new ForestGrayboxRuntime({ manifest: options.spatialManifest, region });
+    const creaturePlacement = createForestOpeningCreaturePlacement(
+      options.spatialManifest,
+      spatial.chunkStream,
+    );
     return new ForestOpeningRuntime(
       options.openingManifest,
       spatial,
       ForestOpeningObstacle.fresh(options.openingManifest),
-      ForestOpeningEcology.fresh(options.openingManifest, `${options.seed}:ecology`),
+      ForestOpeningEcology.fresh(
+        options.openingManifest,
+        `${options.seed}:ecology`,
+        creaturePlacement,
+      ),
     );
   }
 
@@ -109,6 +118,10 @@ export class ForestOpeningRuntime {
       { manifest: options.spatialManifest, region },
       save.spatial,
     );
+    const creaturePlacement = createForestOpeningCreaturePlacement(
+      options.spatialManifest,
+      spatial.chunkStream,
+    );
     const obstacle = ForestOpeningObstacle.fromSave(options.openingManifest, save.obstacle);
     assertNoUnsolvedCrossing(options.openingManifest, save.spatial, obstacle.snapshot());
     const expectedWorldMinute = worldMinuteAtTick(save.spatial.tick);
@@ -120,7 +133,7 @@ export class ForestOpeningRuntime {
       options.openingManifest,
       spatial,
       obstacle,
-      ForestOpeningEcology.fromSave(options.openingManifest, save.ecology),
+      ForestOpeningEcology.fromSave(options.openingManifest, save.ecology, creaturePlacement),
     );
   }
 

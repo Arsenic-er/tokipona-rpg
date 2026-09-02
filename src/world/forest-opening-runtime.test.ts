@@ -73,6 +73,8 @@ describe("ForestOpeningRuntime", () => {
 
     expect(runtime.snapshot().ecology.rabbit.mode).not.toBe("foraging");
     expect(runtime.snapshot().ecology.tick).toBe(runtime.snapshot().tick);
+    runtime.advanceTicks(180, { moveX: 1 });
+    expect(runtime.snapshot().ecology.rabbit.mode).toBe("sheltered");
   });
 
   it("derives player movement sound as an authoritative ecology disturbance", () => {

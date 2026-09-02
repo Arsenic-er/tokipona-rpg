@@ -27,6 +27,7 @@ import {
 import { drawForestOpeningCandidateTraveler } from "./visual/forest-opening-candidate-traveler";
 import { drawForestOpeningTerrain } from "./visual/forest-opening-terrain";
 import { createBrowserOperationNonce } from "./runtime/browser-operation-nonce";
+import type { LocalTravelerAtlas } from "./visual/browser-local-traveler-atlas";
 
 const SAVE_KEY = "tokipona.forest-opening.vertical-slice.v0.1";
 const MUTE_KEY = "tokipona.forest-opening.audio-muted.v0.1";
@@ -44,6 +45,11 @@ let actionPresentation: Readonly<{
 }> | null = null;
 let view = projectForestOpeningView(session.snapshot(), runtimeForestOpeningAssetExport);
 let visualAssets: LoadedForestOpeningVisualAssets | null = null;
+let localTravelerVisuals: Readonly<{
+  atlas: LocalTravelerAtlas;
+  draw: typeof import("./visual/browser-local-traveler-atlas")["drawForestOpeningLocalTraveler"];
+  bounds: typeof import("./visual/browser-local-traveler-atlas")["localTravelerBounds"];
+}> | null = null;
 const app = requiredDocumentElement<HTMLElement>("#forest-opening-app");
 app.innerHTML = createForestOpeningPageMarkup(view);
 
@@ -88,6 +94,19 @@ void loadBrowserForestOpeningVisualAssetsFromDocument(runtimeForestOpeningAssetE
     visualAssets = result.assets;
     render();
   });
+if (import.meta.env.DEV) {
+  void import("./visual/browser-local-traveler-atlas").then(async (module) => {
+    const result = await module.loadBrowserLocalTravelerAtlasFromDocument();
+    if (result.status !== "ready" || visualAssets !== null) return;
+    localTravelerVisuals = Object.freeze({
+      atlas: result.atlas,
+      draw: module.drawForestOpeningLocalTraveler,
+      bounds: module.localTravelerBounds,
+    });
+    candidateLabel.textContent = "本地人物候选 v0.3 · 尚未通过正式素材审批";
+    render();
+  });
+}
 if (blockedLoad) showRecovery(blockedLoad.reason);
 else if (!loaded.ok) persistence.save(session);
 render();
@@ -278,13 +297,25 @@ function render(): void {
     view,
     visualAssets,
     (target, camera) => drawForestOpeningTerrain(target, session.visibleMaterialChunks(), camera),
-    drawForestOpeningCandidateTraveler,
+    (target, currentView) => {
+      if (localTravelerVisuals !== null) {
+        localTravelerVisuals.draw(target, currentView, localTravelerVisuals.atlas);
+        return;
+      }
+      drawForestOpeningCandidateTraveler(target, currentView);
+    },
   );
-  const screenX = view.traveler.position.x - view.camera.x;
-  const screenY = view.traveler.position.y - view.camera.y - 5;
+  const travelerBounds = localTravelerVisuals === null
+    ? {
+        x: view.traveler.position.x - view.camera.x - 1,
+        y: view.traveler.position.y - view.camera.y - 5,
+        width: 14,
+        height: 19,
+      }
+    : localTravelerVisuals.bounds(view);
   const crop = fitForestOpeningPresentation(
     { width: window.innerWidth, height: window.innerHeight },
-    { x: screenX - 1, y: screenY, width: 14, height: 19 },
+    travelerBounds,
   );
   canvas.style.left = `${crop.left}px`;
   canvas.style.top = `${crop.top}px`;

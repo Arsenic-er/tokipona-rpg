@@ -9,6 +9,7 @@ tmp/
 /.codex-tmp/
 /private-input/
 /exports/
+/src/local-art-cache/
 *.tsbuildinfo
 *.log
 .env
