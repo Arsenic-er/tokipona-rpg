@@ -26,6 +26,7 @@ import {
 } from "./visual/browser-forest-opening-assets";
 import { drawForestOpeningCandidateTraveler } from "./visual/forest-opening-candidate-traveler";
 import { drawForestOpeningTerrain } from "./visual/forest-opening-terrain";
+import { createBrowserOperationNonce } from "./runtime/browser-operation-nonce";
 
 const SAVE_KEY = "tokipona.forest-opening.vertical-slice.v0.1";
 const MUTE_KEY = "tokipona.forest-opening.audio-muted.v0.1";
@@ -71,7 +72,7 @@ let muted = localStorage.getItem(MUTE_KEY) === "true";
 let accumulator = 0;
 let lastFrame = performance.now();
 let operationSequence = 0;
-const operationNonce = crypto.randomUUID();
+const operationNonce = createBrowserOperationNonce();
 let lastSavedTick = view.tick;
 
 bindControls();

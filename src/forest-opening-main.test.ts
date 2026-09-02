@@ -49,7 +49,8 @@ describe("forest opening formal browser entry", () => {
     expect(mainSource).toContain("loadBrowserForestOpeningVisualAssetsFromDocument");
     expect(mainSource).toContain("createBrowserWebAudioForestOpeningPort");
     expect(mainSource).toContain("projectForestOpeningMovementAudioEvents");
-    expect(mainSource).toContain("crypto.randomUUID");
+    expect(mainSource).toContain("createBrowserOperationNonce");
+    expect(mainSource).not.toContain("crypto.randomUUID");
     expect(mainSource).toContain('pauseDialog.addEventListener("cancel"');
     expect(mainSource).toContain("MUTE_KEY");
     expect(mainSource).toContain("enterSettlementPerimeter");
