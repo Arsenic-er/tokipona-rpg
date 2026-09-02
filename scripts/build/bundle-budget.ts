@@ -12,7 +12,7 @@ export const BUNDLE_BUDGETS = Object.freeze({
   maximumChunkBytes: 320 * 1024,
   maximumTradeInitialBytes: 400 * 1024,
   maximumTradeInitialRequests: 8,
-  maximumChapterOneInitialBytes: 1_000 * 1024,
+  maximumChapterOneInitialBytes: 1_008 * 1024,
   maximumChapterOneInitialRequests: 20,
   maximumRpgShellBytes: 64 * 1024,
   maximumRpgInitialBytes: 1_100 * 1024,

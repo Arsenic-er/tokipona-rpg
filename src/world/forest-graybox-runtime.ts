@@ -13,7 +13,11 @@ import type {
   RuntimeInput,
 } from "../runtime/runtime";
 import { DEFAULT_PLAYER_BODY, type PlayerBody } from "../runtime/scene";
-import { ForestChunkStream, type ForestChunkStreamOptions } from "./forest-chunk-stream";
+import {
+  ForestChunkStream,
+  type ForestChunkStreamOptions,
+  type ForestMaterialChunk,
+} from "./forest-chunk-stream";
 import { type ForestRegion, validateForestRegion } from "./forest-region-generator";
 
 export interface ForestGrayboxCheckpoint {
@@ -73,6 +77,10 @@ export class ForestGrayboxRuntime {
   private accumulatorSeconds = 0;
   private checkpoint: ForestGrayboxCheckpoint;
   private camera: ForestCameraState;
+  private visibleMaterialCache: Readonly<{
+    key: string;
+    chunks: readonly ForestMaterialChunk[];
+  }> | null = null;
 
   public constructor(options: ForestGrayboxRuntimeOptions) {
     validateForestRegion(options.manifest, options.region);
@@ -189,6 +197,15 @@ export class ForestGrayboxRuntime {
     return freezePlayer(this.player, this.body);
   }
 
+  public visibleMaterialChunks(): readonly ForestMaterialChunk[] {
+    const key = `${Math.floor(this.camera.x / 16)},${Math.floor(this.camera.y / 16)},` +
+      `${Math.ceil((this.camera.x + this.camera.width) / 16)},${Math.ceil((this.camera.y + this.camera.height) / 16)}`;
+    if (this.visibleMaterialCache?.key === key) return this.visibleMaterialCache.chunks;
+    const chunks = this.chunkStream.visible(this.camera, 0);
+    this.visibleMaterialCache = Object.freeze({ key, chunks });
+    return chunks;
+  }
+
   public snapshot(): ForestGrayboxSnapshot {
     const player = freezePlayer(this.player, this.body);
     const camera = Object.freeze({ ...this.camera });
@@ -256,7 +273,11 @@ export class ForestGrayboxRuntime {
     };
     this.previousJump = false;
     this.accumulatorSeconds = 0;
-    this.camera = this.nextCamera();
+    this.camera = initializeForestCamera(
+      this.manifest.camera,
+      freezePlayer(this.player, this.body),
+      this.manifest.regionBoundsPx,
+    );
     return this.snapshot();
   }
 
@@ -281,6 +302,7 @@ export class ForestGrayboxRuntime {
       this.camera,
       freezePlayer(this.player, this.body),
       this.manifest.regionBoundsPx,
+      this.fixedSeconds,
     );
   }
 

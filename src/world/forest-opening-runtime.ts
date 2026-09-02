@@ -28,6 +28,7 @@ import {
   type ForestGrayboxSnapshot,
 } from "./forest-graybox-runtime";
 import { generateForestRegion } from "./forest-region-generator";
+import type { ForestMaterialChunk } from "./forest-chunk-stream";
 
 const OPENING_SCHEMA = "tokipona.forest-opening-runtime.v0.1" as const;
 const INITIAL_WORLD_MINUTE = 360;
@@ -192,6 +193,10 @@ export class ForestOpeningRuntime {
       ecology,
       stateDigest,
     });
+  }
+
+  public visibleMaterialChunks(): readonly ForestMaterialChunk[] {
+    return this.spatialRuntime.visibleMaterialChunks();
   }
 
   public save(): ForestOpeningRuntimeSave {

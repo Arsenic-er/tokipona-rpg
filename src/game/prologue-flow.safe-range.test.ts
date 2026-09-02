@@ -17,7 +17,7 @@ import {
   PROLOGUE_SAFE_RANGE_SCENE_ID,
   PROLOGUE_SAFE_RANGE_SETTLEMENT_SCENE_ID,
 } from "./prologue-safe-range";
-import { safeRangeInteractionPointPx } from "./safe-range-authority";
+import { safeRangeFrameGeometryValid, safeRangeInteractionPointPx } from "./safe-range-authority";
 import { SAFE_RANGE_TARGET_CLASSES, type SafeRangeTargetClass } from "./safe-range-physics";
 
 const progress = (
@@ -163,7 +163,11 @@ const walkNear = (
   if (!point) throw new Error(`missing safe-range interaction point for ${targetId}`);
   for (let tick = 0; tick < 1200; tick += 1) {
     const position = flow.snapshot().runtime.player.position;
-    if (Math.hypot(position.x - point.x, position.y - point.y) <= 16) return;
+    if (Math.hypot(position.x - point.x, position.y - point.y) <= 16) {
+      expect(safeRangeFrameGeometryValid({ actionKind: targetId === "material_collision_table" ? "material_table" : "transfer",
+        targetId, playerPositionPx: position }), `${targetId}:${JSON.stringify(position)}`).toBe(true);
+      return;
+    }
     flow.advanceTicks(1, { moveX: position.x < point.x ? 1 : -1 });
   }
   const position = flow.snapshot().runtime.player.position;
@@ -226,7 +230,8 @@ describe("PrologueFlowSession N02/N08 integration", () => {
       if (flow.snapshot().session.mp.currentMp < 13) refillAtSettlement(flow, `chain.refill.${index}`);
       walkNear(flow, targetClass);
       const preview = compile(flow, targetClass, index % 2 as 0 | 1);
-      expect(flow.executeSafeRange(`chain.transfer.${targetClass}`, preview.previewId)).toMatchObject({
+      const execution = flow.executeSafeRange(`chain.transfer.${targetClass}`, preview.previewId);
+      expect(execution, `${targetClass}:${execution.result?.sessionReason}`).toMatchObject({
         accepted: true,
         reason: "delegated",
         result: { accepted: true, duplicate: false, reason: "committed" },

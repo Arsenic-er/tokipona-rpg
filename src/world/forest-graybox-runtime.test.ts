@@ -132,6 +132,8 @@ describe("ForestGrayboxRuntime", () => {
     expect(reset.player.position).toEqual(checkpoint.position);
     expect(reset.player.position.x).toBeLessThan(3_328);
     expect(reset.player.velocity).toEqual({ x: 0, y: 0 });
+    expect(reset.player.position.x).toBeGreaterThanOrEqual(reset.camera.x);
+    expect(reset.player.position.x + reset.player.body.width).toBeLessThanOrEqual(reset.camera.x + reset.camera.width);
   });
 
   it("replays recorded semantic inputs to the same topology, player, and camera digest", () => {

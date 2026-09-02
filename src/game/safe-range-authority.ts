@@ -40,6 +40,7 @@ export const SAFE_RANGE_AUTHORITY_MANIFEST_DIGEST = sha256Canonical({
   scenes: sceneIndex.sourceDigest,
 } as JsonValue);
 export const SAFE_RANGE_AUTHORITY_ACTOR_SET_HASH = sha256Canonical({ actors: [] } as JsonValue);
+const COLLISION_EDGE_EPSILON = 1e-7;
 
 const finitePoint = (point: SafeRangeAuthorityPointPx): boolean =>
   Number.isFinite(point.x) && Number.isFinite(point.y);
@@ -81,9 +82,9 @@ const overlapsSolidTile = (position: SafeRangeAuthorityPointPx): boolean => {
   if (!finitePoint(position) || position.x < 0 || position.y < 0 ||
       position.x + body.width > sceneWidthPx || position.y + body.height > sceneHeightPx) return true;
   const left = Math.floor(position.x / safeRangeScene.tileSizePx);
-  const right = Math.floor((position.x + body.width - Number.EPSILON) / safeRangeScene.tileSizePx);
+  const right = Math.floor((position.x + body.width - COLLISION_EDGE_EPSILON) / safeRangeScene.tileSizePx);
   const top = Math.floor(position.y / safeRangeScene.tileSizePx);
-  const bottom = Math.floor((position.y + body.height - Number.EPSILON) / safeRangeScene.tileSizePx);
+  const bottom = Math.floor((position.y + body.height - COLLISION_EDGE_EPSILON) / safeRangeScene.tileSizePx);
   for (let y = top; y <= bottom; y += 1) {
     for (let x = left; x <= right; x += 1) {
       if (safeRangeScene.collisionRows[y]?.[x] === "#") return true;

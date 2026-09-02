@@ -24,6 +24,8 @@ import {
   loadBrowserForestOpeningVisualAssetsFromDocument,
   type LoadedForestOpeningVisualAssets,
 } from "./visual/browser-forest-opening-assets";
+import { drawForestOpeningCandidateTraveler } from "./visual/forest-opening-candidate-traveler";
+import { drawForestOpeningTerrain } from "./visual/forest-opening-terrain";
 
 const SAVE_KEY = "tokipona.forest-opening.vertical-slice.v0.1";
 const MUTE_KEY = "tokipona.forest-opening.audio-muted.v0.1";
@@ -63,6 +65,7 @@ const audio = new BrowserForestOpeningAudio(
 );
 
 let jumpQueued = false;
+let jumpHeld = false;
 let paused = false;
 let muted = localStorage.getItem(MUTE_KEY) === "true";
 let accumulator = 0;
@@ -98,7 +101,7 @@ function loop(now: number): void {
     const fixedSeconds = 1 / 60;
     while (accumulator + 1e-9 >= fixedSeconds) {
       const moveX = (held.has("right") ? 1 : 0) - (held.has("left") ? 1 : 0);
-      session.advanceTicks(1, { moveX, jump: jumpQueued });
+      session.advanceTicks(1, { moveX, jump: jumpHeld || jumpQueued });
       jumpQueued = false;
       accumulator -= fixedSeconds;
       const snapshot = session.snapshot();
@@ -131,7 +134,10 @@ function bindControls(): void {
     audio.activate();
     if (key === "a" || key === "arrowleft") held.add("left");
     if (key === "d" || key === "arrowright") held.add("right");
-    if ((key === "w" || key === "arrowup" || key === " ") && !event.repeat) jumpQueued = true;
+    if (key === "w" || key === "arrowup" || key === " ") {
+      jumpHeld = true;
+      if (!event.repeat) jumpQueued = true;
+    }
     if (key === "e" && !event.repeat) interact();
     if (key === "f" && !event.repeat) observe();
     if (["a", "d", "w", "e", "f", "arrowleft", "arrowright", "arrowup", " "].includes(key)) event.preventDefault();
@@ -140,8 +146,12 @@ function bindControls(): void {
     const key = event.key.toLowerCase();
     if (key === "a" || key === "arrowleft") held.delete("left");
     if (key === "d" || key === "arrowright") held.delete("right");
+    if (key === "w" || key === "arrowup" || key === " ") jumpHeld = false;
   });
-  window.addEventListener("blur", () => held.clear());
+  window.addEventListener("blur", () => {
+    held.clear();
+    jumpHeld = false;
+  });
   window.addEventListener("resize", render);
   canvas.addEventListener("pointerdown", () => { audio.activate(); }, { once: true });
   pauseButton.addEventListener("click", togglePause);
@@ -172,6 +182,7 @@ function bindTouch(button: HTMLButtonElement): void {
   const release = (event: PointerEvent) => {
     if (pointer !== event.pointerId) return;
     if (action === "left" || action === "right") held.delete(action);
+    else if (action === "jump") jumpHeld = false;
     pointer = null;
     if (button.hasPointerCapture(event.pointerId)) button.releasePointerCapture(event.pointerId);
   };
@@ -181,7 +192,10 @@ function bindTouch(button: HTMLButtonElement): void {
     pointer = event.pointerId;
     button.setPointerCapture(event.pointerId);
     if (action === "left" || action === "right") held.add(action);
-    else if (action === "jump") jumpQueued = true;
+    else if (action === "jump") {
+      jumpHeld = true;
+      jumpQueued = true;
+    }
     else if (action === "interact") interact();
     else if (action === "observe") observe();
   });
@@ -190,6 +204,7 @@ function bindTouch(button: HTMLButtonElement): void {
   button.addEventListener("lostpointercapture", () => {
     if (pointer === null) return;
     if (action === "left" || action === "right") held.delete(action);
+    else if (action === "jump") jumpHeld = false;
     pointer = null;
   });
   button.addEventListener("click", (event) => {
@@ -257,12 +272,18 @@ function nearestInteraction(current: ForestOpeningPublicView): ForestOpeningInte
 
 function render(): void {
   view = project(session.snapshot());
-  renderForestOpeningView(context, view, visualAssets);
+  renderForestOpeningView(
+    context,
+    view,
+    visualAssets,
+    (target, camera) => drawForestOpeningTerrain(target, session.visibleMaterialChunks(), camera),
+    drawForestOpeningCandidateTraveler,
+  );
   const screenX = view.traveler.position.x - view.camera.x;
-  const screenY = view.traveler.position.y - view.camera.y - 6;
+  const screenY = view.traveler.position.y - view.camera.y - 5;
   const crop = fitForestOpeningPresentation(
     { width: window.innerWidth, height: window.innerHeight },
-    { x: screenX, y: screenY, width: 8, height: 20 },
+    { x: screenX - 1, y: screenY, width: 14, height: 19 },
   );
   canvas.style.left = `${crop.left}px`;
   canvas.style.top = `${crop.top}px`;

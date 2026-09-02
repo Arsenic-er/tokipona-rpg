@@ -89,7 +89,7 @@ describe("runtime coordinate contract", () => {
 });
 
 describe("FixedStepRpgRuntime", () => {
-  it("preserves the pre-extraction 600-tick snapshot and replay start signature", () => {
+  it("preserves the deterministic 600-tick snapshot and replay start signature", () => {
     const runtime = createRuntime();
     settle(runtime);
     runtime.startRecording();
@@ -106,7 +106,7 @@ describe("FixedStepRpgRuntime", () => {
       tick: 605,
       sceneId: "room.b",
       player: {
-        position: { x: 156.00000000000014, y: 66 },
+        position: { x: 142.80000000000013, y: 66 },
         velocity: { x: 88, y: 0 },
         grounded: true,
         body: { width: 12, height: 14 },

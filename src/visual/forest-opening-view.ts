@@ -65,7 +65,7 @@ export interface ForestOpeningPublicView {
     facing: -1 | 1;
     animationId: ForestOpeningAnimationId;
     frame: number;
-    visualHeightPx: 20;
+    visualHeightPx: 19;
     glow: false;
   }>;
   readonly environment: readonly ForestOpeningEnvironmentLayer[];
@@ -208,7 +208,7 @@ export function projectForestOpeningView(
       facing: spatial.camera.facing === "right" ? 1 as const : -1 as const,
       animationId,
       frame: Math.floor(snapshot.runtime.tick / animationStride) % 4,
-      visualHeightPx: 20 as const,
+      visualHeightPx: 19 as const,
       glow: false as const,
     }),
     environment: Object.freeze([
@@ -250,6 +250,8 @@ export function renderForestOpeningView(
   context: CanvasRenderingContext2D,
   view: ForestOpeningPublicView,
   loadedVisuals: LoadedForestOpeningVisualAssets | null = null,
+  renderTerrain?: (context: CanvasRenderingContext2D, camera: ForestCameraState) => void,
+  renderTraveler?: (context: CanvasRenderingContext2D, view: ForestOpeningPublicView) => void,
 ): void {
   context.save();
   context.imageSmoothingEnabled = false;
@@ -273,13 +275,11 @@ export function renderForestOpeningView(
     context.fillRect(0, 0, 640, 360);
     drawForestDepth(context, view.camera, 0.15, "#1c3030", 54, 94);
     drawForestDepth(context, view.camera, 0.42, "#142523", 34, 60);
-    context.fillStyle = "#0d1715";
-    context.fillRect(0, 300, 640, 60);
-    context.fillStyle = "#44513a";
-    context.fillRect(0, 296, 640, 4);
+    renderTerrain?.(context, view.camera);
     for (const object of view.environment[2]!.objects) drawWorldObject(context, view.camera, object);
     for (const creature of view.creatures) drawCreature(context, view.camera, creature);
-    drawTraveler(context, view);
+    if (renderTraveler) renderTraveler(context, view);
+    else drawTraveler(context, view);
   }
   context.restore();
 }
@@ -437,18 +437,9 @@ function drawCreature(context: CanvasRenderingContext2D, camera: ForestCameraSta
 
 function drawTraveler(context: CanvasRenderingContext2D, view: ForestOpeningPublicView): void {
   const x = Math.round(view.traveler.position.x - view.camera.x);
-  const y = Math.round(view.traveler.position.y - view.camera.y + 14 - view.traveler.visualHeightPx);
-  const stride = view.traveler.animationId === "walk" || view.traveler.animationId === "run"
-    ? view.traveler.frame % 2 : 0;
-  context.fillStyle = "#081012";
-  context.fillRect(x + 1, y, 5, 5);
-  context.fillStyle = "#0e5b5b";
-  context.fillRect(x, y + 4, 7, 10);
-  context.fillStyle = "#caa06c";
-  context.fillRect(x + 5, y + 2, 2, 3);
-  context.fillStyle = "#121c20";
-  context.fillRect(x + 1, y + 14, 2, 5 + stride);
-  context.fillRect(x + 5, y + 14, 2, 6 - stride);
+  const y = Math.round(view.traveler.position.y - view.camera.y - 5);
+  context.fillStyle = "#2f6970";
+  context.fillRect(x, y, 8, 19);
 }
 
 function freezeObject(
@@ -532,7 +523,10 @@ function promptForNearest(
     .map((object) => ({ object, distance: gapToBounds(center, object.bounds) }))
     .filter(({ distance }) => distance <= manifest.obstacle.interactionRadiusPx)
     .sort((left, right) => left.distance - right.distance);
-  const nearby = (nearbyObjects.find(({ object }) => object.kind !== "stream") ?? nearbyObjects[0])?.object;
+  const stream = nearbyObjects.find(({ object }) => object.kind === "stream");
+  const nearby = (nearbyObjects.find(({ object, distance }) =>
+    object.kind !== "stream" && (stream === undefined || distance <= manifest.obstacle.interactionRadiusPx / 2)) ??
+    stream ?? nearbyObjects[0])?.object;
   if (!nearby) return null;
   if (nearby.kind === "stream") return Object.freeze({ interactionId: "enter_shallow_detour", prompt: "E · 涉水绕行" });
   if (nearby.kind === "stone") return Object.freeze({ interactionId: "push_stone", prompt: "E · 推动松石" });

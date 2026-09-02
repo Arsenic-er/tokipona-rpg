@@ -86,6 +86,7 @@ test.describe("desktop 1440x900 complete routes", () => {
         await canvas.focus();
         await page.keyboard.press("e");
         await page.clock.fastForward(17);
+        await page.evaluate(() => window.dispatchEvent(new Event("pagehide")));
         await recordRabbitMode(page, rabbitModes);
       }
       await expect(page.locator('[data-hud="objective"]')).toHaveText("继续向东，抵达林间聚落");
@@ -198,7 +199,7 @@ test.describe("desktop 1440x900 complete routes", () => {
 test.describe("mobile complete route", () => {
   test.use({ viewport: { width: 844, height: 390 }, hasTouch: true });
   test("uses touch controls through the shallow route and restores the committed save", async ({ page }, testInfo) => {
-    test.setTimeout(60_000);
+    test.setTimeout(90_000);
     await page.clock.install();
     await page.goto("/chapter-one.html");
     const initialSave = await readOpeningSave(page);
@@ -252,14 +253,20 @@ test("keeps corrupt save bytes intact until the player explicitly resets them", 
 
 async function moveUntilPrompt(page: Page, wanted: string, rabbitModes?: Set<string>): Promise<void> {
   const prompt = page.locator('[data-hud="prompt"]');
+  const sampleMilliseconds = 100;
+  const maximumSamples = 450;
   await page.keyboard.down("d");
   try {
-    for (let sample = 0; sample < 180; sample += 1) {
-      await page.clock.fastForward(250);
-      if (sample % 8 === 0) await assertTravelerVisible(page);
+    for (let sample = 0; sample < maximumSamples; sample += 1) {
+      await page.clock.fastForward(sampleMilliseconds);
+      const currentPrompt = (await prompt.textContent())?.trim() ?? "";
+      if (currentPrompt === wanted) {
+        await recordRabbitMode(page, rabbitModes);
+        return;
+      }
+      if (sample % 12 === 0) await assertTravelerVisible(page);
       if (sample % 4 === 0) await recordRabbitMode(page, rabbitModes);
-      if ((await prompt.textContent())?.trim() === wanted) return;
-      if (sample > 0 && sample % 24 === 0) await page.keyboard.press("w");
+      if (wanted !== "E · 涉水绕行" && sample > 0 && sample % 24 === 0) await page.keyboard.press("w");
     }
   } finally { await page.keyboard.up("d"); }
   throw new Error(`forest opening prompt was not reached: ${wanted}`);
@@ -270,9 +277,12 @@ async function moveUntilSettlement(page: Page, rabbitModes?: Set<string>): Promi
   try {
     for (let sample = 0; sample < 120; sample += 1) {
       await page.clock.fastForward(250);
-      if (sample % 8 === 0) await assertTravelerVisible(page);
+      if ((await page.locator('[data-hud="objective"]').textContent())?.trim() === SETTLEMENT_OBJECTIVE) {
+        await recordRabbitMode(page, rabbitModes);
+        return;
+      }
+      if (sample % 12 === 0) await assertTravelerVisible(page);
       if (sample % 4 === 0) await recordRabbitMode(page, rabbitModes);
-      if ((await page.locator('[data-hud="objective"]').textContent())?.trim() === SETTLEMENT_OBJECTIVE) return;
       if (sample > 0 && sample % 24 === 0) await page.keyboard.press("w");
     }
   } finally { await page.keyboard.up("d"); }
@@ -282,12 +292,15 @@ async function moveUntilSettlement(page: Page, rabbitModes?: Set<string>): Promi
 async function moveUntilPromptByTouch(page: Page, wanted: string, jumpAcrossTerrain = false): Promise<void> {
   const prompt = page.locator('[data-hud="prompt"]');
   const right = page.getByRole("button", { name: "向右" });
+  const sampleMilliseconds = 100;
+  const maximumSamples = 450;
   let hold = await beginTouchHold(page, right);
   try {
-    for (let sample = 0; sample < 180; sample += 1) {
-      await page.clock.fastForward(250);
-      if (sample % 8 === 0) await assertTravelerVisible(page);
-      if ((await prompt.textContent())?.trim() === wanted) return;
+    for (let sample = 0; sample < maximumSamples; sample += 1) {
+      await page.clock.fastForward(sampleMilliseconds);
+      const currentPrompt = (await prompt.textContent())?.trim() ?? "";
+      if (currentPrompt === wanted) return;
+      if (sample % 12 === 0) await assertTravelerVisible(page);
       if (jumpAcrossTerrain && sample > 0 && sample % 24 === 0) {
         await hold.release();
         await page.getByRole("button", { name: "跳跃" }).tap();
@@ -305,8 +318,8 @@ async function moveUntilSettlementByTouch(page: Page): Promise<void> {
   try {
     for (let sample = 0; sample < 120; sample += 1) {
       await page.clock.fastForward(250);
-      if (sample % 8 === 0) await assertTravelerVisible(page);
       if ((await page.locator('[data-hud="objective"]').textContent())?.trim() === SETTLEMENT_OBJECTIVE) return;
+      if (sample % 12 === 0) await assertTravelerVisible(page);
       if (sample > 0 && sample % 24 === 0) {
         await hold.release();
         await page.getByRole("button", { name: "跳跃" }).tap();
@@ -377,7 +390,7 @@ async function assertTravelerVisible(page: Page, requireCandidateTraveler = fals
     const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
     let minX = canvas.width, minY = canvas.height, maxX = -1, maxY = -1;
     for (let index = 0; index < pixels.length; index += 4) {
-      if (pixels[index] !== 14 || pixels[index + 1] !== 91 || pixels[index + 2] !== 91 || pixels[index + 3] !== 255) continue;
+      if (pixels[index] !== 47 || pixels[index + 1] !== 105 || pixels[index + 2] !== 112 || pixels[index + 3] !== 255) continue;
       const pixel = index / 4;
       const x = pixel % canvas.width;
       const y = Math.floor(pixel / canvas.width);

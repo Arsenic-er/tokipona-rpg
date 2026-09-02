@@ -3,6 +3,7 @@ import generated from "../generated/content-runtime.v0.1.json";
 import { readRuntimeForestSpatialManifest } from "../content/runtime-forest-spatial-manifest";
 import type { PlayerState } from "./runtime";
 import {
+  FOREST_CAMERA_TUNING,
   advanceForestCamera,
   initializeForestCamera,
   type ForestCameraState,
@@ -45,37 +46,61 @@ describe("continuous forest camera", () => {
     expect(result).toEqual(previous);
   });
 
-  it("centers sustained right pursuit on the 115.2 pixel look-ahead before snapping", () => {
-    const result = advanceForestCamera(contract, camera(1_000, 1_000), player(1_594, 1_173, 88), bounds);
+  it("moves only toward the nearest dead-zone edge and caps one-tick pursuit", () => {
+    const previous = camera(1_000, 1_000);
+    const result = advanceForestCamera(contract, previous, player(1_594, 1_173, 88), bounds);
 
-    expect(result).toEqual(camera(1_395, 1_000, "right"));
+    expect(result.x).toBeGreaterThan(previous.x);
+    expect(result.x - previous.x).toBeLessThanOrEqual(
+      Math.ceil(FOREST_CAMERA_TUNING.maxHorizontalSpeed / 60),
+    );
+    expect(result.x).toBeLessThan(1_100);
+    expect(result.y).toBe(previous.y);
   });
 
-  it("changes look-ahead through facing state without changing the crop size", () => {
+  it("smooths a facing reversal instead of jumping the look-ahead across the player", () => {
     const previous = camera(1_395, 1_000, "right");
-
     const result = advanceForestCamera(contract, previous, player(1_709, 1_173, -88), bounds);
 
-    expect(result).toEqual(camera(1_280, 1_000, "left"));
-    expect(result.width).toBe(previous.width);
-    expect(result.height).toBe(previous.height);
+    expect(result.facing).toBe("left");
+    expect(result.x).toBeLessThan(previous.x);
+    expect(previous.x - result.x).toBeLessThanOrEqual(
+      Math.ceil(FOREST_CAMERA_TUNING.maxHorizontalSpeed / 60),
+    );
   });
 
-  it("biases descending pursuit down by 50.4 pixels before snapping", () => {
-    const result = advanceForestCamera(contract, camera(1_000, 1_000), player(1_178.8, 1_594, 0, 240), bounds);
+  it("settles monotonically without overshooting a sustained target", () => {
+    const target = player(1_594, 1_173, 88);
+    let current = camera(1_000, 1_000);
+    const samples: number[] = [];
+    for (let tick = 0; tick < 180; tick += 1) {
+      current = advanceForestCamera(contract, current, target, bounds);
+      samples.push(current.x);
+    }
 
-    expect(result).toEqual(camera(1_000, 1_471));
+    expect(samples.every((value, index) => index === 0 || value >= samples[index - 1]!)).toBe(true);
+    expect(current.x).toBeGreaterThan(1_300);
+    expect(current.x).toBeLessThanOrEqual(1_320);
   });
 
-  it("keeps upward pursuit 28.8 pixels below the player before snapping", () => {
-    const result = advanceForestCamera(contract, camera(1_000, 1_000), player(1_178.8, 1_594, 0, -190), bounds);
+  it("uses slower vertical damping for descending pursuit", () => {
+    const previous = camera(1_000, 1_000);
+    const result = advanceForestCamera(contract, previous, player(1_178.8, 1_594, 0, 240), bounds);
 
-    expect(result).toEqual(camera(1_000, 1_450));
+    expect(result.y).toBeGreaterThan(previous.y);
+    expect(result.y - previous.y).toBeLessThanOrEqual(
+      Math.ceil(FOREST_CAMERA_TUNING.maxVerticalSpeed / 60),
+    );
+    expect(result.y).toBeLessThan(1_100);
   });
 
   it("pixel-snaps and clamps both axes to the authored 10240 by 2880 region", () => {
-    const topLeft = advanceForestCamera(contract, camera(100, 100, "left"), player(-1_000, -1_000, -1, -1), bounds);
-    const bottomRight = advanceForestCamera(contract, camera(9_000, 2_000), player(20_000, 20_000, 1, 1), bounds);
+    let topLeft = camera(100, 100, "left");
+    let bottomRight = camera(9_000, 2_000);
+    for (let tick = 0; tick < 4_000; tick += 1) {
+      topLeft = advanceForestCamera(contract, topLeft, player(-1_000, -1_000, -1, -1), bounds);
+      bottomRight = advanceForestCamera(contract, bottomRight, player(20_000, 20_000, 1, 1), bounds);
+    }
 
     expect(topLeft).toEqual(camera(0, 0, "left"));
     expect(bottomRight).toEqual(camera(9_600, 2_520, "right"));

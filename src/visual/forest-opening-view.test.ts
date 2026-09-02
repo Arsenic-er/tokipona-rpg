@@ -11,6 +11,8 @@ import {
   type ForestOpeningPublicView,
 } from "./forest-opening-view";
 import type { LoadedForestOpeningVisualAssets } from "./browser-forest-opening-assets";
+import { projectForestOpeningTravelerPixelRig } from "./forest-opening-candidate-traveler";
+import { rasterizeForestOpeningTerrain } from "./forest-opening-terrain";
 
 function freshView(): ForestOpeningPublicView {
   const session = PrologueForestOpeningSession.fresh({
@@ -31,10 +33,41 @@ describe("forest opening public view", () => {
     expect(view.environment.map(({ layer }) => layer)).toEqual([
       "far_parallax", "mid_parallax", "world_material", "foreground",
     ]);
-    expect(view.traveler.visualHeightPx).toBe(20);
+    expect(view.traveler.visualHeightPx).toBe(19);
     expect(view.traveler.glow).toBe(false);
     expect(view.traveler.animationId).toBe("fall");
     expect(view.hud).toMatchObject({ health: 100, maxHealth: 100, mp: 12, maxMp: 24 });
+  });
+
+  it("uses the existing readable 14x19 traveler rig with its feet anchored to the 12x14 body", () => {
+    const view = freshView();
+    const rig = projectForestOpeningTravelerPixelRig(view);
+
+    expect(rig.visualBounds).toEqual({ width: 14, height: 19 });
+    expect(rig.collisionBody).toEqual({ width: 12, height: 14 });
+    expect(rig.anchorOffset).toEqual({ x: -1, y: -5 });
+    expect(rig.pixels.some(({ role }) => role === "eye")).toBe(true);
+    expect(rig.pixels.some(({ role }) => role === "scarf")).toBe(true);
+    expect(view.traveler.position.y + rig.collisionBody.height)
+      .toBe(view.traveler.position.y + rig.anchorOffset.y + rig.visualBounds.height);
+  });
+
+  it("rasterizes the same streamed material cells used by collision under the traveler", () => {
+    const session = PrologueForestOpeningSession.fresh({
+      sessionId: "view.collision-ground",
+      seed: "view.collision-ground.seed",
+    });
+    session.advanceTicks(120);
+    const snapshot = session.snapshot();
+    const view = projectForestOpeningView(snapshot, runtimeForestOpeningAssetExport);
+    const pixels = rasterizeForestOpeningTerrain(session.visibleMaterialChunks(), view.camera);
+    const screenX = Math.floor(snapshot.runtime.spatial.player.position.x + 6 - view.camera.x);
+    const footY = Math.ceil(snapshot.runtime.spatial.player.position.y + 14 - view.camera.y);
+    const alpha = (x: number, y: number) => pixels[(y * 640 + x) * 4 + 3];
+
+    expect(snapshot.runtime.spatial.player.grounded).toBe(true);
+    expect(alpha(screenX, footY - 1)).toBe(0);
+    expect(alpha(screenX, footY)).toBe(255);
   });
 
   it("contains only browser-facing semantic and visual fields", () => {
@@ -154,6 +187,23 @@ describe("forest opening public view", () => {
     };
 
     const view = projectForestOpeningView(atStreamEdge, runtimeForestOpeningAssetExport);
+    expect(view.obstacle.interactionPrompt).toBe("E · 涉水绕行");
+    expect(view.obstacle.interactionId).toBe("enter_shallow_detour");
+  });
+
+  it("keeps the shallow route readable until a loose object is within half the interaction radius", () => {
+    const base = PrologueForestOpeningSession.fresh({
+      sessionId: "view.shallow-readable",
+      seed: "view.shallow-readable.seed",
+    }).snapshot();
+    const view = projectForestOpeningView({
+      ...base,
+      runtime: { ...base.runtime, spatial: { ...base.runtime.spatial, player: {
+        ...base.runtime.spatial.player,
+        position: { x: 1_790, y: 690 },
+        grounded: true,
+      } } },
+    }, runtimeForestOpeningAssetExport);
     expect(view.obstacle.interactionPrompt).toBe("E · 涉水绕行");
     expect(view.obstacle.interactionId).toBe("enter_shallow_detour");
   });

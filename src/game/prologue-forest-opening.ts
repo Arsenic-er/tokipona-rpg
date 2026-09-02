@@ -21,6 +21,7 @@ import {
   type ForestOpeningRuntimeSave,
   type ForestOpeningSnapshot,
 } from "../world/forest-opening-runtime";
+import type { ForestMaterialChunk } from "../world/forest-chunk-stream";
 import {
   PROLOGUE_AREA_ID,
   PROLOGUE_ROUTE_FLAGS,
@@ -237,6 +238,10 @@ export class PrologueForestOpeningSession {
       glyphObserved: session.receiptIndex[GLYPH_RECEIPT_ID]?.payloadHash === GLYPH_RECEIPT_HASH,
       killCount: 0,
     });
+  }
+
+  public visibleMaterialChunks(): readonly ForestMaterialChunk[] {
+    return this.runtime.visibleMaterialChunks();
   }
 
   public toSave(): PrologueForestOpeningSave {

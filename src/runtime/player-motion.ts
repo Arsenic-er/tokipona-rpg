@@ -3,12 +3,16 @@ import type { PlayerBody } from "./scene";
 
 export const PLAYER_MOTION = Object.freeze({
   moveSpeed: 88,
-  groundAcceleration: 720,
-  airAcceleration: 420,
-  groundDeceleration: 920,
+  groundAcceleration: 360,
+  airAcceleration: 220,
+  groundDeceleration: 520,
+  airDeceleration: 72,
+  turnAcceleration: 840,
   gravity: 560,
   maxFallSpeed: 240,
   jumpSpeed: 190,
+  jumpReleaseGravityMultiplier: 2.4,
+  fallGravityMultiplier: 1.25,
 });
 
 export interface PlayerMotionState {
@@ -43,20 +47,26 @@ const EPSILON = 1e-9;
 export function stepPlayerMotion(options: PlayerMotionStepOptions): PlayerMotionStepResult {
   const state = { ...options.state };
   const targetVelocity = options.input.moveX * PLAYER_MOTION.moveSpeed;
-  const acceleration = state.grounded
-    ? PLAYER_MOTION.groundAcceleration
-    : PLAYER_MOTION.airAcceleration;
-  const rate = options.input.moveX === 0 && state.grounded
-    ? PLAYER_MOTION.groundDeceleration
-    : acceleration;
+  const reversing = options.input.moveX !== 0 && Math.sign(targetVelocity) !== Math.sign(state.velocityX) &&
+    Math.abs(state.velocityX) > EPSILON;
+  const rate = reversing
+    ? state.grounded ? PLAYER_MOTION.turnAcceleration : PLAYER_MOTION.airAcceleration
+    : options.input.moveX === 0
+      ? state.grounded ? PLAYER_MOTION.groundDeceleration : PLAYER_MOTION.airDeceleration
+      : state.grounded ? PLAYER_MOTION.groundAcceleration : PLAYER_MOTION.airAcceleration;
   state.velocityX = approach(state.velocityX, targetVelocity, rate * options.fixedSeconds);
   if (options.input.jump && !options.previousJump && state.grounded) {
     state.velocityY = -PLAYER_MOTION.jumpSpeed;
     state.grounded = false;
   }
+  const gravityMultiplier = state.velocityY < 0 && options.previousJump && !options.input.jump
+    ? PLAYER_MOTION.jumpReleaseGravityMultiplier
+    : state.velocityY > 0
+      ? PLAYER_MOTION.fallGravityMultiplier
+      : 1;
   state.velocityY = Math.min(
     PLAYER_MOTION.maxFallSpeed,
-    state.velocityY + PLAYER_MOTION.gravity * options.fixedSeconds,
+    state.velocityY + PLAYER_MOTION.gravity * gravityMultiplier * options.fixedSeconds,
   );
 
   moveAxis(state, state.velocityX * options.fixedSeconds, "x", options.body, options.collides);
