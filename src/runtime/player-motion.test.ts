@@ -33,10 +33,10 @@ describe("stepPlayerMotion", () => {
     expect(samples[0]).toBeGreaterThan(0);
     expect(samples[0]).toBeLessThan(PLAYER_MOTION.moveSpeed * 0.12);
     expect(samples[7]).toBe(PLAYER_WALK_SPEED);
-    expect(samples[7]).toBeLessThan(60);
-    const firstRunTick = samples.findIndex((speed) => speed >= 60);
-    expect(firstRunTick).toBeGreaterThan(15);
-    expect(firstRunTick).toBeLessThan(30);
+    expect(samples[7]).toBeLessThan(74);
+    const firstRunTick = samples.findIndex((speed) => speed >= 74);
+    expect(firstRunTick).toBeGreaterThan(25);
+    expect(firstRunTick).toBeLessThan(36);
     expect(samples.at(-1)).toBe(PLAYER_MOTION.moveSpeed);
     expect(samples.every((value, index) => index === 0 || value >= samples[index - 1]!)).toBe(true);
   });
@@ -48,7 +48,7 @@ describe("stepPlayerMotion", () => {
     }
 
     expect(state.velocityX).toBeCloseTo(PLAYER_MOTION.moveSpeed * 0.35);
-    expect(state.velocityX).toBeLessThan(60);
+    expect(state.velocityX).toBeLessThan(74);
     expect(normalizeMoveAxis(1.7)).toBe(1);
     expect(normalizeMoveAxis(-1.7)).toBe(-1);
     expect(normalizeMoveAxis(Number.NaN)).toBe(0);

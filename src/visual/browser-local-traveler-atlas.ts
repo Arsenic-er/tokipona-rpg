@@ -2,14 +2,14 @@ import type { ForestOpeningPublicView } from "./forest-opening-view";
 
 export interface LocalTravelerAtlas {
   readonly image: CanvasImageSource & Readonly<{ naturalWidth: number; naturalHeight: number }>;
-  readonly version: "v0.5";
+  readonly version: "v0.6";
 }
 
 export type LocalTravelerAtlasLoadResult =
   | Readonly<{ status: "unavailable" }>
   | Readonly<{ status: "ready"; atlas: LocalTravelerAtlas }>;
 
-const LOCAL_ATLAS_URL = "/src/local-art-cache/traveler-atlas.v0.5.png";
+const LOCAL_ATLAS_URL = "/src/local-art-cache/traveler-atlas.v0.6.png";
 const CELL_SIZE = 24;
 const FOOT_ANCHOR_Y = 22;
 
@@ -25,7 +25,7 @@ export async function loadBrowserLocalTravelerAtlas(
     }
     return Object.freeze({
       status: "ready",
-      atlas: Object.freeze({ image, version: "v0.5" }),
+      atlas: Object.freeze({ image, version: "v0.6" }),
     });
   } catch {
     return Object.freeze({ status: "unavailable" });
@@ -83,13 +83,13 @@ export function localTravelerBounds(view: ForestOpeningPublicView): Readonly<{
 
 function frameFor(view: ForestOpeningPublicView): Readonly<{ column: number; row: number }> {
   if (view.traveler.animationId === "run") {
-    const index = Math.floor(view.tick / 3) % 8;
+    const index = view.traveler.frame % 8;
     return index < 4
       ? Object.freeze({ column: index + 4, row: 0 })
       : Object.freeze({ column: index - 4, row: 1 });
   }
   if (view.traveler.animationId === "walk") {
-    const index = Math.floor(view.tick / 6) % 8;
+    const index = view.traveler.frame % 8;
     return index < 4
       ? Object.freeze({ column: index + 4, row: 2 })
       : Object.freeze({ column: index - 4, row: 3 });

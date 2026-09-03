@@ -44,7 +44,7 @@ describe("browser local traveler atlas", () => {
     const context = {
       save: vi.fn(), restore: vi.fn(), translate: vi.fn(), scale: vi.fn(), drawImage: vi.fn(),
     } as unknown as CanvasRenderingContext2D;
-    drawForestOpeningLocalTraveler(context, view(-1), { image: fakeImage(), version: "v0.5" });
+    drawForestOpeningLocalTraveler(context, view(-1), { image: fakeImage(), version: "v0.6" });
     expect(context.translate).toHaveBeenCalledWith(52, 0);
     expect(context.scale).toHaveBeenCalledWith(-1, 1);
     expect(context.drawImage).toHaveBeenCalledOnce();
@@ -54,10 +54,13 @@ describe("browser local traveler atlas", () => {
     const context = {
       save: vi.fn(), restore: vi.fn(), translate: vi.fn(), scale: vi.fn(), drawImage: vi.fn(),
     } as unknown as CanvasRenderingContext2D;
-    const atlas = { image: fakeImage(), version: "v0.5" } as const;
+    const atlas = { image: fakeImage(), version: "v0.6" } as const;
     const sources: string[] = [];
     for (let index = 0; index < 8; index += 1) {
-      const runView = { ...view(), tick: index * 3 };
+      const runView = {
+        ...view(),
+        traveler: { ...view().traveler, animationId: "run" as const, frame: index },
+      };
       drawForestOpeningLocalTraveler(context, runView, atlas);
       const call = vi.mocked(context.drawImage).mock.calls.at(-1)!;
       sources.push(`${call[1]},${call[2]}`);
@@ -72,13 +75,12 @@ describe("browser local traveler atlas", () => {
     const context = {
       save: vi.fn(), restore: vi.fn(), translate: vi.fn(), scale: vi.fn(), drawImage: vi.fn(),
     } as unknown as CanvasRenderingContext2D;
-    const atlas = { image: fakeImage(), version: "v0.5" } as const;
+    const atlas = { image: fakeImage(), version: "v0.6" } as const;
     const sources: string[] = [];
     for (let index = 0; index < 8; index += 1) {
       const walkView = {
         ...view(),
-        tick: index * 6,
-        traveler: { ...view().traveler, animationId: "walk" as const },
+        traveler: { ...view().traveler, animationId: "walk" as const, frame: index },
       };
       drawForestOpeningLocalTraveler(context, walkView, atlas);
       const call = vi.mocked(context.drawImage).mock.calls.at(-1)!;

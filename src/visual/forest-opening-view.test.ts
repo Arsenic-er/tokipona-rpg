@@ -156,7 +156,7 @@ describe("forest opening public view", () => {
       .traveler.animationId).toBe("idle");
     expect(projectForestOpeningView(withPlayer({ x: 7, y: 0 }, true), runtimeForestOpeningAssetExport)
       .traveler.animationId).toBe("walk");
-    expect(projectForestOpeningView(withPlayer({ x: 70, y: 0 }, true), runtimeForestOpeningAssetExport)
+    expect(projectForestOpeningView(withPlayer({ x: 80, y: 0 }, true), runtimeForestOpeningAssetExport)
       .traveler.animationId).toBe("run");
     expect(projectForestOpeningView(withPlayer({ x: 0, y: -2 }, false), runtimeForestOpeningAssetExport)
       .traveler.animationId).toBe("jump");
@@ -166,6 +166,33 @@ describe("forest opening public view", () => {
       expect(projectForestOpeningView(base, runtimeForestOpeningAssetExport, null, action).traveler.animationId)
         .toBe(action);
     }
+  });
+
+  it("holds each walk and run pose for five ticks so transition frames remain visible", () => {
+    const base = PrologueForestOpeningSession.fresh({
+      sessionId: "view.gait-cadence",
+      seed: "view.gait-cadence.seed",
+    }).snapshot();
+    const frameAt = (tick: number, velocityX: number) => projectForestOpeningView({
+      ...base,
+      runtime: {
+        ...base.runtime,
+        tick,
+        spatial: {
+          ...base.runtime.spatial,
+          player: {
+            ...base.runtime.spatial.player,
+            velocity: { x: velocityX, y: 0 },
+            grounded: true,
+          },
+        },
+      },
+    }, runtimeForestOpeningAssetExport).traveler.frame;
+
+    expect([frameAt(0, 40), frameAt(4, 40), frameAt(5, 40), frameAt(9, 40)])
+      .toEqual([0, 0, 1, 1]);
+    expect([frameAt(0, 88), frameAt(4, 88), frameAt(5, 88), frameAt(9, 88)])
+      .toEqual([0, 0, 1, 1]);
   });
 
   it("offers the shallow stream route before loose objects enter interaction range", () => {

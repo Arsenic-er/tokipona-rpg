@@ -103,7 +103,7 @@ if (import.meta.env.DEV) {
       draw: module.drawForestOpeningLocalTraveler,
       bounds: module.localTravelerBounds,
     });
-    candidateLabel.textContent = "本地人物走跑动作候选 v0.5 · 尚未通过正式素材审批";
+    candidateLabel.textContent = "本地人物步态候选 v0.6 · 尚未通过正式素材审批";
     render();
   });
 }

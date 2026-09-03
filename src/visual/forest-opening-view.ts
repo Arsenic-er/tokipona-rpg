@@ -17,7 +17,7 @@ import type {
 } from "./browser-forest-opening-assets";
 
 export const FOREST_OPENING_VIEWPORT = Object.freeze({ width: 640 as const, height: 360 as const });
-const TRAVELER_RUN_ANIMATION_SPEED = 60;
+const TRAVELER_RUN_ANIMATION_SPEED = 74;
 const manifest = readRuntimeForestOpeningManifest(generatedRuntimeArtifact);
 
 export type ForestOpeningAnimationId = ForestOpeningTravelerAction;
@@ -162,7 +162,8 @@ export function projectForestOpeningView(
     : Math.abs(velocity.x) >= TRAVELER_RUN_ANIMATION_SPEED ? "run"
       : Math.abs(velocity.x) >= 0.5 ? "walk" : "idle";
   const animationId = actionPresentation ?? movementAnimation;
-  const animationStride = animationId === "run" ? 3 : animationId === "walk" ? 6 : 10;
+  const locomotionAnimation = animationId === "run" || animationId === "walk";
+  const animationStride = locomotionAnimation ? 5 : 10;
   const obstacle = snapshot.runtime.obstacle;
   const objects: readonly ForestOpeningWorldObjectView[] = Object.freeze([
     freezeObject("stream", "stream.shallow", manifest.obstacle.materialPocketPx,
@@ -208,7 +209,7 @@ export function projectForestOpeningView(
       position: Object.freeze({ ...spatial.player.position }),
       facing: spatial.camera.facing === "right" ? 1 as const : -1 as const,
       animationId,
-      frame: Math.floor(snapshot.runtime.tick / animationStride) % 4,
+      frame: Math.floor(snapshot.runtime.tick / animationStride) % (locomotionAnimation ? 8 : 4),
       visualHeightPx: 19 as const,
       glow: false as const,
     }),
