@@ -44,9 +44,27 @@ describe("browser local traveler atlas", () => {
     const context = {
       save: vi.fn(), restore: vi.fn(), translate: vi.fn(), scale: vi.fn(), drawImage: vi.fn(),
     } as unknown as CanvasRenderingContext2D;
-    drawForestOpeningLocalTraveler(context, view(-1), { image: fakeImage(), version: "v0.3" });
+    drawForestOpeningLocalTraveler(context, view(-1), { image: fakeImage(), version: "v0.4" });
     expect(context.translate).toHaveBeenCalledWith(52, 0);
     expect(context.scale).toHaveBeenCalledWith(-1, 1);
     expect(context.drawImage).toHaveBeenCalledOnce();
+  });
+
+  it("plays all eight run frames across both atlas rows", () => {
+    const context = {
+      save: vi.fn(), restore: vi.fn(), translate: vi.fn(), scale: vi.fn(), drawImage: vi.fn(),
+    } as unknown as CanvasRenderingContext2D;
+    const atlas = { image: fakeImage(), version: "v0.4" } as const;
+    const sources: string[] = [];
+    for (let index = 0; index < 8; index += 1) {
+      const runView = { ...view(), tick: index * 3 };
+      drawForestOpeningLocalTraveler(context, runView, atlas);
+      const call = vi.mocked(context.drawImage).mock.calls.at(-1)!;
+      sources.push(`${call[1]},${call[2]}`);
+    }
+    expect(sources).toEqual([
+      "96,0", "120,0", "144,0", "168,0",
+      "0,24", "24,24", "48,24", "72,24",
+    ]);
   });
 });

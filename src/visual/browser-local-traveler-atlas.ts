@@ -2,14 +2,14 @@ import type { ForestOpeningPublicView } from "./forest-opening-view";
 
 export interface LocalTravelerAtlas {
   readonly image: CanvasImageSource & Readonly<{ naturalWidth: number; naturalHeight: number }>;
-  readonly version: "v0.3";
+  readonly version: "v0.4";
 }
 
 export type LocalTravelerAtlasLoadResult =
   | Readonly<{ status: "unavailable" }>
   | Readonly<{ status: "ready"; atlas: LocalTravelerAtlas }>;
 
-const LOCAL_ATLAS_URL = "/src/local-art-cache/traveler-atlas.v0.3.png";
+const LOCAL_ATLAS_URL = "/src/local-art-cache/traveler-atlas.v0.4.png";
 const CELL_SIZE = 24;
 const FOOT_ANCHOR_Y = 22;
 
@@ -25,7 +25,7 @@ export async function loadBrowserLocalTravelerAtlas(
     }
     return Object.freeze({
       status: "ready",
-      atlas: Object.freeze({ image, version: "v0.3" }),
+      atlas: Object.freeze({ image, version: "v0.4" }),
     });
   } catch {
     return Object.freeze({ status: "unavailable" });
