@@ -1,9 +1,12 @@
 import { type Aabb, type Vec2, WORLD_TILE_SIZE_PX } from "./geometry";
 import type { PlayerBody } from "./scene";
 
+export const PLAYER_WALK_SPEED = 40;
+const PLAYER_RUN_ACCELERATION = 96;
+
 export const PLAYER_MOTION = Object.freeze({
   moveSpeed: 88,
-  groundAcceleration: 360,
+  groundAcceleration: 300,
   airAcceleration: 220,
   groundDeceleration: 520,
   airDeceleration: 72,
@@ -24,7 +27,7 @@ export interface PlayerMotionState {
 }
 
 export interface PlayerMotionInput {
-  readonly moveX: -1 | 0 | 1;
+  readonly moveX: number;
   readonly jump: boolean;
 }
 
@@ -53,7 +56,7 @@ export function stepPlayerMotion(options: PlayerMotionStepOptions): PlayerMotion
     ? state.grounded ? PLAYER_MOTION.turnAcceleration : PLAYER_MOTION.airAcceleration
     : options.input.moveX === 0
       ? state.grounded ? PLAYER_MOTION.groundDeceleration : PLAYER_MOTION.airDeceleration
-      : state.grounded ? PLAYER_MOTION.groundAcceleration : PLAYER_MOTION.airAcceleration;
+      : state.grounded ? groundedAcceleration(state.velocityX, targetVelocity) : PLAYER_MOTION.airAcceleration;
   state.velocityX = approach(state.velocityX, targetVelocity, rate * options.fixedSeconds);
   if (options.input.jump && !options.previousJump && state.grounded) {
     state.velocityY = -PLAYER_MOTION.jumpSpeed;
@@ -73,6 +76,19 @@ export function stepPlayerMotion(options: PlayerMotionStepOptions): PlayerMotion
   state.grounded = false;
   moveAxis(state, state.velocityY * options.fixedSeconds, "y", options.body, options.collides);
   return Object.freeze({ state: Object.freeze(state), previousJump: options.input.jump });
+}
+
+export function normalizeMoveAxis(value: number | undefined): number {
+  if (value === undefined || !Number.isFinite(value)) return 0;
+  return Math.max(-1, Math.min(1, value));
+}
+
+function groundedAcceleration(currentVelocity: number, targetVelocity: number): number {
+  const sameDirection = Math.sign(currentVelocity) === Math.sign(targetVelocity);
+  const buildingBeyondWalk = sameDirection &&
+    Math.abs(currentVelocity) >= PLAYER_WALK_SPEED &&
+    Math.abs(targetVelocity) > PLAYER_WALK_SPEED;
+  return buildingBeyondWalk ? PLAYER_RUN_ACCELERATION : PLAYER_MOTION.groundAcceleration;
 }
 
 function approach(value: number, target: number, maximumDelta: number): number {

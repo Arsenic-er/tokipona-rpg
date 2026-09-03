@@ -11,7 +11,7 @@ import {
   type SceneDefinition,
   SceneRegistry,
 } from "./scene";
-import { stepPlayerMotion } from "./player-motion";
+import { normalizeMoveAxis, stepPlayerMotion } from "./player-motion";
 
 export type JsonPrimitive = string | number | boolean | null;
 export type JsonValue = JsonPrimitive | readonly JsonValue[] | { readonly [key: string]: JsonValue };
@@ -22,7 +22,7 @@ export interface RuntimeInput {
 }
 
 export interface NormalizedRuntimeInput {
-  readonly moveX: -1 | 0 | 1;
+  readonly moveX: number;
   readonly jump: boolean;
 }
 
@@ -125,7 +125,7 @@ const MAX_FRAME_SECONDS = 1;
 const EPSILON = 1e-9;
 
 const normalizeInput = (input: RuntimeInput): NormalizedRuntimeInput => ({
-  moveX: input.moveX === undefined || input.moveX === 0 ? 0 : input.moveX < 0 ? -1 : 1,
+  moveX: normalizeMoveAxis(input.moveX),
   jump: input.jump === true,
 });
 

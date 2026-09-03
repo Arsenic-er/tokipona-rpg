@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { Aabb } from "./geometry";
 import {
+  normalizeMoveAxis,
   PLAYER_MOTION,
+  PLAYER_WALK_SPEED,
   stepPlayerMotion,
   type PlayerMotionState,
 } from "./player-motion";
@@ -13,26 +15,43 @@ const collides = (bounds: Aabb): boolean =>
 
 function step(
   state: PlayerMotionState,
-  input: Readonly<{ moveX: -1 | 0 | 1; jump: boolean }>,
+  input: Readonly<{ moveX: number; jump: boolean }>,
   previousJump = false,
 ) {
   return stepPlayerMotion({ state, body, input, previousJump, fixedSeconds, collides });
 }
 
 describe("stepPlayerMotion", () => {
-  it("accelerates into a run instead of reaching near-full speed immediately", () => {
+  it("reaches walking speed quickly, then builds into a run", () => {
     let state: PlayerMotionState = { x: 144, y: 66, velocityX: 0, velocityY: 0, grounded: true };
     const samples: number[] = [];
-    for (let tick = 0; tick < 18; tick += 1) {
+    for (let tick = 0; tick < 42; tick += 1) {
       state = step(state, { moveX: 1, jump: false }).state;
       samples.push(state.velocityX);
     }
 
     expect(samples[0]).toBeGreaterThan(0);
     expect(samples[0]).toBeLessThan(PLAYER_MOTION.moveSpeed * 0.12);
-    expect(samples[5]).toBeLessThan(PLAYER_MOTION.moveSpeed * 0.7);
+    expect(samples[7]).toBe(PLAYER_WALK_SPEED);
+    expect(samples[7]).toBeLessThan(60);
+    const firstRunTick = samples.findIndex((speed) => speed >= 60);
+    expect(firstRunTick).toBeGreaterThan(15);
+    expect(firstRunTick).toBeLessThan(30);
     expect(samples.at(-1)).toBe(PLAYER_MOTION.moveSpeed);
     expect(samples.every((value, index) => index === 0 || value >= samples[index - 1]!)).toBe(true);
+  });
+
+  it("preserves analog stick strength so a light tilt remains a walk", () => {
+    let state: PlayerMotionState = { x: 144, y: 66, velocityX: 0, velocityY: 0, grounded: true };
+    for (let tick = 0; tick < 90; tick += 1) {
+      state = step(state, { moveX: 0.35, jump: false }).state;
+    }
+
+    expect(state.velocityX).toBeCloseTo(PLAYER_MOTION.moveSpeed * 0.35);
+    expect(state.velocityX).toBeLessThan(60);
+    expect(normalizeMoveAxis(1.7)).toBe(1);
+    expect(normalizeMoveAxis(-1.7)).toBe(-1);
+    expect(normalizeMoveAxis(Number.NaN)).toBe(0);
   });
 
   it("brakes quickly when reversing but still crosses through zero", () => {

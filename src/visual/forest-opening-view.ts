@@ -17,6 +17,7 @@ import type {
 } from "./browser-forest-opening-assets";
 
 export const FOREST_OPENING_VIEWPORT = Object.freeze({ width: 640 as const, height: 360 as const });
+const TRAVELER_RUN_ANIMATION_SPEED = 60;
 const manifest = readRuntimeForestOpeningManifest(generatedRuntimeArtifact);
 
 export type ForestOpeningAnimationId = ForestOpeningTravelerAction;
@@ -158,8 +159,8 @@ export function projectForestOpeningView(
   const velocity = spatial.player.velocity;
   const movementAnimation: ForestOpeningAnimationId = !spatial.player.grounded
     ? velocity.y < 0 ? "jump" : "fall"
-    : Math.abs(velocity.x) >= 5 ? "run"
-      : Math.abs(velocity.x) > 0 ? "walk" : "idle";
+    : Math.abs(velocity.x) >= TRAVELER_RUN_ANIMATION_SPEED ? "run"
+      : Math.abs(velocity.x) >= 0.5 ? "walk" : "idle";
   const animationId = actionPresentation ?? movementAnimation;
   const animationStride = animationId === "run" ? 3 : animationId === "walk" ? 6 : 10;
   const obstacle = snapshot.runtime.obstacle;

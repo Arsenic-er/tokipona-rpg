@@ -143,7 +143,7 @@ describe("forest opening public view", () => {
     expect(commands("stone_steps")).not.toEqual(commands("shallow_detour"));
   });
 
-  it("selects idle, run, jump, and fall animations from verified motion only", () => {
+  it("selects idle, walk, delayed run, jump, and fall animations from verified motion only", () => {
     const base = PrologueForestOpeningSession.fresh({ sessionId: "view.motion", seed: "view.motion.seed" }).snapshot();
     const withPlayer = (velocity: { x: number; y: number }, grounded: boolean) => ({
       ...base,
@@ -155,6 +155,8 @@ describe("forest opening public view", () => {
     expect(projectForestOpeningView(withPlayer({ x: 0, y: 0 }, true), runtimeForestOpeningAssetExport)
       .traveler.animationId).toBe("idle");
     expect(projectForestOpeningView(withPlayer({ x: 7, y: 0 }, true), runtimeForestOpeningAssetExport)
+      .traveler.animationId).toBe("walk");
+    expect(projectForestOpeningView(withPlayer({ x: 70, y: 0 }, true), runtimeForestOpeningAssetExport)
       .traveler.animationId).toBe("run");
     expect(projectForestOpeningView(withPlayer({ x: 0, y: -2 }, false), runtimeForestOpeningAssetExport)
       .traveler.animationId).toBe("jump");

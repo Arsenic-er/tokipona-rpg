@@ -106,12 +106,12 @@ describe("FixedStepRpgRuntime", () => {
       tick: 605,
       sceneId: "room.b",
       player: {
-        position: { x: 142.80000000000013, y: 66 },
+        position: { x: 131.06666666666678, y: 66 },
         velocity: { x: 88, y: 0 },
         grounded: true,
         body: { width: 12, height: 14 },
       },
-      camera: { x: 96, y: 32, width: 96, height: 64 },
+      camera: { x: 89.06666666666678, y: 32, width: 96, height: 64 },
       checkpoint: {
         id: "checkpoint.initial",
         sceneId: "room.a",
@@ -153,6 +153,18 @@ describe("FixedStepRpgRuntime", () => {
     const mismatched = createRuntime();
     mismatched.advanceTicks(1);
     expect(() => mismatched.playReplay(replay)).toThrow(/start state/);
+  });
+
+  it("records analog horizontal intent without collapsing it to a digital direction", () => {
+    const runtime = createRuntime();
+    settle(runtime);
+    runtime.startRecording();
+    runtime.advanceTicks(1, { moveX: 0.35 });
+    runtime.advanceTicks(1, { moveX: 2 });
+    runtime.advanceTicks(1, { moveX: Number.NaN });
+    const replay = runtime.stopRecording();
+
+    expect(replay.inputs.map(({ moveX }) => moveX)).toEqual([0.35, 1, 0]);
   });
 
   it("keeps global progression and persistent diffs while a local reset clears particles", () => {

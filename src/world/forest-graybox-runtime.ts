@@ -6,7 +6,12 @@ import {
   initializeForestCamera,
   type ForestCameraState,
 } from "../runtime/forest-camera";
-import { PLAYER_MOTION, stepPlayerMotion, type PlayerMotionState } from "../runtime/player-motion";
+import {
+  normalizeMoveAxis,
+  PLAYER_MOTION,
+  stepPlayerMotion,
+  type PlayerMotionState,
+} from "../runtime/player-motion";
 import type {
   NormalizedRuntimeInput,
   PlayerState,
@@ -317,7 +322,7 @@ export class ForestGrayboxRuntime {
 
 function normalizeInput(input: RuntimeInput): NormalizedRuntimeInput {
   return Object.freeze({
-    moveX: input.moveX === undefined || input.moveX === 0 ? 0 : input.moveX < 0 ? -1 : 1,
+    moveX: normalizeMoveAxis(input.moveX),
     jump: input.jump === true,
   });
 }
