@@ -18,6 +18,18 @@ function Run-Step([string]$command, [string[]]$arguments) {
   & $command @arguments
   if ($LASTEXITCODE -ne 0) { throw "$command failed ($LASTEXITCODE)" }
 }
+function Test-Episode([string]$executable) {
+  try {
+    $env:TOKIPONA_EPISODE_SMOKE = '1'
+    $env:TOKIPONA_EPISODE_FIXTURE = Join-Path $repo '.codex-tmp/forest-episode/start.json'
+    $env:TOKIPONA_SMOKE_OUTPUT = Join-Path $stage 'episode-smoke'
+    Run-Step 'node' @('scripts/desktop/smoke.cjs', $executable)
+  } finally {
+    Remove-Item Env:TOKIPONA_EPISODE_SMOKE -ErrorAction SilentlyContinue
+    Remove-Item Env:TOKIPONA_EPISODE_FIXTURE -ErrorAction SilentlyContinue
+    Remove-Item Env:TOKIPONA_SMOKE_OUTPUT -ErrorAction SilentlyContinue
+  }
+}
 
 Push-Location $repo
 try {
@@ -35,10 +47,11 @@ try {
   Run-Step 'pnpm' @('run', 'build')
   Run-Step 'pnpm' @('run', 'assets:check')
   Run-Step 'pnpm' @('exec', 'vitest', 'run', 'scripts/desktop', '--maxWorkers=1', '--pool=threads')
+  Run-Step 'pnpm' @('exec', 'vitest', 'run', 'scripts/testing/forest-episode-fixture.test.ts', '--maxWorkers=1', '--pool=threads')
   Run-Step 'pnpm' @('exec', 'vite', 'build', '--config', 'desktop/vite.config.ts')
   $app = Join-Path $stage 'app'
   New-Item -ItemType Directory -Path $app | Out-Null
-  foreach ($name in @('main.cjs', 'security.cjs', 'smoke-probe.cjs', 'package.json')) {
+  foreach ($name in @('main.cjs', 'security.cjs', 'smoke-probe.cjs', 'episode-smoke-probe.cjs', 'package.json')) {
     Copy-Item -LiteralPath (Join-Path $repo "desktop/$name") -Destination $app
   }
   Move-Item -LiteralPath (Join-Path $stage 'web') -Destination (Join-Path $app 'web')
@@ -49,10 +62,13 @@ try {
   }
   Run-Step 'pnpm' @('exec', 'electron-builder', '--config', 'desktop/builder.cjs', '--win', '--dir', '--x64', '--publish', 'never')
   Run-Step 'node' @('scripts/desktop/smoke.cjs', (Join-Path $stage 'package/win-unpacked/tokipona-rpg.exe'))
+  Test-Episode (Join-Path $stage 'package/win-unpacked/tokipona-rpg.exe')
   Run-Step 'pnpm' @('exec', 'electron-builder', '--config', 'desktop/builder.cjs', '--win', 'portable', '--x64', '--publish', 'never')
   $candidate = Join-Path $stage 'package/tokipona-rpg-latest.exe'
   if (!(Test-Path -LiteralPath $candidate) -or (Get-Item -LiteralPath $candidate).Length -lt 1000000) { throw 'EXE missing or incomplete' }
   Run-Step 'node' @('scripts/desktop/smoke.cjs', $candidate)
+  # Check the actual portable's continuation route before replacing the player's EXE.
+  Test-Episode $candidate
   # Only a verified candidate replaces the current EXE. No save directory is ever a cleanup target.
   if (Test-Path -LiteralPath $backup) { throw 'Unexpected previous artifact; inspect before replacing' }
   if (Test-Path -LiteralPath $latest) { [IO.File]::Replace($candidate, $latest, $backup) }
@@ -79,6 +95,10 @@ try {
     foreach ($name in @('fresh.json', 'restore.json', 'fresh.png', 'restore.png', 'gameplay.webm')) {
       $proof = Join-Path $stage "smoke/$name"
       if (Test-Path -LiteralPath $proof) { Copy-Item -LiteralPath $proof -Destination $evidence -Force }
+    }
+    foreach ($name in @('fresh.json', 'restore.json', 'fresh.png', 'restore.png', 'map.png', 'lab.png')) {
+      $proof = Join-Path $stage "episode-smoke/$name"
+      if (Test-Path -LiteralPath $proof) { Copy-Item -LiteralPath $proof -Destination (Join-Path $evidence "episode-$name") -Force }
     }
     Remove-Item -LiteralPath $stage -Recurse -Force
   }

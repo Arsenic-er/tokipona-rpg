@@ -14,7 +14,7 @@ export function forestJourneyBeat(view: ForestOpeningPublicView) {
       : stones > 0 ? `已有 ${stones}/2 块松石就位；继续找另一块松石。` : "靠近松石、枯木或浅水边，查看可以采用的办法。",
     "路已经能通过了。东边石面上有一道陌生刻痕，可以停下观察，也可以继续走。",
     "你记下了刻痕的形状，但仍不懂它。继续向东寻找聚落。",
-    "你穿过了溪路，抵达林间聚落的边缘。这段短旅程到这里结束，聚落内部与后续故事尚未开放。",
+    "你穿过了溪路，抵达林间聚落的边缘。前面的工务人正为损坏的水轮发愁；进入聚落，看看能否用维修换一晚落脚。",
   ];
   return { stage, title: titles[stage]!, detail: details[stage]!, finished,
     route: view.obstacle.solutionId === null ? "尚未处理" : ROUTES[view.obstacle.solutionId],
@@ -54,14 +54,33 @@ export class ForestOpeningJourney {
     this.ending = get(".forest-journey__ending");
     this.journal = get(".forest-journey__journal");
     this.openButton = document.createElement("button");
-    this.openButton.textContent = "笔记";
+    this.openButton.textContent = "任务日志 J";
     this.openButton.setAttribute("aria-label", "旅途笔记（J）");
     root.querySelector(".forest-opening__settings")!.append(this.openButton);
     this.openButton.onclick = () => this.toggle();
+    // Narrative guidance belongs in the journal, never above the playfield.
+    this.journal.querySelector('h2')!.textContent = '任务日志 · 林缘短旅';
+    this.journal.insertBefore(this.hint, this.journal.children[1]!);
+    const objective = root.querySelector<HTMLElement>('[data-hud="objective"]');
+    if (objective) { this.journal.append(objective); objective.hidden = false; }
+    const labLink = document.createElement('a');
+    const slot = new URLSearchParams(location.search).get('practice');
+    labLink.href = `magic-lab.html${slot && /^[0-9a-f]{32}$/.test(slot) ? `?practice=${slot}` : ''}`;
+    labLink.textContent = '独立魔法实验室（不改主进度）';
+    root.querySelector('.forest-opening__pause')!.append(labLink);
     get<HTMLButtonElement>('[data-journey="close"]').onclick = () => this.close();
     this.journal.addEventListener("cancel", event => { event.preventDefault(); this.close(); });
     get<HTMLButtonElement>('[data-journey="replay"]').onclick = options.replay;
     get<HTMLButtonElement>('[data-journey="retry"]').onclick = options.retrySave;
+    const continueButton = document.createElement('button');
+    continueButton.dataset.journey = 'continue';
+    continueButton.textContent = '进入聚落 · 水轮与碎片';
+    continueButton.onclick = () => {
+      const next = new URL(location.href);
+      next.searchParams.set('episode', 'waterwheel');
+      location.assign(next.href);
+    };
+    this.ending.prepend(continueButton);
     if (!options.practice) {
       const replay = document.createElement('button');
       replay.textContent = '临时重玩（不改主存档）';
@@ -98,7 +117,7 @@ export class ForestOpeningJourney {
     const key = `${beat.stage}:${beat.route}:${beat.glyph}:${beat.detail}:${saved}`;
     if (key !== this.previousKey) {
       const text = (field: string, value: string) => {
-        const target = this.hint.parentElement!.querySelector(`[data-journey="${field}"]`)!;
+        const target = this.journal.parentElement!.querySelector(`[data-journey="${field}"]`)!;
         target.textContent = value;
       };
       text("title", beat.title); text("detail", beat.detail);
@@ -107,9 +126,10 @@ export class ForestOpeningJourney {
       text("journal-route", `溪路：${beat.route}`); text("journal-glyph", `刻痕：${beat.glyph}`);
       text("journal-end", beat.finished ? "已抵达聚落边缘；本段结束" : "前往林间聚落边缘");
       this.ending.querySelector<HTMLButtonElement>('[data-journey="retry"]')!.hidden = saved;
+      this.ending.querySelector<HTMLButtonElement>('[data-journey="continue"]')!.disabled = !saved || blocked;
       this.previousKey = key;
     }
-    setHidden(this.hint, blocked || beat.finished || this.open || beat.stage === 0 && view.tick > 600);
+    setHidden(this.hint, false);
     setHidden(this.ending, blocked || !beat.finished || this.open);
     setHidden(this.notice, blocked || beat.finished || this.open || view.tick >= this.noticeUntil);
     if (this.openButton.disabled !== blocked) this.openButton.disabled = blocked;

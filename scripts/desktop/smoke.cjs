@@ -2,7 +2,7 @@ const { spawn } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
 const executable = path.resolve(process.argv[2] || 'exports/windows/.build/package/tokipona-rpg-latest.exe');
-const root = path.resolve('exports/windows/.build/smoke');
+const root = path.resolve(process.env.TOKIPONA_SMOKE_OUTPUT || 'exports/windows/.build/smoke');
 fs.mkdirSync(root, { recursive: true });
 const profile = fs.mkdtempSync(path.join(root, 'profile-'));
 

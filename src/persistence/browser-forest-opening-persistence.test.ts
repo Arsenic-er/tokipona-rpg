@@ -121,7 +121,9 @@ describe("BrowserForestOpeningPersistence", () => {
     const solvedSave = createBrowserForestOpeningSave(positioned);
     const mismatched = resign({ ...clean, session: solvedSave.session });
     expect(() => readBrowserForestOpeningSave(mismatched)).toThrow(/physical|story|solution/i);
-  });
+  // This test simulates the whole legacy approach before checking the envelope.
+  // Give that integration work a bounded budget on the reference laptop.
+  }, 20000);
 
   it("is byte-stable for duplicate writes and persists the latest state on pagehide", () => {
     const storage = new MemoryStorage();

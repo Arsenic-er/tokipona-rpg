@@ -11,6 +11,7 @@ describe("production bundle budget", () => {
       "rpg.html",
       "world-scale.html",
       "chapter-one.html",
+      "magic-lab.html",
     ]);
   });
 
@@ -122,7 +123,7 @@ describe("production bundle budget", () => {
 
     const requests = createFixture();
     for (const file of Object.keys(requests.sizes)) requests.sizes[file] = 1;
-    for (let index = 0; index < 20; index += 1) {
+    for (let index = 0; index < BUNDLE_BUDGETS.maximumChapterOneInitialRequests; index += 1) {
       const key = `_chapter-request-${index}`;
       const file = `assets/chapter-request-${index}.js`;
       requests.manifest[key] = chunkRecord(file, `chapter-request-${index}`);

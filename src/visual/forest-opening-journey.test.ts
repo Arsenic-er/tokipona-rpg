@@ -34,7 +34,7 @@ describe("forest short journey presentation", () => {
     const finished = { ...crossed, mode: "settlement_perimeter" as const };
     expect(forestJourneyBeat(finished)).toMatchObject({ stage: 4, finished: true });
     expect(forestJourneyBeat(finished).glyph).toContain("不影响抵达聚落");
-    expect(forestJourneyBeat(finished).detail).toContain("尚未开放");
+    expect(forestJourneyBeat(finished).detail).toContain("进入聚落");
   });
 
   it("records unknown shapes without awarding words, capabilities or changing session bytes", () => {

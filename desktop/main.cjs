@@ -63,7 +63,7 @@ else {
     await window.loadURL(GAME_URL);
     if (testProfile) window.webContents.removeListener('console-message', captureConsole);
     if (testProfile && process.env.TOKIPONA_SMOKE_REPORT) {
-      await require('./smoke-probe.cjs').run(window, app, loadErrors);
+      await require(process.env.TOKIPONA_EPISODE_SMOKE === '1' ? './episode-smoke-probe.cjs' : './smoke-probe.cjs').run(window, app, loadErrors);
     }
   }).catch(error => {
     if (testProfile && process.env.TOKIPONA_SMOKE_REPORT) {

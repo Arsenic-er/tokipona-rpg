@@ -1,4 +1,5 @@
-import { intersects, type Aabb } from '../runtime/geometry';
+import { type Aabb } from '../runtime/geometry';
+import { forestBodyOverlapsBounds, type ForestBodyShape } from './forest-body-shape';
 
 export interface ForestBodyState {
   readonly id: 'stream.stone.a' | 'stream.stone.b' | 'stream.deadwood';
@@ -41,7 +42,7 @@ export function pushForestBody(body: ForestBodyState, direction: -1 | 1): Forest
     touched:true, restTicks:0 });
 }
 
-export function stepForestBody(body: ForestBodyState, world: ForestBodyWorld, actor?: Aabb): ForestBodyState {
+export function stepForestBody(body: ForestBodyState, world: ForestBodyWorld, actor?: Aabb, shape: ForestBodyShape = 'box-v1'): ForestBodyState {
   const next = { ...body };
   const wet = world.wet(body);
   const wood = body.id === 'stream.deadwood';
@@ -58,10 +59,8 @@ export function stepForestBody(body: ForestBodyState, world: ForestBodyWorld, ac
   const resistance = wet * 1.7 + (grounded ? wood ? 0.9 : 1.8 : 0.08);
   next.vx *= Math.exp(-resistance / 60);
   if (Math.abs(next.vx) < 0.04) next.vx = 0;
-  const raster = (b:Aabb):Aabb => ({x:Math.floor(b.x),y:Math.floor(b.y),
-    width:Math.ceil(b.x+b.width-1e-7)-Math.floor(b.x),height:Math.ceil(b.y+b.height-1e-7)-Math.floor(b.y)});
   const blocked = (candidate: Aabb) => world.solid(candidate, body.id) ||
-    !!actor && intersects(raster(candidate), actor) && !intersects(raster(body), actor);
+    !!actor && forestBodyOverlapsBounds({...candidate,id:body.id}, shape, actor) && !forestBodyOverlapsBounds(body, shape, actor);
   for (const axis of ['x','y'] as const) {
     const speed = axis === 'x' ? 'vx' : 'vy';
     let remaining = next[speed] / 60;

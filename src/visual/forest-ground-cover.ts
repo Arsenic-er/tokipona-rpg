@@ -26,8 +26,9 @@ export function forestGroundCover(chunks: readonly ForestMaterialChunk[]): reado
   for (const chunk of chunks) for (let lx = 0; lx < 16; lx += 1) {
     const x = chunk.chunkX * 16 + lx;
     if (x < 0 || x >= 2496) continue;
-    const seed = seedAt(Math.floor(x / 19));
-    if (x % 19 !== seed % 13 + 3) continue;
+    const seed = seedAt(Math.floor(x / 11));
+    // Groups with bare leaf-litter gaps, rather than an evenly spaced planted row.
+    if (x % 11 !== seed % 7 + 2 || Math.sin(x / 43) + Math.sin(x / 17) < -.1) continue;
     for (let ly = 0; ly < 16; ly += 1) {
       const material = chunk.materials[ly * 16 + lx];
       if (material !== M.soil && material !== M.wet_soil) continue;

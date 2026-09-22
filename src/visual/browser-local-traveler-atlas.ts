@@ -46,7 +46,7 @@ export function loadBrowserLocalTravelerAtlasFromDocument(): Promise<LocalTravel
 
 export function drawForestOpeningLocalTraveler(
   context: CanvasRenderingContext2D,
-  view: ForestOpeningPublicView,
+  view: Pick<ForestOpeningPublicView, 'tick' | 'traveler' | 'camera'>,
   atlas: LocalTravelerAtlas,
 ): void {
   let landing = landings.get(context);
@@ -73,7 +73,7 @@ export function drawForestOpeningLocalTraveler(
   context.restore();
 }
 
-export function localTravelerBounds(view: ForestOpeningPublicView): Readonly<{
+export function localTravelerBounds(view: Pick<ForestOpeningPublicView, 'traveler' | 'camera'>): Readonly<{
   x: number; y: number; width: 24; height: 24;
 }> {
   const footX = view.traveler.position.x + 6;
@@ -86,7 +86,7 @@ export function localTravelerBounds(view: ForestOpeningPublicView): Readonly<{
   });
 }
 
-function frameFor(view: ForestOpeningPublicView): Readonly<{ column: number; row: number }> {
+function frameFor(view: Pick<ForestOpeningPublicView, 'traveler'>): Readonly<{ column: number; row: number }> {
   if (view.traveler.animationId === "run") {
     const index = view.traveler.frame % 8;
     return index < 4

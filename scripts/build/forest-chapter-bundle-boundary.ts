@@ -12,6 +12,7 @@ const FOREST_OPENING_FORBIDDEN_PATH_SEGMENTS = Object.freeze([
   "/candidate-export/",
   "/review/",
 ]);
+const LAB_ONLY_MODULES = ['/src/magic-lab-main.ts', '/src/game/magic-lab.ts', '/src/spells/lab-expression.ts', '/src/visual/magic-lab-renderer.ts'];
 
 export interface ForestChapterBundleChunk {
   readonly fileName: string;
@@ -52,6 +53,10 @@ export function assertForestChapterBundleBoundary(
     normalized(chunk.facadeModuleId ?? "").endsWith("/chapter-one.html"));
   if (chapterEntry === undefined) throw new Error("forest_opening_entry_missing");
   const chapterStaticFiles = staticClosure(chapterEntry.fileName, byFileName);
+  for (const closure of [staticFiles, chapterStaticFiles]) {
+    const leak = chunks.find(chunk => closure.has(chunk.fileName) && chunk.moduleIds.some(id => LAB_ONLY_MODULES.some(suffix => normalized(id).endsWith(suffix))));
+    if (leak) throw new Error(`magic_lab_campaign_static_import:${leak.fileName}`);
+  }
   const forbiddenOpeningModule = chunks.find((chunk) => chapterStaticFiles.has(chunk.fileName) &&
     chunk.moduleIds.some((moduleId) => {
       const path = normalized(moduleId);

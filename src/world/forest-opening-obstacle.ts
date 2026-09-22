@@ -62,6 +62,7 @@ export interface ForestOpeningMaterialPocketSnapshot {
   readonly sharedTerrain?: true;
   readonly integrated?: true;
   readonly soilOpened?: boolean;
+  readonly bodyShape?: 'chipped-v1';
 }
 
 export interface ForestOpeningObstacleSnapshot {
@@ -273,7 +274,8 @@ export class ForestOpeningObstacle {
     const cells = this.creek?.cells() ?? Object.freeze([...this.materialCells]);
     const materialBody = { width: WIDTH, height: HEIGHT, tick: this.materialTick, cells,
       ...(this.creek ? { sharedTerrain: true as const } : {}) } as const;
-    const integratedBody = this.integrated ? {...materialBody,integrated:true as const,soilOpened:this.creek!.opened} : materialBody;
+    const integratedBody = this.integrated ? {...materialBody,integrated:true as const,soilOpened:this.creek!.opened,
+      ...(this.creek!.bodyShape==='chipped-v1'?{bodyShape:'chipped-v1' as const}:{})} : materialBody;
     let materialDigest: `sha256:${string}` | undefined;
     const materialPocket = Object.freeze({
       ...integratedBody,
@@ -534,7 +536,7 @@ function validateSavedPhysicalState(
   manifest: RuntimeForestOpeningManifest,
   save: ForestOpeningObstacleSave,
 ): void {
-  if(save.creek?.schema==='tokipona.forest-creek.v0.2') {
+  if(save.creek?.schema==='tokipona.forest-creek.v0.2' || save.creek?.schema==='tokipona.forest-creek.v0.3') {
     const creek=new ForestOpeningCreek(manifest.obstacle.materialPocketPx,save.creek);
     const [a,b,wood]=creek.bodyStates;
     const projected=physicalBodyProjection(creek);

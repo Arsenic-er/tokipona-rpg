@@ -7,11 +7,12 @@ const root = resolve("exports/windows/.build/app/web");
 
 describe("offline desktop resource boundary", () => {
   it("serves the game and bundled resources, including local-only candidates", () => {
-    for (const name of ['/chapter-one.html', '/assets/game-abcd.js', '/assets/app-support~rpg~chapter-one-CJ7lBF4D.js', '/assets/main.css',
+    for (const name of ['/chapter-one.html', '/magic-lab.html', '/assets/game-abcd.js', '/assets/app-support~rpg~chapter-one-CJ7lBF4D.js', '/assets/main.css',
       '/src/local-art-cache/traveler-atlas.v0.6.png']) {
       expect(resolveGameFile('tokipona://game' + name, root)).toBe(resolve(root, '.' + name));
     }
     expect(canNavigate('tokipona://game/chapter-one.html?practice=0123456789abcdef')).toBe(true);
+    expect(canNavigate('tokipona://game/magic-lab.html')).toBe(true);
   });
   it("rejects remote origins, file access, traversal, source files and Windows path escapes", () => {
     for (const url of ['https://game/chapter-one.html', 'file:///C:/secret.txt',

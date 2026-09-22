@@ -17,7 +17,7 @@ describe("local-only desktop packaging", () => {
     expect(builder.portable.requestExecutionLevel).toBe("user");
     expect(builder.portable.unpackDirName).toBe(false);
     expect(builder.publish).toBeNull();
-    expect(builder.files).toEqual(['main.cjs', 'security.cjs', 'smoke-probe.cjs', 'web/**/*']);
+    expect(builder.files).toEqual(['main.cjs', 'security.cjs', 'smoke-probe.cjs', 'episode-smoke-probe.cjs', 'web/**/*']);
     expect(builder.directories.output).toBe('exports/windows/.build/package');
   });
 });

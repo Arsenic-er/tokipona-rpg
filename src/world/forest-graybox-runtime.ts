@@ -27,6 +27,7 @@ import {
   type ForestMaterialChunk,
 } from "./forest-chunk-stream";
 import { type ForestRegion, validateForestRegion } from "./forest-region-generator";
+import type { ForestSurfaceProfile } from './forest-surface-profile';
 
 export interface ForestGrayboxCheckpoint {
   readonly id: string;
@@ -53,6 +54,7 @@ export interface ForestGrayboxSave {
   readonly accumulatorSeconds: number;
   readonly previousJump: boolean;
   readonly jumpGrace?: PlayerJumpGrace;
+  readonly surfaceProfile?: ForestSurfaceProfile;
   readonly player: PlayerMotionState;
   readonly camera: ForestCameraState;
   readonly checkpoint: ForestGrayboxCheckpoint;
@@ -84,6 +86,7 @@ export class ForestGrayboxRuntime {
   private previousJump = false;
   private jumpGrace = EMPTY_JUMP_GRACE;
   private readonly forgivingJump: boolean;
+  private readonly surfaceProfile?: ForestSurfaceProfile;
   private tickId = 0;
   private accumulatorSeconds = 0;
   private checkpoint: ForestGrayboxCheckpoint;
@@ -97,6 +100,7 @@ export class ForestGrayboxRuntime {
     validateForestRegion(options.manifest, options.region);
     this.manifest = options.manifest;
     this.forgivingJump = options.openingSurface === true;
+    this.surfaceProfile = options.surfaceProfile;
     this.seed = options.region.seed;
     this.topologyDigest = options.region.topologyDigest;
     this.fixedHz = options.fixedHz ?? 60;
@@ -123,6 +127,7 @@ export class ForestGrayboxRuntime {
     this.chunkStream = new ForestChunkStream(options.manifest, options.region, {
       maxRetainedChunks: options.maxRetainedChunks,
       openingSurface: options.openingSurface,
+      surfaceProfile: options.surfaceProfile,
       materialOverlay: options.materialOverlay,
     });
     this.recoveryClearanceVolumes = arrivalRecoveryComponent(options.region, this.body);
@@ -140,7 +145,7 @@ export class ForestGrayboxRuntime {
   }
 
   public static fromSave(options: ForestGrayboxRuntimeOptions, save: ForestGrayboxSave): ForestGrayboxRuntime {
-    const runtime = new ForestGrayboxRuntime(options);
+    const runtime = new ForestGrayboxRuntime({ ...options, surfaceProfile: save.surfaceProfile });
     if (
       save.schema !== "tokipona.forest-graybox.v0.1" ||
       save.seed !== runtime.seed ||
@@ -240,6 +245,7 @@ export class ForestGrayboxRuntime {
       },
       camera,
       ...this.savedJumpGrace(),
+      ...(this.surfaceProfile ? { surfaceProfile: this.surfaceProfile } : {}),
     };
     let stateDigest: `sha256:${string}` | undefined;
     return Object.freeze({
@@ -263,6 +269,7 @@ export class ForestGrayboxRuntime {
       accumulatorSeconds: this.accumulatorSeconds,
       previousJump: this.previousJump,
       ...this.savedJumpGrace(),
+      ...(this.surfaceProfile ? { surfaceProfile: this.surfaceProfile } : {}),
       player: Object.freeze({ ...this.player }),
       camera: Object.freeze({ ...this.camera }),
       checkpoint: freezeCheckpoint(this.checkpoint),

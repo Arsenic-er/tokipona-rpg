@@ -10,7 +10,8 @@ export interface ForestCameraState extends CameraState {
 }
 
 export type RuntimeForestCameraContract = RuntimeForestSpatialManifest["camera"];
-type ForestBounds = RuntimeForestSpatialManifest["regionBoundsPx"];
+// Camera mechanics are shared by the opening and smaller chapter interiors.
+type ForestBounds = Readonly<{ width: number; height: number }>;
 
 export const FOREST_CAMERA_TUNING = Object.freeze({
   horizontalDamping: 9,

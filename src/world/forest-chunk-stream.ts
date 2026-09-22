@@ -3,6 +3,7 @@ import { sha256Canonical, type JsonValue } from "../canonical-json";
 import type { Aabb } from "../runtime/geometry";
 import type { CameraState } from "../runtime/runtime";
 import type { ForestRectPx, ForestRegion } from "./forest-region-generator";
+import { woodlandOpeningHeights, woodlandOpeningSoilDepth, WOODLAND_EDGE_ROOTS, type ForestSurfaceProfile } from './forest-surface-profile';
 
 export const FOREST_MATERIAL = Object.freeze({
   air: 0,
@@ -25,12 +26,16 @@ export interface ForestMaterialChunk {
   readonly chunkY: number;
   readonly digest: `sha256:${string}`;
   readonly materials: Uint8Array;
+  /** World-space surface per column, used only for depth shading and rooted background dressing. */
+  readonly surfaceY?: readonly number[];
+  readonly surfaceRoots?: readonly Readonly<{ x: number; y: number }>[];
 }
 
 export interface ForestChunkStreamOptions {
   readonly maxRetainedChunks?: number;
   /** Open the authored arrival/stream route to the sky; other districts stay unchanged. */
   readonly openingSurface?: boolean;
+  readonly surfaceProfile?: ForestSurfaceProfile;
   readonly materialOverlay?: ForestMaterialOverlay;
 }
 
@@ -75,7 +80,9 @@ export class ForestChunkStream {
   private readonly maxRetainedChunks: number;
   private materializedCount = 0;
   private readonly openingSurface: boolean;
+  private readonly surfaceProfile?: ForestSurfaceProfile;
   private readonly openingHeights = new Int16Array(2496);
+  private readonly surfaceRoots: readonly Readonly<{ x: number; y: number }>[];
   private readonly overlay?: ForestMaterialOverlay;
 
   public constructor(
@@ -95,6 +102,8 @@ export class ForestChunkStream {
       zone.kind === "waterwheel_protected_mass" || zone.kind === "settlement_structure"));
     this.maxRetainedChunks = options.maxRetainedChunks ?? 2_048;
     this.openingSurface = options.openingSurface === true;
+    this.surfaceProfile = options.surfaceProfile;
+    if (this.surfaceProfile !== undefined && this.surfaceProfile !== 'woodland-v2') throw new Error('unknown forest surface profile');
     this.overlay = options.materialOverlay;
     const openingFloors = region.routeCorridors
       .filter(({ edgeId }) => edgeId === "arrival.stream" || edgeId === "stream.settlement")
@@ -120,6 +129,8 @@ export class ForestChunkStream {
         this.openingHeights[x] = slope + Math.round(1 + Math.sin(x / 17) * 0.6 + Math.sin(x / 5) * 0.4);
       }
     }
+    if (this.openingSurface && this.surfaceProfile) this.openingHeights.set(woodlandOpeningHeights(this.openingHeights));
+    this.surfaceRoots = Object.freeze(WOODLAND_EDGE_ROOTS.map(x => Object.freeze({ x, y: this.openingHeights[x]! })));
     if (!Number.isInteger(this.maxRetainedChunks) || this.maxRetainedChunks <= 0) {
       throw new Error("maxRetainedChunks must be a positive integer");
     }
@@ -273,6 +284,7 @@ export class ForestChunkStream {
       chunkY,
       digest: sha256Canonical([...materials] as JsonValue),
       materials,
+      ...(this.openingSurface && originX < 2496 ? { surfaceY: Object.freeze(Array.from({ length: 16 }, (_, x) => this.openingHeights[originX + x]!)), surfaceRoots: this.surfaceRoots } : {}),
     });
     this.materializedCount += 1;
     this.retained.set(key, chunk);
@@ -304,7 +316,10 @@ export class ForestChunkStream {
       // story anchors remain valid, so previous opening saves do not need a reset.
       if (y < surfaceY) return FOREST_MATERIAL.air;
       if(this.overlay?.retireStaticWater && embeddedOpeningRoot(x,y,surfaceY)) return FOREST_MATERIAL.wood;
-      if (y < surfaceY + 9) return FOREST_MATERIAL.soil;
+      if (y < surfaceY + (this.surfaceProfile && x < 1712 ? woodlandOpeningSoilDepth(x) : 9)) return FOREST_MATERIAL.soil;
+      // This version owns a continuous surface; the old corridor voids must not
+      // reappear below it. The separately simulated creek still overlays these bytes.
+      if (this.surfaceProfile && x < 1712) return FOREST_MATERIAL.stone;
     }
 
     if (this.isWaterPixel(x, y) && !(this.openingSurface && this.overlay?.retireStaticWater && x<2496)) return FOREST_MATERIAL.water;
@@ -382,6 +397,8 @@ function copyChunk(chunk: ForestMaterialChunk): ForestMaterialChunk {
     chunkY: chunk.chunkY,
     digest: chunk.digest,
     materials: chunk.materials.slice(),
+    ...(chunk.surfaceY ? { surfaceY: chunk.surfaceY } : {}),
+    ...(chunk.surfaceRoots ? { surfaceRoots: chunk.surfaceRoots } : {}),
   });
 }
 

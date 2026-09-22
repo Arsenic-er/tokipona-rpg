@@ -13,6 +13,7 @@ import { renderForestOpeningView } from "./forest-opening-renderer";
 import type { LoadedForestOpeningVisualAssets } from "./browser-forest-opening-assets";
 import { projectForestOpeningTravelerPixelRig } from "./forest-opening-candidate-traveler";
 import { rasterizeForestOpeningTerrain } from "./forest-opening-terrain";
+import { forestBodyOccupies } from '../world/forest-body-shape';
 
 function freshView(): ForestOpeningPublicView {
   const session = PrologueForestOpeningSession.fresh({
@@ -26,6 +27,30 @@ function freshView(): ForestOpeningPublicView {
 }
 
 describe("forest opening public view", () => {
+  it('draws chipped bodies on the same world pixels as collision across fractional camera motion', () => {
+    const base=freshView();
+    const objects=base.environment[2]!.objects.filter(o=>o.kind==='stone' || o.kind==='deadwood');
+    expect(objects.every(o=>o.bodyShape==='chipped-v1')).toBe(true);
+    for(const cameraX of [1720,1720.25,1720.75]) for(const fraction of [0,0.4]) {
+      const moved=objects.map(o=>({...o,bounds:{...o.bounds,x:o.bounds.x+fraction,y:o.bounds.y+fraction}}));
+      const view={...base,creatures:[],camera:{...base.camera,x:cameraX,y:640.65},
+        environment:base.environment.map(layer=>({...layer,objects:layer.layer==='world_material'?moved:[]}))};
+      const pixels=new Set<string>();
+      const context={save(){},restore(){},fillRect(x:number,y:number,w:number,h:number){
+        for(let py=y;py<y+h;py++) for(let px=x;px<x+w;px++) pixels.add(`${px},${py}`);
+      }} as unknown as CanvasRenderingContext2D;
+      // Empty supplied backdrop/traveler isolate the actual world-object draw calls.
+      renderForestOpeningView(context,view,null,undefined,()=>{},()=>{});
+      for(const object of moved) {
+        const body={...object.bounds,id:object.id};
+        for(let y=Math.floor(body.y)-1;y<=Math.ceil(body.y+body.height);y++)
+          for(let x=Math.floor(body.x)-1;x<=Math.ceil(body.x+body.width);x++) {
+            expect(pixels.has(`${x-Math.round(view.camera.x)},${y-Math.round(view.camera.y)}`))
+              .toBe(forestBodyOccupies(body,'chipped-v1',x,y));
+          }
+      }
+    }
+  });
   it("does not offer glyph observation above its actual interaction radius", () => {
     const base = PrologueForestOpeningSession.fresh({ sessionId: "view.glyph-range", seed: "glyph-range" }).snapshot();
     const at = (y: number) => projectForestOpeningView({ ...base,
@@ -137,7 +162,7 @@ describe("forest opening public view", () => {
               seated: solutionId === "stone_steps" },
           },
           deadwood: { ...base.runtime.obstacle.deadwood,
-            bounds: solutionId === "deadwood_bridge" ? { x: 1_936, y: 732, width: 64, height: 8 } : base.runtime.obstacle.deadwood.bounds,
+            bounds: solutionId === "deadwood_bridge" ? { x: 1_860, y: 710, width: 40, height: 6 } : base.runtime.obstacle.deadwood.bounds,
             bridged: solutionId === "deadwood_bridge" },
         } },
       };

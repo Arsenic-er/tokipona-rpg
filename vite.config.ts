@@ -55,11 +55,35 @@ export function createTokiponaViteConfig(
           "rpg.html",
           "world-scale.html",
           "chapter-one.html",
+          "magic-lab.html",
         ],
         output: {
           strictExecutionOrder: true,
+          // Entry-aware names repeat in every import; keep URLs compact while
+          // preserving the manifest's full ownership names for boundary audits.
+          chunkFileNames: (chunk) => `assets/${chunk.name.replaceAll("forest-episode-main", "episode").replaceAll("chapter-one", "ch1").replaceAll("magic-lab", "lab")}-[hash].js`,
           codeSplitting: {
             groups: [
+              {
+                // Experimental permissions/effects must never be merged into
+                // a campaign learning or game-runtime chunk.
+                name: 'lab-only',
+                test: /[\\/]src[\\/](?:game[\\/]magic-lab|spells[\\/]lab-expression|visual[\\/]magic-lab-renderer)\.ts$/,
+                priority: 110,
+                minSize: 0,
+                entriesAware: false,
+                includeDependenciesRecursively: false,
+              },
+              {
+                // Share tiny framework/JSON/geometry primitives, not scene or
+                // story modules. Keeps both chapter routes within request budgets.
+                name: "shared-base",
+                test: /(?:[\\/]src[\\/](?:canonical-json|runtime[\\/]geometry)\.ts$|(?:modulepreload-polyfill|preload-helper))/,
+                priority: 70,
+                minSize: 0,
+                entriesAware: false,
+                includeDependenciesRecursively: false,
+              },
               {
                 name: "extension-learning",
                 test: /[\\/]src[\\/](?:persistence[\\/]browser-learning-corpus-adapter|rpg-extension-learning-ui|generated[\\/]learning-corpus-packages\.v0\.1|learning[\\/]corpus-partition(?:-collection)?)(?:\.v0\.1)?\.(?:ts|json)$/,

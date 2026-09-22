@@ -1,0 +1,20 @@
+.forest-atlas .atlas-mini { position: absolute; right: max(20px, env(safe-area-inset-right)); top: 100px; padding: 4px; width: 190px; background: #101b17e8; border: 1px solid #65715a; color: #c2c3a7; cursor: pointer; z-index: 4; }
+.forest-atlas .atlas-mini canvas { position: static; display: block; width: 180px; height: 92px; image-rendering: pixelated; }
+.forest-atlas .atlas-mini span { display: block; font: 11px/1.6 system-ui; }
+.forest-atlas .atlas-dialog { box-sizing: border-box; position: fixed; inset: 0; margin: auto; width: min(1120px, calc(100vw - 32px)); max-width: none; max-height: calc(100dvh - 32px); padding: 22px; overflow: auto; color: #ded9bf; background: #131f18; border: 1px solid #77816a; font: 14px/1.6 system-ui; box-shadow: 0 12px 60px #000b; }
+.forest-atlas .atlas-dialog::backdrop { background: #030806b0; }
+.forest-atlas .atlas-heading { display: flex; justify-content: space-between; align-items: center; gap: 20px; }
+.forest-atlas h2 { margin: 2px 0 12px; color: #dfc98c; font-size: 23px; }
+.forest-atlas small { color: #a3ae90; letter-spacing: .14em; }
+.forest-atlas button { font: inherit; color: #daceaa; border: 1px solid #647258; background: #202e23; padding: 6px 12px; cursor: pointer; }
+.forest-atlas button:hover { background: #344231; }
+.forest-atlas button:focus-visible { outline: 2px solid #e5c980; outline-offset: 2px; }
+.forest-atlas button[aria-pressed="true"] { background: #546043; color: #fff0c5; border-color: #c0b77d; }
+.forest-atlas .atlas-toolbar { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+.forest-atlas .atlas-toolbar > div { display: flex; gap: 5px; }
+.forest-atlas .atlas-surface { position: static; display: block; width: 100%; height: clamp(180px, 43vh, 420px); border: 1px solid #364731; background: #030706; image-rendering: pixelated; touch-action: none; cursor: grab; box-sizing: border-box; }
+.forest-atlas .atlas-legend { display: flex; flex-wrap: wrap; gap: 24px; margin-top: 12px; color: #d8c594; }
+.forest-atlas .atlas-help, .forest-atlas .atlas-note, .forest-atlas .atlas-landmarks, .forest-atlas .atlas-subtitle { margin: 8px 0; font-size: 12px; }
+.forest-atlas .atlas-help { color: #9da58e; }
+.forest-atlas [hidden] { display: none !important; }
+@media (max-width: 800px), (max-height: 520px) { .forest-atlas .atlas-mini { top: auto; bottom: 100px; right: 16px; width: 136px; } .forest-atlas .atlas-mini canvas { width: 126px; height: 64px; } .forest-atlas .atlas-mini span { font-size: 10px; } .forest-atlas .atlas-dialog { width: calc(100vw - 16px); max-height: calc(100dvh - 16px); padding: 12px; } .forest-atlas button { padding: 6px 9px; min-height: 38px; } .forest-atlas h2 { font-size: 18px; margin-bottom: 4px; } .forest-atlas .atlas-toolbar { gap: 5px; } }

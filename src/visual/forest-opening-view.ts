@@ -12,6 +12,7 @@ import type { ForestCameraState } from "../runtime/forest-camera";
 import type { Aabb, Vec2 } from "../runtime/geometry";
 import type { RabbitMode, WetlandBirdMode } from "../world/forest-opening-ecology";
 import { forestCreekToolBounds } from '../world/forest-opening-creek';
+import type { ForestBodyShape } from '../world/forest-body-shape';
 import type {
   ForestOpeningTravelerAction,
   LoadedForestOpeningVisualAssets,
@@ -32,6 +33,7 @@ export interface ForestOpeningWorldObjectView {
   readonly bounds: Aabb;
   readonly interactionBounds?: Aabb;
   readonly state: string;
+  readonly bodyShape?: ForestBodyShape;
   readonly materialPocket: Readonly<{
     sharedTerrain?: true;
     integrated?: true;
@@ -136,7 +138,7 @@ export function createForestOpeningPageMarkup(view: ForestOpeningPublicView): st
       <canvas data-surface="game" width="640" height="360" tabindex="0" aria-label="第一章森林开场游戏画面"></canvas>
       <header class="forest-opening__hud" aria-live="polite">
         <div class="forest-opening__meters"><span>HP <output data-hud="health">${view.hud.health}/${view.hud.maxHealth}</output></span><span>MP <output data-hud="mp">${view.hud.mp}/${view.hud.maxMp}</output></span></div>
-        <p data-hud="objective">${escapeHtml(view.hud.objective)}</p>
+        <p data-hud="objective" hidden>${escapeHtml(view.hud.objective)}</p>
         <output data-hud="prompt">${escapeHtml(view.obstacle.interactionPrompt ?? "")}</output>
         ${candidate}
         <div class="forest-opening__settings"><button type="button" data-action="mute" aria-pressed="false">声音</button><button type="button" data-action="pause" aria-pressed="false">暂停</button></div>
@@ -174,10 +176,10 @@ export function projectForestOpeningView(
   const objects: readonly ForestOpeningWorldObjectView[] = Object.freeze([
     freezeObject("stream", "stream.shallow", manifest.obstacle.materialPocketPx,
       obstacle.materialPocket.soilOpened ? "excavated" : obstacle.committedSolutionId ?? "flowing", obstacle.materialPocket),
-    freezeObject("stone", "stream.stone.a", obstacle.stones.a.bounds, obstacle.stones.a.seated ? "seated" : "loose"),
-    freezeObject("stone", "stream.stone.b", obstacle.stones.b.bounds, obstacle.stones.b.seated ? "seated" : "loose"),
+    freezeObject("stone", "stream.stone.a", obstacle.stones.a.bounds, obstacle.stones.a.seated ? "seated" : "loose", null, obstacle.materialPocket.bodyShape),
+    freezeObject("stone", "stream.stone.b", obstacle.stones.b.bounds, obstacle.stones.b.seated ? "seated" : "loose", null, obstacle.materialPocket.bodyShape),
     freezeObject("deadwood", "stream.deadwood", obstacle.deadwood.bounds,
-      obstacle.deadwood.bridged ? "bridged" : "loose"),
+      obstacle.deadwood.bridged ? "bridged" : "loose", null, obstacle.materialPocket.bodyShape),
     freezeObject("unknown_glyph", "stream.glyph.unknown", {
       x: manifest.glyphObservation.positionPx[0] - 4,
       y: manifest.glyphObservation.positionPx[1] - 8,
@@ -268,8 +270,10 @@ export function projectForestOpeningView(
 function freezeObject(
   kind: ForestOpeningWorldObjectView["kind"], id: string, bounds: Aabb, state: string,
   materialPocket: ForestOpeningWorldObjectView["materialPocket"] = null,
+  bodyShape?: ForestBodyShape,
 ): ForestOpeningWorldObjectView {
   return Object.freeze({ kind, id, bounds: Object.freeze({ ...bounds }), state,
+    ...(bodyShape ? {bodyShape} : {}),
     ...(kind === 'stream' && materialPocket?.sharedTerrain ? { interactionBounds: forestCreekToolBounds(bounds) } : {}),
     materialPocket: materialPocket === null ? null : Object.freeze({
       width: materialPocket.width,

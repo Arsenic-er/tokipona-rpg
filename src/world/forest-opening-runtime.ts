@@ -91,6 +91,7 @@ export class ForestOpeningRuntime {
     const region = generateForestRegion(options.spatialManifest, options.seed);
     const obstacle = ForestOpeningObstacle.fresh(options.openingManifest, options.physics==='shared'?true:'integrated');
     const spatial = new ForestGrayboxRuntime({ manifest: options.spatialManifest, region, openingSurface: true,
+      surfaceProfile: 'woodland-v2',
       materialOverlay: obstacle.creek ?? undefined });
     obstacle.creek?.bindTerrain((x,y)=>spatial.chunkStream.baseMaterialAt(x,y));
     const creaturePlacement = createForestOpeningCreaturePlacement(
@@ -302,7 +303,7 @@ function readSave(
 function readSpatialSave(value: unknown): ForestGrayboxSave {
   const raw = record(value, "forest opening spatial save");
   exactKeys(raw, ["schema", "seed", "topologyDigest", "fixedHz", "tick", "accumulatorSeconds", "previousJump", "player", "camera", "checkpoint",
-    ...("jumpGrace" in raw ? ["jumpGrace"] : [])], "forest opening spatial save");
+    ...("jumpGrace" in raw ? ["jumpGrace"] : []), ...("surfaceProfile" in raw ? ["surfaceProfile"] : [])], "forest opening spatial save");
   if ("jumpGrace" in raw) exactKeys(record(raw.jumpGrace, "jump grace"), ["coyote", "buffer"], "jump grace");
   exactKeys(record(raw.player, "forest opening player save"), ["x", "y", "velocityX", "velocityY", "grounded"], "forest opening player save");
   exactKeys(record(raw.camera, "forest opening camera save"), ["x", "y", "width", "height", "facing"], "forest opening camera save");

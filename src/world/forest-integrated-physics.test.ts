@@ -35,7 +35,7 @@ function walkTo(session:PrologueForestOpeningSession,x:number,axis=1) {
   expect(session.snapshot().runtime.spatial.player.position.x,JSON.stringify({player:session.snapshot().runtime.spatial.player,bodies:session.toSave().runtime.obstacle.creek?.bodies})).toBeGreaterThanOrEqual(x);
 }
 
-describe('F3–F5 integrated physics (new v0.2, not legacy instant routes)',()=>{
+describe('F3–F5 integrated physics (chipped v0.3, not legacy instant routes)',()=>{
   it('culls only unowned overlay chunks, including conservative moving-body edge pixels',()=>{
     const world=creek();
     for(let tick=1;tick<=30;tick++) {

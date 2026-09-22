@@ -8,6 +8,17 @@ const camera = { x: 0, y: 0, width: 640, height: 360, facing: "right" as const }
 const pixel = (pixels: Uint8ClampedArray, x: number, y: number) => [...pixels.slice((y * 640 + x) * 4, (y * 640 + x) * 4 + 4)];
 
 describe("world-anchored forest material rendering", () => {
+  it('invalidates depth shading when surface metadata changes even if solid material bytes do not', () => {
+    const target = { createImageData: (w:number,h:number)=>({data:new Uint8ClampedArray(w*h*4)}), putImageData:vi.fn(), clearRect:vi.fn() };
+    const surface = { width:0,height:0,getContext:()=>target };
+    const ctx = { canvas:{ownerDocument:{createElement:()=>surface}},drawImage:vi.fn(),fillRect:vi.fn() } as unknown as CanvasRenderingContext2D;
+    const a = { ...chunk, materials:new Uint8Array(256).fill(FOREST_MATERIAL.stone), surfaceY:Array(16).fill(0) };
+    drawForestOpeningTerrain(ctx, [a], camera);
+    const before = target.putImageData.mock.calls[0]![0].data.slice();
+    drawForestOpeningTerrain(ctx, [{ ...a, surfaceY:Array(16).fill(-100) }], camera);
+    expect(target.putImageData).toHaveBeenCalledTimes(2);
+    expect(target.putImageData.mock.calls[1]![0].data).not.toEqual(before);
+  });
   it("matches full rasterization at tile borders, including side and lower exposure", () => {
     const tiles: ForestMaterialChunk[] = [];
     for(let cy=-1;cy<=1;cy++) for(let cx=-1;cx<=1;cx++) {

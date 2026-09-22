@@ -53,7 +53,7 @@ exports.run = async (window, app, loadErrors = []) => {
         throw new Error('Journal did not close and resume the game');
       }
       await contents.executeJavaScript(`localStorage.setItem('tokipona.desktop.smoke', 'persisted')`);
-      if(JSON.parse(initialSave).spatial.obstacle.creek?.schema!=='tokipona.forest-creek.v0.2') {
+      if(JSON.parse(initialSave).spatial.obstacle.creek?.schema!=='tokipona.forest-creek.v0.3') {
         throw new Error('Desktop did not open the integrated physical world');
       }
       videoProof=await contents.executeJavaScript(`(() => {

@@ -27,7 +27,9 @@ import { ForestTravelerGait } from "./visual/forest-traveler-gait";
 import { interpolateForestOpeningView } from "./visual/forest-opening-interpolation";
 import type { ForestMouseCamera } from "./visual/forest-mouse-camera";
 import type { ForestOpeningJourney } from "./visual/forest-opening-journey";
+import type { ForestMap } from './visual/forest-map';
 
+export function mountForestOpening(): void {
 const SAVE_KEY = "tokipona.forest-opening.vertical-slice.v0.1";
 const MUTE_KEY = "tokipona.forest-opening.audio-muted.v0.1";
 const SESSION_ID = "browser.forest-opening.player";
@@ -62,6 +64,7 @@ let mouseCamera: ForestMouseCamera | null = null;
 let sceneRenderer: typeof import("./visual/forest-opening-renderer")["renderForestOpeningView"] | null = null;
 let sceneLoadFailed = false;
 let journey: ForestOpeningJourney | null = null;
+let atlas: ForestMap | null = null;
 let painted: {
   model: typeof modelSnapshot; key: string; assets: LoadedForestOpeningVisualAssets | null;
   traveler: object | null; terrain: typeof terrainRenderer; backdrop: typeof localBackdrop;
@@ -119,6 +122,13 @@ if (runtimeForestOpeningAssetExport.status === "approved") {
 // but do not advance play until objects, interaction feedback and journal exist.
 void import("./visual/forest-opening-terrain").then((module) => {
   terrainRenderer = module.drawForestOpeningTerrain;
+  atlas = new module.ForestMap(app, {
+    storage: practiceSlot ? sessionStorage : localStorage,
+    suffix: practiceSlot ? `.practice.${practiceSlot}` : '',
+    canOpen: () => !paused && blockedLoad === null && sceneRenderer !== null,
+    suspend: () => { paused = true; clearInput(); audio.suspend(); },
+    resume: closePause,
+  });
   journey = new module.ForestOpeningJourney(app, {
     practice: practiceSlot !== null,
     canOpen: () => !paused && blockedLoad === null,
@@ -206,6 +216,7 @@ function loop(now: number): void {
 function bindControls(): void {
   window.addEventListener("keydown", (event) => {
     const key = event.key.toLowerCase();
+    if (atlas?.key(event)) return;
     if (journey?.key(event)) return;
     if (key === "escape" && !event.repeat) {
       event.preventDefault();
@@ -256,6 +267,7 @@ function bindControls(): void {
   requiredElement<HTMLButtonElement>('[data-recovery="backup"]').addEventListener("click", downloadBackup);
   requiredElement<HTMLButtonElement>('[data-recovery="reset"]').addEventListener("click", () => {
     persistence.reset();
+    atlas?.reset();
     blockedLoad = null;
     window.location.reload();
   });
@@ -381,6 +393,16 @@ function nearestInteraction(current: ForestOpeningPublicView): ForestOpeningInte
 }
 
 function render(): void {
+  if (atlas && blockedLoad === null) {
+    let samples: Map<string, Uint8Array> | undefined;
+    const p = { x: view.traveler.position.x + 6, y: view.traveler.position.y + 7 };
+    atlas.update('opening', p, view.tick, (x, y) => {
+      samples ??= new Map(session.visibleMaterialChunks({ x: Math.max(0, p.x - 176), y: Math.max(0, p.y - 112), width: 352, height: 224 })
+        .map(c => [`${c.chunkX},${c.chunkY}`, c.materials]));
+      return samples.get(`${Math.floor(x / 16)},${Math.floor(y / 16)}`)?.[(y % 16) * 16 + x % 16] ?? 1;
+    }, worldObjects(view).filter(o => o.kind === 'settlement_perimeter' || o.kind === 'unknown_glyph')
+      .map(o => ({ x: o.bounds.x, y: o.bounds.y, label: o.kind === 'unknown_glyph' ? '石面刻痕' : '聚落入口' })));
+  }
   // Model snapshots are immutable and already returned by every state change.
   // Reading notes or a finished save must not rebuild/hash the world each frame.
   view = project(modelSnapshot);
@@ -461,6 +483,7 @@ function project(snapshot: ReturnType<PrologueForestOpeningSession["snapshot"]>)
 }
 
 function persist(): void {
+  atlas?.save();
   lastSavedTick = view.tick;
   try { persistence.save(session); saveSucceeded = true; }
   catch { saveSucceeded = false; journey?.feedback("保存失败，请先不要关闭页面；抵达后可重试。", view.tick); }
@@ -571,4 +594,5 @@ function requiredCanvasContext(target: HTMLCanvasElement): CanvasRenderingContex
   const value = target.getContext("2d", { alpha: false });
   if (!value) throw new Error("forest opening canvas context is unavailable");
   return value;
+}
 }

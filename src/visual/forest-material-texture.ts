@@ -1,4 +1,5 @@
 import { FOREST_MATERIAL as M } from "../world/forest-chunk-stream";
+import { forestBodyFootprint, type ForestBodyShape } from '../world/forest-body-shape';
 
 type Rgb = readonly [number, number, number];
 type Palette = readonly Rgb[];
@@ -58,12 +59,17 @@ export function forestMaterialColor(
   if (material === M.stone) {
     // Dark cool rock, with irregular 1–3 px mineral aggregates concentrated in
     // patches. No periodic horizontal bands and no full-surface white speckle.
-    const mass = field(x / 23 + field(y / 31, 7) * 2, y / 19);
+    const bend = field(x / 59, y / 47);
+    const mass = field(x / 31 + bend * 1.4, y / 18 + bend);
     const mineral = field(x / 2.7, y / 2.1);
-    const patch = field(x / 9, y / 8);
-    let index = mass < 0.36 ? 0 : mass > 0.7 ? 2 : 1;
-    if (mineral > 0.56 && patch > 0.44) index += mineral > 0.73 ? 3 : 2;
-    if (grain % 13 === 0 && index >= 3) index++;
+    const patch = field(x / 11, y / 9);
+    const fracture = field(x / 19 + y / 87, y / 26);
+    // Broad broken faces, thin discontinuous seams and sparse small inclusions.
+    // Keep quiet dark masses; do not cover every rock face with bright grit.
+    let index = mass < .32 ? 0 : mass < .49 ? 1 : mass < .65 ? 2 : 3;
+    if (Math.abs(fracture - .48) < .022 && patch > .38) index = 0;
+    else if (mineral > .67 && patch > .59) index += 2;
+    if (grain % 37 === 0 && index >= 3) index++;
     if (exposure.top === 1 && grain % 4 !== 0) index++;
     if (exposure.side && grain % 3 === 0) index++;
     if (exposure.bottom) index--;
@@ -113,15 +119,19 @@ export interface ForestMaterialRun {
 
 const objectRuns = new Map<string, readonly ForestMaterialRun[]>();
 
-/** Object-local texels move with a body. Every contact pixel remains visible:
- * the existing AABB solver is unchanged; this is not a polygon-physics claim. */
+/** Object-local texels move with a body. New shapes use the physics footprint;
+ * box-v1 keeps historical saved bodies fully visible. No decorative overhang. */
 export function forestObjectMaterialRuns(
   kind: "stone" | "deadwood", width: number, height: number, variant: number,
+  shape: ForestBodyShape = 'box-v1', positionX = 0, positionY = 0,
 ): readonly ForestMaterialRun[] {
   if (!Number.isInteger(width) || !Number.isInteger(height) || width < 1 || height < 1 || width > 256 || height > 256) {
     throw new Error("forest object texture requires bounded integer dimensions");
   }
-  const key = `${kind}:${width}:${height}:${variant}`;
+  const id = kind === 'deadwood' ? 'stream.deadwood' : variant % 2 === 1 ? 'stream.stone.b' : 'stream.stone.a';
+  const footprint = forestBodyFootprint({id, x:positionX, y:positionY, width, height}, shape);
+  const growX = Math.ceil(positionX + width - 1e-7) - Math.floor(positionX) - width;
+  const key = `${kind}:${width}:${height}:${variant}:${shape}:${growX}:${footprint.rows.length}`;
   const cached = objectRuns.get(key);
   if (cached) return cached;
   const rgbAt = (x: number, y: number): Rgb => {
@@ -135,8 +145,16 @@ export function forestObjectMaterialRuns(
       if (x > width * 0.72) index--;
       const crack = Math.floor(width * 0.35 + y * 0.28 + variant % 2);
       if (x === crack && y > height * 0.2 && y < height * 0.8) index -= 2;
-      if (y === 0 || x === 0 || x === width - 1 || y === height - 1) index--;
-      if ((x === 0 || x === width - 1) && (y < 2 || y >= height - 2)) index = 0;
+      if (shape === 'chipped-v1') {
+        const row = footprint.rows[y]!;
+        const above = footprint.rows[y - 1];
+        const below = footprint.rows[y + 1];
+        if (!above || x < above.left || x >= above.right) index++;
+        if (x === row.right - 1 || !below || x < below.left || x >= below.right) index--;
+      } else {
+        if (y === 0 || x === 0 || x === width - 1 || y === height - 1) index--;
+        if ((x === 0 || x === width - 1) && (y < 2 || y >= height - 2)) index = 0;
+      }
       return shade(ROCK, index);
     }
     if (x >= width - Math.min(3, width)) {
@@ -149,11 +167,12 @@ export function forestObjectMaterialRuns(
   };
   const runs: ForestMaterialRun[] = [];
   const colorAt = (x: number, y: number) => `rgb(${rgbAt(x, y).join(",")})`;
-  for (let y = 0; y < height; y++) {
-    let x = 0;
-    while (x < width) {
+  for (let y = 0; y < footprint.rows.length; y++) {
+    const span = footprint.rows[y]!;
+    let x = span.left;
+    while (x < span.right) {
       const color = colorAt(x, y), start = x++;
-      while (x < width && colorAt(x, y) === color) x++;
+      while (x < span.right && colorAt(x, y) === color) x++;
       runs.push(Object.freeze({ x: start, y, width: x - start, color }));
     }
   }

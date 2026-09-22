@@ -6,9 +6,10 @@ import { FOREST_MATERIAL, type ForestMaterial, type ForestMaterialOverlay } from
 import { intersects } from '../runtime/geometry';
 import { ForestOpeningEmbers, type ForestEmbersSave } from './forest-opening-embers';
 import { initialForestBodies, readForestBodies, pushForestBody, stepForestBody, type ForestBodyState } from './forest-opening-body';
+import { forestBodyFootprint, forestBodyOccupies, forestBodiesOverlap, forestBodyArea, type ForestBodyShape } from './forest-body-shape';
 
 export interface ForestCreekSave {
-  readonly schema: 'tokipona.forest-creek.v0.1' | 'tokipona.forest-creek.v0.2';
+  readonly schema: 'tokipona.forest-creek.v0.1' | 'tokipona.forest-creek.v0.2' | 'tokipona.forest-creek.v0.3';
   readonly excavatedSoil: number;
   readonly grid: MaterialGridSave;
   readonly bodies?: readonly ForestBodyState[];
@@ -28,6 +29,8 @@ export const forestCreekToolBounds = (pocket: Aabb): Aabb =>
 export class ForestOpeningCreek implements ForestMaterialOverlay {
   readonly bounds: Aabb;
   readonly integrated: boolean;
+  readonly bodyShape: ForestBodyShape;
+  private readonly schema: ForestCreekSave['schema'];
   private readonly pocket: Aabb;
   private grid: MaterialGrid;
   private excavatedSoil = 0;
@@ -45,7 +48,10 @@ export class ForestOpeningCreek implements ForestMaterialOverlay {
   constructor(bounds: Aabb, save?: ForestCreekSave, integrated = false) {
     if (bounds.width !== WIDTH || bounds.height !== HEIGHT) throw new Error('creek bounds invalid');
     this.pocket = Object.freeze({ ...bounds });
-    this.integrated = save ? save.schema === 'tokipona.forest-creek.v0.2' : integrated;
+    this.schema = save ? save.schema : integrated ? 'tokipona.forest-creek.v0.3' : 'tokipona.forest-creek.v0.1';
+    if (!['tokipona.forest-creek.v0.1','tokipona.forest-creek.v0.2','tokipona.forest-creek.v0.3'].includes(this.schema)) throw new Error('creek save invalid');
+    this.integrated = this.schema !== 'tokipona.forest-creek.v0.1';
+    this.bodyShape = this.schema === 'tokipona.forest-creek.v0.3' ? 'chipped-v1' : 'box-v1';
     this.bounds = this.integrated ? Object.freeze({x:1712,y:620,width:416,height:180}) : this.pocket;
     this.grid = new MaterialGrid(WIDTH, HEIGHT, SEED);
     if(this.integrated) this.embers=new ForestOpeningEmbers(save?.embers);
@@ -90,10 +96,12 @@ export class ForestOpeningCreek implements ForestMaterialOverlay {
     const mask = new Uint8Array(WIDTH * HEIGHT);
     for (const old of this.bodies) {
       const body = replace?.id === old.id ? replace : old;
-      const left=Math.floor(body.x)-this.pocket.x, top=Math.floor(body.y)-this.pocket.y;
-      const right=Math.ceil(body.x+body.width-1e-7)-this.pocket.x, bottom=Math.ceil(body.y+body.height-1e-7)-this.pocket.y;
-      for(let y=Math.max(0,top);y<Math.min(HEIGHT,bottom);y++)
-        for(let x=Math.max(0,left);x<Math.min(WIDTH,right);x++) mask[y*WIDTH+x]=1;
+      const footprint=forestBodyFootprint(body,this.bodyShape);
+      for(let row=0;row<footprint.rows.length;row++) {
+        const y=footprint.y+row-this.pocket.y, span=footprint.rows[row]!;
+        if(y<0 || y>=HEIGHT) continue;
+        for(let x=Math.max(0,footprint.x+span.left-this.pocket.x);x<Math.min(WIDTH,footprint.x+span.right-this.pocket.x);x++) mask[y*WIDTH+x]=1;
+      }
     }
     return mask;
   }
@@ -109,9 +117,13 @@ export class ForestOpeningCreek implements ForestMaterialOverlay {
 
   bodySolid(bounds:Aabb, except:ForestBodyState['id']): boolean {
     if(bounds.x<1712 || bounds.x+bounds.width>2128 || bounds.y<620 || bounds.y+bounds.height>800) return true;
-    if(this.bodies.some(b=>b.id!==except && intersects(bounds,b))) return true;
-    for(let y=Math.floor(bounds.y);y<Math.ceil(bounds.y+bounds.height-1e-7);y++)
-      for(let x=Math.floor(bounds.x);x<Math.ceil(bounds.x+bounds.width-1e-7);x++) if(this.materialSolid(x,y)) return true;
+    const candidate={...bounds,id:except};
+    if(this.bodies.some(b=>b.id!==except && forestBodiesOverlap(candidate,b,this.bodyShape))) return true;
+    const footprint=forestBodyFootprint(candidate,this.bodyShape);
+    for(let row=0;row<footprint.rows.length;row++) {
+      const span=footprint.rows[row]!;
+      for(let x=footprint.x+span.left;x<footprint.x+span.right;x++) if(this.materialSolid(x,footprint.y+row)) return true;
+    }
     return false;
   }
 
@@ -156,7 +168,7 @@ export class ForestOpeningCreek implements ForestMaterialOverlay {
         for(const next of [y>0?index-WIDTH:-1,x>0?index-1:-1,x<WIDTH-1?index+1:-1,y<HEIGHT-1?index+WIDTH:-1]) {
           if(next<0 || seen.has(next)) continue; seen.add(next);
           const px=this.pocket.x+next%WIDTH, py=this.pocket.y+Math.floor(next/WIDTH);
-          if(this.bodies.some(b=>b.id!==id && px>=Math.floor(b.x) && px<Math.ceil(b.x+b.width-1e-7) && py>=Math.floor(b.y) && py<Math.ceil(b.y+b.height-1e-7))) continue;
+          if(this.bodies.some(b=>b.id!==id && forestBodyOccupies(b,this.bodyShape,px,py))) continue;
           const m=this.grid.material[next];
           if(m!==Material.Air && m!==Material.Water && m!==Material.Steam) continue;
           if(m===Material.Air && !mask[next] && !reserved.has(next)) { destination=next; break; }
@@ -178,15 +190,15 @@ export class ForestOpeningCreek implements ForestMaterialOverlay {
         // Transfer contact momentum before resolving the two nonpenetrating bodies.
         if(Math.abs(body.vx)>2) for(let other=0;other<this.bodies.length;other++) {
           if(other===index) continue; const neighbor=this.bodies[other]!;
-          if(intersects({...body,x:body.x+body.vx/60},neighbor) && Math.abs(neighbor.vx)<Math.abs(body.vx)) {
-            const mass=(b:ForestBodyState)=>b.width*b.height*(b.id==='stream.deadwood'?0.65:2.5);
+          if(forestBodiesOverlap({...body,x:body.x+body.vx/60},neighbor,this.bodyShape) && Math.abs(neighbor.vx)<Math.abs(body.vx)) {
+            const mass=(b:ForestBodyState)=>forestBodyArea(b,this.bodyShape)*(b.id==='stream.deadwood'?0.65:2.5);
             const shared=(body.vx*mass(body)+neighbor.vx*mass(neighbor))/(mass(body)+mass(neighbor));
             this.bodies=Object.freeze(this.bodies.map((b,i)=>i===index?Object.freeze({...b,vx:shared}):i===other?Object.freeze({...b,vx:shared,touched:b.touched||body.touched}):b));
           }
         }
         const next=stepForestBody(this.bodies[index]!,{
           solid:(box,id)=>this.bodySolid(box,id), wet:box=>this.wetFraction(box), admit:(box,id)=>this.admitBody(box,id),
-        },actor);
+        },actor,this.bodyShape);
         if(Math.round(body.x)!==Math.round(next.x) || Math.round(body.y)!==Math.round(next.y)) this.solidsVersion++;
         this.bodies=Object.freeze(this.bodies.map((b,i)=>i===index?next:b));
       }
@@ -237,8 +249,8 @@ export class ForestOpeningCreek implements ForestMaterialOverlay {
   }
 
   materialAt(x: number, y: number): ForestMaterial | null {
-    if(this.integrated) for(const body of this.bodies) if(x>=Math.floor(body.x) && x<Math.ceil(body.x+body.width-1e-7) &&
-      y>=Math.floor(body.y) && y<Math.ceil(body.y+body.height-1e-7)) return body.id==='stream.deadwood'?FOREST_MATERIAL.wood:FOREST_MATERIAL.stone;
+    if(this.integrated) for(const body of this.bodies) if(forestBodyOccupies(body,this.bodyShape,x,y))
+      return body.id==='stream.deadwood'?FOREST_MATERIAL.wood:FOREST_MATERIAL.stone;
     const ember=this.embers?.sample(x,y);
     if(ember) return ember.material===Material.Rock?FOREST_MATERIAL.stone:ember.material===Material.Wood
       ?ember.burning?FOREST_MATERIAL.ember:FOREST_MATERIAL.wood:ember.material===Material.Ash?FOREST_MATERIAL.ash:FOREST_MATERIAL.air;
@@ -257,7 +269,7 @@ export class ForestOpeningCreek implements ForestMaterialOverlay {
   }
 
   save(): ForestCreekSave {
-    return Object.freeze({ schema: this.integrated?'tokipona.forest-creek.v0.2':'tokipona.forest-creek.v0.1', excavatedSoil: this.excavatedSoil, grid: this.grid.save(),
+    return Object.freeze({ schema: this.schema, excavatedSoil: this.excavatedSoil, grid: this.grid.save(),
       ...(this.integrated?{bodies:this.bodies,embers:this.embers!.save()}:{}) });
   }
 
@@ -265,7 +277,7 @@ export class ForestOpeningCreek implements ForestMaterialOverlay {
     const raw = candidate as unknown as Record<string, unknown>;
     if (!raw || typeof raw !== 'object' || Array.isArray(raw) || Object.keys(raw).sort().join() !==
       (this.integrated?['schema','excavatedSoil','grid','bodies','embers']:['schema','excavatedSoil','grid']).sort().join() ||
-      raw.schema !== (this.integrated?'tokipona.forest-creek.v0.2':'tokipona.forest-creek.v0.1') || !(raw.excavatedSoil === 0 || raw.excavatedSoil === DAM_CELLS)) {
+      raw.schema !== this.schema || !(raw.excavatedSoil === 0 || raw.excavatedSoil === DAM_CELLS)) {
       throw new Error('creek save invalid');
     }
     const state = raw.grid as MaterialGridSave;

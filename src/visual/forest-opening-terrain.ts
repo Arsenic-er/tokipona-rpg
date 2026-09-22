@@ -2,9 +2,12 @@ import type { ForestCameraState } from "../runtime/forest-camera";
 import { FOREST_MATERIAL, type ForestMaterialChunk } from "../world/forest-chunk-stream";
 import { drawForestGroundCover } from "./forest-ground-cover";
 import { forestMaterialColor } from "./forest-material-texture";
+import { forestBuriedColor } from './forest-earth-profile';
+import { drawForestEdgeDressing, OPENING_TREE_ROOTS } from './forest-edge-dressing';
 export { drawForestOpeningBackdrop } from "./forest-opening-backdrop";
 export { renderForestOpeningView } from "./forest-opening-renderer";
 export { ForestOpeningJourney } from "./forest-opening-journey";
+export { ForestMap } from "./forest-map";
 export { ForestMouseCamera, bindForestMouseCamera } from "./forest-mouse-camera";
 
 const surfaces = new WeakMap<object, {
@@ -15,6 +18,7 @@ const surfaces = new WeakMap<object, {
   chunks: readonly ForestMaterialChunk[] | null;
   originX: number;
   originY: number;
+  roots: Map<number, number>;
 }>();
 
 export function rasterizeForestOpeningTerrain(
@@ -68,11 +72,14 @@ function rasterize(
           if (above === FOREST_MATERIAL.air) { top = d; break; }
           if (above !== material) break;
         }
-        const color = forestMaterialColor(material, worldX, worldY, {
+        const exposure = {
           top,
           side: mask[center - 1] === FOREST_MATERIAL.air || mask[center + 1] === FOREST_MATERIAL.air,
           bottom: mask[center + maskWidth] === FOREST_MATERIAL.air,
-        });
+        };
+        const floor = chunk.surfaceY?.[localX];
+        const color = floor === undefined ? forestMaterialColor(material, worldX, worldY, exposure)
+          : forestBuriedColor(material, worldX, worldY, worldY - floor, exposure);
         target[offset] = color[0];
         target[offset + 1] = color[1];
         target[offset + 2] = color[2];
@@ -93,7 +100,7 @@ export function drawForestOpeningTerrain(
     const canvas = context.canvas.ownerDocument.createElement("canvas");
     const target = canvas.getContext("2d", { alpha: true });
     if (!target) throw new Error("forest opening terrain surface is unavailable");
-    surface = { canvas, context: target, tiles: new Map(), drawn: new Map(), chunks: null, originX: 0, originY: 0 };
+    surface = { canvas, context: target, tiles: new Map(), drawn: new Map(), chunks: null, originX: 0, originY: 0, roots: new Map() };
     surfaces.set(context, surface);
   }
   if (surface.chunks !== chunks) {
@@ -120,6 +127,7 @@ export function drawForestOpeningTerrain(
     surface.originX = left * 16;
     surface.originY = top * 16;
     surface.chunks = chunks;
+    surface.roots = new Map((chunks.find(c => c.surfaceRoots)?.surfaceRoots ?? []).map(p => [p.x, p.y]));
     const byLocation = new Map(chunks.map((chunk) => [`${chunk.chunkX},${chunk.chunkY}`, chunk]));
     for (const chunk of chunks) {
       // Every sampled edge must be part of the cache key: otherwise excavation
@@ -131,7 +139,7 @@ export function drawForestOpeningTerrain(
         if (neighbor) neighborhood.push(neighbor);
         digests.push(neighbor?.digest ?? "missing");
       }
-      const key = `${chunk.chunkX},${chunk.chunkY}:${digests.join(":")}`;
+      const key = `${chunk.chunkX},${chunk.chunkY}:${digests.join(":")}:${chunk.surfaceY?.join(',') ?? ''}`;
       const location = `${chunk.chunkX},${chunk.chunkY}`;
       if (surface.drawn.get(location) === key) continue;
       let tile = surface.tiles.get(key);
@@ -150,6 +158,7 @@ export function drawForestOpeningTerrain(
     }
     while (surface.tiles.size > 2048) surface.tiles.delete(surface.tiles.keys().next().value!);
   }
+  drawForestEdgeDressing(context, camera, OPENING_TREE_ROOTS, x => surface.roots.get(x) ?? null);
   context.drawImage(
     surface.canvas,
     Math.round(camera.x) - surface.originX,

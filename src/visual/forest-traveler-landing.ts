@@ -6,7 +6,7 @@ export class ForestTravelerLanding {
   private previous: { tick: number; x: number; y: number; falling: boolean } | null = null;
   private start: number | null = null;
 
-  public frame(view: ForestOpeningPublicView): number | null {
+  public frame(view: Pick<ForestOpeningPublicView, 'tick' | 'traveler'>): number | null {
     const { tick, traveler } = view;
     const { x, y } = traveler.position;
     const old = this.previous;

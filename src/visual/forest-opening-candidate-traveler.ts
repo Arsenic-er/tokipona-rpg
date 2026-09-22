@@ -2,7 +2,7 @@ import { projectCharacterPixels, type CharacterPixelRig } from "./character-pixe
 import type { ForestOpeningAnimationId, ForestOpeningPublicView } from "./forest-opening-view";
 import type { PrototypeCharacterAnimation } from "./world-scale-prototype";
 
-export function projectForestOpeningTravelerPixelRig(view: ForestOpeningPublicView): CharacterPixelRig {
+export function projectForestOpeningTravelerPixelRig(view: Pick<ForestOpeningPublicView, 'tick' | 'traveler' | 'camera'>): CharacterPixelRig {
   const animation = rigAnimation(view.traveler.animationId);
   return projectCharacterPixels({
     animation,
@@ -21,7 +21,7 @@ export function projectForestOpeningTravelerPixelRig(view: ForestOpeningPublicVi
 
 export function drawForestOpeningCandidateTraveler(
   context: CanvasRenderingContext2D,
-  view: ForestOpeningPublicView,
+  view: Pick<ForestOpeningPublicView, 'tick' | 'traveler' | 'camera'>,
 ): void {
   const rig = projectForestOpeningTravelerPixelRig(view);
   const x = Math.round(view.traveler.position.x - view.camera.x + rig.anchorOffset.x);

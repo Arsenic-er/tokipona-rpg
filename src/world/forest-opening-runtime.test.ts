@@ -25,7 +25,19 @@ describe("ForestOpeningRuntime", () => {
     for(let i=0;i<60;i++) low.advanceFrame(1/30,{moveX:1});
     for(let i=0;i<120;i++) high.advanceFrame(1/60,{moveX:1});
     expect(low.save()).toEqual(high.save());
-    expect(low.save().obstacle.creek?.schema).toBe('tokipona.forest-creek.v0.2');
+    expect(low.save().obstacle.creek?.schema).toBe('tokipona.forest-creek.v0.3');
+  });
+  it('restores v0.2 rectangular physics without migration or changing the saved envelope', () => {
+    const current = ForestOpeningRuntime.fresh({openingManifest, spatialManifest, seed:'legacy.boxes'}).save();
+    const legacy = resign({...current, obstacle:{...current.obstacle,
+      creek:{...current.obstacle.creek!,schema:'tokipona.forest-creek.v0.2'}}});
+    const restored = ForestOpeningRuntime.fromSave({openingManifest,spatialManifest},legacy);
+    expect(restored.save()).toEqual(legacy);
+    expect(restored.snapshot().obstacle.materialPocket.bodyShape).toBeUndefined();
+    restored.advanceTicks(120);
+    const resumed = ForestOpeningRuntime.fromSave({openingManifest,spatialManifest},restored.save());
+    expect(resumed.save()).toEqual(restored.save());
+    expect(resumed.save().obstacle.creek?.schema).toBe('tokipona.forest-creek.v0.2');
   });
   it("accepts old envelopes without jump timing but rejects extra nested timing fields", () => {
     const source = fresh("forest.opening.legacy-jump-timing");

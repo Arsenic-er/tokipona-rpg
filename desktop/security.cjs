@@ -14,7 +14,7 @@ function localURL(raw) {
 }
 
 function canNavigate(raw) {
-  return localURL(raw)?.pathname === '/chapter-one.html';
+  return ['/chapter-one.html', '/magic-lab.html'].includes(localURL(raw)?.pathname);
 }
 
 function resolveGameFile(raw, root) {
@@ -23,7 +23,7 @@ function resolveGameFile(raw, root) {
   let name;
   try { name = decodeURIComponent(url.pathname); } catch { return null; }
   if (/[\\:\0]/.test(name) || name.split('/').some(part => part === '..' || part === '.')) return null;
-  if (name !== '/chapter-one.html' && !CANDIDATES.has(name) &&
+  if (!['/chapter-one.html', '/magic-lab.html'].includes(name) && !CANDIDATES.has(name) &&
       !/^\/assets\/[a-zA-Z0-9_.~-]+\.(js|css|json|png|webp|ogg|wav|mp3|woff2)$/.test(name)) return null;
   const file = path.resolve(root, '.' + name);
   const relative = path.relative(root, file);

@@ -6,6 +6,7 @@ export const EXPECTED_BUILD_ENTRIES = Object.freeze([
   "rpg.html",
   "world-scale.html",
   "chapter-one.html",
+  "magic-lab.html",
 ] as const);
 
 export const BUNDLE_BUDGETS = Object.freeze({
@@ -15,7 +16,9 @@ export const BUNDLE_BUDGETS = Object.freeze({
   // F3–F5: continuous bodies, occupancy, powder and finite embers add ~15 KiB.
   // Bounded 24 KiB integration increment; chunk/request limits stay unchanged.
   maximumChapterOneInitialBytes: 1_040 * 1024,
-  maximumChapterOneInitialRequests: 20,
+  // Independent lab shares the existing motion and gait modules as two small
+  // static chunks; no lab simulation/UI is admitted to the chapter closure.
+  maximumChapterOneInitialRequests: 22,
   maximumRpgShellBytes: 64 * 1024,
   maximumRpgInitialBytes: 1_100 * 1024,
   maximumRpgInitialRequests: 18,

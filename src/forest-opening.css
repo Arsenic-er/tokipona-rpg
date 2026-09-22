@@ -181,3 +181,5 @@ button:hover, button:focus-visible { border-color: #cdbf77; color: #fff3c9; outl
   .forest-journey__ending dl { gap: 6px; margin: 10px 0; font-size: 11px; }
   .forest-journey__journal { padding: 16px; }
 }
+.forest-journey__journal .forest-journey__hint { position: static; inset: auto; transform: none; width: auto; max-width: none; padding: 0; margin: 16px 0; border: 0; background: none; box-shadow: none; }
+.forest-opening__pause a { display: inline-block; margin-top: 16px; color: #d8c792; }

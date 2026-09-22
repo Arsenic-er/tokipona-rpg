@@ -3,6 +3,6 @@ const path = require('node:path');
 module.exports = async () => {
   const root=path.resolve(__dirname,'../..');
   execFileSync(process.execPath,[path.join(root,'node_modules/vitest/vitest.mjs'),'run',
-    'scripts/testing/forest-legacy-fixture.test.ts','--maxWorkers=1','--reporter=dot'],
+    'scripts/testing/forest-legacy-fixture.test.ts','scripts/testing/forest-episode-fixture.test.ts','--maxWorkers=1','--reporter=dot'],
     {cwd:root,stdio:'inherit',windowsHide:true});
 };

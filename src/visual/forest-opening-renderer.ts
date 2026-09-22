@@ -100,6 +100,10 @@ function drawApprovedWorldObject(
   object: ForestOpeningWorldObjectView,
   atlas: CanvasImageSource,
 ): void {
+  if (object.bodyShape === 'chipped-v1' && (object.kind === 'stone' || object.kind === 'deadwood')) {
+    drawWorldObject(context, camera, object);
+    return;
+  }
   const x = Math.round(object.bounds.x - camera.x);
   const y = Math.round(object.bounds.y - camera.y);
   if (x + object.bounds.width < 0 || x > camera.width || y + object.bounds.height < 0 || y > camera.height) return;
@@ -145,9 +149,14 @@ function drawWorldObject(context: CanvasRenderingContext2D, camera: ForestCamera
     drawMaterialPocket(context, x, y, object);
   } else if (object.kind === "stone" || object.kind === "deadwood") {
     const variant = object.id.endsWith(".b") ? 1 : 0;
-    for (const run of forestObjectMaterialRuns(object.kind, object.bounds.width, object.bounds.height, variant)) {
+    const shaped = object.bodyShape === 'chipped-v1';
+    // Match the terrain raster origin even at fractional body/camera positions.
+    const bodyX = shaped ? Math.floor(object.bounds.x) - Math.round(camera.x) : x;
+    const bodyY = shaped ? Math.floor(object.bounds.y) - Math.round(camera.y) : y;
+    for (const run of forestObjectMaterialRuns(object.kind, object.bounds.width, object.bounds.height, variant,
+      object.bodyShape, shaped ? object.bounds.x : 0, shaped ? object.bounds.y : 0)) {
       context.fillStyle = run.color;
-      context.fillRect(x + run.x, y + run.y, run.width, 1);
+      context.fillRect(bodyX + run.x, bodyY + run.y, run.width, 1);
     }
   } else if (object.kind === "unknown_glyph") {
     context.fillStyle = "#777d6a";

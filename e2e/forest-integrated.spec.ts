@@ -18,7 +18,7 @@ async function start(page:Page) {
   await expect(page.getByRole('button',{name:'旅途笔记（J）'})).toBeVisible();
   await page.clock.pauseAt(60000);
   await page.locator('canvas[data-surface="game"]').focus();
-  expect((await state(page)).spatial.obstacle.creek.schema).toBe('tokipona.forest-creek.v0.2');
+  expect((await state(page)).spatial.obstacle.creek.schema).toBe('tokipona.forest-creek.v0.3');
 }
 async function move(page:Page,target:number,touch=false) {
   const cdp=touch?await page.context().newCDPSession(page):null;
@@ -85,13 +85,24 @@ for(const method of ['stone','wood','soil','combination','natural-touch'] as con
     const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));
     await start(page);const initial=await state(page);
     if(method==='stone' || method==='combination') {
-      await move(page,1772);await act(page,'E · 推动松石');await ticks(page,15);
-      await act(page,'E · 推动松石');await ticks(page,50);
-      // The first stone loses momentum against the second. Once the second
-      // clears the bank, push the first again; touching both is not a solution.
-      await act(page,'E · 推动松石');await ticks(page,50);
+      // Stop on the bank before the automatic approach jump. Rounded stones
+      // no longer act as a square brake: coasting over one correctly reverses
+      // an away-from-player push. Settle on its left before applying E.
+      await move(page,1750);await ticks(page,12);
+      // Inspect each actual landing rather than assuming three presses solve
+      // every contact arrangement. This remains bounded ordinary keyboard play.
+      for(let attempt=0;attempt<6;attempt++) {
+        const unfinished=(await state(page)).spatial.obstacle.creek.bodies!.slice(0,2)
+          .find(b=>b.x<1826 || b.restTicks<12);
+        if(!unfinished) break;
+        // Follow the moved object back into arm's reach, staying on its left.
+        await move(page,unfinished.x-40);await ticks(page,12);
+        expect((await state(page)).spatial.spatial.player.x+6).toBeLessThan(unfinished.x+unfinished.width/2);
+        await act(page,'E · 推动松石');await ticks(page,50);
+      }
       expect((await state(page)).spatial.obstacle.creek.bodies!.slice(0,2).every(b=>b.touched)).toBe(true);
-      expect((await state(page)).spatial.obstacle.creek.bodies!.slice(0,2).every(b=>b.x>=1826 && b.restTicks>=12)).toBe(true);
+      const stones=(await state(page)).spatial.obstacle.creek.bodies!.slice(0,2);
+      expect(stones.every(b=>b.x>=1826 && b.restTicks>=12),JSON.stringify(stones)).toBe(true);
     }
     if(method==='wood') {
       await move(page,1914);await act(page,'E · 拖动枯木');

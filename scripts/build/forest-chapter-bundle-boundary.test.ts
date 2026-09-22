@@ -44,6 +44,14 @@ describe("forest chapter bundle boundary", () => {
       !chunk.facadeModuleId?.endsWith("chapter-one.html"))))
       .toThrow("forest_opening_entry_missing");
   });
+  it('does not load laboratory permissions, simulation or UI in campaign entries', () => {
+    for (const entryIndex of [0, 3]) {
+      const chunks = baseChunks();
+      chunks.push(chunk('assets/lab.js', { moduleIds: [`${ROOT}/src/game/magic-lab.ts`] }));
+      chunks[entryIndex] = { ...chunks[entryIndex]!, imports: ['assets/lab.js'] };
+      expect(() => assertForestChapterBundleBoundary(chunks)).toThrow('magic_lab_campaign_static_import:assets/lab.js');
+    }
+  });
 });
 
 function baseChunks(): ForestChapterBundleChunk[] {
