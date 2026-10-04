@@ -6,9 +6,9 @@ const canvas=(p:Page)=>p.locator('canvas[data-surface="game"]');
 const advance=async(p:Page,ms=300)=>{for(let i=0;i<ms;i+=100)await p.clock.fastForward(100);};
 const saved=(p:Page)=>p.evaluate(k=>{window.dispatchEvent(new Event('pagehide'));return JSON.parse(localStorage.getItem(k)!);},key);
 const flag=(s:any,f:string)=>s.session.state.world.flags['global:forest.episode.room.'+f]?.value===true;
-async function start(p:Page){
+async function start(p:Page,fixture=resolve(dir,'ready.json')){
   mkdirSync(dir,{recursive:true});await p.clock.install({time:0});
-  await p.addInitScript(({key,value})=>{if(!localStorage.getItem(key))localStorage.setItem(key,value);},{key,value:readFileSync(resolve(dir,'ready.json'),'utf8')});
+  await p.addInitScript(({key,value})=>{if(!localStorage.getItem(key))localStorage.setItem(key,value);},{key,value:readFileSync(fixture,'utf8')});
   await p.goto('/chapter-one.html');await expect(canvas(p)).toHaveAttribute('data-ready','true');await p.clock.pauseAt(60000);
 }
 async function walk(p:Page,x:number,touch=false){
@@ -95,6 +95,62 @@ test('touch route: finite water bypass, rotating vertical camera, local fog and 
     await climb(p,'攀上西侧检修梯',50,true);await p.setViewportSize({width:390,height:844});await advance(p,1000);await visiblePlayer(p);
     await p.getByRole('button',{name:'查看地图（M）'}).tap();await p.screenshot({path:resolve(dir,'phone-explored-map.png')});
     await p.getByRole('button',{name:'世界地图',exact:true}).tap();await p.screenshot({path:resolve(dir,'phone-world-map.png')});await p.getByRole('button',{name:'关闭地图',exact:true}).tap();
+    await climb(p,'返回校准层',108,true);await climb(p,'下到入口层',366,true);await walk(p,52,true);await use(p,'返回检修入口',true);
+    expect((await saved(p)).physical.place).toBe('cistern-entry');expect(errors).toEqual([]);
+  }finally{await ctx.close();}
+});
+
+const siphonDir=resolve('.codex-tmp/cistern-siphon');
+test('high siphon: support gate, default distance failure, long cast, mid-water reload and safe return',async({page:p})=>{
+  test.setTimeout(180000);const errors:string[]=[];p.on('pageerror',e=>errors.push(e.message));
+  await start(p,resolve(siphonDir,'upper-ready.json'));const before=await saved(p);await visiblePlayer(p);
+  await walk(p,222);await use(p,'虹吸引水锚点');
+  const input=p.getByRole('textbox',{name:'输入引水表达'}),preview=p.getByRole('button',{name:'预览形态'}),confirm=p.getByRole('button',{name:'确认释放'});
+  await input.fill('telo suli');await preview.click();await expect(confirm).toBeDisabled();
+  await expect(p.locator('[data-window="preview"]')).toContainText('0.65');
+  expect((await saved(p)).session.state.mp).toEqual(before.session.state.mp);
+  await input.fill('telo');await preview.click();await expect(confirm).toBeEnabled();await confirm.click();await close(p);await advance(p,3500);
+  expect(flag(await saved(p),'siphon_primed')).toBe(false);
+  await p.screenshot({path:resolve(siphonDir,'default-recovery.png')});
+  await walk(p,156);await use(p,'修复西侧支撑肋');await close(p);
+  await walk(p,222);await use(p,'虹吸引水锚点');await input.fill('telo suli');await preview.click();await expect(confirm).toBeEnabled();
+  await expect(p.locator('[data-window="preview"]')).toContainText('需要 10 MP');await expect(p.locator('[data-window="preview"]')).toContainText('0.75');
+  await p.screenshot({path:resolve(siphonDir,'long-preview.png')});await confirm.click();
+  // Close without advancing three seconds; save real falling water, not a fabricated scene flag.
+  await p.getByRole('dialog',{name:'人物对话',exact:true}).getByRole('button',{name:'继续',exact:true}).click();
+  await advance(p,100);await p.keyboard.press('Escape');const falling=await saved(p);
+  expect(falling.physical.siphon.age-falling.physical.siphon.events.at(-1).at).toBeLessThan(180);
+  await p.reload();await expect(canvas(p)).toHaveAttribute('data-ready','true');
+  expect((await saved(p)).physical).toEqual(falling.physical);await advance(p,3500);
+  const primed=await saved(p);expect(flag(primed,'siphon_primed')).toBe(true);
+  expect(primed.session.state.mp.currentMp).toBe(before.session.state.mp.currentMp-15);
+  expect(primed.physical.siphon.events).toHaveLength(2);
+  for(const k of ['learning','economy','capabilities'])expect(primed.session.state[k]).toEqual(before.session.state[k]);
+  await visiblePlayer(p);await p.screenshot({path:resolve(siphonDir,'long-primed.png')});
+  writeFileSync(resolve(siphonDir,'browser-long.json'),JSON.stringify(primed));
+  await p.keyboard.press('j');await expect(p.getByRole('dialog',{name:'章节笔记'})).toContainText('虹吸已通水');
+  await expect(p.getByRole('dialog',{name:'章节笔记'})).toContainText('升降机仍有机械锁');
+  await p.getByRole('button',{name:'回到旅途',exact:true}).click();
+  await walk(p,408);await use(p,'虹吸手动导水柄');await close(p);
+  expect((await saved(p)).physical.siphon.events).toHaveLength(2);expect(flag(await saved(p),'siphon_tool')).toBe(false);
+  await climb(p,'返回校准层',108);await climb(p,'下到入口层',366);await walk(p,52);await use(p,'返回检修入口');
+  expect((await saved(p)).physical.place).toBe('cistern-entry');expect(errors).toEqual([]);
+});
+test('high siphon touch: finite manual water, no support/MP cost and portrait/landscape restore',async({browser})=>{
+  test.setTimeout(180000);
+  const ctx=await browser.newContext({viewport:{width:390,height:844},hasTouch:true,isMobile:true}),p=await ctx.newPage();
+  const errors:string[]=[];p.on('pageerror',e=>errors.push(e.message));
+  try{
+    await start(p,resolve(siphonDir,'upper-ready.json'));const before=await saved(p);
+    await walk(p,408,true);await use(p,'虹吸手动导水柄',true);await close(p);await advance(p,3500);
+    const primed=await saved(p);expect(flag(primed,'siphon_primed')).toBe(true);expect(flag(primed,'siphon_left')).toBe(false);expect(flag(primed,'siphon_right')).toBe(false);
+    expect(primed.physical.siphon.events).toEqual([{at:0,kind:'tool'}]);
+    for(const k of ['mp','learning','economy','capabilities'])expect(primed.session.state[k]).toEqual(before.session.state[k]);
+    await visiblePlayer(p);await p.screenshot({path:resolve(siphonDir,'touch-tool-portrait.png')});
+    const rendered=await saved(p);
+    await p.reload();await expect(canvas(p)).toHaveAttribute('data-ready','true');expect((await saved(p)).physical).toEqual(rendered.physical);
+    await p.setViewportSize({width:844,height:390});await advance(p,1000);await visiblePlayer(p);
+    await p.screenshot({path:resolve(siphonDir,'touch-tool-landscape.png')});writeFileSync(resolve(siphonDir,'browser-tool.json'),JSON.stringify(await saved(p)));
     await climb(p,'返回校准层',108,true);await climb(p,'下到入口层',366,true);await walk(p,52,true);await use(p,'返回检修入口',true);
     expect((await saved(p)).physical.place).toBe('cistern-entry');expect(errors).toEqual([]);
   }finally{await ctx.close();}

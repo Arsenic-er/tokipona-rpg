@@ -10,6 +10,7 @@ import { CastExecutionLedger } from '../spells/cast-plan';
 import { CisternLearningSession } from '../learning/cistern-session';
 import { CISTERN_ROOM_BOUNDS, cisternRoomCollides, stepCisternClimb, validateCisternClimb, type CisternClimb } from '../world/forest-cistern-room';
 import { CISTERN_CALIBRATION, CisternCalibration, previewCalibration, type CalibrationState } from '../world/forest-cistern-calibration';
+import { CISTERN_SIPHON, CisternSiphon, previewSiphon, type SiphonState } from '../world/forest-cistern-siphon';
 const phraseContract = readVerifiedCapabilityMilestoneContract(generatedRuntimeArtifact.capabilityProgression, readRuntimeCisternTaskManifest(generatedRuntimeArtifact).capacityMilestoneRef);
 import { commitSessionProposal, type SessionEventDraft } from '../session/adapters';
 import { PrologueForestOpeningSession } from './prologue-forest-opening';
@@ -36,7 +37,8 @@ const EPISODE_SCENES: Record<EpisodePlace, string> = {
 };
 export type EpisodeTarget = 'worker' | 'mill-road' | 'hermit-road' | 'return' | 'timber' | 'brace' | 'gate' | 'silt' | 'medium' | 'hermit' | 'pool' | 'plug' | 'rest' |
   'cistern-road' | 'entry-survey' | 'entry-winch' | 'entry-seal' | 'window' | 'window-bypass' |
-  'room-road' | 'room-echo' | 'east-up' | 'east-down' | 'west-up' | 'west-down' | 'calibration' | 'calibration-tool' | 'upper-survey';
+  'room-road' | 'room-echo' | 'east-up' | 'east-down' | 'west-up' | 'west-down' | 'calibration' | 'calibration-tool' | 'upper-survey' |
+  'siphon' | 'siphon-left' | 'siphon-right' | 'siphon-tool';
 export const EPISODE_TARGETS: Readonly<Record<EpisodePlace, readonly { id: EpisodeTarget; x: number; y?:number; label: string }[]>> = {
   settlement: [{ id: 'hermit-road', x: 60, label: '西侧林间小径' }, { id: 'worker', x: 350, label: '工务人' }, { id: 'mill-road', x: 920, label: '沿水渠去工坊' }],
   mill: [{ id: 'return', x: 60, label: '返回聚落' }, { id: 'timber', x: 270, label: '备用木撑' }, { id: 'gate', x: 490, label: '水渠闸柄' },
@@ -52,12 +54,14 @@ export const EPISODE_TARGETS: Readonly<Record<EpisodePlace, readonly { id: Episo
     {id:'east-up',x:416,y:736,label:'攀上东侧检修梯'},{id:'east-down',x:372,y:544,label:'下到入口层'},
     {id:'calibration',x:324,y:544,label:'双层校准阀'},{id:'calibration-tool',x:180,y:544,label:'校准阀导槽'},
     {id:'west-up',x:56,y:544,label:'攀上西侧检修梯'},{id:'west-down',x:114,y:352,label:'返回校准层'},
-    {id:'upper-survey',x:350,y:352,label:'高位虹吸与停靠台'}],
+    {id:'upper-survey',x:350,y:352,label:'高位虹吸与停靠台'},
+    {id:'siphon-left',x:162,y:352,label:'修复西侧支撑肋'},{id:'siphon',x:228,y:352,label:'虹吸引水锚点'},
+    {id:'siphon-right',x:286,y:352,label:'修复东侧支撑肋'},{id:'siphon-tool',x:414,y:352,label:'虹吸手动导水柄'}],
 };
 const FLAG = 'forest.episode.';
 const CHECKS = ['job', 'timber', 'brace', 'cleared', 'repaired', 'medium', 'route', 'intro', 'observed', 'predicted', 'plugged', 'practiced', 'debrief', 'finished', 'entry_observed', 'entry_open', 'entry_surveyed', 'meditated', 'phrase', 'window_inspected', 'window_cast', 'window_bypass', 'window_filled'] as const;
 export type EpisodeFlag = typeof CHECKS[number];
-const ROOM_FLAGS=['entered','echo','valve_seen','valve_tool','valve_filled','upper_seen'] as const;
+const ROOM_FLAGS=['entered','echo','valve_seen','valve_tool','valve_filled','upper_seen','siphon_left','siphon_right','siphon_tool','siphon_primed'] as const;
 type RoomFlag=typeof ROOM_FLAGS[number];
 export function episodeGround(place: EpisodePlace, x: number, profile?: EpisodeTerrainProfile): number {
   if (place==='cistern') return 736;
@@ -88,6 +92,7 @@ interface EpisodePhysical {
   tailrace?: MillTailraceState;
   window?: CisternWindowState;
   calibration?:CalibrationState;
+  siphon?:SiphonState;
   echoAge?:number;
   climb?:CisternClimb;
   wheelSpeed: number; stableTicks: number; wheelAngle: number; casts: number; baselineCollected: number;
@@ -96,7 +101,7 @@ export interface ForestEpisodeSave {
   schema: 'tokipona.forest-waterwheel-episode.v0.1';
   openingChecksum: string; session: GameSessionSave; physical: EpisodePhysical; checksum: string;
 }
-export interface EpisodeResult { accepted: boolean; text: string; speaker?: string; choice?: 'work' | 'predict' | 'recall' | 'calibrate' | 'window' | 'calibration' }
+export interface EpisodeResult { accepted: boolean; text: string; speaker?: string; choice?: 'work' | 'predict' | 'recall' | 'calibrate' | 'window' | 'calibration' | 'siphon' }
 
 /** Owns ALL episode progression. UI supplies only input/target/choice, never position or completion claims. */
 export class ForestEpisode {
@@ -109,6 +114,8 @@ export class ForestEpisode {
   private windowCellsCache?: number[];
   private calibrationPhysics?:CisternCalibration;
   private calibrationCellsCache?:number[];
+  private siphonPhysics?:CisternSiphon;
+  private siphonCellsCache?:number[];
   private echoPhysics?:CisternCalibration;
   private echoCellsCache?:number[];
   private grace: PlayerJumpGrace = EMPTY_JUMP_GRACE;
@@ -156,6 +163,41 @@ export class ForestEpisode {
   get echoCells():readonly number[]{
     this.echoPhysics??=new CisternCalibration(this.physical.echoAge===undefined?undefined:{version:1,age:this.physical.echoAge,events:[{at:0,kind:'cast',expression:'telo'}]},100,100,1);
     return this.echoCellsCache??=this.echoPhysics.cells();
+  }
+  private get siphonWorld():CisternSiphon{return this.siphonPhysics??=new CisternSiphon(this.physical.siphon);}
+  get siphonCells():readonly number[]{return this.siphonCellsCache??=this.siphonWorld.cells();}
+  get siphonCollected():number{return this.siphonWorld.collected;}
+  get siphonSupported():boolean{return this.hasRoom('siphon_left')||this.hasRoom('siphon_right');}
+  get siphonReleased():boolean{return this.siphonWorld.tankReleased;}
+  private siphonReady():boolean{const s=this.physical.siphon;return !s||s.age>=s.events.at(-1)!.at+CISTERN_SIPHON.settleTicks;}
+  private siphonZones(){const p=this.physical.player;return [{entityId:'player',boundsPx:{x:p.x-CISTERN_SIPHON.x,y:p.y-CISTERN_SIPHON.y,width:12,height:14}}];}
+  previewSiphon(expression:WindowExpression):ReturnType<ForestEpisode['previewWindow']>{
+    if(!WINDOW_EXPRESSIONS.includes(expression)||this.nearest()?.id!=='siphon'||!this.hasRoom('upper_seen')||
+      this.siphonReleased||!this.siphonReady()||(this.physical.siphon?.events.filter(e=>e.kind==='cast').length??0)>=2)return null;
+    const mp=this.truth.mp,{plan}=previewSiphon(this.physical.siphon,expression,mp.currentMp,mp.maxMp,this.siphonZones());
+    const capacity=expression==='telo'||this.truth.capabilities.expressionCapacityWords>=2;
+    const supported=expression!=='telo suli'||this.siphonSupported;
+    return {plan,canConfirm:capacity&&supported&&plan.canConfirm,reason:!capacity?'当前组合容量不足，可用右侧手动导水柄。':
+      !supported?'长水段需要稳定支撑：目前 0.65，修复任一支撑肋后为 0.75；两侧不叠加。不扣 MP。':
+      plan.rejectionCode==='requested_class_requires_more_mp'?'MP 不足，不降档、不扣费；可以用右侧手动导水柄。':
+      !plan.canConfirm?'当前空间或生物安全范围受阻，不扣 MP。':
+      '水舌距锚点 58 px。短／默认水段合法，但落入近端回收沟；够到远端水舌才释放水箱原有水。支撑只稳定长水段，不增加压力、初速度或伤害。'};
+  }
+  confirmSiphon(expression:WindowExpression,planId:string):EpisodeResult{
+    const preview=this.previewSiphon(expression);
+    if(!preview||!preview.canConfirm||preview.plan.planId!==planId)return {accepted:false,text:preview?.reason??'请靠近虹吸锚点重新预览。'};
+    const mp=this.truth.mp,zones=this.siphonZones(),{world,plan}=previewSiphon(this.physical.siphon,expression,mp.currentMp,mp.maxMp,zones);
+    const result=world.confirm(plan,this.siphonSupported,zones);
+    if(!result.committed)return {accepted:false,text:'没有生成水，也没有扣 MP。请重新检查支撑和空间。'};
+    const s=this.physical.siphon??{version:1 as const,age:0,events:[]};
+    const i=s.events.length,braced=this.siphonSupported;
+    this.commit('siphon.cast.'+i,[{eventId:'episode.siphon.mp.'+i,type:'mp_replaced',
+      payload:{mp:{...mp,currentMp:mp.currentMp-result.mpCharge,worldVersion:mp.worldVersion+1}}},
+      {eventId:'episode.siphon.expression.'+i,type:'world_flag_set',
+      payload:{flagId:'forest.episode.siphon.cast.'+i,value:expression+':'+s.age+':'+braced,scope:'global'}}],'cast');
+    s.events.push({at:s.age,kind:'cast',expression,braced});this.physical.siphon=s;
+    this.siphonPhysics=world;this.siphonCellsCache=undefined;
+    return {accepted:true,text:`释放 ${expression}，消耗 ${result.mpCharge} MP。关闭面板看水下落；水箱和接水槽有刻度。若距离不够，可等水落稳后调整，或用右侧手动导水柄。`};
   }
   private calibrationReady():boolean{
     const s=this.physical.calibration;
@@ -232,7 +274,8 @@ export class ForestEpisode {
   }
   get objective(): string {
     if (this.has('finished')) {
-      if(this.hasRoom('upper_seen'))return '已接通校准层并调查高位虹吸；沿检修梯可返回，虹吸启动与顶层出口仍待接入';
+      if(this.hasRoom('siphon_primed'))return '高位虹吸已通水；可沿两段检修梯返回。顶层升降机与出口尚未开放';
+      if(this.hasRoom('upper_seen'))return '修复任一支撑，尝试远距引水；也可用手动导水柄，沿检修梯可随时返回';
       if(this.hasRoom('valve_filled'))return '双层校准阀已开启西侧检修梯；可上行调查高位虹吸，或原路返回';
       if(this.hasRoom('entered'))return '入口回声可观察默认水段；沿东侧梯上行，在双层校准阀比较水量或使用导槽';
       if (this.has('window_filled')) return '精密引水窗已通水，右侧检修门通向高位蓄水室；碎片留在行囊';
@@ -293,6 +336,11 @@ export class ForestEpisode {
       if (this.windowWorld.satisfied && !this.has('window_filled')) this.mark('window_filled');
     }
     if(p.place==='cistern'){
+      const s=p.siphon;
+      if(s&&s.age<s.events.at(-1)!.at+CISTERN_SIPHON.settleTicks){
+        this.siphonWorld.advance();s.age++;this.siphonCellsCache=undefined;
+        if(this.siphonWorld.satisfied&&!this.hasRoom('siphon_primed'))this.markRoom('siphon_primed');
+      }
       if(p.echoAge!==undefined&&p.echoAge<180){void this.echoCells;this.echoPhysics!.advance();p.echoAge++;this.echoCellsCache=undefined;}
       const c=p.calibration;
       if(c&&c.age<c.events.at(-1)!.at+180){
@@ -390,7 +438,29 @@ export class ForestEpisode {
       }
       case 'upper-survey':
         if(!this.hasRoom('upper_seen'))this.markRoom('upper_seen');
-        return say('虹吸钟位于回收沟另一侧，两条支撑肋已经锈蚀，顶层停靠台还没有水力。你记下了位置；下一步要处理远距引水与支撑。这部分尚未开放，可以沿西侧梯下到校准层，再沿东侧梯返回。');
+        return say(this.hasRoom('siphon_primed')?'虹吸接水槽已经达到刻度，水箱中的水进入高位水路。停靠台仍有机械锁，升降机与顶层出口尚未开放。可沿西侧梯下到校准层，再沿东侧梯返回。':
+          '虹吸钟在回收沟另一侧，水舌距向东锚点 58 px。两条支撑肋任选其一修复，便能稳定长水段。左侧锚点可预览魔法，右侧手柄能直接导入现有水，不需要 MP。水进入接水槽达到刻度才算通水；顶层停靠台暂时锁定。');
+      case 'siphon-left':case 'siphon-right':{
+        if(!this.hasRoom('upper_seen'))return say('先到右边查看高位虹吸和停靠台，确认支撑连接的水路。');
+        const flag=target==='siphon-left'?'siphon_left':'siphon_right';
+        if(!this.hasRoom(flag))this.markRoom(flag);
+        return say('用旁边的检修楔固定支撑肋。长水段稳定度从 0.65 提高到 0.75；修好任意一侧就足够，两侧不叠加，也不增加魔法伤害。');
+      }
+      case 'siphon':
+        if(!this.hasRoom('upper_seen'))return say('先到右边查看高位虹吸和停靠台，确认远端水舌的位置。');
+        if(this.siphonReleased)return say(this.hasRoom('siphon_primed')?'虹吸已通水，无需重复灌水。升降机仍锁定，可以沿两段检修梯原路返回。':'水箱已释放。关闭面板，等水落入接水槽，不必重复施放。');
+        if(!this.siphonReady())return say('先让水落稳，观察回收沟和远端接水槽，再作调整。');
+        if((this.physical.siphon?.events.filter(e=>e.kind==='cast').length??0)>=2)return say('这两次引水没有够到水舌。右侧手动导水柄可释放现有水，无需继续消耗 MP。');
+        return {accepted:true,choice:'siphon',text:'主轴向东，水舌距离 58 px；水段长度 16 / 32 / 64 px，截面固定 12 px。短或默认水段会落入回收沟，不算语言错误。长水段先修好任一支撑肋；MP 不足也可用右侧手动导水柄。'};
+      case 'siphon-tool':{
+        if(!this.hasRoom('upper_seen'))return say('先到左边查看高位虹吸与停靠台，确认导水柄的用途。');
+        if(this.siphonReleased)return say('水箱已经释放，不重复供水。等接水槽达到刻度即可。');
+        if(!this.siphonReady())return say('先关闭面板，让这一份水落稳，再调整导水柄。');
+        const s=this.physical.siphon??{version:1 as const,age:0,events:[]};
+        this.markRoom('siphon_tool');s.events.push({at:s.age,kind:'tool'});this.physical.siphon=s;
+        this.siphonPhysics=undefined;this.siphonCellsCache=undefined;
+        return say('转动手柄，沿检修连杆打开水箱出口，已有水流向虹吸接水槽。没有生成额外水、不消耗 MP，也不算词语掌握。关闭面板观察水位。');
+      }
       case 'return':
         if(this.physical.place==='cistern'){this.travel('cistern-entry',950);return say('回到检修入口。校准阀和入口检查点保持状态，不重复恢复 MP。');}
         if (this.physical.place === 'cistern-entry') {
@@ -492,7 +562,8 @@ export class ForestEpisode {
       validateMillTailrace(p.tailrace, p.mill.escaped, p.mill.tick);
     }
     const scene = EPISODE_SCENES[p.place];
-    const roomDeps:Partial<Record<RoomFlag,RoomFlag[]>>={echo:['entered'],valve_seen:['entered'],valve_tool:['valve_seen'],valve_filled:['valve_seen'],upper_seen:['valve_filled']};
+    const roomDeps:Partial<Record<RoomFlag,RoomFlag[]>>={echo:['entered'],valve_seen:['entered'],valve_tool:['valve_seen'],valve_filled:['valve_seen'],upper_seen:['valve_filled'],
+      siphon_left:['upper_seen'],siphon_right:['upper_seen'],siphon_tool:['upper_seen'],siphon_primed:['upper_seen']};
     for(const f of ROOM_FLAGS)if(this.hasRoom(f)&&(!this.truth.receiptIndex['forest.episode.room.'+f]||roomDeps[f]?.some(d=>!this.hasRoom(d))))throw Error('蓄水室进度凭证不一致');
     if(this.hasRoom('entered')&&!this.has('window_filled')||p.place==='cistern'&&!this.hasRoom('entered'))throw Error('蓄水室入口未开放');
     if(p.climb){
@@ -501,6 +572,17 @@ export class ForestEpisode {
     }
     if(p.place==='cistern'&&!this.hasRoom('valve_filled')&&p.player.y<384)throw Error('西侧梯隔栅尚未打开');
     if(this.hasRoom('echo')!==(p.echoAge!==undefined)||p.echoAge!==undefined&&(!Number.isInteger(p.echoAge)||p.echoAge<0||p.echoAge>180))throw Error('入口回声存档无效');
+    const siphon=p.siphon,sc=Object.values(this.truth.receiptIndex).filter(r=>r.receiptId.startsWith('forest.episode.siphon.cast.'));
+    if(siphon){
+      if(!this.hasRoom('upper_seen'))throw Error('虹吸尚未观察');
+      const world=new CisternSiphon(siphon),casts=siphon.events.filter(e=>e.kind==='cast');
+      if(this.hasRoom('siphon_primed')!==world.satisfied||this.hasRoom('siphon_tool')!==siphon.events.some(e=>e.kind==='tool')||
+        sc.length!==casts.length||sc.some(r=>r.domain!=='cast')||casts.some(e=>e.braced&&!this.siphonSupported))throw Error('虹吸水位或支撑凭证不一致');
+      siphon.events.forEach((e,i)=>{
+        if(e.kind==='cast'&&(!this.truth.receiptIndex['forest.episode.siphon.cast.'+i]||
+          this.truth.world.flags['global:forest.episode.siphon.cast.'+i]?.value!==e.expression+':'+e.at+':'+e.braced))throw Error('虹吸表达记录不一致');
+      });
+    }else if(sc.length||this.hasRoom('siphon_primed')||this.hasRoom('siphon_tool'))throw Error('虹吸缺少水源');
     const calibration=p.calibration;
     const castReceipts2=Object.values(this.truth.receiptIndex).filter(r=>r.receiptId.startsWith('forest.episode.valve.cast.'));
     if(calibration){

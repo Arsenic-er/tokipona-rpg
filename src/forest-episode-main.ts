@@ -113,7 +113,7 @@ function renderResult(result: EpisodeResult, target: EpisodeTarget): void {
     button('停在空中，不再受重力影响', () => choose('hover'));
   }
   if (result.choice==='calibrate') button('尝试两词校准',()=>choose('calibrate'));
-  if (result.choice==='recall' || result.choice==='window'||result.choice==='calibration') {
+  if (result.choice==='recall' || result.choice==='window'||result.choice==='calibration'||result.choice==='siphon') {
     const label=document.createElement('label'), input=document.createElement('input');
     label.textContent=result.choice==='recall'?'回忆那个词':'输入引水表达';
     input.setAttribute('aria-label',label.textContent); input.maxLength=32;
@@ -130,19 +130,19 @@ function renderResult(result: EpisodeResult, target: EpisodeTarget): void {
       const previewButton=button('预览形态',()=>{
         const value=input.value.trim().toLowerCase().replace(/\s+/g,' ');
         expression=WINDOW_EXPRESSIONS.includes(value as WindowExpression)?value as WindowExpression:null;
-        const preview=expression?(target==='calibration'?game.previewCalibration(expression):game.previewWindow(expression)):null;
+        const preview=expression?(target==='siphon'?game.previewSiphon(expression):target==='calibration'?game.previewCalibration(expression):game.previewWindow(expression)):null;
         if(!preview){detail.textContent='当前只支持 telo lili、telo、telo suli；输入不会自动补词或扣 MP。';confirm.disabled=true;windowPreviewPlan=null;planId=null;return;}
         const p=preview.plan; windowPreviewPlan=p; planId=p.planId;
-        detail.textContent=`${expression} · ${p.requestedLengthClass==='short'?'较短':p.requestedLengthClass==='long'?'较长':'默认（不加尺度修饰词）'}\n长度 ${p.requestedLengthClass==='short'?16:p.requestedLengthClass==='long'?64:32} px · 固定截面 12 px · ${target==='calibration'?'向左 · 锚点 254,486':'向右 · 锚点 762,326'}\n需要 ${p.activationMpRequired} MP（当前 ${game.sessionState.mp.currentMp}）· 维持费 0 · 零初速度 · 受重力 · 非攻击\n${preview.reason}`;
+        detail.textContent=`${expression} · ${p.requestedLengthClass==='short'?'较短':p.requestedLengthClass==='long'?'较长':'默认（不加尺度修饰词）'}\n长度 ${p.requestedLengthClass==='short'?16:p.requestedLengthClass==='long'?'64':32} px · 固定截面 12 px · ${target==='siphon'?`向右 · 锚点 184,280 · 支撑稳定度 ${game.siphonSupported?'0.75':'0.65'}`:target==='calibration'?'向左 · 锚点 254,486':'向右 · 锚点 762,326'}\n需要 ${p.activationMpRequired} MP（当前 ${game.sessionState.mp.currentMp}）· 维持费 0 · 零初速度 · 受重力 · 非攻击\n${preview.reason}`;
         confirm.disabled=!preview.canConfirm;
       });
-      const confirm=button('确认释放',()=>{if(!expression||!planId)return;const r=target==='calibration'?game.confirmCalibration(expression,planId):game.confirmWindow(expression,planId);save();updateHud();renderResult(r,target);});
+      const confirm=button('确认释放',()=>{if(!expression||!planId)return;const r=target==='siphon'?game.confirmSiphon(expression,planId):target==='calibration'?game.confirmCalibration(expression,planId):game.confirmWindow(expression,planId);save();updateHud();renderResult(r,target);});
       confirm.disabled=true;
       input.oninput=()=>{confirm.disabled=true;planId=null;windowPreviewPlan=null;detail.textContent='表达已改动，请重新预览；没有扣 MP。';};
       input.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();previewButton.click();}};
     }
   }
-  button(result.choice==='work'||result.choice==='predict'||result.choice==='recall'||result.choice==='window'||result.choice==='calibration' ? '先看看周围' : '继续', () => { closeDialog(talk); maybeEnding(); });
+  button(result.choice==='work'||result.choice==='predict'||result.choice==='recall'||result.choice==='window'||result.choice==='calibration'||result.choice==='siphon' ? '先看看周围' : '继续', () => { closeDialog(talk); maybeEnding(); });
   if (!talk.open) showDialog(talk);
   else actions.querySelector('button')?.focus();
   sound();
@@ -197,7 +197,10 @@ function notes(): string {
     game.hasRoom('valve_seen') ? (game.calibrationVersion===1?'旧式校准阀 · 保留旧档水路，单份短水段不足刻度，默认水段或现场水箱均可通水。':
       '双层校准阀 · 近端回收槽与深盘分开；短水段不会带动远端入水口，反复慢速施放也不等于同步脉冲。默认水段可接触水舌，或调整现场水箱导槽。长水段受到挡板限制，水仍须实际落入深盘才开阀。') : '',
     game.hasRoom('valve_filled') ? '西侧检修梯已通 · 接水盘达到刻度，可上行调查虹吸与停靠台；仍可沿两段梯子原路返回。' : '',
-    game.hasRoom('upper_seen') ? '后续边界 · 高位虹吸启动、支撑修复与顶层出口尚未开放。现阶段没有授予额外词语掌握或章节完成奖励。' : '',
+    game.hasRoom('upper_seen') ? '高位虹吸 · 远端水舌距锚点 58 px；短／默认水段落入回收沟，不是语言错误。修复任一支撑后可释放长水段，或用手动导水柄释放现场水。顶层出口尚未开放，没有授予额外词语掌握或章节完成奖励。' : '',
+    game.siphonSupported ? '支撑修复 · 长水段稳定度 0.65 → 0.75；两条支撑不叠加，不改变水的初速度、压力或伤害。' : '',
+    game.hasRoom('siphon_tool') ? '工具引水 · 使用水箱原有水，没有扣 MP，也没有计作词语学习证据。' : '',
+    game.hasRoom('siphon_primed') ? '虹吸已通水 · 接水槽实际达到刻度。升降机仍有机械锁；可沿西侧梯、东侧梯返回，进度会保留。' : '',
     game.has('finished') ? '已领取 · 8 枚钱、一晚床位。小节完成，可继续回访地上地点，或从工坊进入地下检修入口。' : ''];
   return `${game.objective}\n\n${items.filter(Boolean).join('\n\n')}`;
 }

@@ -21,6 +21,7 @@ import { Material } from '../sim/materials';
 import type { TeloCastPlan } from '../spells/cast-plan';
 import { CISTERN_PLATFORMS, cisternRoomSolid } from '../world/forest-cistern-room';
 import { CISTERN_CALIBRATION } from '../world/forest-cistern-calibration';
+import { CISTERN_SIPHON } from '../world/forest-cistern-siphon';
 
 type Backdrop = CanvasImageSource & { naturalWidth: number; naturalHeight: number };
 /** Native-pixel architecture/material drawing; private raster assets remain on the existing local-only path. */
@@ -268,7 +269,7 @@ export class ForestEpisodeRenderer {
     }
     for(const [x,y] of [[74,701],[344,511],[145,322]])this.lantern(ctx,x,y,game.state.tick);
     this.roomWater(ctx,game.echoCells,80,662,null);
-    this.roomWater(ctx,game.calibrationCells,CISTERN_CALIBRATION.x,CISTERN_CALIBRATION.y,plan);
+    this.roomWater(ctx,game.calibrationCells,CISTERN_CALIBRATION.x,CISTERN_CALIBRATION.y,game.nearest()?.id==='calibration'?plan:null);
     if(game.calibrationVersion===2){
       // Copper contact and linkage identify the real remote intake, distinct from the near recovery trough.
       ctx.fillStyle='#a18b60';ctx.fillRect(224,485,3,3);ctx.fillRect(225,483,12,1);ctx.fillRect(236,483,1,19);
@@ -277,10 +278,43 @@ export class ForestEpisodeRenderer {
     }
     for(const x of [174,306])this.rock(ctx,x,534,5,10);
     ctx.fillStyle='#92906d';ctx.fillRect(178,522,3,18);ctx.fillRect(172,526,15,2);
-    // The unrepaired siphon and parked platform have no decorative flowing water.
-    this.rock(ctx,272,313,84,8);this.rock(ctx,280,301,5,14);this.rock(ctx,351,298,5,17);
+    this.siphonWater(ctx,game,game.nearest()?.id==='siphon'?plan:null);
     this.timber(ctx,408,144,4,208);this.timber(ctx,440,144,4,208);
-    this.timber(ctx,403,345,45,7);ctx.fillStyle='#101a18';ctx.fillRect(290,321,56,12);
+    this.timber(ctx,403,345,45,7);
+    // Visible mechanical lock: priming the tank is not yet permission to board a lift.
+    ctx.fillStyle='#b49b67';ctx.fillRect(437,333,5,8);ctx.fillRect(436,331,7,2);
+    ctx.fillStyle=game.siphonReleased?'#9faf90':'#9a8666';ctx.fillRect(413,327,2,14);ctx.fillRect(408,331,12,2);
+  }
+  private siphonWater(ctx:CanvasRenderingContext2D,game:ForestEpisode,plan:TeloCastPlan|null):void{
+    const {x:ox,y:oy,columns,rows,width,height,anchor,contact}=CISTERN_SIPHON,cells=game.siphonCells;
+    ctx.fillStyle='#101b1b';ctx.fillRect(ox,oy,width,height);
+    for(let y=0;y<rows;y++)for(let x=0;x<columns;x++){
+      const m=cells[y*columns+x];if(m===Material.Air)continue;
+      if(m===Material.Water){ctx.fillStyle=(x+y)%7?'#3c7380':'#789e9e';ctx.fillRect(ox+x*2,oy+y*2,2,2);}
+      else for(let dy=0;dy<2;dy++)for(let dx=0;dx<2;dx++){
+        const rgb=forestMaterialColor(M.stone,ox+x*2+dx,oy+y*2+dy);
+        ctx.fillStyle=`rgb(${rgb.join(',')})`;ctx.fillRect(ox+x*2+dx,oy+y*2+dy,1,1);
+      }
+    }
+    // Copper water-contact linkage, receiver marks and dry recovery-trough rim.
+    ctx.fillStyle=game.siphonReleased?'#bac89d':'#b09865';
+    ctx.fillRect(ox+contact.x*2,oy+contact.y*2,2,3);
+    ctx.fillRect(ox+contact.x*2,oy+16,49,1);ctx.fillRect(ox+130,oy+16,1,13);
+    ctx.fillStyle='#a79971';ctx.fillRect(ox+anchor.x-3,oy+anchor.y-1,3,2);
+    for(let d=0;d<=64;d+=16)ctx.fillRect(ox+anchor.x+d,oy+5,1,3);
+    ctx.fillStyle='#a7af93';for(let y=306;y<=328;y+=8)ctx.fillRect(283,y,3,1);
+    ctx.fillStyle='#56685f';ctx.fillRect(182,318,48,1);
+    for(const [x,ready] of [[162,game.hasRoom('siphon_left')],[286,game.hasRoom('siphon_right')]] as const){
+      this.timber(ctx,x-3,336,3,16);this.timber(ctx,x+3,336,3,16);
+      ctx.fillStyle=ready?'#b6b08b':'#605a45';ctx.fillRect(x-4,342,11,2);
+      if(ready){ctx.fillRect(x-1,338,2,12);ctx.fillRect(x-3,348,7,2);}
+      else{ctx.fillStyle='#152321';ctx.fillRect(x,342,3,2);}
+    }
+    if(plan){
+      const length=plan.requestedLengthClass==='short'?16:plan.requestedLengthClass==='long'?64:32;
+      ctx.strokeStyle=plan.canConfirm&&(plan.requestedLengthClass!=='long'||game.siphonSupported)?'#acd0bb':'#c7a06d';
+      ctx.lineWidth=1;ctx.setLineDash([2,2]);ctx.strokeRect(ox+anchor.x+.5,oy+anchor.y-5.5,length,12);ctx.setLineDash([]);
+    }
   }
   private roomWater(ctx:CanvasRenderingContext2D,cells:readonly number[],ox:number,oy:number,plan:TeloCastPlan|null):void{
     ctx.fillStyle='#0f1a1a';ctx.fillRect(ox,oy,144,64);
