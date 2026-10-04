@@ -9,11 +9,9 @@ import { ForestEpisodeRenderer } from './visual/forest-episode-renderer';
 import { loadBrowserLocalTravelerAtlasFromDocument } from './visual/browser-local-traveler-atlas';
 import { loadLocalForestBackdropFromDocument } from './visual/browser-local-forest-backdrop';
 import { ForestMap } from './visual/forest-map';
-import { EPISODE_TARGETS } from './game/forest-episode';
 import { episodeWaterSolid } from './world/forest-episode-water';
 import { millTailraceMapMaterial } from './world/forest-mill-tailrace';
 import { cisternEntrySolid } from './world/forest-cistern-entry';
-import { cisternRoomSolid } from './world/forest-cistern-room';
 import { episodeViewport } from './visual/forest-episode-viewport';
 import { WINDOW_EXPRESSIONS, type WindowExpression } from './world/forest-cistern-window';
 import type { TeloCastPlan } from './spells/cast-plan';
@@ -55,7 +53,7 @@ root.innerHTML = `<canvas width="640" height="360" tabindex="0" data-surface="ga
   <dialog class="ep-talk" aria-label="人物对话"><h2></h2><p></p><div class="ep-actions"></div></dialog>
   <dialog class="ep-journal" aria-label="章节笔记"><h2>水轮与碎片 · 任务日志</h2><p data-ep="notes"></p><div class="ep-actions"><button data-ep="close-notes">回到旅途</button><button data-ep="backup">导出存档</button></div></dialog>
   <dialog class="ep-pause" aria-label="暂停"><h2>暂停</h2><p>A/D 或方向键移动，按住从走加速到跑；空格/W 跳跃。E 与身边的人或物互动。滚轮缩放，鼠标轻微带动视野，0 恢复镜头。J 看笔记。对话和离开窗口时暂停。</p><p>每个重要步骤与场景切换自动保存。临时旅程不改主进度。</p><div class="ep-actions"><button data-ep="resume">继续游戏</button><button data-ep="retry-save">重试保存</button><button data-ep="new-practice">临时重玩</button></div></dialog>
-  <dialog class="ep-ending" aria-label="小章节结算"><h2>水轮与碎片 · 小节完成</h2><p data-ep="ending"></p><div class="ep-actions"><button data-ep="free-roam">继续在本地走走</button><button data-ep="ending-backup">导出存档</button><button data-ep="ending-practice">临时重玩</button></div><p>这是第一章的一个可玩小节，不是三小时完整第一章。蓄水室校准层可往返；高位虹吸、顶层出口和其他位点尚未开放。</p></dialog>
+  <dialog class="ep-ending" aria-label="小章节结算"><h2>水轮与碎片 · 小节完成</h2><p data-ep="ending"></p><div class="ep-actions"><button data-ep="free-roam">继续在本地走走</button><button data-ep="ending-backup">导出存档</button><button data-ep="ending-practice">临时重玩</button></div><p>这是第一章的一个可玩小节，不是三小时完整第一章。蓄水室可经校准层、虹吸和升降机抵达顶层，放下回流道永久梯后返回工坊；旧矿道和其他位点尚未开放。</p></dialog>
   <div class="ep-controls" aria-label="触控操作"><div><button data-touch="left" aria-label="向左">◀</button><button data-touch="right" aria-label="向右">▶</button></div><div><button data-touch="interact" aria-label="互动">E</button><button data-touch="jump" aria-label="跳跃">↑</button></div></div>`;
 const get = <T extends HTMLElement = HTMLElement>(name: string): T => root.querySelector<T>(`[data-ep="${name}"]`)!;
 const canvas = root.querySelector('canvas')!, ctx = canvas.getContext('2d', { alpha: false })!;
@@ -73,6 +71,7 @@ const mouseCamera = new ForestMouseCamera(cameraBounds), gait = new ForestTravel
 const blocked = () => !ready || focusLost || document.hidden || dialogs.some(d => d.open) || atlas.open;
 const atlas = new ForestMap(root, { storage, suffix,
   canOpen: () => !blocked(), suspend: clearInput, resume: () => { clearInput(); canvas.focus(); },
+  returnShortcut:()=>game.hasRoom('return_open'),
 });
 bindForestMouseCamera(canvas, mouseCamera, blocked);
 function clearInput(): void { keys.clear(); touches.clear(); }
@@ -154,7 +153,7 @@ function interact(): void {
   const oldPlace = game.state.place;
   const result = game.interact(target.id); updateMap(); save(); updateHud();
   if (oldPlace !== game.state.place) { resetCamera(); canvas.focus(); return; }
-  if(game.state.climb){clearInput();canvas.focus();return;}
+  if(game.state.climb||game.ridingLift){clearInput();canvas.focus();return;}
   renderResult(result, target.id);
 }
 function resetCamera(): void { Object.assign(cameraBounds,episodeBounds(game.state.place)); camera = initializeForestCamera(cameraContract, game.player, cameraBounds); mouseCamera.reset(); gait.reset(); lastPlace = game.state.place; clearInput(); }
@@ -166,7 +165,7 @@ function updateMap(): void {
   atlas.update(place, { x: p.position.x + 6, y: p.position.y + 7 }, game.state.tick,
     (x, y) => {
       if (place === 'cistern-entry') return cisternEntrySolid(x, y, game.has('entry_open')) ? 4 : 0;
-      if(place==='cistern')return cisternRoomSolid(x,y,game.hasRoom('valve_filled'))?4:0;
+      if(place==='cistern')return game.roomSolidAt(x,y)?4:0;
       const lx = x - (place === 'mill' ? 500 : 620), ly = y - (place === 'mill' ? 259 : 280);
       if (place !== 'settlement' && lx >= 0 && lx < 160 && ly >= 0 && ly < 48) {
         if (episodeWaterSolid(lx, ly, controls)) return place === 'mill' ? 5 : 4;
@@ -177,7 +176,7 @@ function updateMap(): void {
         if (material !== null) return material;
       }
       return y >= game.groundAt(x, place) ? 2 : 0;
-    }, EPISODE_TARGETS[place].map(t => ({ x: t.x, y: game.targetFloor(t) - 12, label: t.label })));
+    }, game.targets.map(t => ({ x: t.x, y: game.targetFloor(t) - 12, label: t.label })));
 }
 function notes(): string {
   const items = [game.has('job') ? '已接下水轮维修，约定报酬 8 枚钱和一晚床位。' : '尚未与工务人约定工作。',
@@ -197,10 +196,13 @@ function notes(): string {
     game.hasRoom('valve_seen') ? (game.calibrationVersion===1?'旧式校准阀 · 保留旧档水路，单份短水段不足刻度，默认水段或现场水箱均可通水。':
       '双层校准阀 · 近端回收槽与深盘分开；短水段不会带动远端入水口，反复慢速施放也不等于同步脉冲。默认水段可接触水舌，或调整现场水箱导槽。长水段受到挡板限制，水仍须实际落入深盘才开阀。') : '',
     game.hasRoom('valve_filled') ? '西侧检修梯已通 · 接水盘达到刻度，可上行调查虹吸与停靠台；仍可沿两段梯子原路返回。' : '',
-    game.hasRoom('upper_seen') ? '高位虹吸 · 远端水舌距锚点 58 px；短／默认水段落入回收沟，不是语言错误。修复任一支撑后可释放长水段，或用手动导水柄释放现场水。顶层出口尚未开放，没有授予额外词语掌握或章节完成奖励。' : '',
+    game.hasRoom('upper_seen') ? '高位虹吸 · 远端水舌距锚点 58 px；短／默认水段落入回收沟，不是语言错误。修复任一支撑后可释放长水段，或用手动导水柄释放现场水。没有授予额外词语掌握或章节完成奖励。' : '',
     game.siphonSupported ? '支撑修复 · 长水段稳定度 0.65 → 0.75；两条支撑不叠加，不改变水的初速度、压力或伤害。' : '',
     game.hasRoom('siphon_tool') ? '工具引水 · 使用水箱原有水，没有扣 MP，也没有计作词语学习证据。' : '',
-    game.hasRoom('siphon_primed') ? '虹吸已通水 · 接水槽实际达到刻度。升降机仍有机械锁；可沿西侧梯、东侧梯返回，进度会保留。' : '',
+    game.hasRoom('siphon_primed') ? '虹吸已通水 · 接水槽实际达到刻度，右侧下站可启用水力升降机；也可沿原检修梯返回。' : '',
+    game.hasRoom('lift_arrived') ? '顶层停靠 · 检查点已保存，不恢复 MP。升降机可双向乘坐；平台不在时先呼叫，靠站后再按 E。左侧绞盘控制回流道永久梯。' : '',
+    game.hasRoom('return_open') ? '永久捷径 · 顶层中间出口通往工坊回流道，工坊可沿梯回访顶层。上层水路已可用；碎片、MP 和已有奖励不变。' : '',
+    game.hasRoom('reported') ? '工务人交接 · 已说明水路变化，不重复领取报酬。旧矿道仍需后续安全调查，当前未开放。' : '',
     game.has('finished') ? '已领取 · 8 枚钱、一晚床位。小节完成，可继续回访地上地点，或从工坊进入地下检修入口。' : ''];
   return `${game.objective}\n\n${items.filter(Boolean).join('\n\n')}`;
 }
@@ -216,8 +218,10 @@ function updateHud(): void {
   const mp = game.sessionState.mp;
   get('stats').textContent = `MP ${mp.currentMp}/${mp.maxMp}  ·  钱 ${game.sessionState.economy.coin}${game.has('medium') ? '  ·  受损媒介 / 森林碎片' : ''}`;
   const near = game.nearest();
-  get('prompt').textContent = game.state.climb?'正在沿检修梯攀行 · Esc 暂停':near ? `E · ${near.label}` : '';
-  get('prompt').hidden = !near&&!game.state.climb;
+  get('prompt').textContent = game.ridingLift?(game.state.lift?.blocked?'升降机安全停机 · 通道恢复后继续':'正在乘坐升降机 · Esc 暂停'):game.state.climb?'正在沿检修梯攀行 · Esc 暂停':near ? `E · ${near.label}` : '';
+  get('prompt').hidden = !near&&!game.state.climb&&!game.ridingLift;
+  canvas.dataset.lift=game.state.lift?.mode??'locked';canvas.dataset.ridingLift=String(game.ridingLift);
+  canvas.dataset.liftY=String(game.state.lift?.y??352);
   canvas.dataset.playerY=game.state.player.y.toFixed(2);canvas.dataset.climbing=String(!!game.state.climb);
   canvas.dataset.place = game.state.place;
   canvas.dataset.playerX = game.state.player.x.toFixed(2);

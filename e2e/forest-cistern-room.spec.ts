@@ -67,7 +67,7 @@ test('vertical room: entry recovery, echo, paused ladder restore, short/default 
   await p.screenshot({path:resolve(dir,'room-valve-open.png')});writeFileSync(resolve(dir,'browser-valve.json'),JSON.stringify(filled));
   await climb(p,'攀上西侧检修梯',50);await walk(p,344);await use(p,'高位虹吸与停靠台');await close(p);
   expect(flag(await saved(p),'upper_seen')).toBe(true);await visiblePlayer(p);await p.screenshot({path:resolve(dir,'room-upper-survey.png')});
-  await p.keyboard.press('j');await expect(p.getByRole('dialog',{name:'章节笔记'})).toContainText('顶层出口尚未开放');await p.getByRole('button',{name:'回到旅途',exact:true}).click();
+  await p.keyboard.press('j');await expect(p.getByRole('dialog',{name:'章节笔记'})).toContainText('没有授予额外词语掌握');await p.getByRole('button',{name:'回到旅途',exact:true}).click();
   const final=await saved(p);writeFileSync(resolve(dir,'browser-upper.json'),JSON.stringify(final));
   await climb(p,'返回校准层',108);await climb(p,'下到入口层',366);await walk(p,52);await use(p,'返回检修入口');
   await expect(canvas(p)).toHaveAttribute('data-place','cistern-entry');await walk(p,964);await use(p,'通往高位蓄水室');
@@ -129,7 +129,7 @@ test('high siphon: support gate, default distance failure, long cast, mid-water 
   await visiblePlayer(p);await p.screenshot({path:resolve(siphonDir,'long-primed.png')});
   writeFileSync(resolve(siphonDir,'browser-long.json'),JSON.stringify(primed));
   await p.keyboard.press('j');await expect(p.getByRole('dialog',{name:'章节笔记'})).toContainText('虹吸已通水');
-  await expect(p.getByRole('dialog',{name:'章节笔记'})).toContainText('升降机仍有机械锁');
+  await expect(p.getByRole('dialog',{name:'章节笔记'})).toContainText('右侧下站可启用水力升降机');
   await p.getByRole('button',{name:'回到旅途',exact:true}).click();
   await walk(p,408);await use(p,'虹吸手动导水柄');await close(p);
   expect((await saved(p)).physical.siphon.events).toHaveLength(2);expect(flag(await saved(p),'siphon_tool')).toBe(false);
@@ -153,5 +153,62 @@ test('high siphon touch: finite manual water, no support/MP cost and portrait/la
     await p.screenshot({path:resolve(siphonDir,'touch-tool-landscape.png')});writeFileSync(resolve(siphonDir,'browser-tool.json'),JSON.stringify(await saved(p)));
     await climb(p,'返回校准层',108,true);await climb(p,'下到入口层',366,true);await walk(p,52,true);await use(p,'返回检修入口',true);
     expect((await saved(p)).physical.place).toBe('cistern-entry');expect(errors).toEqual([]);
+  }finally{await ctx.close();}
+});
+
+const liftDir=resolve('.codex-tmp/cistern-lift');
+async function rideLift(p:Page,up:boolean,touch=false){
+  await walk(p,up?460:370,touch);await use(p,up?'水力升降机下站':'水力升降机上站',touch);
+  await expect(canvas(p)).toHaveAttribute('data-riding-lift','true');
+  for(let i=0;i<6;i++){await advance(p,1000);await visiblePlayer(p);}
+  await expect(canvas(p)).toHaveAttribute('data-lift','idle');await expect(canvas(p)).toHaveAttribute('data-riding-lift','false');
+}
+test('lift desktop: paused moving save, top crank, reciprocal shortcut and unchanged rewards',async({page:p})=>{
+  test.setTimeout(180000);const errors:string[]=[];p.on('pageerror',e=>errors.push(e.message));
+  await start(p,resolve(liftDir,'ready.json'));const before=await saved(p);
+  await walk(p,460);await use(p,'水力升降机下站');await advance(p,1500);await visiblePlayer(p);
+  await expect(canvas(p)).toHaveAttribute('data-lift','ride');await p.keyboard.press('Escape');
+  const riding=await saved(p);await advance(p,1000);expect((await saved(p)).physical).toEqual(riding.physical);
+  writeFileSync(resolve(liftDir,'browser-riding.json'),JSON.stringify(riding));
+  await p.screenshot({path:resolve(liftDir,'paused-riding.png')});
+  await p.reload();await expect(canvas(p)).toHaveAttribute('data-ready','true');expect((await saved(p)).physical).toEqual(riding.physical);
+  await advance(p,4500);await visiblePlayer(p);expect(flag(await saved(p),'lift_arrived')).toBe(true);
+  await expect(canvas(p)).toHaveAttribute('data-player-y','114.00');await p.screenshot({path:resolve(liftDir,'top-landing.png')});
+  await walk(p,266);await use(p,'沿回流道返回工坊');
+  await expect(p.getByRole('dialog',{name:'人物对话',exact:true})).toContainText('左边绞盘');await close(p);
+  await walk(p,94);await use(p,'回流道捷径绞盘');await close(p);
+  expect(flag(await saved(p),'return_open')).toBe(true);
+  await walk(p,266);await use(p,'沿回流道返回工坊');await advance(p,100);await expect(canvas(p)).toHaveAttribute('data-place','mill');
+  await p.screenshot({path:resolve(liftDir,'mill-shortcut.png')});
+  await p.getByRole('button',{name:'查看地图（M）'}).click();await p.getByRole('button',{name:'世界地图',exact:true}).click();
+  await expect(p.locator('.atlas-landmarks')).toContainText('回流道永久梯');await p.screenshot({path:resolve(liftDir,'world-shortcut.png')});await p.getByRole('button',{name:'关闭地图',exact:true}).click();
+  await use(p,'回流道永久梯');await advance(p,100);await expect(canvas(p)).toHaveAttribute('data-place','cistern');
+  await expect(canvas(p)).toHaveAttribute('data-player-y','114.00');await rideLift(p,false);await rideLift(p,true);
+  await walk(p,266);await use(p,'沿回流道返回工坊');await walk(p,54);await use(p,'返回聚落');await advance(p,100);
+  await walk(p,344);await use(p,'工务人');await close(p);
+  const final=await saved(p);expect(flag(final,'reported')).toBe(true);
+  for(const k of ['mp','learning','economy','capabilities'])expect(final.session.state[k]).toEqual(before.session.state[k]);
+  writeFileSync(resolve(liftDir,'browser-reported.json'),JSON.stringify(final));expect(errors).toEqual([]);
+});
+test('lift touch: old ladders, empty recall from the shortcut, rotation and no extra MP',async({browser})=>{
+  test.setTimeout(180000);
+  const ctx=await browser.newContext({viewport:{width:390,height:844},hasTouch:true,isMobile:true}),p=await ctx.newPage();
+  const errors:string[]=[];p.on('pageerror',e=>errors.push(e.message));
+  try{
+    await start(p,resolve(liftDir,'ready.json'));const before=await saved(p);await rideLift(p,true,true);
+    await walk(p,94,true);await use(p,'回流道捷径绞盘',true);await close(p);
+    await p.setViewportSize({width:844,height:390});await advance(p,1000);await visiblePlayer(p);
+    await rideLift(p,false,true);await climb(p,'返回校准层',108,true);await climb(p,'下到入口层',366,true);
+    await walk(p,52,true);await use(p,'返回检修入口',true);await walk(p,54,true);await use(p,'返回工坊',true);
+    await walk(p,806,true);await use(p,'回流道永久梯',true);await advance(p,100);await visiblePlayer(p);
+    await walk(p,370,true);await use(p,'水力升降机上站',true);expect((await saved(p)).physical.lift.mode).toBe('call');
+    await close(p);await advance(p,3800);await expect(canvas(p)).toHaveAttribute('data-lift','idle');
+    await p.setViewportSize({width:390,height:844});await advance(p,1000);await visiblePlayer(p);
+    await p.screenshot({path:resolve(liftDir,'touch-recalled.png')});
+    const recalled=await saved(p);writeFileSync(resolve(liftDir,'browser-recalled.json'),JSON.stringify(recalled));
+    await p.reload();await expect(canvas(p)).toHaveAttribute('data-ready','true');expect((await saved(p)).physical).toEqual(recalled.physical);
+    await rideLift(p,false,true);expect((await saved(p)).physical.player.y).toBe(338);
+    for(const k of ['mp','learning','economy','capabilities'])expect((await saved(p)).session.state[k]).toEqual(before.session.state[k]);
+    expect(errors).toEqual([]);
   }finally{await ctx.close();}
 });

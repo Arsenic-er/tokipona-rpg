@@ -2,6 +2,7 @@ import { CARTOGRAPHY_KEY, ForestCartography, MAP_AREAS, MAP_CELL, MAP_UNKNOWN, t
 export interface MapLandmark extends MapPoint { label: string }
 interface MapOptions {
   storage: Storage; suffix: string; canOpen(): boolean; suspend(): void; resume(): void;
+  returnShortcut?:()=>boolean;
 }
 const COLORS = ['#263c39', '#545a56', '#776244', '#555340', '#717b79', '#917047', '#b4ab8c', '#4a919b', '#738457', '#c08e49', '#66635b'];
 /** Shared map overlay for the old creek route and the continuation. */
@@ -108,6 +109,7 @@ export class ForestMap {
     const rect = this.map.getBoundingClientRect(); this.map.width = Math.max(300, Math.round(rect.width)); this.map.height = Math.max(180, Math.round(rect.height));
     if (this.world) this.drawWorld(); else this.drawLocal(this.map, this.center, this.localWidth(), true);
     const names = this.world ? (Object.keys(MAP_AREAS) as MapArea[]).filter(a => this.knowledge.visited(a)).map(a => MAP_AREAS[a].label) : this.visibleMarkers().map(m => m.label);
+    if(this.world&&this.options.returnShortcut?.())names.push('回流道永久梯（工坊 ↔ 蓄水室顶层）');
     this.landmarks.textContent = `已记录：${names.join('、') || '此处还没有地标'}。`;
     this.note.textContent = this.status || '探索进度已保存；黑幕不会因缩放地图或游戏镜头而消失。';
     (this.dialog.querySelector('[data-map="backup"]') as HTMLElement).hidden = !this.status;
@@ -153,6 +155,7 @@ export class ForestMap {
       ? { opening: [70, 254], settlement: [203, 185], mill: [323, 267], hermit: [156, 97], 'cistern-entry': [313, 355], cistern:[180,428] }
       : { opening: [140, 249], settlement: [416, 196], mill: [663, 220], hermit: [244, 105], 'cistern-entry': [663, 319],cistern:[465,319] };
     const edges: [MapArea, MapArea][] = [['opening', 'settlement'], ['settlement', 'mill'], ['settlement', 'hermit'], ['mill', 'cistern-entry'],['cistern-entry','cistern']];
+    if(this.options.returnShortcut?.())edges.push(['cistern','mill']);
     ctx.lineWidth = 2; ctx.strokeStyle = '#69745b';
     for (const [from, to] of edges) if (this.knowledge.visited(from) && this.knowledge.visited(to)) {
       ctx.beginPath(); ctx.moveTo(...nodes[from]); ctx.lineTo(...nodes[to]); ctx.stroke();

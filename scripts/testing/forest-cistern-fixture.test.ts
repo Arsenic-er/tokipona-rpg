@@ -16,4 +16,8 @@ it('exports an earned maintenance-window save for cistern browser regression',()
   expect(ForestEpisode.restore(upper).toSave()).toEqual(upper);
   const siphonDir=resolve(import.meta.dirname,'../../.codex-tmp/cistern-siphon');mkdirSync(siphonDir,{recursive:true});
   writeFileSync(resolve(siphonDir,'upper-ready.json'),JSON.stringify(upper));
+  act(g,'siphon-tool');tick(g,200);const primed=g.toSave();
+  expect(g.hasRoom('siphon_primed')).toBe(true);expect(ForestEpisode.restore(primed).toSave()).toEqual(primed);
+  const liftDir=resolve(import.meta.dirname,'../../.codex-tmp/cistern-lift');mkdirSync(liftDir,{recursive:true});
+  writeFileSync(resolve(liftDir,'ready.json'),JSON.stringify(primed));
 },60000);

@@ -8,9 +8,11 @@ import { CISTERN_WINDOW, CisternWindow, WINDOW_EXPRESSIONS, windowPreview, execu
 import type { TeloCastPlan } from '../spells/cast-plan';
 import { CastExecutionLedger } from '../spells/cast-plan';
 import { CisternLearningSession } from '../learning/cistern-session';
-import { CISTERN_ROOM_BOUNDS, cisternRoomCollides, stepCisternClimb, validateCisternClimb, type CisternClimb } from '../world/forest-cistern-room';
+import { CISTERN_ROOM_BOUNDS, cisternRoomSolid, cisternRoomCollides, stepCisternClimb, validateCisternClimb, type CisternClimb } from '../world/forest-cistern-room';
 import { CISTERN_CALIBRATION, CisternCalibration, previewCalibration, type CalibrationState } from '../world/forest-cistern-calibration';
 import { CISTERN_SIPHON, CisternSiphon, previewSiphon, type SiphonState } from '../world/forest-cistern-siphon';
+import { emptyCisternLift, beginCisternLift, stepCisternLift, validateCisternLift, liftCarriesPlayer, liftDeck, type CisternLiftState } from '../world/forest-cistern-lift';
+import { intersects } from '../runtime/geometry';
 const phraseContract = readVerifiedCapabilityMilestoneContract(generatedRuntimeArtifact.capabilityProgression, readRuntimeCisternTaskManifest(generatedRuntimeArtifact).capacityMilestoneRef);
 import { commitSessionProposal, type SessionEventDraft } from '../session/adapters';
 import { PrologueForestOpeningSession } from './prologue-forest-opening';
@@ -38,12 +40,12 @@ const EPISODE_SCENES: Record<EpisodePlace, string> = {
 export type EpisodeTarget = 'worker' | 'mill-road' | 'hermit-road' | 'return' | 'timber' | 'brace' | 'gate' | 'silt' | 'medium' | 'hermit' | 'pool' | 'plug' | 'rest' |
   'cistern-road' | 'entry-survey' | 'entry-winch' | 'entry-seal' | 'window' | 'window-bypass' |
   'room-road' | 'room-echo' | 'east-up' | 'east-down' | 'west-up' | 'west-down' | 'calibration' | 'calibration-tool' | 'upper-survey' |
-  'siphon' | 'siphon-left' | 'siphon-right' | 'siphon-tool';
+  'siphon' | 'siphon-left' | 'siphon-right' | 'siphon-tool' | 'lift-up' | 'lift-down' | 'return-winch' | 'top-exit' | 'cistern-shortcut';
 export const EPISODE_TARGETS: Readonly<Record<EpisodePlace, readonly { id: EpisodeTarget; x: number; y?:number; label: string }[]>> = {
   settlement: [{ id: 'hermit-road', x: 60, label: '西侧林间小径' }, { id: 'worker', x: 350, label: '工务人' }, { id: 'mill-road', x: 920, label: '沿水渠去工坊' }],
   mill: [{ id: 'return', x: 60, label: '返回聚落' }, { id: 'timber', x: 270, label: '备用木撑' }, { id: 'gate', x: 490, label: '水渠闸柄' },
     { id: 'silt', x: 585, label: '渠道淤堵' }, { id: 'brace', x: 690, label: '水轮支架' }, { id: 'medium', x: 890, label: '检修石龛' },
-    { id: 'cistern-road', x: 978, label: '蓄水廊检修入口' }],
+    { id: 'cistern-road', x: 978, label: '蓄水廊检修入口' },{id:'cistern-shortcut',x:812,label:'回流道永久梯'}],
   hermit: [{ id: 'return', x: 60, label: '返回聚落' }, { id: 'rest', x: 270, label: '林下坐垫' }, { id: 'hermit', x: 410, label: '隐士' },
     { id: 'pool', x: 620, label: '练习石槽' }, { id: 'plug', x: 720, label: '漏口与木楔' }],
   'cistern-entry': [{ id: 'return', x: 60, label: '返回工坊' }, { id: 'entry-survey', x: 260, label: '隔栅检修标记' },
@@ -56,12 +58,14 @@ export const EPISODE_TARGETS: Readonly<Record<EpisodePlace, readonly { id: Episo
     {id:'west-up',x:56,y:544,label:'攀上西侧检修梯'},{id:'west-down',x:114,y:352,label:'返回校准层'},
     {id:'upper-survey',x:350,y:352,label:'高位虹吸与停靠台'},
     {id:'siphon-left',x:162,y:352,label:'修复西侧支撑肋'},{id:'siphon',x:228,y:352,label:'虹吸引水锚点'},
-    {id:'siphon-right',x:286,y:352,label:'修复东侧支撑肋'},{id:'siphon-tool',x:414,y:352,label:'虹吸手动导水柄'}],
+    {id:'siphon-right',x:286,y:352,label:'修复东侧支撑肋'},{id:'siphon-tool',x:414,y:352,label:'虹吸手动导水柄'},
+    {id:'lift-up',x:458,y:352,label:'水力升降机下站'},{id:'lift-down',x:376,y:128,label:'水力升降机上站'},
+    {id:'return-winch',x:100,y:128,label:'回流道捷径绞盘'},{id:'top-exit',x:272,y:128,label:'沿回流道返回工坊'}],
 };
 const FLAG = 'forest.episode.';
 const CHECKS = ['job', 'timber', 'brace', 'cleared', 'repaired', 'medium', 'route', 'intro', 'observed', 'predicted', 'plugged', 'practiced', 'debrief', 'finished', 'entry_observed', 'entry_open', 'entry_surveyed', 'meditated', 'phrase', 'window_inspected', 'window_cast', 'window_bypass', 'window_filled'] as const;
 export type EpisodeFlag = typeof CHECKS[number];
-const ROOM_FLAGS=['entered','echo','valve_seen','valve_tool','valve_filled','upper_seen','siphon_left','siphon_right','siphon_tool','siphon_primed'] as const;
+const ROOM_FLAGS=['entered','echo','valve_seen','valve_tool','valve_filled','upper_seen','siphon_left','siphon_right','siphon_tool','siphon_primed','lift_open','lift_arrived','return_open','exited','reported'] as const;
 type RoomFlag=typeof ROOM_FLAGS[number];
 export function episodeGround(place: EpisodePlace, x: number, profile?: EpisodeTerrainProfile): number {
   if (place==='cistern') return 736;
@@ -73,8 +77,8 @@ export function episodeGround(place: EpisodePlace, x: number, profile?: EpisodeT
   if (place === 'mill') return 336;
   return 336 + Math.round(Math.sin(x / 100 + (place === 'hermit' ? 1 : 0)) * 4);
 }
-export function episodeCollides(place: EpisodePlace, b: Aabb, profile?: EpisodeTerrainProfile, entryOpen = false, upperOpen=false): boolean {
-  if (place==='cistern') return cisternRoomCollides(b,upperOpen);
+export function episodeCollides(place: EpisodePlace, b: Aabb, profile?: EpisodeTerrainProfile, entryOpen = false, upperOpen=false,liftOpen=false): boolean {
+  if (place==='cistern') return cisternRoomCollides(b,upperOpen,liftOpen);
   if (b.x < 0 || b.x + b.width > 1024 || b.y < 0) return true;
   if (place === 'cistern-entry') {
     if (b.x < 8 || b.x + b.width > 1008) return true;
@@ -95,6 +99,7 @@ interface EpisodePhysical {
   siphon?:SiphonState;
   echoAge?:number;
   climb?:CisternClimb;
+  lift?:CisternLiftState;
   wheelSpeed: number; stableTicks: number; wheelAngle: number; casts: number; baselineCollected: number;
 }
 export interface ForestEpisodeSave {
@@ -149,6 +154,11 @@ export class ForestEpisode {
   }
   has(flag: EpisodeFlag): boolean { return this.truth.world.flags['global:' + FLAG + flag]?.value === true; }
   get state(): Readonly<EpisodePhysical> { return this.physical; }
+  get targets(){return EPISODE_TARGETS[this.physical.place].filter(t=>t.id!=='cistern-shortcut'||this.hasRoom('return_open'));}
+  get ridingLift():boolean{return liftCarriesPlayer(this.physical.lift);}
+  roomSolidAt(x:number,y:number):boolean{return cisternRoomSolid(x,y,this.hasRoom('valve_filled'),this.hasRoom('lift_open'))||
+    !!this.physical.lift&&intersects({x,y,width:1,height:1},liftDeck(this.physical.lift));}
+  private collides(b:Aabb):boolean{return episodeCollides(this.physical.place,b,this.terrainProfile,this.has('entry_open'),this.hasRoom('valve_filled'),this.hasRoom('lift_open'));}
   groundAt(x: number, place: EpisodePlace = this.physical.place): number { return episodeGround(place, x, this.terrainProfile); }
   get sessionState(): GameSessionState { return this.truth; }
   get player(): PlayerState { const p = this.physical.player; return { position: { x: p.x, y: p.y }, velocity: { x: p.velocityX, y: p.velocityY }, grounded: p.grounded, body: { width: 12, height: 14 } }; }
@@ -274,7 +284,11 @@ export class ForestEpisode {
   }
   get objective(): string {
     if (this.has('finished')) {
-      if(this.hasRoom('siphon_primed'))return '高位虹吸已通水；可沿两段检修梯返回。顶层升降机与出口尚未开放';
+      if(this.hasRoom('reported'))return '高位水路已交接，永久梯可回访蓄水室；旧矿道与后续位点尚未开放';
+      if(this.hasRoom('exited'))return '已沿回流道返回工坊；回聚落告诉工务人水路的变化';
+      if(this.hasRoom('return_open'))return '回流道永久梯已放下；从顶层出口返回工坊，或乘升降机回访下层';
+      if(this.hasRoom('lift_arrived'))return '已到顶层；转动左侧绞盘放下永久梯，再沿回流道返回工坊';
+      if(this.hasRoom('siphon_primed'))return '高位虹吸已通水；右侧水力升降机可登乘，也可沿原检修梯返回';
       if(this.hasRoom('upper_seen'))return '修复任一支撑，尝试远距引水；也可用手动导水柄，沿检修梯可随时返回';
       if(this.hasRoom('valve_filled'))return '双层校准阀已开启西侧检修梯；可上行调查高位虹吸，或原路返回';
       if(this.hasRoom('entered'))return '入口回声可观察默认水段；沿东侧梯上行，在双层校准阀比较水量或使用导槽';
@@ -298,22 +312,35 @@ export class ForestEpisode {
   }
   nearest(): { id: EpisodeTarget; x: number; label: string } | null {
     const p = this.physical.player;
-    if(this.physical.climb)return null;
-    return EPISODE_TARGETS[this.physical.place].filter(t => Math.abs(t.x - (p.x + 6)) <= 30 && Math.abs(p.y + 14 - this.targetFloor(t)) <= 28 &&
+    if(this.physical.climb||this.ridingLift)return null;
+    return this.targets.filter(t => Math.abs(t.x - (p.x + 6)) <= 30 && Math.abs(p.y + 14 - this.targetFloor(t)) <= 28 &&
       (this.physical.place!=='cistern'||p.y+14<=this.targetFloor(t)+.01))
       .sort((a, b) => Math.abs(a.x - p.x - 6) - Math.abs(b.x - p.x - 6))[0] ?? null;
   }
   advance(input: PlayerMotionInput = { moveX: 0, jump: false }): void {
     const p = this.physical;
-    if(p.climb){
+    const advanceLift=()=>{
+      const before=p.lift!,wasRiding=liftCarriesPlayer(before);
+      const motion=stepCisternLift(before,p.player,b=>cisternRoomCollides(b,this.hasRoom('valve_filled'),true));
+      p.lift=motion.lift;if(wasRiding)p.player=motion.player;
+      if(wasRiding&&motion.lift.mode==='idle'&&motion.lift.to==='top'&&!this.hasRoom('lift_arrived')){
+        this.markRoom('lift_arrived',[{eventId:'episode.room.top.checkpoint',type:'checkpoint_set',
+          payload:{checkpoint:{id:'forest.episode.cistern.top',sceneId:EPISODE_SCENES.cistern,position:{x:372,y:114},revision:this.truth.checkpoint.revision+1}}}]);
+      }
+    };
+    if(p.place==='cistern'&&this.ridingLift){
+      advanceLift();this.previousJump=false;this.grace=EMPTY_JUMP_GRACE;
+    }else if(p.climb){
       const motion=stepCisternClimb(p.player,p.climb,this.hasRoom('valve_filled'));
       p.player=motion.player;if(motion.climb)p.climb=motion.climb;else delete p.climb;
       this.previousJump=false;this.grace=EMPTY_JUMP_GRACE;
     }else{
       const motion = stepPlayerMotion({ state: p.player, body: { width: 12, height: 14 }, input: { moveX: Number.isFinite(input.moveX) ? Math.max(-1, Math.min(1, input.moveX)) : 0, jump: !!input.jump },
-        previousJump: this.previousJump, jumpGrace: this.grace, fixedSeconds: 1 / 60, collides: b => episodeCollides(p.place, b, this.terrainProfile, this.has('entry_open'),this.hasRoom('valve_filled')) });
+        previousJump: this.previousJump, jumpGrace: this.grace, fixedSeconds: 1 / 60,
+        collides: b => this.collides(b)||(p.place==='cistern'&&!!p.lift&&intersects(b,liftDeck(p.lift))) });
       p.player = motion.state; this.previousJump = motion.previousJump; this.grace = motion.jumpGrace ?? EMPTY_JUMP_GRACE;
     }
+    if(p.place==='cistern'&&p.lift?.mode==='call')advanceLift();
     p.tick++;
     // Channels freeze with the scene: no off-screen completion or forgotten input while reading dialogue.
     if (p.place === 'mill') {
@@ -355,6 +382,10 @@ export class ForestEpisode {
     const requireJob = () => !this.has('job');
     switch (target) {
       case 'worker': {
+        if(this.hasRoom('exited')){
+          if(!this.hasRoom('reported'))this.markRoom('reported');
+          return say('回流道的检修梯已经放下了？那就不用每次绕过两层水阀。上层水路重新可用，下一步得查清它通往哪里。那枚碎片仍先留在你手里；旧矿道还没有安全通路。报酬和床位已经结清，不重复发放。','工务人');
+        }
         if (this.has('finished')) return say('屋里给你留了床位。水轮运转正常，林中的路也随时向你敞开。', '工务人');
         if (this.has('debrief')) {
           const e = this.truth.economy;
@@ -417,6 +448,28 @@ export class ForestEpisode {
       case 'room-echo':
         if(!this.hasRoom('echo')){this.markRoom('echo');this.physical.echoAge=0;this.echoPhysics=undefined;this.echoCellsCache=undefined;}
         return say('回声留下 telo 的默认构形：语言上是水／液体，在这套框架中，不加尺度修饰词会形成 32 px 长、12 px 宽的水段，正常施放需 5 MP。关闭对话看水下落。这里是隔离的演示盆，不扣你的 MP，也不能把演示水带走。');
+      case 'lift-up':case 'lift-down':{
+        if(!this.hasRoom('siphon_primed'))return say('升降机没有水力。先让虹吸接水槽达到刻度；魔法和手动导水都可以。');
+        if(!this.hasRoom('lift_open')){this.markRoom('lift_open');this.physical.lift=emptyCisternLift();}
+        const from=target==='lift-up'?'bottom':'top',s=this.physical.lift!;
+        if(s.mode!=='idle')return say(s.blocked?'平台因通道有占位而停住。离开轨道后会继续，不会挤压身体。':'升降机正在靠站，等平台停稳再按 E 登乘。');
+        this.physical.lift=beginCisternLift(s,from);
+        return say(this.ridingLift?'沿平台登乘。Esc 可暂停，停稳后自动走到安全平台。':'已呼叫平台。它会沿轨道靠站；停稳后再按 E 登乘。');
+      }
+      case 'return-winch':
+        if(!this.hasRoom('lift_arrived'))return say('先乘升降机抵达顶层并确认停靠。');
+        if(!this.hasRoom('return_open'))this.markRoom('return_open',[
+          {eventId:'episode.cistern.primed',type:'world_flag_set',payload:{flagId:'cistern.siphon_primed',value:true,scope:'global'}},
+          {eventId:'episode.cistern.upper-channel',type:'world_flag_set',payload:{flagId:'valley.upper_channel',value:'available',scope:'global'}}]);
+        return say('转动绞盘，通往工坊回流道的检修梯降下，棘爪永久固定。现在可以从中间出口回到工坊，也能从工坊沿这条梯子回访。没有消耗碎片，也没有恢复 MP。');
+      case 'top-exit':
+        if(!this.hasRoom('return_open'))return say('回流道的梯子仍收在上方。先转动左边绞盘，放下并固定检修梯。');
+        if(!this.hasRoom('exited'))this.markRoom('exited');
+        this.travel('mill',806);return say('沿回流道检修梯回到工坊。新的路线已保留，可以回聚落向工务人说明水路的变化。');
+      case 'cistern-shortcut':
+        if(!this.hasRoom('return_open'))return say('这条回流道尚未从内侧打开。');
+        this.travel('cistern',266);this.physical.player={x:266,y:114,velocityX:0,velocityY:0,grounded:true};
+        return say('沿永久检修梯回到蓄水室顶层。原来的水位、升降机位置、MP 和碎片保持不变。');
       case 'east-up':case 'east-down':case 'west-up':case 'west-down':
         if(target.startsWith('west')&&!this.hasRoom('valve_filled'))return say('西侧梯的隔栅由双层校准阀控制。可以用魔法，也可以调整导槽引水。');
         this.physical.climb={route:target,leg:0};return say('沿检修梯攀行。Esc 可以暂停。');
@@ -438,8 +491,8 @@ export class ForestEpisode {
       }
       case 'upper-survey':
         if(!this.hasRoom('upper_seen'))this.markRoom('upper_seen');
-        return say(this.hasRoom('siphon_primed')?'虹吸接水槽已经达到刻度，水箱中的水进入高位水路。停靠台仍有机械锁，升降机与顶层出口尚未开放。可沿西侧梯下到校准层，再沿东侧梯返回。':
-          '虹吸钟在回收沟另一侧，水舌距向东锚点 58 px。两条支撑肋任选其一修复，便能稳定长水段。左侧锚点可预览魔法，右侧手柄能直接导入现有水，不需要 MP。水进入接水槽达到刻度才算通水；顶层停靠台暂时锁定。');
+        return say(this.hasRoom('siphon_primed')?'虹吸接水槽已经达到刻度，水箱中的水进入高位水路。右侧下站可启用升降机，到顶层放下回流道的永久梯；也能沿原检修梯返回。':
+          '虹吸钟在回收沟另一侧，水舌距向东锚点 58 px。修好任一支撑可稳定长水段；左侧锚点预览魔法，右侧手柄可导入现有水，不需要 MP。接水槽达到刻度后，再到最右边启用升降机。');
       case 'siphon-left':case 'siphon-right':{
         if(!this.hasRoom('upper_seen'))return say('先到右边查看高位虹吸和停靠台，确认支撑连接的水路。');
         const flag=target==='siphon-left'?'siphon_left':'siphon_right';
@@ -448,7 +501,7 @@ export class ForestEpisode {
       }
       case 'siphon':
         if(!this.hasRoom('upper_seen'))return say('先到右边查看高位虹吸和停靠台，确认远端水舌的位置。');
-        if(this.siphonReleased)return say(this.hasRoom('siphon_primed')?'虹吸已通水，无需重复灌水。升降机仍锁定，可以沿两段检修梯原路返回。':'水箱已释放。关闭面板，等水落入接水槽，不必重复施放。');
+        if(this.siphonReleased)return say(this.hasRoom('siphon_primed')?'虹吸已通水，无需重复灌水。右侧升降机可到顶层，也可以沿两段检修梯原路返回。':'水箱已释放。关闭面板，等水落入接水槽，不必重复施放。');
         if(!this.siphonReady())return say('先让水落稳，观察回收沟和远端接水槽，再作调整。');
         if((this.physical.siphon?.events.filter(e=>e.kind==='cast').length??0)>=2)return say('这两次引水没有够到水舌。右侧手动导水柄可释放现有水，无需继续消耗 MP。');
         return {accepted:true,choice:'siphon',text:'主轴向东，水舌距离 58 px；水段长度 16 / 32 / 64 px，截面固定 12 px。短或默认水段会落入回收沟，不算语言错误。长水段先修好任一支撑肋；MP 不足也可用右侧手动导水柄。'};
@@ -555,7 +608,7 @@ export class ForestEpisode {
         ![p.wheelSpeed, p.wheelAngle, p.player.x, p.player.y, p.player.velocityX, p.player.velocityY].every(Number.isFinite) ||
         p.wheelSpeed < 0 || p.wheelSpeed > 1 || p.wheelAngle < 0 || p.wheelAngle >= Math.PI * 2 ||
         Math.abs(p.player.velocityX) > 88.001 || Math.abs(p.player.velocityY) > 240.001 ||
-        episodeCollides(p.place, { ...p.player, width: 12, height: 14 }, this.terrainProfile, this.has('entry_open'),this.hasRoom('valve_filled'))) throw new Error('章节空间存档无效');
+        this.collides({ ...p.player, width: 12, height: 14 })) throw new Error('章节空间存档无效');
     validateEpisodeWater(p.mill); validateEpisodeWater(p.practice);
     if (p.tailrace !== undefined) {
       if (!hasMillValley(this.terrainProfile)) throw new Error('工坊下游地形版本不兼容');
@@ -563,13 +616,22 @@ export class ForestEpisode {
     }
     const scene = EPISODE_SCENES[p.place];
     const roomDeps:Partial<Record<RoomFlag,RoomFlag[]>>={echo:['entered'],valve_seen:['entered'],valve_tool:['valve_seen'],valve_filled:['valve_seen'],upper_seen:['valve_filled'],
-      siphon_left:['upper_seen'],siphon_right:['upper_seen'],siphon_tool:['upper_seen'],siphon_primed:['upper_seen']};
+      siphon_left:['upper_seen'],siphon_right:['upper_seen'],siphon_tool:['upper_seen'],siphon_primed:['upper_seen'],
+      lift_open:['siphon_primed'],lift_arrived:['lift_open'],return_open:['lift_arrived'],exited:['return_open'],reported:['exited']};
     for(const f of ROOM_FLAGS)if(this.hasRoom(f)&&(!this.truth.receiptIndex['forest.episode.room.'+f]||roomDeps[f]?.some(d=>!this.hasRoom(d))))throw Error('蓄水室进度凭证不一致');
     if(this.hasRoom('entered')&&!this.has('window_filled')||p.place==='cistern'&&!this.hasRoom('entered'))throw Error('蓄水室入口未开放');
     if(p.climb){
       if(p.place!=='cistern')throw Error('检修梯场景不一致');
       validateCisternClimb(p.climb,p.player,this.hasRoom('valve_filled'));
     }
+    if(this.hasRoom('lift_open')!==(p.lift!==undefined)||p.climb&&this.ridingLift)throw Error('升降机启用凭证不一致');
+    if(p.lift){
+      validateCisternLift(p.lift,p.player);
+      if(this.ridingLift&&p.place!=='cistern'||p.place==='cistern'&&intersects({...p.player,width:12,height:14},liftDeck(p.lift)))throw Error('升降机乘客位置不一致');
+    }
+    if(p.place==='cistern'&&p.player.y<140&&!this.hasRoom('lift_open'))throw Error('顶层尚未开放');
+    if(this.hasRoom('return_open')&&(this.truth.world.flags['global:cistern.siphon_primed']?.value!==true||
+      this.truth.world.flags['global:valley.upper_channel']?.value!=='available'))throw Error('回流道世界状态不一致');
     if(p.place==='cistern'&&!this.hasRoom('valve_filled')&&p.player.y<384)throw Error('西侧梯隔栅尚未打开');
     if(this.hasRoom('echo')!==(p.echoAge!==undefined)||p.echoAge!==undefined&&(!Number.isInteger(p.echoAge)||p.echoAge<0||p.echoAge>180))throw Error('入口回声存档无效');
     const siphon=p.siphon,sc=Object.values(this.truth.receiptIndex).filter(r=>r.receiptId.startsWith('forest.episode.siphon.cast.'));

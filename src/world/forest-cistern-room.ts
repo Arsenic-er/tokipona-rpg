@@ -2,14 +2,15 @@ import type { Aabb } from '../runtime/geometry';
 import type { PlayerMotionState } from '../runtime/player-motion';
 export const CISTERN_ROOM_BOUNDS={x:0,y:0,width:480,height:768} as const;
 export const CISTERN_PLATFORMS=[{x:16,y:544,w:368},{x:448,y:544,w:16},{x:96,y:352,w:368},{x:16,y:128,w:448}] as const;
-export function cisternRoomSolid(x:number,y:number,upperOpen=false):boolean {
+export function cisternRoomSolid(x:number,y:number,upperOpen=false,liftOpen=false):boolean {
   if(x<16||x>=464||y<16||y>=736)return true;
+  if(liftOpen&&x>=400&&x<448&&y>=128&&y<140)return false;
   if(CISTERN_PLATFORMS.some(p=>x>=p.x&&x<p.x+p.w&&y>=p.y&&y<p.y+12))return true;
   return !upperOpen && x>=32&&x<80&&y>=368&&y<384;
 }
-export function cisternRoomCollides(b:Aabb,upperOpen=false):boolean {
+export function cisternRoomCollides(b:Aabb,upperOpen=false,liftOpen=false):boolean {
   for(let y=Math.floor(b.y);y<Math.ceil(b.y+b.height);y++)
-    for(let x=Math.floor(b.x);x<Math.ceil(b.x+b.width);x++)if(cisternRoomSolid(x,y,upperOpen))return true;
+    for(let x=Math.floor(b.x);x<Math.ceil(b.x+b.width);x++)if(cisternRoomSolid(x,y,upperOpen,liftOpen))return true;
   return false;
 }
 export const CISTERN_ROUTES={

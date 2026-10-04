@@ -1,4 +1,4 @@
-import { ForestEpisode, EPISODE_TARGETS } from '../game/forest-episode';
+import { ForestEpisode } from '../game/forest-episode';
 import type { ForestCameraState } from '../runtime/forest-camera';
 import type { ForestOpeningPublicView } from './forest-opening-view';
 import { forestMaterialColor } from './forest-material-texture';
@@ -113,7 +113,7 @@ export class ForestEpisodeRenderer {
       ctx.fillStyle = '#82775e'; ctx.fillRect(717, clearing ? game.groundAt(720) - 3 : 326, 10, 3);
       this.lantern(ctx, 439, 319, p.tick);
     }
-    const groundKey = `${p.place}:${game.terrainProfile ?? 'legacy'}`;
+    const groundKey = `${p.place}:${game.terrainProfile ?? 'legacy'}:${p.place==='cistern'&&game.hasRoom('lift_open')}`;
     let ground = this.terrain.get(groundKey);
     if (!ground) { ground = this.makeGround(game); this.terrain.set(groundKey, ground); }
     ctx.drawImage(ground, 0, 0);
@@ -126,13 +126,20 @@ export class ForestEpisodeRenderer {
         ctx.fillRect(x, y, 1, 1);
       }
     }
-    for (const t of EPISODE_TARGETS[p.place]) {
-      if (t.id.endsWith('road') || t.id === 'return') {
+    for (const t of game.targets) {
+      if (t.id.endsWith('road') || t.id === 'return'||t.id==='top-exit'||t.id==='cistern-shortcut') {
         const y = game.targetFloor(t);
         this.timber(ctx, t.x - 1, y - 23, 3, 23); this.timber(ctx, t.x - 13, y - 23, 26, 9);
         ctx.fillStyle = '#aca079'; ctx.fillRect(t.x - 6, y - 19, 12, 1);
         ctx.fillRect(t.x + (t.x < 200 ? -6 : 5), y - 20, 1, 3);
       }
+    }
+    if(p.place==='mill'&&game.hasRoom('return_open')){
+      const floor=game.groundAt(812);
+      ctx.fillStyle='#16221c';ctx.fillRect(801,floor-29,22,29);
+      this.timber(ctx,799,floor-31,3,31);this.timber(ctx,823,floor-31,3,31);
+      for(let y=floor-26;y<floor;y+=6){ctx.fillStyle='#a09872';ctx.fillRect(805,y,15,2);}
+      ctx.fillStyle='#65735c';ctx.fillRect(805,floor-29,2,29);ctx.fillRect(818,floor-29,2,29);
     }
     ctx.restore();
     if (this.atlas) drawForestOpeningLocalTraveler(ctx, view, this.atlas);
@@ -147,10 +154,11 @@ export class ForestEpisodeRenderer {
     if(game.state.place==='cistern'){
       const c=document.createElement('canvas');c.width=480;c.height=768;
       const target=c.getContext('2d')!,im=target.createImageData(480,768);
+      const solid=(x:number,y:number)=>cisternRoomSolid(x,y,true,game.hasRoom('lift_open'));
       for(let y=0;y<768;y++)for(let x=0;x<480;x++){
-        if(!cisternRoomSolid(x,y,true))continue;
-        const top=!cisternRoomSolid(x,y-1,true),edge=!cisternRoomSolid(x-1,y,true)||!cisternRoomSolid(x+1,y,true);
-        const rgb=forestMaterialColor(M.stone,x,y,{top:top?1:0,side:edge,bottom:!cisternRoomSolid(x,y+1,true)});
+        if(!solid(x,y))continue;
+        const top=!solid(x,y-1),edge=!solid(x-1,y)||!solid(x+1,y);
+        const rgb=forestMaterialColor(M.stone,x,y,{top:top?1:0,side:edge,bottom:!solid(x,y+1)});
         const depth=x<16?16-x:x>=464?x-464:y>=736?y-736:y<16?16-y:4;
         const shade=Math.max(.36,1-depth*.026);
         im.data.set([rgb[0]*shade,rgb[1]*shade,rgb[2]*shade,255],(y*480+x)*4);
@@ -262,7 +270,11 @@ export class ForestEpisodeRenderer {
       this.timber(ctx,x-13,top,3,bottom-top);this.timber(ctx,x+11,top,3,bottom-top);
       for(let y=top+5;y<bottom;y+=9)this.timber(ctx,x-11,y,23,2);
     }
-    for(const p of CISTERN_PLATFORMS){ctx.fillStyle='#7d816b';ctx.fillRect(p.x,p.y,p.w,1);}
+    for(const p of CISTERN_PLATFORMS){
+      ctx.fillStyle='#7d816b';
+      if(p.y===128&&game.hasRoom('lift_open')){ctx.fillRect(p.x,p.y,400-p.x,1);ctx.fillRect(448,p.y,16,1);}
+      else ctx.fillRect(p.x,p.y,p.w,1);
+    }
     if(!game.hasRoom('valve_filled')){
       for(let x=32;x<80;x+=6){ctx.fillStyle='#7c8477';ctx.fillRect(x,368,2,16);}
       ctx.fillStyle='#525e53';ctx.fillRect(32,368,48,3);
@@ -279,10 +291,18 @@ export class ForestEpisodeRenderer {
     for(const x of [174,306])this.rock(ctx,x,534,5,10);
     ctx.fillStyle='#92906d';ctx.fillRect(178,522,3,18);ctx.fillRect(172,526,15,2);
     this.siphonWater(ctx,game,game.nearest()?.id==='siphon'?plan:null);
-    this.timber(ctx,408,144,4,208);this.timber(ctx,440,144,4,208);
-    this.timber(ctx,403,345,45,7);
-    // Visible mechanical lock: priming the tank is not yet permission to board a lift.
-    ctx.fillStyle='#b49b67';ctx.fillRect(437,333,5,8);ctx.fillRect(436,331,7,2);
+    this.timber(ctx,398,116,3,236);this.timber(ctx,447,116,3,236);
+    const deck=game.state.lift?.y??352;
+    this.timber(ctx,400,deck,48,8);ctx.fillStyle='#a8b299';ctx.fillRect(400,deck,48,1);
+    ctx.fillStyle=game.hasRoom('siphon_primed')?'#9fb693':'#715c3f';ctx.fillRect(451,323,3,9);ctx.fillRect(373,100,3,10);
+    if(!game.hasRoom('lift_open')){ctx.fillStyle='#b49b67';ctx.fillRect(437,333,5,8);ctx.fillRect(436,331,7,2);}
+    // Top crank and actual two-way route: no fake continuation into the unopened mine.
+    this.timber(ctx,97,105,5,23);ctx.fillStyle='#a19b72';ctx.fillRect(89,113,20,2);ctx.fillRect(96,108,2,13);
+    ctx.fillStyle=game.hasRoom('return_open')?'#16271d':'#635f4b';ctx.fillRect(259,91,26,37);
+    this.timber(ctx,256,90,3,38);this.timber(ctx,285,90,3,38);this.timber(ctx,256,88,32,3);
+    const bottom=game.hasRoom('return_open')?128:102;
+    for(let y=96;y<bottom;y+=6){ctx.fillStyle='#afa27c';ctx.fillRect(265,y,15,2);}
+    ctx.fillStyle='#6d7360';ctx.fillRect(265,92,2,bottom-92);ctx.fillRect(278,92,2,bottom-92);
     ctx.fillStyle=game.siphonReleased?'#9faf90':'#9a8666';ctx.fillRect(413,327,2,14);ctx.fillRect(408,331,12,2);
   }
   private siphonWater(ctx:CanvasRenderingContext2D,game:ForestEpisode,plan:TeloCastPlan|null):void{
