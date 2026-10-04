@@ -4,7 +4,7 @@ import {Material} from '../sim/materials';
 const water=(w:CisternCalibration)=>w.cells().filter(x=>x===Material.Water).length;
 describe('double calibration valve',()=>{
   it.each(['telo','telo lili','telo suli'] as const)('uses the existing %s cast compiler with honest costs',word=>{
-    const {world,plan}=previewCalibration(undefined,word,24,26,[]);
+    const {world,plan}=previewCalibration(undefined,word,24,26,[],1);
     const before=water(world),r=world.confirm(plan);
     expect(plan.initialVelocityPxPerSecond).toEqual({x:0,y:0});expect(plan.directAttack).toBe(false);
     expect(plan.activationMpRequired).toBe(word==='telo'?5:word==='telo lili'?6:10);

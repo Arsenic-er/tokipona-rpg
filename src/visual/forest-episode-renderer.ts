@@ -269,6 +269,12 @@ export class ForestEpisodeRenderer {
     for(const [x,y] of [[74,701],[344,511],[145,322]])this.lantern(ctx,x,y,game.state.tick);
     this.roomWater(ctx,game.echoCells,80,662,null);
     this.roomWater(ctx,game.calibrationCells,CISTERN_CALIBRATION.x,CISTERN_CALIBRATION.y,plan);
+    if(game.calibrationVersion===2){
+      // Copper contact and linkage identify the real remote intake, distinct from the near recovery trough.
+      ctx.fillStyle='#a18b60';ctx.fillRect(224,485,3,3);ctx.fillRect(225,483,12,1);ctx.fillRect(236,483,1,19);
+      ctx.fillStyle='#c2ba8f';ctx.fillRect(218,510,2,1);ctx.fillRect(218,518,2,1);
+      ctx.fillStyle='#616f64';ctx.fillRect(241,510,14,1);
+    }
     for(const x of [174,306])this.rock(ctx,x,534,5,10);
     ctx.fillStyle='#92906d';ctx.fillRect(178,522,3,18);ctx.fillRect(172,526,15,2);
     // The unrepaired siphon and parked platform have no decorative flowing water.

@@ -55,11 +55,15 @@ test('vertical room: entry recovery, echo, paused ladder restore, short/default 
   const input=p.getByRole('textbox',{name:'输入引水表达'}),preview=p.getByRole('button',{name:'预览形态'}),confirm=p.getByRole('button',{name:'确认释放'});
   await input.fill('telo suli');await preview.click();await expect(confirm).toBeDisabled();
   await input.fill('  TELO   LILI  ');await preview.click();await expect(confirm).toBeEnabled();await p.screenshot({path:resolve(dir,'room-short-preview.png')});
+  await expect(p.locator('[data-window="preview"]')).toContainText('近端回收槽');
   const mp=(await saved(p)).session.state.mp.currentMp;await confirm.click();await close(p);await advance(p,3500);
   expect(flag(await saved(p),'valve_filled')).toBe(false);expect((await saved(p)).session.state.mp.currentMp).toBe(mp-6);
+  expect((await saved(p)).physical.calibration.version).toBe(2);
+  await p.screenshot({path:resolve(dir,'room-short-recovery.png')});
   await use(p,'双层校准阀');await input.fill('telo');await preview.click();await expect(confirm).toBeEnabled();
   await confirm.click();await close(p);await advance(p,3500);const filled=await saved(p);
   expect(flag(filled,'valve_filled')).toBe(true);expect(filled.session.state.mp.currentMp).toBe(mp-11);
+  expect(filled.physical.calibration.version).toBe(2);
   await p.screenshot({path:resolve(dir,'room-valve-open.png')});writeFileSync(resolve(dir,'browser-valve.json'),JSON.stringify(filled));
   await climb(p,'攀上西侧检修梯',50);await walk(p,344);await use(p,'高位虹吸与停靠台');await close(p);
   expect(flag(await saved(p),'upper_seen')).toBe(true);await visiblePlayer(p);await p.screenshot({path:resolve(dir,'room-upper-survey.png')});

@@ -42,7 +42,7 @@ describe('cistern room in the real chapter save',()=>{
     expect(g.confirmCalibration('telo lili',short.plan.planId).accepted).toBe(true);
     expect(g.confirmCalibration('telo lili',short.plan.planId).accepted).toBe(false);
     tick(g,7);const falling=g.toSave();g=ForestEpisode.restore(falling);expect(g.toSave()).toEqual(falling);tick(g,200);
-    expect(g.calibrationCollected).toBe(48);expect(g.hasRoom('valve_filled')).toBe(false);expect(g.sessionState.mp.currentMp).toBe(mp-6);
+    expect(g.calibrationCollected).toBe(0);expect(g.hasRoom('valve_filled')).toBe(false);expect(g.sessionState.mp.currentMp).toBe(mp-6);
     const p=g.previewCalibration('telo')!;expect(p.canConfirm).toBe(true);expect(g.confirmCalibration('telo',p.plan.planId).accepted).toBe(true);
     tick(g,200);expect(g.hasRoom('valve_filled')).toBe(true);expect(g.sessionState.mp.currentMp).toBe(mp-11);
     expect(ForestEpisode.restore(g.toSave()).toSave()).toEqual(g.toSave());
@@ -62,6 +62,27 @@ describe('cistern room in the real chapter save',()=>{
     for(const k of ['mp','economy','capabilities','learning'] as const)expect(g.sessionState[k]).toEqual(before[k]);
     climb(g,'west-up');act(g,'upper-survey');expect(ForestEpisode.restore(g.toSave()).toSave()).toEqual(g.toSave());
   },30000);
+  it.each(['telo','telo lili'] as const)('retains the prior %s valve save layout without refilling or replaying MP',word=>{
+    const g=ForestEpisode.restore(ready);enter(g);climb(g,'east-up');act(g,'calibration');
+    const p=g.previewCalibration(word)!;g.confirmCalibration(word,p.plan.planId);tick(g,180);
+    // The same earned event/MP receipts in the previous physical representation are a legacy-save fixture.
+    const old=g.toSave();old.physical.calibration!.version=1;
+    const canonical=rehash(old),restored=ForestEpisode.restore(canonical);
+    expect(restored.toSave()).toEqual(canonical);expect(restored.calibrationVersion).toBe(1);
+    expect(restored.calibrationCollected).toBe(word==='telo'?96:48);
+    const mp=structuredClone(restored.sessionState.mp);tick(restored,300);expect(restored.sessionState.mp).toEqual(mp);
+    expect(ForestEpisode.restore(restored.toSave()).toSave()).toEqual(restored.toSave());
+  });
+  it('offers the finite tank after two short failures, without an unusable third-cast dialog',()=>{
+    const g=ForestEpisode.restore(ready);enter(g);climb(g,'east-up');act(g,'calibration');
+    for(let i=0;i<2;i++){const p=g.previewCalibration('telo lili')!;expect(p.canConfirm).toBe(true);g.confirmCalibration('telo lili',p.plan.planId);tick(g,180);}
+    expect(g.hasRoom('valve_filled')).toBe(false);
+    const result=g.interact('calibration');expect(result.choice).toBeUndefined();expect(result.text).toContain('左侧调整导槽');
+    const mp=structuredClone(g.sessionState.mp),learning=structuredClone(g.sessionState.learning);
+    act(g,'calibration-tool');tick(g,200);expect(g.hasRoom('valve_filled')).toBe(true);
+    expect(g.state.calibration?.version).toBe(2);expect(g.sessionState.mp).toEqual(mp);expect(g.sessionState.learning).toEqual(learning);
+    expect(ForestEpisode.restore(g.toSave()).toSave()).toEqual(g.toSave());
+  });
   it('rejects physically inconsistent saved climbs, echoes, gates and water histories',()=>{
     const g=ForestEpisode.restore(ready);enter(g);
     for(const mutate of [

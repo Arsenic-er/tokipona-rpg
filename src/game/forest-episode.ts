@@ -152,8 +152,9 @@ export class ForestEpisode {
   private get calibrationWorld():CisternCalibration{return this.calibrationPhysics??=new CisternCalibration(this.physical.calibration);}
   get calibrationCells():readonly number[]{return this.calibrationCellsCache??=this.calibrationWorld.cells();}
   get calibrationCollected():number{return this.calibrationWorld.collected;}
+  get calibrationVersion():1|2{return this.physical.calibration?.version??2;}
   get echoCells():readonly number[]{
-    this.echoPhysics??=new CisternCalibration(this.physical.echoAge===undefined?undefined:{version:1,age:this.physical.echoAge,events:[{at:0,kind:'cast',expression:'telo'}]});
+    this.echoPhysics??=new CisternCalibration(this.physical.echoAge===undefined?undefined:{version:1,age:this.physical.echoAge,events:[{at:0,kind:'cast',expression:'telo'}]},100,100,1);
     return this.echoCellsCache??=this.echoPhysics.cells();
   }
   private calibrationReady():boolean{
@@ -171,7 +172,7 @@ export class ForestEpisode {
     return {plan,canConfirm:capacity&&plan.canConfirm,reason:!capacity?'当前组合容量不足；可用导槽和现场水继续。':
       plan.rejectionCode==='requested_class_cannot_be_realized_here'?'当前空间无法形成所选形态，不扣 MP。':
       plan.rejectionCode==='requested_class_requires_more_mp'?'MP 不足；可用导槽，不降档、不扣费。':
-      !plan.canConfirm?'安全范围受阻，不扣 MP。':'可以释放。两层盘实际收集至少 1.6 MU 才开阀；短水段合法，但单次水量不足。'};
+      !plan.canConfirm?'安全范围受阻，不扣 MP。':this.calibrationVersion===1?'可以释放。旧式盘需要至少 1.6 MU；短水段合法但单次水量不足。':'可以释放。短水段落入近端回收槽；默认水段接触远端水舌，打开入水口。水仍须落进深盘达到 1.6 MU 才开阀。'};
   }
   confirmCalibration(expression:WindowExpression,planId:string):EpisodeResult{
     const preview=this.previewCalibration(expression);
@@ -180,7 +181,7 @@ export class ForestEpisode {
     const {world,plan}=previewCalibration(this.physical.calibration,expression,mp.currentMp,mp.maxMp,zones);
     const result=world.confirm(plan,zones);
     if(!result.committed)return {accepted:false,text:'形态没有生成，也没有扣 MP。'};
-    const state=this.physical.calibration??{version:1 as const,age:0,events:[]};
+    const state=this.physical.calibration??{version:2 as const,age:0,events:[]};
     this.commit('valve.cast.'+state.events.length,[{eventId:'episode.valve.mp.'+state.events.length,type:'mp_replaced',
       payload:{mp:{...mp,currentMp:mp.currentMp-result.mpCharge,worldVersion:mp.worldVersion+1}}},
       {eventId:'episode.valve.expression.'+state.events.length,type:'world_flag_set',
@@ -375,12 +376,14 @@ export class ForestEpisode {
         if(!this.hasRoom('valve_seen'))this.markRoom('valve_seen');
         if(this.hasRoom('valve_filled'))return say('两层盘已达到刻度，西侧检修梯的隔栅已抬起。没有获得额外压力或攻击能力。');
         if(!this.calibrationReady())return say('先关闭对话，让这一份水落稳，再比较或调整导槽。');
-        return {accepted:true,choice:'calibration',text:'双层盘需要至少 1.6 MU（77 个水格）。主轴向左，挡板距离 36 px；水段长度为 16 / 32 / 64 px。短水段可以合法施放，但一份不足以达到刻度。可以比较后再释放；左侧导槽能引入现有水，不消耗 MP。'};
+        if((this.physical.calibration?.events.filter(e=>e.kind==='cast').length??0)>=2)return say('这两份水没有带动隔栅。不必继续耗费 MP；到左侧调整导槽，可把回收槽和现场水箱接入深盘。');
+        return {accepted:true,choice:'calibration',text:this.calibrationVersion===1?'旧式校准盘保留原水路：收集至少 1.6 MU（77 格）才开阀。水段长度 16 / 32 / 64 px，挡板距离 36 px；短水段单份不足，或用左侧导槽。':
+          '远端水舌带动深盘入口，近端有独立回收槽。主轴向左，挡板距离 36 px；水段长度为 16 / 32 / 64 px。较短的水段落入回收槽，不算语言错误。深盘需要至少 1.6 MU（77 个水格）；也可用左侧导槽引入已有水，不消耗 MP。'};
       case 'calibration-tool':{
         if(!this.hasRoom('valve_seen'))return say('先到右边查看校准盘的刻度和导槽走向。');
         if(this.hasRoom('valve_filled')||this.hasRoom('valve_tool'))return say('水路已经接通，不需要重复打开水箱。');
         if(!this.calibrationReady())return say('先等正在落下的水稳定，再打开导槽，避免重复操作。');
-        const s=this.physical.calibration??{version:1 as const,age:0,events:[]};
+        const s=this.physical.calibration??{version:2 as const,age:0,events:[]};
         this.markRoom('valve_tool');s.events.push({at:s.age,kind:'tool'});
         this.physical.calibration=s;this.calibrationPhysics=undefined;this.calibrationCellsCache=undefined;
         return say('调整导槽并打开水箱底部，已有水沿坡流向双层盘。关闭对话观察；没有消耗 MP，也不算词语掌握。');
