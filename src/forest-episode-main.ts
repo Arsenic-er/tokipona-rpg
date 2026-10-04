@@ -1,4 +1,5 @@
-import { ForestEpisode, EPISODE_SAVE_KEY, OPENING_SAVE_KEY, EPISODE_PLACES, EPISODE_BOUNDS, type EpisodeResult, type EpisodeTarget } from './game/forest-episode';
+import { hasMillValley } from './world/forest-mill-terrain';
+import { ForestEpisode, EPISODE_SAVE_KEY, OPENING_SAVE_KEY, EPISODE_PLACES, episodeBounds, type EpisodeResult, type EpisodeTarget } from './game/forest-episode';
 import { BrowserForestOpeningPersistence } from './persistence/browser-forest-opening-persistence';
 import { initializeForestCamera, advanceForestCamera, type RuntimeForestCameraContract } from './runtime/forest-camera';
 import { ForestMouseCamera, bindForestMouseCamera } from './visual/forest-mouse-camera';
@@ -10,6 +11,12 @@ import { loadLocalForestBackdropFromDocument } from './visual/browser-local-fore
 import { ForestMap } from './visual/forest-map';
 import { EPISODE_TARGETS } from './game/forest-episode';
 import { episodeWaterSolid } from './world/forest-episode-water';
+import { millTailraceMapMaterial } from './world/forest-mill-tailrace';
+import { cisternEntrySolid } from './world/forest-cistern-entry';
+import { cisternRoomSolid } from './world/forest-cistern-room';
+import { episodeViewport } from './visual/forest-episode-viewport';
+import { WINDOW_EXPRESSIONS, type WindowExpression } from './world/forest-cistern-window';
+import type { TeloCastPlan } from './spells/cast-plan';
 
 const params = new URLSearchParams(location.search), rawSlot = params.get('practice');
 const practice = rawSlot !== null && /^[0-9a-f]{32}$/.test(rawSlot);
@@ -48,26 +55,28 @@ root.innerHTML = `<canvas width="640" height="360" tabindex="0" data-surface="ga
   <dialog class="ep-talk" aria-label="人物对话"><h2></h2><p></p><div class="ep-actions"></div></dialog>
   <dialog class="ep-journal" aria-label="章节笔记"><h2>水轮与碎片 · 任务日志</h2><p data-ep="notes"></p><div class="ep-actions"><button data-ep="close-notes">回到旅途</button><button data-ep="backup">导出存档</button></div></dialog>
   <dialog class="ep-pause" aria-label="暂停"><h2>暂停</h2><p>A/D 或方向键移动，按住从走加速到跑；空格/W 跳跃。E 与身边的人或物互动。滚轮缩放，鼠标轻微带动视野，0 恢复镜头。J 看笔记。对话和离开窗口时暂停。</p><p>每个重要步骤与场景切换自动保存。临时旅程不改主进度。</p><div class="ep-actions"><button data-ep="resume">继续游戏</button><button data-ep="retry-save">重试保存</button><button data-ep="new-practice">临时重玩</button></div></dialog>
-  <dialog class="ep-ending" aria-label="小章节结算"><h2>水轮与碎片 · 小节完成</h2><p data-ep="ending"></p><div class="ep-actions"><button data-ep="free-roam">继续在本地走走</button><button data-ep="ending-backup">导出存档</button><button data-ep="ending-practice">临时重玩</button></div><p>这是第一章的一个可玩小节，不是三小时完整第一章。地下蓄水廊和其他位点尚未开放。</p></dialog>
+  <dialog class="ep-ending" aria-label="小章节结算"><h2>水轮与碎片 · 小节完成</h2><p data-ep="ending"></p><div class="ep-actions"><button data-ep="free-roam">继续在本地走走</button><button data-ep="ending-backup">导出存档</button><button data-ep="ending-practice">临时重玩</button></div><p>这是第一章的一个可玩小节，不是三小时完整第一章。蓄水室校准层可往返；高位虹吸、顶层出口和其他位点尚未开放。</p></dialog>
   <div class="ep-controls" aria-label="触控操作"><div><button data-touch="left" aria-label="向左">◀</button><button data-touch="right" aria-label="向右">▶</button></div><div><button data-touch="interact" aria-label="互动">E</button><button data-touch="jump" aria-label="跳跃">↑</button></div></div>`;
 const get = <T extends HTMLElement = HTMLElement>(name: string): T => root.querySelector<T>(`[data-ep="${name}"]`)!;
 const canvas = root.querySelector('canvas')!, ctx = canvas.getContext('2d', { alpha: false })!;
 const talk = root.querySelector<HTMLDialogElement>('.ep-talk')!, journal = root.querySelector<HTMLDialogElement>('.ep-journal')!;
 const pause = root.querySelector<HTMLDialogElement>('.ep-pause')!, ending = root.querySelector<HTMLDialogElement>('.ep-ending')!;
 const dialogs = [talk, journal, pause, ending];
+let windowPreviewPlan: TeloCastPlan | null = null;
 const keys = new Set<string>(), touches = new Set<string>();
 let focusLost = false, ready = false, saved = true, endedThisVisit = false, lastSaveTick = game.state.tick;
 let muted = false, audioContext: AudioContext | null = null, audioOutput: GainNode | null = null;
 const cameraContract: RuntimeForestCameraContract = { fixedZoom: true, pixelSnap: true, movementLookAheadRatio: .18, downwardBiasRatio: .14, upwardLagRatio: .08, deadZoneNormalized: { left: .38, right: .62, top: .35, bottom: .67 } };
-let camera = initializeForestCamera(cameraContract, game.player, EPISODE_BOUNDS), lastPlace = game.state.place;
-const mouseCamera = new ForestMouseCamera(EPISODE_BOUNDS), gait = new ForestTravelerGait();
+const cameraBounds={...episodeBounds(game.state.place)};
+let camera = initializeForestCamera(cameraContract, game.player, cameraBounds), lastPlace = game.state.place;
+const mouseCamera = new ForestMouseCamera(cameraBounds), gait = new ForestTravelerGait();
 const blocked = () => !ready || focusLost || document.hidden || dialogs.some(d => d.open) || atlas.open;
 const atlas = new ForestMap(root, { storage, suffix,
   canOpen: () => !blocked(), suspend: clearInput, resume: () => { clearInput(); canvas.focus(); },
 });
 bindForestMouseCamera(canvas, mouseCamera, blocked);
 function clearInput(): void { keys.clear(); touches.clear(); }
-function closeDialog(d: HTMLDialogElement): void { d.close(); clearInput(); canvas.focus(); }
+function closeDialog(d: HTMLDialogElement): void { d.close(); windowPreviewPlan=null; clearInput(); canvas.focus(); }
 function showDialog(d: HTMLDialogElement): void { clearInput(); d.showModal(); d.querySelector('button')?.focus(); }
 function sound(): void {
   if (muted) return;
@@ -93,16 +102,47 @@ function save(): void {
   get('save').classList.toggle('ep-error', !saved);
 }
 function renderResult(result: EpisodeResult, target: EpisodeTarget): void {
+  windowPreviewPlan=null;
   talk.querySelector('h2')!.textContent = result.speaker ?? '旅途见闻';
   talk.querySelector('p')!.textContent = result.text;
   const actions = talk.querySelector('.ep-actions')!; actions.replaceChildren();
-  const button = (text: string, fn: () => void) => { const b = document.createElement('button'); b.textContent = text; b.onclick = fn; actions.append(b); };
+  const button = (text: string, fn: () => void) => { const b = document.createElement('button'); b.textContent = text; b.onclick = fn; actions.append(b); return b; };
   if (result.choice === 'work') button('答应维修，换取落脚', () => choose('accept'));
   if (result.choice === 'predict') {
     button('落入槽内，沿坡往低处流', () => choose('downhill'));
     button('停在空中，不再受重力影响', () => choose('hover'));
   }
-  button(result.choice ? '先看看周围' : '继续', () => { closeDialog(talk); maybeEnding(); });
+  if (result.choice==='calibrate') button('尝试两词校准',()=>choose('calibrate'));
+  if (result.choice==='recall' || result.choice==='window'||result.choice==='calibration') {
+    const label=document.createElement('label'), input=document.createElement('input');
+    label.textContent=result.choice==='recall'?'回忆那个词':'输入引水表达';
+    input.setAttribute('aria-label',label.textContent); input.maxLength=32;
+    input.autocomplete='off'; input.spellcheck=false; input.setAttribute('autocapitalize','off');
+    label.append(input); actions.append(label);
+    if(result.choice==='recall') {
+      button('提交回忆',()=>choose(input.value));
+      input.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();choose(input.value);}};
+    } else {
+      const detail=document.createElement('p'); detail.setAttribute('role','status'); detail.dataset.window='preview';
+      detail.textContent='可对照 telo lili / telo / telo suli。语言：telo 水／液体，lili 小／少，suli 大／多。本关把修饰解释为长度，不是威力。';
+      actions.append(detail);
+      let expression:WindowExpression|null=null, planId:string|null=null;
+      const previewButton=button('预览形态',()=>{
+        const value=input.value.trim().toLowerCase().replace(/\s+/g,' ');
+        expression=WINDOW_EXPRESSIONS.includes(value as WindowExpression)?value as WindowExpression:null;
+        const preview=expression?(target==='calibration'?game.previewCalibration(expression):game.previewWindow(expression)):null;
+        if(!preview){detail.textContent='当前只支持 telo lili、telo、telo suli；输入不会自动补词或扣 MP。';confirm.disabled=true;windowPreviewPlan=null;planId=null;return;}
+        const p=preview.plan; windowPreviewPlan=p; planId=p.planId;
+        detail.textContent=`${expression} · ${p.requestedLengthClass==='short'?'较短':p.requestedLengthClass==='long'?'较长':'默认（不加尺度修饰词）'}\n长度 ${p.requestedLengthClass==='short'?16:p.requestedLengthClass==='long'?64:32} px · 固定截面 12 px · ${target==='calibration'?'向左 · 锚点 254,486':'向右 · 锚点 762,326'}\n需要 ${p.activationMpRequired} MP（当前 ${game.sessionState.mp.currentMp}）· 维持费 0 · 零初速度 · 受重力 · 非攻击\n${preview.reason}`;
+        confirm.disabled=!preview.canConfirm;
+      });
+      const confirm=button('确认释放',()=>{if(!expression||!planId)return;const r=target==='calibration'?game.confirmCalibration(expression,planId):game.confirmWindow(expression,planId);save();updateHud();renderResult(r,target);});
+      confirm.disabled=true;
+      input.oninput=()=>{confirm.disabled=true;planId=null;windowPreviewPlan=null;detail.textContent='表达已改动，请重新预览；没有扣 MP。';};
+      input.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();previewButton.click();}};
+    }
+  }
+  button(result.choice==='work'||result.choice==='predict'||result.choice==='recall'||result.choice==='window'||result.choice==='calibration' ? '先看看周围' : '继续', () => { closeDialog(talk); maybeEnding(); });
   if (!talk.open) showDialog(talk);
   else actions.querySelector('button')?.focus();
   sound();
@@ -114,22 +154,30 @@ function interact(): void {
   const oldPlace = game.state.place;
   const result = game.interact(target.id); updateMap(); save(); updateHud();
   if (oldPlace !== game.state.place) { resetCamera(); canvas.focus(); return; }
+  if(game.state.climb){clearInput();canvas.focus();return;}
   renderResult(result, target.id);
 }
-function resetCamera(): void { camera = initializeForestCamera(cameraContract, game.player, EPISODE_BOUNDS); mouseCamera.reset(); gait.reset(); lastPlace = game.state.place; clearInput(); }
+function resetCamera(): void { Object.assign(cameraBounds,episodeBounds(game.state.place)); camera = initializeForestCamera(cameraContract, game.player, cameraBounds); mouseCamera.reset(); gait.reset(); lastPlace = game.state.place; clearInput(); }
 function updateMap(): void {
   const p = game.player, place = game.state.place;
   const kind = place === 'mill' ? 'mill' : 'practice';
   const controls = game.controls(kind), water = game.state[kind];
+  const tailrace = new Set(game.state.tailrace?.drops ?? []);
   atlas.update(place, { x: p.position.x + 6, y: p.position.y + 7 }, game.state.tick,
     (x, y) => {
+      if (place === 'cistern-entry') return cisternEntrySolid(x, y, game.has('entry_open')) ? 4 : 0;
+      if(place==='cistern')return cisternRoomSolid(x,y,game.hasRoom('valve_filled'))?4:0;
       const lx = x - (place === 'mill' ? 500 : 620), ly = y - (place === 'mill' ? 259 : 280);
       if (place !== 'settlement' && lx >= 0 && lx < 160 && ly >= 0 && ly < 48) {
         if (episodeWaterSolid(lx, ly, controls)) return place === 'mill' ? 5 : 4;
         if (water.cells[ly * 160 + lx]) return 7;
       }
+      if (place === 'mill' && hasMillValley(game.terrainProfile)) {
+        const material = millTailraceMapMaterial(x, y, tailrace);
+        if (material !== null) return material;
+      }
       return y >= game.groundAt(x, place) ? 2 : 0;
-    }, EPISODE_TARGETS[place].map(t => ({ x: t.x, y: game.groundAt(t.x, place) - 12, label: t.label })));
+    }, EPISODE_TARGETS[place].map(t => ({ x: t.x, y: game.targetFloor(t) - 12, label: t.label })));
 }
 function notes(): string {
   const items = [game.has('job') ? '已接下水轮维修，约定报酬 8 枚钱和一晚床位。' : '尚未与工务人约定工作。',
@@ -137,14 +185,24 @@ function notes(): string {
     game.has('medium') ? '行囊 · 受损古代媒介 / 森林位点碎片（永久剧情物，不出售、不丢弃）。' : '还没有取得古代媒介。',
     game.has('intro') ? '隐士见闻 · 旧文明抽取消耗维系世界秩序的能量；媒介并不等于力量源头。MP 与媒介损伤共同限制施法。' : '',
     game.has('observed') ? '词语笔记 · telo：水／液体。石槽和水壶上重复出现；这只是初次接触，不是熟练掌握。' : '',
-    game.has('practiced') ? '实践 · 先预测，花 2 MP 引来小量水，再用木楔补漏。水仍服从重力。当前仅开放隐士监督下的单词练习，未解锁自由组合或攻击。' : '',
-    game.has('debrief') ? '下一条线索 · 森林碎片与其他古代位点有关，地下蓄水廊是后续调查方向（尚未开放）。' : '',
-    game.has('finished') ? '已领取 · 8 枚钱、一晚床位。小节完成，可继续回访这三个地点。' : ''];
+    game.has('practiced') ? '实践 · 先预测，花 2 MP 引来小量水，再用木楔补漏。水仍服从重力。这是受损媒介的单词练习；通过额外校准后可在地下引水窗尝试长度组合，尚未开放自由攻击。' : '',
+    game.has('debrief') ? '下一条线索 · 森林碎片与其他古代位点有关。小节结算后，可从工坊右侧进入地下，调查门框、精密引水窗与高位蓄水室。' : '',
+    game.has('entry_observed') ? '检修记号 · 左侧检查、右侧绞盘。隔栅由棘爪固定，工具操作不消耗 MP。' : '',
+    game.has('entry_surveyed') ? '蓄水廊门框 · 精密引水窗控制侧面检修盖。碎片没有装入或消耗，深处主门尚未开放。' : '',
+    game.has('phrase') ? '两词校准 · 已在隐士处休息并回忆水的表达，按进阶规则开放两词容量；当前 MP 未自动补满，未授予词语掌握。' : '',
+    game.has('window_inspected') ? '引水窗 · 三档只改长度：16 / 32 / 64 px，截面 12 px；挡板距锚点 20 px。预览阻挡不扣 MP。也可用旁通阀导入已有水。' : '',
+    game.has('window_filled') ? `检修盖已开 · ${game.has('window_bypass')?'使用旁通阀，没有语言证据':'显化水实际落进接水杯；有说明的练习不计无提示掌握'}。右侧检修门通往高位蓄水室。` : '',
+    game.hasRoom('entered') ? '蓄水室 · 入口检查点只轻恢复一次 MP。按 E 沿东侧检修梯到校准层；途中可按 Esc 暂停。返回再进入不会重复恢复。' : '',
+    game.hasRoom('echo') ? '入口回声 · 隔离演示盆展示 telo 的默认水段，32 px × 12 px；演示不扣 MP，也不算掌握。' : '',
+    game.hasRoom('valve_seen') ? '双层校准阀 · 单份短水段合法但不足刻度；默认水段或现场水箱导槽均可通水，水必须实际落入盘内。长水段受到挡板限制。' : '',
+    game.hasRoom('valve_filled') ? '西侧检修梯已通 · 接水盘达到刻度，可上行调查虹吸与停靠台；仍可沿两段梯子原路返回。' : '',
+    game.hasRoom('upper_seen') ? '后续边界 · 高位虹吸启动、支撑修复与顶层出口尚未开放。现阶段没有授予额外词语掌握或章节完成奖励。' : '',
+    game.has('finished') ? '已领取 · 8 枚钱、一晚床位。小节完成，可继续回访地上地点，或从工坊进入地下检修入口。' : ''];
   return `${game.objective}\n\n${items.filter(Boolean).join('\n\n')}`;
 }
 function openNotes(): void { if (blocked()) return; get('notes').textContent = notes(); showDialog(journal); }
 function maybeEnding(): void {
-  if (!game.has('finished') || endedThisVisit || dialogs.some(d => d.open)) return;
+  if (!game.has('finished') || game.state.place !== 'settlement' || endedThisVisit || dialogs.some(d => d.open)) return;
   endedThisVisit = true;
   get('ending').textContent = `你让水轮重新运转，带回受损媒介与森林碎片，完成隐士的第一次安全实践，并回到聚落交付。\n\n报酬：8 枚钱与一晚床位。旅途中没有强制击杀。\n下一条线索：地下蓄水廊与尚未解锁的古代位点。\n\n${saved ? '已保存，重新打开仍保留物品、MP 和结算。' : '当前保存失败；请返回游戏重试保存或导出备份。'}`;
   showDialog(ending);
@@ -154,8 +212,9 @@ function updateHud(): void {
   const mp = game.sessionState.mp;
   get('stats').textContent = `MP ${mp.currentMp}/${mp.maxMp}  ·  钱 ${game.sessionState.economy.coin}${game.has('medium') ? '  ·  受损媒介 / 森林碎片' : ''}`;
   const near = game.nearest();
-  get('prompt').textContent = near ? `E · ${near.label}` : '';
-  get('prompt').hidden = !near;
+  get('prompt').textContent = game.state.climb?'正在沿检修梯攀行 · Esc 暂停':near ? `E · ${near.label}` : '';
+  get('prompt').hidden = !near&&!game.state.climb;
+  canvas.dataset.playerY=game.state.player.y.toFixed(2);canvas.dataset.climbing=String(!!game.state.climb);
   canvas.dataset.place = game.state.place;
   canvas.dataset.playerX = game.state.player.x.toFixed(2);
   canvas.dataset.objective = game.objective;
@@ -215,7 +274,7 @@ function draw(now: number): void {
       const left = keys.has('a') || keys.has('arrowleft') || touches.has('left'), right = keys.has('d') || keys.has('arrowright') || touches.has('right');
       game.advance({ moveX: Number(right) - Number(left), jump: keys.has('w') || keys.has(' ') || keys.has('arrowup') || touches.has('jump') });
       if (lastPlace !== game.state.place) resetCamera();
-      camera = advanceForestCamera(cameraContract, camera, game.player, EPISODE_BOUNDS);
+      camera = advanceForestCamera(cameraContract, camera, game.player, cameraBounds);
       frame = gait.advance(game.state.tick, game.player).frame; accumulator -= 1 / 60;
     }
   } else accumulator = 0;
@@ -223,12 +282,7 @@ function draw(now: number): void {
   const composed = mouseCamera.compose(camera, game.player.position);
   // Expand the visible native-pixel viewport to the window aspect ratio; don't stretch/crop a tiny portrait viewport.
   const aspect = innerWidth / Math.max(1, innerHeight);
-  const width = Math.min(1024, Math.round(composed.height * aspect));
-  const height = Math.round(width / aspect);
-  const anchor = Math.max(.2, Math.min(.8, (game.player.position.x + 6 - composed.x) / composed.width));
-  const renderCamera = { ...composed, width, height,
-    x: Math.round(Math.max(0, Math.min(1024 - width, game.player.position.x + 6 - anchor * width))),
-    y: Math.round(Math.max(0, Math.min(480 - height, composed.y + (composed.height - height) / 2))) };
+  const renderCamera=episodeViewport(composed,game.player.position,cameraBounds,aspect);
   if (canvas.width !== renderCamera.width || canvas.height !== renderCamera.height) { canvas.width = renderCamera.width; canvas.height = renderCamera.height; }
   const p = game.player, velocity = Math.abs(p.velocity.x);
   updateMap();
@@ -240,7 +294,9 @@ function draw(now: number): void {
     obstacle: { solutionId: null, interactionId: null, interactionPrompt: null, visuallyComplete: false, glyph: { wordId: 'word.telo', observed: false, meaningKnown: false, pronunciationKnown: false } },
     hud: { health: 100, maxHealth: 100, mp: game.sessionState.mp.currentMp, maxMp: game.sessionState.mp.maxMp, objective: game.objective },
   };
-  renderer.draw(ctx, game, renderCamera, view);
+  renderer.draw(ctx, game, renderCamera, view, windowPreviewPlan);
+  canvas.dataset.cameraX=String(renderCamera.x);canvas.dataset.cameraY=String(renderCamera.y);
+  canvas.dataset.cameraWidth=String(renderCamera.width);canvas.dataset.cameraHeight=String(renderCamera.height);
   if (game.state.tick !== hudTick) { updateHud(); hudTick = game.state.tick; }
   if (game.sessionState.revision !== storyRevision || game.state.tick - lastSaveTick >= 300) { save(); storyRevision = game.sessionState.revision; }
   requestAnimationFrame(draw);

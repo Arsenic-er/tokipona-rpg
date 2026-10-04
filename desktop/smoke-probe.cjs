@@ -7,6 +7,14 @@ exports.run = async (window, app, loadErrors = []) => {
   const phase = process.env.TOKIPONA_SMOKE_PHASE;
   const key = 'tokipona.forest-opening.vertical-slice.v0.1';
   const contents = window.webContents;
+  const requireInputFocus = async () => {
+    window.focus(); contents.focus();
+    const until = Date.now() + 3000;
+    while (!window.isFocused() || !contents.isFocused() || !await contents.executeJavaScript(`document.hasFocus() && !document.hidden`)) {
+      if (Date.now() > until) throw new Error('Native test window has no input focus; movement was not tested');
+      await pause(50);
+    }
+  };
   const errors = [...loadErrors];
   let performanceProof = null;
   let videoProof = null;
@@ -34,6 +42,16 @@ exports.run = async (window, app, loadErrors = []) => {
     // Native keyboard input needs a visible focused window; keep it scoped and brief.
     window.show(); window.focus(); contents.focus();
     await pause(300);
+    await requireInputFocus();
+    await contents.executeJavaScript(`(() => {
+      window.__tokiponaInputEvidence = [];
+      for (const type of ['keydown', 'keyup', 'focus', 'blur']) window.addEventListener(type, event => {
+        const key = ['d', 'D', 'w', 'W', 'e', 'E', 'j', 'J', 'Escape', 'F11'].includes(event.key) ? event.key : null;
+        const entries = window.__tokiponaInputEvidence;
+        entries.push({ type, key, target: event.target?.tagName || 'window', focused: document.hasFocus(), hidden: document.hidden });
+        if (entries.length > 40) entries.shift();
+      }, true);
+    })()`);
     if (phase === 'fresh') {
       const press = async keyCode => {
         contents.sendInputEvent({ type: 'keyDown', keyCode });
@@ -51,6 +69,10 @@ exports.run = async (window, app, loadErrors = []) => {
       await press('Escape');
       if (await contents.executeJavaScript(`document.querySelector('.forest-journey__journal').open`)) {
         throw new Error('Journal did not close and resume the game');
+      }
+      await requireInputFocus();
+      if (!await contents.executeJavaScript(`document.activeElement === document.querySelector('canvas[data-surface="game"]')`)) {
+        throw new Error('Closing the journal did not return keyboard focus to the game canvas');
       }
       await contents.executeJavaScript(`localStorage.setItem('tokipona.desktop.smoke', 'persisted')`);
       if(JSON.parse(initialSave).spatial.obstacle.creek?.schema!=='tokipona.forest-creek.v0.3') {
@@ -166,7 +188,10 @@ exports.run = async (window, app, loadErrors = []) => {
       candidate: 'v0.6', sandboxed: isolated, userData: app.getPath('userData'), performance: performanceProof, video: videoProof, errors }, null, 2));
   } catch (error) {
     fs.writeFileSync(path.join(path.dirname(reportPath), phase + '.png'), (await contents.capturePage()).toPNG());
-    fs.writeFileSync(reportPath, JSON.stringify({ ok: false, phase, error: String(error.stack), errors }, null, 2));
+    const inputEvidence = await contents.executeJavaScript(`({ focused: document.hasFocus(), hidden: document.hidden,
+      activeElement: document.activeElement?.tagName, dialogs: [...document.querySelectorAll('dialog')].map(d => ({ className: d.className, open: d.open })),
+      events: window.__tokiponaInputEvidence || [] })`);
+    fs.writeFileSync(reportPath, JSON.stringify({ ok: false, phase, error: String(error.stack), inputEvidence, errors }, null, 2));
   } finally {
     contents.removeListener('console-message', onConsole);
     await contents.session.flushStorageData();

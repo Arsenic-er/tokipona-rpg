@@ -17,6 +17,10 @@
 .episode dialog h2 { margin: 0 0 14px; font-size: 21px; color: #dbca91; font-weight: 500; }
 .episode dialog p { white-space: pre-line; }
 .episode .ep-actions { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 20px; }
+.episode .ep-actions label { display: grid; gap: 6px; width: 100%; }
+.episode .ep-actions input { min-width: 0; box-sizing: border-box; width: 100%; padding: 10px; font: inherit; color: #eee2c5; background: #101c18; border: 1px solid #8c8968; }
+.episode .ep-actions input:focus-visible { outline: 2px solid #d2bd79; outline-offset: 2px; }
+.episode .ep-actions [data-window] { width: 100%; margin: 0; }
 .episode .ep-talk { margin-bottom: 7vh; }
 .episode .ep-controls { position: absolute; bottom: max(22px, env(safe-area-inset-bottom)); left: 18px; right: 18px; display: none; justify-content: space-between; pointer-events: none; }
 .episode .ep-controls div { display: flex; gap: 10px; }

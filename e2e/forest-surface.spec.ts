@@ -34,7 +34,7 @@ test('meadow surface: grounded buildings, walkable swale and map read the saved 
   for (let i = 0; i < 49; i++) await page.clock.fastForward(100);
   await page.keyboard.up('d'); for (let i = 0; i < 10; i++) await page.clock.fastForward(100);
   const save = await page.evaluate(key => { window.dispatchEvent(new Event('pagehide')); return JSON.parse(localStorage.getItem(key)!); }, EPISODE);
-  expect(save.physical.terrainProfile).toBe('woodland-v2'); expect(save.physical.player.x).toBeGreaterThan(510);
+  expect(save.physical.terrainProfile).toBe('forest-clearing-v1'); expect(save.physical.player.x).toBeGreaterThan(510);
   expect(save.physical.player.grounded).toBe(true); expect(save.physical.player.y).toBeGreaterThan(325);
   await page.screenshot({ path: info.outputPath('meadow-swale.png') });
   await page.keyboard.press('m'); await expect(page.getByRole('button', { name: '世界地图', exact: true })).toBeVisible();

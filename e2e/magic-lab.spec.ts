@@ -77,6 +77,30 @@ test('self-area casts work through normal pointer input, including point-blank p
   await expect(page.locator('[data-lab="result"]')).toContainText('沙石实体不能直接生成在身体内');
   expect(await storage(page)).toEqual(before);
 });
+test('opening journal returns keyboard movement without an extra click or forced canvas focus', async ({ page }) => {
+  await page.clock.install({ time: 0 });
+  await page.goto('/chapter-one.html');
+  const canvas = page.locator('canvas[data-surface="game"]');
+  await expect(page.getByRole('button', { name: '旅途笔记（J）', exact: true })).toBeVisible();
+  await page.clock.pauseAt(60000); await canvas.focus();
+  const position = () => page.evaluate(() => {
+    window.dispatchEvent(new Event('pagehide'));
+    return JSON.parse(localStorage.getItem('tokipona.forest-opening.vertical-slice.v0.1')!).spatial.spatial.player.x as number;
+  });
+  for (const closing of ['Escape', 'j']) {
+    const before = await position();
+    await page.keyboard.press('j');
+    await expect(page.locator('.forest-journey__journal')).toBeVisible();
+    await page.keyboard.press(closing);
+    await expect(page.locator('.forest-journey__journal')).not.toBeVisible();
+    await expect(canvas).toBeFocused();
+    await page.keyboard.down('d');
+    for (let n = 0; n < 12; n++) await page.clock.fastForward(100);
+    await page.keyboard.up('d');
+    expect(await position()).toBeGreaterThan(before + 10);
+  }
+});
+
 test('opening guidance is hidden until J and the original objective remains accessible in the journal', async ({ page }) => {
   await page.goto('/chapter-one.html');
   await expect(page.getByRole('button', { name: '旅途笔记（J）' })).toBeEnabled();

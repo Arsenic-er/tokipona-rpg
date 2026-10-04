@@ -38,7 +38,7 @@ export function supplyEpisodeWater(s: EpisodeWaterState, amount: number, c: Epis
   s.supplied += inserted;
   return inserted;
 }
-export function advanceEpisodeWater(s: EpisodeWaterState, c: EpisodeWaterControls): number {
+export function advanceEpisodeWater(s: EpisodeWaterState, c: EpisodeWaterControls, onEscape?: (x: number) => void): number {
   const before = s.escaped;
   if (c.kind === 'mill' && c.gate) supplyEpisodeWater(s, 2, c);
   const moved = new Uint8Array(s.cells.length);
@@ -46,12 +46,27 @@ export function advanceEpisodeWater(s: EpisodeWaterState, c: EpisodeWaterControl
     const x = s.tick % 2 ? 159 - scan : scan, i = y * 160 + x;
     if (!s.cells[i] || moved[i]) continue;
     if (episodeWaterSolid(x, y, c)) {
+      if (c.kind === 'mill') {
+        // A closing sluice displaces water back into the channel, not through
+        // forty pixels of solid timber into a fictitious downstream outlet.
+        let destination = -1, best = Infinity;
+        for (let ry = 0; ry < 48; ry++) for (let rx = 0; rx < 160; rx++) {
+          if (!c.cleared && rx >= 79) continue; // Never push through the uncleared silt barrier.
+          const j = ry * 160 + rx;
+          if (s.cells[j] || episodeWaterSolid(rx, ry, c)) continue;
+          const distance = Math.abs(rx - x) + Math.abs(ry - y) + (rx > x ? 160 : 0);
+          if (distance < best) { destination = j; best = distance; }
+        }
+        // Saturation never deletes mass; trapped water can move once space opens.
+        if (destination >= 0) { s.cells[i] = 0; s.cells[destination] = 1; moved[destination] = 1; }
+        continue;
+      }
       // Seating the wedge expels residual drops below it. Do not entomb fluid
       // in newly placed wood, lose mass, or leave an eternal "wait" blocker.
       let ny = y + 1;
       while (ny < 48 && (episodeWaterSolid(x, ny, c) || s.cells[ny * 160 + x])) ny++;
       s.cells[i] = 0;
-      if (ny === 48) s.escaped++;
+      if (ny === 48) { s.escaped++; onEscape?.(x); }
       else { s.cells[ny * 160 + x] = 1; moved[ny * 160 + x] = 1; }
       continue;
     }
@@ -62,7 +77,7 @@ export function advanceEpisodeWater(s: EpisodeWaterState, c: EpisodeWaterControl
     for (const [dx, dy] of [[0, 1], [side, 1], [-side, 1], [side, 0], [-side, 0]]) {
       const nx = x + dx!, ny = y + dy!, ni = ny * 160 + nx;
       if (nx < 0 || nx >= 160 || episodeWaterSolid(nx, ny, c)) continue;
-      if (ny >= 48) { s.cells[i] = 0; s.escaped++; break; }
+      if (ny >= 48) { s.cells[i] = 0; s.escaped++; onEscape?.(nx); break; }
       if (!s.cells[ni]) { s.cells[i] = 0; s.cells[ni] = 1; moved[ni] = 1; break; }
     }
   }

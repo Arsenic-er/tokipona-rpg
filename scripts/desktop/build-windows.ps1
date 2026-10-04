@@ -40,6 +40,10 @@ try {
     if (!(Test-Path -LiteralPath (Join-Path $stage $marker))) { throw 'Unowned build directory; refusing deletion' }
     Remove-Item -LiteralPath $stage -Recurse -Force
   }
+  $buildDrive = [IO.DriveInfo]::new([IO.Path]::GetPathRoot($repo))
+  if ($buildDrive.AvailableFreeSpace -lt 1GB) {
+    throw 'Windows build needs at least 1 GiB free for packaging and portable extraction. Previous EXE and player saves are unchanged.'
+  }
   New-Item -ItemType Directory -Path $stage | Out-Null
   New-Item -ItemType File -Path (Join-Path $stage $marker) | Out-Null
   Run-Step 'node' @('scripts/desktop/ensure-runtime.cjs')
@@ -66,6 +70,14 @@ try {
   Run-Step 'pnpm' @('exec', 'electron-builder', '--config', 'desktop/builder.cjs', '--win', 'portable', '--x64', '--publish', 'never')
   $candidate = Join-Path $stage 'package/tokipona-rpg-latest.exe'
   if (!(Test-Path -LiteralPath $candidate) -or (Get-Item -LiteralPath $candidate).Length -lt 1000000) { throw 'EXE missing or incomplete' }
+  # The portable smoke extracts its own runtime. The already-tested unpacked
+  # build is now redundant; retire this owned copy before allocating another.
+  $unpacked = [IO.Path]::GetFullPath((Join-Path $stage 'package/win-unpacked'))
+  $expectedUnpacked = [IO.Path]::GetFullPath((Join-Path $repo 'exports/windows/.build/package/win-unpacked'))
+  Assert-LocalDirectory $stage ([IO.Path]::GetFullPath((Join-Path $repo 'exports/windows/.build')))
+  if (!(Test-Path -LiteralPath (Join-Path $stage $marker))) { throw 'Unowned build directory; refusing cleanup' }
+  Assert-LocalDirectory $unpacked $expectedUnpacked
+  Remove-Item -LiteralPath $unpacked -Recurse -Force
   Run-Step 'node' @('scripts/desktop/smoke.cjs', $candidate)
   # Check the actual portable's continuation route before replacing the player's EXE.
   Test-Episode $candidate

@@ -9,9 +9,18 @@ import { drawForestOpeningCandidateTraveler } from './forest-opening-candidate-t
 import { drawLocalForestBackdrop } from './browser-local-forest-backdrop';
 import { drawForestOpeningBackdrop } from './forest-opening-backdrop';
 import { drawForestBuilding, type ForestBuildingKind } from './forest-architecture';
-import { forestEarthProfile } from './forest-earth-profile';
+import { forestEarthProfile, forestBuriedColor } from './forest-earth-profile';
 import { drawForestNpc } from './forest-npc';
 import { drawForestEdgeDressing, MEADOW_TREE_ROOTS } from './forest-edge-dressing';
+import { hasMillValley, MILL_TREE_ROOTS } from '../world/forest-mill-terrain';
+import { HERMIT_TREE_ROOTS, hermitClearingPad } from '../world/forest-hermit-terrain';
+import { MILL_TAILRACE, millDrainInterior, millDrainLining } from '../world/forest-mill-tailrace';
+import { cisternEntryCeiling, cisternEntryFloor, cisternEntrySolid, CISTERN_ENTRY_GATE } from '../world/forest-cistern-entry';
+import { CISTERN_WINDOW } from '../world/forest-cistern-window';
+import { Material } from '../sim/materials';
+import type { TeloCastPlan } from '../spells/cast-plan';
+import { CISTERN_PLATFORMS, cisternRoomSolid } from '../world/forest-cistern-room';
+import { CISTERN_CALIBRATION } from '../world/forest-cistern-calibration';
 
 type Backdrop = CanvasImageSource & { naturalWidth: number; naturalHeight: number };
 /** Native-pixel architecture/material drawing; private raster assets remain on the existing local-only path. */
@@ -19,14 +28,18 @@ export class ForestEpisodeRenderer {
   private terrain = new Map<string, HTMLCanvasElement>();
   private wood = new Map<string, HTMLCanvasElement>();
   constructor(private readonly atlas: LocalTravelerAtlas | null, private readonly backdrop: Backdrop | null) {}
-  draw(ctx: CanvasRenderingContext2D, game: ForestEpisode, camera: ForestCameraState, view: ForestOpeningPublicView): void {
+  draw(ctx: CanvasRenderingContext2D, game: ForestEpisode, camera: ForestCameraState, view: ForestOpeningPublicView, windowPlan: TeloCastPlan | null = null): void {
     const p = game.state;
     ctx.imageSmoothingEnabled = false;
     ctx.fillStyle = '#1c2a29'; ctx.fillRect(0, 0, camera.width, camera.height);
-    if (this.backdrop) drawLocalForestBackdrop(ctx, camera, this.backdrop);
-    else drawForestOpeningBackdrop(ctx, camera, 360);
-    ctx.fillStyle = 'rgba(19,32,30,.24)'; ctx.fillRect(0, 0, camera.width, camera.height);
+    if (p.place !== 'cistern-entry'&&p.place!=='cistern') {
+      if (this.backdrop) drawLocalForestBackdrop(ctx, camera, this.backdrop);
+      else drawForestOpeningBackdrop(ctx, camera, 360);
+      ctx.fillStyle = 'rgba(19,32,30,.24)'; ctx.fillRect(0, 0, camera.width, camera.height);
+    } else { ctx.fillStyle = '#182220'; ctx.fillRect(0, 0, camera.width, camera.height); }
     if (p.place === 'settlement') drawForestEdgeDressing(ctx, camera, MEADOW_TREE_ROOTS, x => game.groundAt(x));
+    if (p.place === 'mill' && hasMillValley(game.terrainProfile)) drawForestEdgeDressing(ctx, camera, MILL_TREE_ROOTS, x => game.groundAt(x));
+    if (p.place === 'hermit' && game.terrainProfile === 'forest-clearing-v1') drawForestEdgeDressing(ctx, camera, HERMIT_TREE_ROOTS, x => game.groundAt(x));
     ctx.save(); ctx.translate(-camera.x, -camera.y);
     if (p.place === 'settlement') {
       this.house(ctx, 235, 336, 135, 70, 'store'); this.house(ctx, 600, 336, 164, 92, 'inn');
@@ -36,36 +49,85 @@ export class ForestEpisodeRenderer {
     } else if (p.place === 'mill') {
       this.house(ctx, 745, 336, 214, 108, 'mill');
       this.timber(ctx, 255, 331, 38, 5); this.timber(ctx, 260, 326, 33, 5); this.timber(ctx, 258, 321, 36, 5);
-      this.timber(ctx, 670, 266, 7, 69); this.timber(ctx, 672, 264, 56, 7);
-      if (game.has('brace')) { ctx.save(); ctx.translate(683, 333); ctx.rotate(-0.35); this.timber(ctx, 0, -64, 6, 64); ctx.restore(); }
+      this.timber(ctx, 670, 266, 7, game.groundAt(670) - 267); this.timber(ctx, 672, 264, 56, 7);
+      if (game.has('brace')) {
+        ctx.save();
+        if (hasMillValley(game.terrainProfile)) {
+          const footY = game.groundAt(708) - 1, dx = 675 - 708, dy = footY - 266;
+          ctx.translate(708, footY); ctx.rotate(Math.atan2(dx, dy));
+          const height = Math.round(Math.hypot(dx, dy)); this.timber(ctx, 0, -height, 6, height);
+        } else { ctx.translate(683, 333); ctx.rotate(-0.35); this.timber(ctx, 0, -64, 6, 64); }
+        ctx.restore();
+      }
       this.wheel(ctx, 677, 301, p.wheelAngle, !game.has('brace'));
-      this.timber(ctx, 505, 302, 5, 34); this.timber(ctx, 630, 302, 5, 34);
+      this.timber(ctx, 505, 302, 5, game.groundAt(505) - 302); this.timber(ctx, 630, 302, 5, game.groundAt(630) - 302);
       this.channel(ctx, game, 'mill', 500, 259);
       this.timber(ctx, 486, game.state.gate ? 272 : 286, 11, 5);
-      ctx.fillStyle = '#4d5049'; ctx.fillRect(489, 276, 3, 45);
+      ctx.fillStyle = '#4d5049'; ctx.fillRect(489, 276, 3, game.groundAt(489) - 15 - 276);
       this.rock(ctx, 865, 318, 46, 18);
       if (!game.has('repaired')) this.rock(ctx, 864, 313, 49, 8);
       else if (!game.has('medium')) { ctx.fillStyle = '#a79560'; ctx.fillRect(884, 322, 7, 4); ctx.fillStyle = '#477576'; ctx.fillRect(887, 321, 3, 5); }
+      const doorFloor = game.groundAt(978);
+      ctx.fillStyle = '#121d1c'; ctx.fillRect(965, doorFloor - 30, 27, 30);
+      this.rock(ctx, 961, doorFloor - 34, 5, 35); this.rock(ctx, 991, doorFloor - 34, 5, 35);
+      this.rock(ctx, 965, doorFloor - 35, 27, 5);
+      this.timber(ctx, 968, doorFloor - 25, 3, 24); this.timber(ctx, 987, doorFloor - 25, 3, 24);
+    } else if(p.place==='cistern'){
+      for(const x of [34,136,268,444]){
+        ctx.fillStyle='#25332f';ctx.fillRect(x,16,6,720);
+        ctx.fillStyle='#304039';ctx.fillRect(x,16,2,720);
+      }
+      for(const y of [196,416,640]){
+        this.rock(ctx,18,y,444,7);
+        ctx.fillStyle='#0e1a18';ctx.fillRect(28,y-56,94,54);ctx.fillRect(288,y-56,134,54);
+      }
+    } else if (p.place === 'cistern-entry') {
+      // Recessed masonry is scenery, not an invisible second walking surface.
+      for (const x of [100, 270, 450, 650, 850, 992]) {
+        const y = game.groundAt(x);
+        ctx.fillStyle = '#26312e'; ctx.fillRect(x - 8, y - 102, 9, 102);
+        ctx.fillStyle = '#303932'; ctx.fillRect(x - 9, y - 105, 54, 4);
+      }
     } else {
-      this.house(ctx, 318, 333, 90, 54, 'hermit');
+      const clearing = game.terrainProfile === 'forest-clearing-v1';
+      this.house(ctx, 318, clearing ? game.groundAt(360) : 333, 90, 54, 'hermit');
       drawForestNpc(ctx, 'hermit', 410, game.groundAt(410), p.tick);
-      this.rock(ctx, 250, 330, 33, 7); this.rock(ctx, 612, 330, 21, 12); this.rock(ctx, 766, 327, 18, 14);
+      this.rock(ctx, 250, clearing ? game.groundAt(270) - 6 : 330, 33, 7);
+      if (clearing) {
+        // Supports meet the trough's existing underside and the shared collision ground.
+        // These background props do not introduce hidden player collision shelves.
+        for (const [x, w] of [[624, 7], [770, 8]] as const) {
+          this.rock(ctx, x, 327, w, game.groundAt(x) - 327 + 1);
+        }
+      } else {
+        this.rock(ctx, 612, 330, 21, 12); this.rock(ctx, 766, 327, 18, 14);
+      }
       this.channel(ctx, game, 'practice', 620, 280);
       // The hermit's pronunciation aids use Latin letters, not invented
       // sitelen pona glyphs presented as language-learning ground truth.
-      ctx.fillStyle = '#696554'; ctx.fillRect(597, 321, 10, 10); ctx.fillRect(599, 317, 5, 4);
-      ctx.fillStyle = '#77735b'; ctx.fillRect(607, 322, 3, 6);
-      if (game.has('intro')) { this.teloLabel(ctx, 586, 306); this.teloLabel(ctx, 782, 314); }
-      ctx.fillStyle = '#82775e'; ctx.fillRect(717, 326, 10, 3);
+      const jugFloor = clearing ? game.groundAt(602) : 331;
+      ctx.fillStyle = '#696554'; ctx.fillRect(597, jugFloor - 10, 10, 10); ctx.fillRect(599, jugFloor - 14, 5, 4);
+      ctx.fillStyle = '#77735b'; ctx.fillRect(607, jugFloor - 9, 3, 6);
+      if (game.has('intro')) { this.teloLabel(ctx, 586, jugFloor - 25); this.teloLabel(ctx, 782, 314); }
+      ctx.fillStyle = '#82775e'; ctx.fillRect(717, clearing ? game.groundAt(720) - 3 : 326, 10, 3);
       this.lantern(ctx, 439, 319, p.tick);
     }
     const groundKey = `${p.place}:${game.terrainProfile ?? 'legacy'}`;
     let ground = this.terrain.get(groundKey);
     if (!ground) { ground = this.makeGround(game); this.terrain.set(groundKey, ground); }
     ctx.drawImage(ground, 0, 0);
+    if (p.place === 'cistern-entry') { this.cisternEntryProps(ctx, game); this.cisternWindow(ctx, game, windowPlan); }
+    if(p.place==='cistern')this.cisternRoom(ctx,game,windowPlan);
+    if (p.place === 'mill' && p.tailrace) {
+      for (const i of p.tailrace.drops) {
+        const x = MILL_TAILRACE.x + i % MILL_TAILRACE.width, y = MILL_TAILRACE.y + Math.floor(i / MILL_TAILRACE.width);
+        ctx.fillStyle = (x + y) % 9 === 0 ? '#80a6a6' : '#507e87';
+        ctx.fillRect(x, y, 1, 1);
+      }
+    }
     for (const t of EPISODE_TARGETS[p.place]) {
       if (t.id.endsWith('road') || t.id === 'return') {
-        const y = game.groundAt(t.x);
+        const y = game.targetFloor(t);
         this.timber(ctx, t.x - 1, y - 23, 3, 23); this.timber(ctx, t.x - 13, y - 23, 26, 9);
         ctx.fillStyle = '#aca079'; ctx.fillRect(t.x - 6, y - 19, 12, 1);
         ctx.fillRect(t.x + (t.x < 200 ? -6 : 5), y - 20, 1, 3);
@@ -76,22 +138,43 @@ export class ForestEpisodeRenderer {
     else drawForestOpeningCandidateTraveler(ctx, view);
     const near = game.nearest();
     if (near) {
-      const x = Math.round(near.x - camera.x), y = Math.round(game.groundAt(near.x) - camera.y - 36);
+      const x = Math.round(near.x - camera.x), y = Math.round(game.targetFloor(near) - camera.y - 36);
       ctx.fillStyle = '#d0c495'; ctx.fillRect(x - 2, y, 5, 1); ctx.fillRect(x - 1, y + 1, 3, 1); ctx.fillRect(x, y + 2, 1, 1);
     }
   }
   private makeGround(game: ForestEpisode): HTMLCanvasElement {
+    if(game.state.place==='cistern'){
+      const c=document.createElement('canvas');c.width=480;c.height=768;
+      const target=c.getContext('2d')!,im=target.createImageData(480,768);
+      for(let y=0;y<768;y++)for(let x=0;x<480;x++){
+        if(!cisternRoomSolid(x,y,true))continue;
+        const top=!cisternRoomSolid(x,y-1,true),edge=!cisternRoomSolid(x-1,y,true)||!cisternRoomSolid(x+1,y,true);
+        const rgb=forestMaterialColor(M.stone,x,y,{top:top?1:0,side:edge,bottom:!cisternRoomSolid(x,y+1,true)});
+        const depth=x<16?16-x:x>=464?x-464:y>=736?y-736:y<16?16-y:4;
+        const shade=Math.max(.36,1-depth*.026);
+        im.data.set([rgb[0]*shade,rgb[1]*shade,rgb[2]*shade,255],(y*480+x)*4);
+      }
+      target.putImageData(im,0,0);return c;
+    }
     const place = game.state.place;
+    if (place === 'cistern-entry') return this.makeCisternEntryGround();
     const c = document.createElement('canvas'); c.width = 1024; c.height = 480;
     const ctx = c.getContext('2d')!, image = ctx.createImageData(1024, 480);
     for (let x = 0; x < 1024; x++) {
       const floor = game.groundAt(x);
       for (let y = floor; y < 480; y++) {
-        const rgb = forestEarthProfile(x, y - floor, floor, place === 'mill' && x > 480 && x < 760);
+        const valley = place === 'mill' && hasMillValley(game.terrainProfile);
+        // Dithered damp-bank edge, rather than a ruler-straight wet/dry material seam.
+        const wetness = Math.max(0, Math.min(1, (x - 470) / 70, (780 - x) / 70));
+        const grain = (Math.imul(x + 31, 374761393) ^ Math.imul(y + 7, 668265263)) >>> 0;
+        let rgb = forestEarthProfile(x, y - floor, floor, place === 'mill' && (valley ? grain % 256 < wetness * 256 : x > 480 && x < 760));
+        if (valley && millDrainInterior(x, y)) rgb = [19, 28, 29];
+        else if (valley && millDrainLining(x, y)) rgb = forestMaterialColor(M.stone, x, y, { top: y === 394 ? 1 : 0, side: true, bottom: false });
         const i = (y * 1024 + x) * 4; image.data[i] = rgb[0]; image.data[i + 1] = rgb[1]; image.data[i + 2] = rgb[2]; image.data[i + 3] = 255;
       }
       const seed = (Math.imul(x + 7, 1274126177) >>> 9) >>> 0;
-      const clearing = place === 'settlement' && ((x > 265 && x < 375) || (x > 635 && x < 740));
+      const clearing = (place === 'settlement' && ((x > 265 && x < 375) || (x > 635 && x < 740))) ||
+        (place === 'hermit' && game.terrainProfile === 'forest-clearing-v1' && hermitClearingPad(x));
       const clump = Math.sin(x / 23) + Math.sin(x / 9) > -.2;
       if (!clearing && clump && seed % 11 < 3 && (place !== 'mill' || x < 230 || x > 940)) {
         for (let h = 1; h < 2 + seed % 5; h++) { const i = ((floor - h) * 1024 + x) * 4; image.data.set([58 + seed % 13, 69 + seed % 11, 35, 255], i); }
@@ -100,6 +183,116 @@ export class ForestEpisodeRenderer {
       }
     }
     ctx.putImageData(image, 0, 0); return c;
+  }
+  private makeCisternEntryGround(): HTMLCanvasElement {
+    const c = document.createElement('canvas'); c.width = 1024; c.height = 480;
+    const ctx = c.getContext('2d')!, image = ctx.createImageData(c.width, c.height);
+    for (let x = 0; x < c.width; x++) {
+      const floor = cisternEntryFloor(x), ceiling = cisternEntryCeiling(x);
+      for (let y = 0; y < c.height; y++) {
+        if (!cisternEntrySolid(x, y, true)) continue;
+        const depth = Math.min(Math.abs(y - floor), Math.abs(y - ceiling));
+        const rgb = forestBuriedColor(M.stone, x, y, depth, { top: y === floor ? 1 : 0, bottom: y === ceiling, side: x === 7 || x === 1008 });
+        image.data.set([...rgb, 255], (y * c.width + x) * 4);
+      }
+    }
+    ctx.putImageData(image, 0, 0); return c;
+  }
+  private cisternEntryProps(ctx: CanvasRenderingContext2D, game: ForestEpisode): void {
+    const floor = (x: number) => game.groundAt(x);
+    // Hand tools and lamps belong to the environment; the traveler never emits light.
+    for (const x of [110, 330, 680, 910]) this.lantern(ctx, x, floor(x) - 16, game.state.tick);
+    this.rock(ctx, 248, floor(260) - 27, 24, 24);
+    ctx.fillStyle = '#969780';
+    ctx.fillRect(254, floor(260) - 21, 12, 1); ctx.fillRect(254, floor(260) - 16, 8, 1);
+    ctx.fillRect(263, floor(260) - 19, 1, 5);
+    const fy = floor(490);
+    this.timber(ctx, 483, fy - 20, 4, 20); this.timber(ctx, 497, fy - 20, 4, 20);
+    this.timber(ctx, 479, fy - 22, 27, 4);
+    ctx.fillStyle = '#8a8c7c'; ctx.fillRect(490, fy - 28, 3, 17); ctx.fillRect(482, fy - 20, 19, 3);
+    // Cable terminates at the guide rail. Raised bars remain in the solid roof recess.
+    const { left, right } = CISTERN_ENTRY_GATE, top = cisternEntryCeiling(left);
+    ctx.fillStyle = '#666b60'; ctx.fillRect(499, fy - 29, left - 499, 1);
+    for (let x = left; x < right; x += 4) {
+      const bottom = game.has('entry_open') ? cisternEntryCeiling(x) : floor(x);
+      const start = game.has('entry_open') ? bottom - 14 : top + 1;
+      ctx.fillStyle = '#737b70'; ctx.fillRect(x, start, 2, bottom - start);
+      ctx.fillStyle = '#414e47'; ctx.fillRect(x + 1, start, 1, bottom - start);
+    }
+    if (!game.has('entry_open')) {
+      ctx.fillStyle = '#788172'; ctx.fillRect(left, top + 22, right - left, 3);
+      ctx.fillRect(left, floor(left) - 16, right - left, 3);
+    }
+    const sealFloor = floor(890);
+    ctx.fillStyle = '#121c1b'; ctx.fillRect(874, sealFloor - 49, 33, 49);
+    this.rock(ctx, 870, sealFloor - 53, 5, 54); this.rock(ctx, 907, sealFloor - 53, 5, 54);
+    this.rock(ctx, 874, sealFloor - 54, 34, 6);
+    ctx.fillStyle = '#3e4840'; ctx.fillRect(880, sealFloor - (game.has('window_filled') ? 52 : 34), 21, 22);
+    ctx.fillStyle = '#151f1c'; ctx.fillRect(887, sealFloor - 29, 5, 9); ctx.fillRect(884, sealFloor - 27, 11, 5);
+  }
+  private cisternWindow(ctx: CanvasRenderingContext2D, game: ForestEpisode, plan: TeloCastPlan | null): void {
+    const {x:ox,y:oy}=CISTERN_WINDOW;
+    // Wall-mounted inspection apparatus, not another player collision floor.
+    ctx.fillStyle='#101b1b'; ctx.fillRect(ox,oy,128,64);
+    const cells=game.windowCells;
+    for(let y=0;y<32;y++) for(let x=0;x<64;x++) {
+      const material=cells[y*64+x];
+      if(material===Material.Air)continue;
+      if(material===Material.Water) {
+        ctx.fillStyle=(x+y)%7===0?'#7da8ad':'#3e7782'; ctx.fillRect(ox+x*2,oy+y*2,2,2);
+      } else {
+        for(let dy=0;dy<2;dy++)for(let dx=0;dx<2;dx++){
+          const rgb=forestMaterialColor(M.stone,ox+x*2+dx,oy+y*2+dy);
+          ctx.fillStyle=`rgb(${rgb.join(',')})`;ctx.fillRect(ox+x*2+dx,oy+y*2+dy,1,1);
+        }
+      }
+    }
+    ctx.fillStyle='#a8976a'; ctx.fillRect(ox+16,oy+15,4,2);
+    for(let d=0;d<=64;d+=16)ctx.fillRect(ox+20+d,oy+2,1,3);
+    ctx.fillStyle='#807e62';ctx.fillRect(815,350,11,2);ctx.fillRect(820,345,2,12);
+    if(plan){
+      const len=plan.requestedLengthClass==='short'?16:plan.requestedLengthClass==='long'?64:32;
+      ctx.strokeStyle=plan.canConfirm?'#abc8bb':'#d7aa70';ctx.lineWidth=1;ctx.setLineDash([2,2]);
+      ctx.strokeRect(ox+20.5,oy+10.5,len,12);ctx.setLineDash([]);
+    }
+  }
+  private cisternRoom(ctx:CanvasRenderingContext2D,game:ForestEpisode,plan:TeloCastPlan|null):void{
+    for(const [x,top,bottom] of [[416,528,736],[56,336,544]]){
+      this.timber(ctx,x-13,top,3,bottom-top);this.timber(ctx,x+11,top,3,bottom-top);
+      for(let y=top+5;y<bottom;y+=9)this.timber(ctx,x-11,y,23,2);
+    }
+    for(const p of CISTERN_PLATFORMS){ctx.fillStyle='#7d816b';ctx.fillRect(p.x,p.y,p.w,1);}
+    if(!game.hasRoom('valve_filled')){
+      for(let x=32;x<80;x+=6){ctx.fillStyle='#7c8477';ctx.fillRect(x,368,2,16);}
+      ctx.fillStyle='#525e53';ctx.fillRect(32,368,48,3);
+    }
+    for(const [x,y] of [[74,701],[344,511],[145,322]])this.lantern(ctx,x,y,game.state.tick);
+    this.roomWater(ctx,game.echoCells,80,662,null);
+    this.roomWater(ctx,game.calibrationCells,CISTERN_CALIBRATION.x,CISTERN_CALIBRATION.y,plan);
+    for(const x of [174,306])this.rock(ctx,x,534,5,10);
+    ctx.fillStyle='#92906d';ctx.fillRect(178,522,3,18);ctx.fillRect(172,526,15,2);
+    // The unrepaired siphon and parked platform have no decorative flowing water.
+    this.rock(ctx,272,313,84,8);this.rock(ctx,280,301,5,14);this.rock(ctx,351,298,5,17);
+    this.timber(ctx,408,144,4,208);this.timber(ctx,440,144,4,208);
+    this.timber(ctx,403,345,45,7);ctx.fillStyle='#101a18';ctx.fillRect(290,321,56,12);
+  }
+  private roomWater(ctx:CanvasRenderingContext2D,cells:readonly number[],ox:number,oy:number,plan:TeloCastPlan|null):void{
+    ctx.fillStyle='#0f1a1a';ctx.fillRect(ox,oy,144,64);
+    for(let y=0;y<32;y++)for(let x=0;x<72;x++){
+      const m=cells[y*72+x];if(m===Material.Air)continue;
+      if(m===Material.Water){ctx.fillStyle=(x+y)%7?'#3c7380':'#789e9e';ctx.fillRect(ox+x*2,oy+y*2,2,2);}
+      else for(let dy=0;dy<2;dy++)for(let dx=0;dx<2;dx++){
+        const rgb=forestMaterialColor(M.stone,ox+x*2+dx,oy+y*2+dy);
+        ctx.fillStyle=`rgb(${rgb.join(',')})`;ctx.fillRect(ox+x*2+dx,oy+y*2+dy,1,1);
+      }
+    }
+    ctx.fillStyle='#b2a171';ctx.fillRect(ox+84,oy+15,4,2);
+    for(let d=0;d<=64;d+=16)ctx.fillRect(ox+84-d,oy+2,1,3);
+    if(plan){
+      const length=plan.requestedLengthClass==='short'?16:plan.requestedLengthClass==='long'?64:32;
+      ctx.strokeStyle=plan.canConfirm?'#acd0bb':'#c7a06d';ctx.lineWidth=1;ctx.setLineDash([2,2]);
+      ctx.strokeRect(ox+84-length+.5,oy+10.5,length,12);ctx.setLineDash([]);
+    }
   }
   private channel(ctx: CanvasRenderingContext2D, game: ForestEpisode, kind: 'mill' | 'practice', ox: number, oy: number): void {
     const controls = game.controls(kind), water = game.state[kind];

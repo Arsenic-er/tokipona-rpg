@@ -1,66 +1,122 @@
 import { sha256Canonical, type JsonValue } from '../canonical-json';
 import { GameSession, type GameSessionSave, type GameSessionState } from '../session/game-session';
+import generatedRuntimeArtifact from '../generated/content-runtime.v0.1.json';
+import { readRuntimeCisternTaskManifest } from '../content/runtime-task-manifest';
+import { readVerifiedCapabilityMilestoneContract } from '../session/capability-contract';
+import { proposeCapabilityMilestone } from '../session/adapters';
+import { CISTERN_WINDOW, CisternWindow, WINDOW_EXPRESSIONS, windowPreview, executeWindowCast, type CisternWindowState, type WindowExpression } from '../world/forest-cistern-window';
+import type { TeloCastPlan } from '../spells/cast-plan';
+import { CastExecutionLedger } from '../spells/cast-plan';
+import { CisternLearningSession } from '../learning/cistern-session';
+import { CISTERN_ROOM_BOUNDS, cisternRoomCollides, stepCisternClimb, validateCisternClimb, type CisternClimb } from '../world/forest-cistern-room';
+import { CISTERN_CALIBRATION, CisternCalibration, previewCalibration, type CalibrationState } from '../world/forest-cistern-calibration';
+const phraseContract = readVerifiedCapabilityMilestoneContract(generatedRuntimeArtifact.capabilityProgression, readRuntimeCisternTaskManifest(generatedRuntimeArtifact).capacityMilestoneRef);
 import { commitSessionProposal, type SessionEventDraft } from '../session/adapters';
 import { PrologueForestOpeningSession } from './prologue-forest-opening';
 import { stepPlayerMotion, EMPTY_JUMP_GRACE, type PlayerMotionState, type PlayerMotionInput, type PlayerJumpGrace } from '../runtime/player-motion';
 import type { PlayerState } from '../runtime/runtime';
 import type { Aabb } from '../runtime/geometry';
-import { woodlandMeadowY, type ForestSurfaceProfile } from '../world/forest-surface-profile';
+import { woodlandMeadowY } from '../world/forest-surface-profile';
+import { hasMillValley, millValleyGroundY, type EpisodeTerrainProfile } from '../world/forest-mill-terrain';
+import { hermitClearingGroundY } from '../world/forest-hermit-terrain';
+import { cisternEntryFloor, cisternEntryCeiling, CISTERN_ENTRY_GATE } from '../world/forest-cistern-entry';
+import { advanceMillTailrace, emptyMillTailrace, receiveMillOutflow, validateMillTailrace, type MillTailraceState } from '../world/forest-mill-tailrace';
 import { advanceEpisodeWater, emptyEpisodeWater, supplyEpisodeWater, collectedEpisodeWater,
   validateEpisodeWater, type EpisodeWaterState, type EpisodeWaterControls } from '../world/forest-episode-water';
 
 export const EPISODE_SAVE_KEY = 'tokipona.forest-waterwheel-episode.v0.1';
 export const OPENING_SAVE_KEY = 'tokipona.forest-opening.vertical-slice.v0.1';
 export const EPISODE_BOUNDS = { x: 0, y: 0, width: 1024, height: 480 } as const;
-export type EpisodePlace = 'settlement' | 'mill' | 'hermit';
-export const EPISODE_PLACES = { settlement: '林间聚落', mill: '旧水轮工坊', hermit: '隐士林地' } as const;
-export type EpisodeTarget = 'worker' | 'mill-road' | 'hermit-road' | 'return' | 'timber' | 'brace' | 'gate' | 'silt' | 'medium' | 'hermit' | 'pool' | 'plug' | 'rest';
-export const EPISODE_TARGETS: Readonly<Record<EpisodePlace, readonly { id: EpisodeTarget; x: number; label: string }[]>> = {
+export type EpisodePlace = 'settlement' | 'mill' | 'hermit' | 'cistern-entry' | 'cistern';
+export const EPISODE_PLACES = { settlement: '林间聚落', mill: '旧水轮工坊', hermit: '隐士林地', 'cistern-entry': '蓄水廊检修入口', cistern:'高位蓄水室' } as const;
+export const episodeBounds=(place:EpisodePlace)=>place==='cistern'?CISTERN_ROOM_BOUNDS:EPISODE_BOUNDS;
+const EPISODE_SCENES: Record<EpisodePlace, string> = {
+  settlement: 'scene.valley.settlement', mill: 'scene.valley.waterwheel',
+  hermit: 'scene.valley.stream_section', 'cistern-entry': 'scene.valley.high_cistern', cistern:'scene.valley.high_cistern',
+};
+export type EpisodeTarget = 'worker' | 'mill-road' | 'hermit-road' | 'return' | 'timber' | 'brace' | 'gate' | 'silt' | 'medium' | 'hermit' | 'pool' | 'plug' | 'rest' |
+  'cistern-road' | 'entry-survey' | 'entry-winch' | 'entry-seal' | 'window' | 'window-bypass' |
+  'room-road' | 'room-echo' | 'east-up' | 'east-down' | 'west-up' | 'west-down' | 'calibration' | 'calibration-tool' | 'upper-survey';
+export const EPISODE_TARGETS: Readonly<Record<EpisodePlace, readonly { id: EpisodeTarget; x: number; y?:number; label: string }[]>> = {
   settlement: [{ id: 'hermit-road', x: 60, label: '西侧林间小径' }, { id: 'worker', x: 350, label: '工务人' }, { id: 'mill-road', x: 920, label: '沿水渠去工坊' }],
   mill: [{ id: 'return', x: 60, label: '返回聚落' }, { id: 'timber', x: 270, label: '备用木撑' }, { id: 'gate', x: 490, label: '水渠闸柄' },
-    { id: 'silt', x: 585, label: '渠道淤堵' }, { id: 'brace', x: 690, label: '水轮支架' }, { id: 'medium', x: 890, label: '检修石龛' }],
+    { id: 'silt', x: 585, label: '渠道淤堵' }, { id: 'brace', x: 690, label: '水轮支架' }, { id: 'medium', x: 890, label: '检修石龛' },
+    { id: 'cistern-road', x: 978, label: '蓄水廊检修入口' }],
   hermit: [{ id: 'return', x: 60, label: '返回聚落' }, { id: 'rest', x: 270, label: '林下坐垫' }, { id: 'hermit', x: 410, label: '隐士' },
     { id: 'pool', x: 620, label: '练习石槽' }, { id: 'plug', x: 720, label: '漏口与木楔' }],
+  'cistern-entry': [{ id: 'return', x: 60, label: '返回工坊' }, { id: 'entry-survey', x: 260, label: '隔栅检修标记' },
+    { id: 'entry-winch', x: 490, label: '手动绞盘' }, { id: 'entry-seal', x: 890, label: '深处门框' },
+    { id: 'window', x: 718, label: '精密引水窗' }, { id: 'window-bypass', x: 820, label: '引水窗旁通阀' },
+    {id:'room-road',x:970,label:'通往高位蓄水室'}],
+  cistern:[{id:'return',x:58,y:736,label:'返回检修入口'},{id:'room-echo',x:170,y:736,label:'入口回声'},
+    {id:'east-up',x:416,y:736,label:'攀上东侧检修梯'},{id:'east-down',x:372,y:544,label:'下到入口层'},
+    {id:'calibration',x:324,y:544,label:'双层校准阀'},{id:'calibration-tool',x:180,y:544,label:'校准阀导槽'},
+    {id:'west-up',x:56,y:544,label:'攀上西侧检修梯'},{id:'west-down',x:114,y:352,label:'返回校准层'},
+    {id:'upper-survey',x:350,y:352,label:'高位虹吸与停靠台'}],
 };
 const FLAG = 'forest.episode.';
-const CHECKS = ['job', 'timber', 'brace', 'cleared', 'repaired', 'medium', 'route', 'intro', 'observed', 'predicted', 'plugged', 'practiced', 'debrief', 'finished'] as const;
+const CHECKS = ['job', 'timber', 'brace', 'cleared', 'repaired', 'medium', 'route', 'intro', 'observed', 'predicted', 'plugged', 'practiced', 'debrief', 'finished', 'entry_observed', 'entry_open', 'entry_surveyed', 'meditated', 'phrase', 'window_inspected', 'window_cast', 'window_bypass', 'window_filled'] as const;
 export type EpisodeFlag = typeof CHECKS[number];
-export function episodeGround(place: EpisodePlace, x: number, profile?: ForestSurfaceProfile): number {
-  if (place === 'settlement' && profile === 'woodland-v2') return woodlandMeadowY(x);
+const ROOM_FLAGS=['entered','echo','valve_seen','valve_tool','valve_filled','upper_seen'] as const;
+type RoomFlag=typeof ROOM_FLAGS[number];
+export function episodeGround(place: EpisodePlace, x: number, profile?: EpisodeTerrainProfile): number {
+  if (place==='cistern') return 736;
+  if (place === 'cistern-entry') return cisternEntryFloor(x);
+  if (place === 'settlement' && profile !== undefined) return woodlandMeadowY(x);
+  if (place === 'mill' && hasMillValley(profile)) return millValleyGroundY(x);
+  if (place === 'hermit' && profile === 'forest-clearing-v1') return hermitClearingGroundY(x);
   // A shallow walkable ground profile, shared by drawing and collision. No decorative collision floors.
   if (place === 'mill') return 336;
   return 336 + Math.round(Math.sin(x / 100 + (place === 'hermit' ? 1 : 0)) * 4);
 }
-export function episodeCollides(place: EpisodePlace, b: Aabb, profile?: ForestSurfaceProfile): boolean {
+export function episodeCollides(place: EpisodePlace, b: Aabb, profile?: EpisodeTerrainProfile, entryOpen = false, upperOpen=false): boolean {
+  if (place==='cistern') return cisternRoomCollides(b,upperOpen);
   if (b.x < 0 || b.x + b.width > 1024 || b.y < 0) return true;
+  if (place === 'cistern-entry') {
+    if (b.x < 8 || b.x + b.width > 1008) return true;
+    if (!entryOpen && b.x < CISTERN_ENTRY_GATE.right && b.x + b.width > CISTERN_ENTRY_GATE.left) return true;
+    for (let x = Math.floor(b.x); x < Math.ceil(b.x + b.width); x++)
+      if (b.y < cisternEntryCeiling(x) + 1) return true;
+  }
   for (let x = Math.floor(b.x); x < Math.ceil(b.x + b.width); x++) if (b.y + b.height > episodeGround(place, x, profile)) return true;
   return false;
 }
 interface EpisodePhysical {
-  terrainProfile?: ForestSurfaceProfile;
+  terrainProfile?: EpisodeTerrainProfile;
   place: EpisodePlace; player: PlayerMotionState; tick: number;
   gate: boolean; mill: EpisodeWaterState; practice: EpisodeWaterState;
+  tailrace?: MillTailraceState;
+  window?: CisternWindowState;
+  calibration?:CalibrationState;
+  echoAge?:number;
+  climb?:CisternClimb;
   wheelSpeed: number; stableTicks: number; wheelAngle: number; casts: number; baselineCollected: number;
 }
 export interface ForestEpisodeSave {
   schema: 'tokipona.forest-waterwheel-episode.v0.1';
   openingChecksum: string; session: GameSessionSave; physical: EpisodePhysical; checksum: string;
 }
-export interface EpisodeResult { accepted: boolean; text: string; speaker?: string; choice?: 'work' | 'predict' }
+export interface EpisodeResult { accepted: boolean; text: string; speaker?: string; choice?: 'work' | 'predict' | 'recall' | 'calibrate' | 'window' | 'calibration' }
 
 /** Owns ALL episode progression. UI supplies only input/target/choice, never position or completion claims. */
 export class ForestEpisode {
-  readonly terrainProfile?: ForestSurfaceProfile;
+  readonly terrainProfile?: EpisodeTerrainProfile;
   private session: GameSession;
   private truth: GameSessionState;
   private physical: EpisodePhysical;
   private previousJump = false;
+  private windowPhysics?: CisternWindow;
+  private windowCellsCache?: number[];
+  private calibrationPhysics?:CisternCalibration;
+  private calibrationCellsCache?:number[];
+  private echoPhysics?:CisternCalibration;
+  private echoCellsCache?:number[];
   private grace: PlayerJumpGrace = EMPTY_JUMP_GRACE;
   private constructor(session: GameSession, private readonly openingChecksum: string, physical?: EpisodePhysical) {
     this.session = session; this.truth = session.snapshot();
-    this.terrainProfile = physical ? physical.terrainProfile : 'woodland-v2';
-    if (this.terrainProfile !== undefined && this.terrainProfile !== 'woodland-v2') throw new Error('章节地形版本不兼容');
-    this.physical = physical ?? { terrainProfile: 'woodland-v2', place: 'settlement', player: this.spawn('settlement', 120), tick: 0,
+    this.terrainProfile = physical ? physical.terrainProfile : 'forest-clearing-v1';
+    if (this.terrainProfile !== undefined && this.terrainProfile !== 'woodland-v2' && !hasMillValley(this.terrainProfile)) throw new Error('章节地形版本不兼容');
+    this.physical = physical ?? { terrainProfile: 'forest-clearing-v1', place: 'settlement', player: this.spawn('settlement', 120), tick: 0,
       gate: false, mill: emptyEpisodeWater(), practice: emptyEpisodeWater(), wheelSpeed: 0, stableTicks: 0, wheelAngle: 0, casts: 0, baselineCollected: 0 };
   }
   static begin(opening: PrologueForestOpeningSession): ForestEpisode {
@@ -92,8 +148,99 @@ export class ForestEpisode {
   controls(kind: 'mill' | 'practice'): EpisodeWaterControls {
     return { kind, gate: this.physical.gate, cleared: this.has('cleared'), plugged: this.has('plugged') };
   }
+  targetFloor(t:{x:number;y?:number}):number{return t.y??this.groundAt(t.x);}
+  private get calibrationWorld():CisternCalibration{return this.calibrationPhysics??=new CisternCalibration(this.physical.calibration);}
+  get calibrationCells():readonly number[]{return this.calibrationCellsCache??=this.calibrationWorld.cells();}
+  get calibrationCollected():number{return this.calibrationWorld.collected;}
+  get echoCells():readonly number[]{
+    this.echoPhysics??=new CisternCalibration(this.physical.echoAge===undefined?undefined:{version:1,age:this.physical.echoAge,events:[{at:0,kind:'cast',expression:'telo'}]});
+    return this.echoCellsCache??=this.echoPhysics.cells();
+  }
+  private calibrationReady():boolean{
+    const s=this.physical.calibration;
+    return !s || s.age>=s.events.at(-1)!.at+180;
+  }
+  previewCalibration(expression:WindowExpression):ReturnType<ForestEpisode['previewWindow']>{
+    if(!WINDOW_EXPRESSIONS.includes(expression)||this.nearest()?.id!=='calibration'||!this.hasRoom('valve_seen')||
+      this.hasRoom('valve_filled')||!this.calibrationReady()||this.hasRoom('valve_tool')||
+      (this.physical.calibration?.events.filter(e=>e.kind==='cast').length??0)>=2)return null;
+    const p=this.physical.player,mp=this.truth.mp;
+    const zones=[{entityId:'player',boundsPx:{x:p.x-CISTERN_CALIBRATION.x,y:p.y-CISTERN_CALIBRATION.y,width:12,height:14}}];
+    const {plan}=previewCalibration(this.physical.calibration,expression,mp.currentMp,mp.maxMp,zones);
+    const capacity=expression==='telo'||this.truth.capabilities.expressionCapacityWords>=2;
+    return {plan,canConfirm:capacity&&plan.canConfirm,reason:!capacity?'当前组合容量不足；可用导槽和现场水继续。':
+      plan.rejectionCode==='requested_class_cannot_be_realized_here'?'当前空间无法形成所选形态，不扣 MP。':
+      plan.rejectionCode==='requested_class_requires_more_mp'?'MP 不足；可用导槽，不降档、不扣费。':
+      !plan.canConfirm?'安全范围受阻，不扣 MP。':'可以释放。两层盘实际收集至少 1.6 MU 才开阀；短水段合法，但单次水量不足。'};
+  }
+  confirmCalibration(expression:WindowExpression,planId:string):EpisodeResult{
+    const preview=this.previewCalibration(expression);
+    if(!preview||!preview.canConfirm||preview.plan.planId!==planId)return {accepted:false,text:preview?.reason??'请靠近校准阀重新预览。'};
+    const p=this.physical.player,mp=this.truth.mp,zones=[{entityId:'player',boundsPx:{x:p.x-CISTERN_CALIBRATION.x,y:p.y-CISTERN_CALIBRATION.y,width:12,height:14}}];
+    const {world,plan}=previewCalibration(this.physical.calibration,expression,mp.currentMp,mp.maxMp,zones);
+    const result=world.confirm(plan,zones);
+    if(!result.committed)return {accepted:false,text:'形态没有生成，也没有扣 MP。'};
+    const state=this.physical.calibration??{version:1 as const,age:0,events:[]};
+    this.commit('valve.cast.'+state.events.length,[{eventId:'episode.valve.mp.'+state.events.length,type:'mp_replaced',
+      payload:{mp:{...mp,currentMp:mp.currentMp-result.mpCharge,worldVersion:mp.worldVersion+1}}},
+      {eventId:'episode.valve.expression.'+state.events.length,type:'world_flag_set',
+       payload:{flagId:'forest.episode.room.cast.'+state.events.length,value:expression+':'+state.age,scope:'global'}}],'cast');
+    state.events.push({at:state.age,kind:'cast',expression:expression as 'telo'|'telo lili'});
+    this.physical.calibration=state;this.calibrationPhysics=world;this.calibrationCellsCache=undefined;
+    return {accepted:true,text:`释放 ${expression}，消耗 ${result.mpCharge} MP。关闭面板后观察接水盘；不足时可调整左侧导槽，或等水落稳后重新比较。`};
+  }
+  hasRoom(flag:RoomFlag):boolean{return this.truth.world.flags['global:forest.episode.room.'+flag]?.value===true;}
+  private markRoom(flag:RoomFlag,extra:SessionEventDraft[]=[]):void{
+    this.commit('room.'+flag,[{eventId:'episode.room.'+flag,type:'world_flag_set',payload:{flagId:'forest.episode.room.'+flag,value:true,scope:'global'}},...extra]);
+  }
+  private get windowWorld(): CisternWindow { return this.windowPhysics ??= new CisternWindow(this.physical.window); }
+  get windowCells(): readonly number[] { return this.windowCellsCache ??= this.windowWorld.cells(); }
+  get windowCollected(): number { return this.windowWorld.collected; }
+  private windowZones() {
+    const p=this.physical.player;
+    return [{entityId:'player',boundsPx:{x:p.x-CISTERN_WINDOW.x,y:p.y-CISTERN_WINDOW.y,width:12,height:14}}];
+  }
+  previewWindow(expression: WindowExpression): { plan: TeloCastPlan; canConfirm: boolean; reason: string } | null {
+    if (!WINDOW_EXPRESSIONS.includes(expression) || this.nearest()?.id!=='window' || !this.has('entry_surveyed') || !this.has('window_inspected') || this.physical.window) return null;
+    const mp=this.truth.mp, plan=windowPreview(expression,mp.currentMp,mp.maxMp,this.windowZones());
+    const capacity=expression==='telo' || this.truth.capabilities.expressionCapacityWords>=2;
+    const reason=!capacity ? '当前只能组成单词表达；可回隐士处休息并做回忆校准，或用右边旁通阀。' :
+      plan.rejectionCode==='requested_class_cannot_be_realized_here' ? '当前空间无法形成所选形态；不会自动缩短，不扣 MP。' :
+      plan.rejectionCode==='requested_class_requires_more_mp' ? 'MP 不足；不降档、不扣费，可使用旁通阀。' :
+      !plan.canConfirm ? '安全范围受阻；站稳后重新预览，不扣 MP。' : '可确认。释放后水受重力下落，接水杯收到水才算完成。';
+    return {plan,canConfirm:capacity&&plan.canConfirm,reason};
+  }
+  confirmWindow(expression: WindowExpression, planId: string): EpisodeResult {
+    const preview=this.previewWindow(expression);
+    if (!preview || preview.plan.planId!==planId || !preview.canConfirm) return {accepted:false,text:preview?.reason??'预览已失效。请靠近引水窗重新查看。'};
+    const mp=this.truth.mp, execution=executeWindowCast(expression,mp.currentMp,mp.maxMp,this.windowZones());
+    if (!execution.committed) return {accepted:false,text:'当前空间已变化，没有扣除 MP。请重新预览。'};
+    this.mark('window_cast',[{eventId:'episode.window.mp',type:'mp_replaced',payload:{mp:{...mp,currentMp:mp.currentMp-execution.paid,worldVersion:mp.worldVersion+1}}}]);
+    this.physical.window={source:'cast',age:0}; this.windowPhysics=undefined; this.windowCellsCache=undefined;
+    return {accepted:true,text:`释放了 ${expression}，消耗 ${execution.paid} MP。关闭面板后观察水落入接水杯；此次有词语说明，不计为无提示掌握。`};
+  }
+  private calibratePhrase(choice?: string): EpisodeResult {
+    if (this.truth.capabilities.expressionCapacityWords>=2) return {accepted:true,text:'你已经能组成两词表达；不重复提高容量或回复 MP。',speaker:'隐士'};
+    if (!this.has('meditated')) return {accepted:true,text:'先在左边坐垫平复呼吸，再回来试着回忆。',speaker:'隐士'};
+    if (choice?.trim().toLowerCase()!=='telo') return {accepted:true,choice:'recall',speaker:'隐士',
+      text:choice ? '还没有对上。可以回头看笔记，准备好再试；不扣 MP，也不要求现在完成。' : '先前水壶和石槽旁反复出现的那个词，表示水或液体。你还记得怎样写吗？'};
+    if (this.truth.mp.maxMp>phraseContract.resultingState.maxMp || this.truth.capabilities.focusSlots>phraseContract.resultingState.focusSlots)
+      return {accepted:false,text:'此存档已有更高阶能力配置；不会覆盖它。暂可使用旁通阀。'};
+    this.mark('phrase',[...proposeCapabilityMilestone('episode.phrase',phraseContract).drafts]);
+    return {accepted:true,speaker:'隐士',text:'你记起来了。我们把媒介的两道刻槽重新校准：现在可组成两词表达，最大 MP 按既有进阶规则提高；当前 MP 没有补满。地下标尺中的 lili / suli 分别带有小／少、大／多的宽泛含义；在那套引水框架里，它们只改变长度，不改变威力。'};
+  }
   get objective(): string {
-    if (this.has('finished')) return '小节完成 · 可以自由回访，后续位点尚未开放';
+    if (this.has('finished')) {
+      if(this.hasRoom('upper_seen'))return '已接通校准层并调查高位虹吸；沿检修梯可返回，虹吸启动与顶层出口仍待接入';
+      if(this.hasRoom('valve_filled'))return '双层校准阀已开启西侧检修梯；可上行调查高位虹吸，或原路返回';
+      if(this.hasRoom('entered'))return '入口回声可观察默认水段；沿东侧梯上行，在双层校准阀比较水量或使用导槽';
+      if (this.has('window_filled')) return '精密引水窗已通水，右侧检修门通向高位蓄水室；碎片留在行囊';
+      if (this.has('window_inspected')) return '可在引水窗比较形态，或用右侧旁通阀引入已有水；低 MP 不会卡住进度';
+      if (this.has('entry_surveyed')) return '门框左侧有一套精密引水窗；查看标尺或用旁通阀，其他深处机关尚未开放';
+      if (this.has('entry_open')) return '隔栅已固定，沿检修坡道看看深处门框';
+      if (this.has('entry_observed')) return '检修标记说明了绞盘用途；可用手动绞盘抬起隔栅';
+      return '小节已结算 · 可自由回访，或从工坊右侧进入蓄水廊检修入口';
+    }
     if (this.has('debrief')) return '回聚落找工务人报平安，领取报酬';
     if (this.has('practiced')) return '找隐士复盘这次练习，问下一步去哪里';
     if (this.has('predicted')) return this.physical.casts ? '用木楔补住漏口，再试一次；让清水抵达右端接水盆' : '在石槽旁 E 小量施放 telo（2 MP），观察水往哪里走';
@@ -107,17 +254,29 @@ export class ForestEpisode {
   }
   nearest(): { id: EpisodeTarget; x: number; label: string } | null {
     const p = this.physical.player;
-    return EPISODE_TARGETS[this.physical.place].filter(t => Math.abs(t.x - (p.x + 6)) <= 30 && Math.abs(p.y + 14 - this.groundAt(t.x)) <= 28)
+    if(this.physical.climb)return null;
+    return EPISODE_TARGETS[this.physical.place].filter(t => Math.abs(t.x - (p.x + 6)) <= 30 && Math.abs(p.y + 14 - this.targetFloor(t)) <= 28 &&
+      (this.physical.place!=='cistern'||p.y+14<=this.targetFloor(t)+.01))
       .sort((a, b) => Math.abs(a.x - p.x - 6) - Math.abs(b.x - p.x - 6))[0] ?? null;
   }
   advance(input: PlayerMotionInput = { moveX: 0, jump: false }): void {
     const p = this.physical;
-    const motion = stepPlayerMotion({ state: p.player, body: { width: 12, height: 14 }, input: { moveX: Number.isFinite(input.moveX) ? Math.max(-1, Math.min(1, input.moveX)) : 0, jump: !!input.jump },
-      previousJump: this.previousJump, jumpGrace: this.grace, fixedSeconds: 1 / 60, collides: b => episodeCollides(p.place, b, this.terrainProfile) });
-    p.player = motion.state; this.previousJump = motion.previousJump; this.grace = motion.jumpGrace ?? EMPTY_JUMP_GRACE; p.tick++;
+    if(p.climb){
+      const motion=stepCisternClimb(p.player,p.climb,this.hasRoom('valve_filled'));
+      p.player=motion.player;if(motion.climb)p.climb=motion.climb;else delete p.climb;
+      this.previousJump=false;this.grace=EMPTY_JUMP_GRACE;
+    }else{
+      const motion = stepPlayerMotion({ state: p.player, body: { width: 12, height: 14 }, input: { moveX: Number.isFinite(input.moveX) ? Math.max(-1, Math.min(1, input.moveX)) : 0, jump: !!input.jump },
+        previousJump: this.previousJump, jumpGrace: this.grace, fixedSeconds: 1 / 60, collides: b => episodeCollides(p.place, b, this.terrainProfile, this.has('entry_open'),this.hasRoom('valve_filled')) });
+      p.player = motion.state; this.previousJump = motion.previousJump; this.grace = motion.jumpGrace ?? EMPTY_JUMP_GRACE;
+    }
+    p.tick++;
     // Channels freeze with the scene: no off-screen completion or forgotten input while reading dialogue.
     if (p.place === 'mill') {
-      const flow = advanceEpisodeWater(p.mill, this.controls('mill'));
+      // Lazy, explicit accounting boundary: old saves round-trip unchanged until gameplay resumes.
+      if (hasMillValley(this.terrainProfile)) p.tailrace ??= emptyMillTailrace(p.mill.escaped);
+      const flow = advanceEpisodeWater(p.mill, this.controls('mill'), p.tailrace ? x => receiveMillOutflow(p.tailrace!, x) : undefined);
+      if (p.tailrace) advanceMillTailrace(p.tailrace);
       p.wheelSpeed += ((flow > 0 ? 1 : 0) - p.wheelSpeed) * 0.025;
       p.wheelAngle = (p.wheelAngle + p.wheelSpeed * 0.04) % (Math.PI * 2);
       p.stableTicks = this.has('brace') && this.has('cleared') && p.wheelSpeed > 0.08 ? Math.min(180, p.stableTicks + 1) : 0;
@@ -126,6 +285,19 @@ export class ForestEpisode {
     if (p.place === 'hermit') {
       advanceEpisodeWater(p.practice, this.controls('practice'));
       if (!this.has('practiced') && this.has('predicted') && this.has('plugged') && p.casts > 0 && collectedEpisodeWater(p.practice) >= p.baselineCollected + 12) this.mark('practiced');
+    }
+    const window=this.physical.window;
+    if (p.place==='cistern-entry' && window && window.age<CISTERN_WINDOW.settleTicks) {
+      this.windowWorld.advance(); window.age++; this.windowCellsCache=undefined;
+      if (this.windowWorld.satisfied && !this.has('window_filled')) this.mark('window_filled');
+    }
+    if(p.place==='cistern'){
+      if(p.echoAge!==undefined&&p.echoAge<180){void this.echoCells;this.echoPhysics!.advance();p.echoAge++;this.echoCellsCache=undefined;}
+      const c=p.calibration;
+      if(c&&c.age<c.events.at(-1)!.at+180){
+        this.calibrationWorld.advance();c.age++;this.calibrationCellsCache=undefined;
+        if(this.calibrationWorld.satisfied&&!this.hasRoom('valve_filled'))this.markRoom('valve_filled');
+      }
     }
   }
   interact(target: EpisodeTarget, choice?: string): EpisodeResult {
@@ -141,7 +313,7 @@ export class ForestEpisode {
             expectedWalletRevision: e.walletRevision, nextWalletRevision: e.walletRevision + 1, coinDelta: 8, nextCoin: e.coin + 8 } },
             { eventId: 'episode.lodging', type: 'world_flag_set', payload: { flagId: 'forest.settlement.lodging_earned', value: true, scope: 'global' } },
             { eventId: 'episode.checkpoint', type: 'checkpoint_set', payload: { checkpoint: { id: 'forest.episode.lodging', sceneId: 'scene.valley.settlement', position: { x: 340, y: this.groundAt(340, 'settlement') - 14 }, revision: this.truth.checkpoint.revision + 1 } } }]);
-          return say('水又进了磨房，明早大家就有面粉。约好的八枚钱，还有今晚的床位，都归你。地下蓄水廊的入口先别急着找——把隐士的话记好，等你准备好再启程。', '工务人');
+          return say('水又进了磨房，明早大家就有面粉。约好的八枚钱，还有今晚的床位，都归你。蓄水廊的检修入口在工坊右侧，现在可以下去看看。把隐士的话记好，什么时候启程由你决定。', '工务人');
         }
         if (this.has('medium')) {
           if (!this.has('route')) this.mark('route');
@@ -155,7 +327,73 @@ export class ForestEpisode {
       case 'hermit-road':
         if (!this.has('route')) return say('西侧小径没留下清楚的路标。先问问工务人这里住着谁。');
         this.travel('hermit', 100); return say('越过低矮灌木，石槽旁有人正在整理工具。');
-      case 'return': this.travel('settlement', this.physical.place === 'mill' ? 870 : 110); return say('回到聚落。');
+      case 'cistern-road':
+        if (!this.has('finished')) return say('检修入口暂未交接。先带着媒介完成隐士的练习，再回聚落领取维修报酬；之后可以从这里下行。');
+        this.travel('cistern-entry', 100); return say('沿干燥的检修坡道走入地下。出口就在身后的工坊。');
+      case 'entry-survey':
+        if (!this.has('entry_observed')) this.mark('entry_observed');
+        return say('石壁上留着工务人员的检修记号：右侧绞盘牵着隔栅，抬起后会由棘爪固定。通道地面干燥，不需要先消耗 MP。更深处的蓄水机关仍未接通。');
+      case 'entry-winch':
+        if (!this.has('entry_observed')) return say('铁索通往前方隔栅。先看看左边石壁上的检修标记，确认它控制什么。');
+        if (!this.has('entry_open')) this.mark('entry_open');
+        return say('转动手柄，隔栅沿导轨升起，棘爪将它固定在顶部。通道已打开，可以步行通过，也能随时沿原路返回。');
+      case 'entry-seal':
+        if (!this.has('entry_open')) return say('隔栅还没有打开。');
+        if (!this.has('entry_surveyed')) this.mark('entry_surveyed');
+        if (this.has('window_filled')) return say('接水杯带动了门框侧面的检修盖。盖后露出检修门的机械门栓，右边可以进入高位蓄水室。森林碎片仍在行囊，没有插入或消耗；双层阀在上方夹层，虹吸还要继续调查。');
+        return say('门框上的嵌槽与森林碎片有相似的边缘，但没有足够依据将碎片装进去。左侧标尺连接一个接水杯，杯中的水会带动侧面检修盖。先看看精密引水窗；也可以用旁通阀，不必会组合魔法。');
+      case 'window':
+        if (!this.has('entry_surveyed')) return say('引水窗连着深处门框。先去右边查看门框，确认它控制什么。');
+        if (!this.has('window_inspected')) this.mark('window_inspected');
+        if (this.physical.window) return say(this.has('window_filled') ? '接水杯已通水，门框侧面检修盖打开了。去右边看看；不需要重复灌水。' : '水正在下落。关闭对话观察接水杯，不用连续施放。');
+        return {accepted:true,choice:'window',text:'石挡板距锚点 20 px（1.25 格）。三档长度为 16 / 32 / 64 px，截面均为 12 px，释放后都会下落。先输入表达再预览；右边旁通阀可把已有水导进杯内，不消耗 MP。'};
+      case 'window-bypass':
+        if (!this.has('window_inspected')) return say('先查看左边引水窗的标尺和接水杯，再打开旁通阀。');
+        if (this.physical.window) return say('已经引入一份水。等待它落入杯内，不重复取水。');
+        this.mark('window_bypass'); this.physical.window={source:'bypass',age:0};
+        this.windowPhysics=undefined; this.windowCellsCache=undefined;
+        return say('打开旁通阀，将上方水箱的现有水引入接水杯。关闭对话后观察水流。这是工具路线，没有消耗 MP，也不计作魔法或词语掌握。');
+      case 'room-road': {
+        if(!this.has('window_filled'))return say('检修门的门栓还藏在盖板后。先让引水窗接水杯带动检修盖。');
+        this.travel('cistern',52);
+        if(!this.hasRoom('entered')){
+          const mp=this.truth.mp,ledger=new CastExecutionLedger(mp.currentMp,mp.worldVersion,mp.maxMp);
+          const proposal=new CisternLearningSession({playerSaveId:this.session.sessionId,expressionCapacity:this.truth.capabilities.expressionCapacityWords}).proposeCheckpointRecovery({activationId:'forest.episode.cistern.entry'});
+          const recovery=ledger.applyMpRecovery(proposal);
+          this.markRoom('entered',[{eventId:'episode.room.entry.mp',type:'mp_replaced',payload:{mp:{...mp,currentMp:recovery.afterMp,worldVersion:mp.worldVersion+1}}},
+            {eventId:'episode.room.entry.checkpoint',type:'checkpoint_set',payload:{checkpoint:{id:'forest.episode.cistern.entry',sceneId:EPISODE_SCENES.cistern,position:{x:52,y:722},revision:this.truth.checkpoint.revision+1}}}]);
+        }
+        return say('进入高位蓄水室。左侧可随时返回；入口检查点只轻恢复一次，不会补满 MP。');
+      }
+      case 'room-echo':
+        if(!this.hasRoom('echo')){this.markRoom('echo');this.physical.echoAge=0;this.echoPhysics=undefined;this.echoCellsCache=undefined;}
+        return say('回声留下 telo 的默认构形：语言上是水／液体，在这套框架中，不加尺度修饰词会形成 32 px 长、12 px 宽的水段，正常施放需 5 MP。关闭对话看水下落。这里是隔离的演示盆，不扣你的 MP，也不能把演示水带走。');
+      case 'east-up':case 'east-down':case 'west-up':case 'west-down':
+        if(target.startsWith('west')&&!this.hasRoom('valve_filled'))return say('西侧梯的隔栅由双层校准阀控制。可以用魔法，也可以调整导槽引水。');
+        this.physical.climb={route:target,leg:0};return say('沿检修梯攀行。Esc 可以暂停。');
+      case 'calibration':
+        if(!this.hasRoom('valve_seen'))this.markRoom('valve_seen');
+        if(this.hasRoom('valve_filled'))return say('两层盘已达到刻度，西侧检修梯的隔栅已抬起。没有获得额外压力或攻击能力。');
+        if(!this.calibrationReady())return say('先关闭对话，让这一份水落稳，再比较或调整导槽。');
+        return {accepted:true,choice:'calibration',text:'双层盘需要至少 1.6 MU（77 个水格）。主轴向左，挡板距离 36 px；水段长度为 16 / 32 / 64 px。短水段可以合法施放，但一份不足以达到刻度。可以比较后再释放；左侧导槽能引入现有水，不消耗 MP。'};
+      case 'calibration-tool':{
+        if(!this.hasRoom('valve_seen'))return say('先到右边查看校准盘的刻度和导槽走向。');
+        if(this.hasRoom('valve_filled')||this.hasRoom('valve_tool'))return say('水路已经接通，不需要重复打开水箱。');
+        if(!this.calibrationReady())return say('先等正在落下的水稳定，再打开导槽，避免重复操作。');
+        const s=this.physical.calibration??{version:1 as const,age:0,events:[]};
+        this.markRoom('valve_tool');s.events.push({at:s.age,kind:'tool'});
+        this.physical.calibration=s;this.calibrationPhysics=undefined;this.calibrationCellsCache=undefined;
+        return say('调整导槽并打开水箱底部，已有水沿坡流向双层盘。关闭对话观察；没有消耗 MP，也不算词语掌握。');
+      }
+      case 'upper-survey':
+        if(!this.hasRoom('upper_seen'))this.markRoom('upper_seen');
+        return say('虹吸钟位于回收沟另一侧，两条支撑肋已经锈蚀，顶层停靠台还没有水力。你记下了位置；下一步要处理远距引水与支撑。这部分尚未开放，可以沿西侧梯下到校准层，再沿东侧梯返回。');
+      case 'return':
+        if(this.physical.place==='cistern'){this.travel('cistern-entry',950);return say('回到检修入口。校准阀和入口检查点保持状态，不重复恢复 MP。');}
+        if (this.physical.place === 'cistern-entry') {
+          this.travel('mill', 950); return say('沿检修坡道回到工坊。隔栅的状态仍然保留。');
+        }
+        this.travel('settlement', this.physical.place === 'mill' ? 870 : 110); return say('回到聚落。');
       case 'timber':
         if (requireJob()) return say('这是聚落的备用木料。先和工务人商量维修。');
         if (!this.has('timber')) this.mark('timber');
@@ -178,9 +416,10 @@ export class ForestEpisode {
           eventId: `episode.owns.${id}`, type: 'world_flag_set', payload: { flagId: `owns.${id}`, value: true, scope: 'global' } })));
         return say('石龛里是一件有裂纹的古代媒介，旁边嵌着一枚森林位点碎片。它们已收进你的行囊，不会因离开地图而丢失。你还不知道怎么使用，也没有因此学会任何词。');
       case 'hermit':
+        if (this.has('debrief') && choice !== undefined) return this.calibratePhrase(choice==='calibrate' ? undefined : choice);
         if (this.has('practiced')) {
           if (!this.has('debrief')) this.mark('debrief');
-          return say('你没有命令水停在空中，而是先看懂坡度，再用木楔补住漏口。telo 在这里指水，也可以指液体；它不是“水必须听我摆布”。媒介只是通路，你自己的 MP 和它的损伤都限制力量。碎片属于散落的位点，地下蓄水廊或许还有同类痕迹。先把修好的水轮交还给村里，之后的路由你选。', '隐士');
+          return {...say('你没有命令水停在空中，而是先看懂坡度，再用木楔补住漏口。telo 在这里指水，也可以指液体；它不是“水必须听我摆布”。媒介只是通路，你自己的 MP 和它的损伤都限制力量。碎片属于散落的位点，地下蓄水廊或许还有同类痕迹。先把修好的水轮交还给村里，之后的路由你选。若想尝试组合表达，可以先去坐垫休息，再回来做一次回忆校准。', '隐士'), choice:'calibrate'};
         }
         if (!this.has('intro')) this.mark('intro');
         return say('这是旧文明的施术媒介，裂口太深，只能承受很小的表达。旧人抽走维系秩序的能量，光暗与元素的规则便开始失衡；我只知道残留下来的这一部分。先去右边看水槽。我在水壶和槽边写下了它的读音：telo。别急着施法：先看自然水如何沿坡度流动。', '隐士');
@@ -210,6 +449,7 @@ export class ForestEpisode {
         return say('木楔嵌入漏口。你没有用魔法修好石槽，而是给水补出了一条完整的路。');
       case 'rest': {
         if (!this.has('intro')) return say('先和隐士打个招呼。');
+        if (this.has('debrief') && !this.has('meditated')) this.mark('meditated');
         const mp = this.truth.mp;
         if (mp.currentMp >= mp.maxMp) return say('你在树下平复呼吸。MP 已满，最大 MP 没有变化。');
         this.commit(`rest.${this.truth.revision}`, [{ eventId: `episode.rest.${this.truth.revision}`, type: 'mp_replaced', payload: { mp: { ...mp, currentMp: Math.min(mp.maxMp, mp.currentMp + 4), worldVersion: mp.worldVersion + 1 } } }], 'mp_recovery');
@@ -221,12 +461,12 @@ export class ForestEpisode {
     return { x, y: Math.min(...Array.from({ length: 12 }, (_, i) => this.groundAt(x + i, place))) - 14, velocityX: 0, velocityY: 0, grounded: true };
   }
   private travel(place: EpisodePlace, x: number): void {
-    this.commit(`travel.${this.truth.revision}`, [{ eventId: `episode.travel.${this.truth.revision}`, type: 'scene_entered', payload: { sceneId: place === 'mill' ? 'scene.valley.waterwheel' : place === 'hermit' ? 'scene.valley.stream_section' : 'scene.valley.settlement' } }]);
+    this.commit(`travel.${this.truth.revision}`, [{ eventId: `episode.travel.${this.truth.revision}`, type: 'scene_entered', payload: { sceneId: EPISODE_SCENES[place] } }]);
     this.physical.place = place; this.physical.player = this.spawn(place, x); this.previousJump = false; this.grace = EMPTY_JUMP_GRACE;
   }
   private mark(flag: EpisodeFlag, extra: SessionEventDraft[] = []): void {
     this.commit(flag, [{ eventId: `episode.flag.${flag}`, type: 'world_flag_set', payload: { flagId: FLAG + flag, value: true, scope: 'global' } }, ...extra],
-      ['observed', 'predicted', 'practiced'].includes(flag) ? 'learning' : 'world');
+      flag==='window_cast' ? 'cast' : ['observed', 'predicted', 'practiced'].includes(flag) ? 'learning' : 'world');
   }
   private commit(id: string, drafts: SessionEventDraft[], domain: 'world' | 'cast' | 'mp_recovery' | 'learning' = 'world'): void {
     const result = commitSessionProposal(this.session, { transactionId: `episode.${id}`, drafts: [...drafts, {
@@ -242,14 +482,52 @@ export class ForestEpisode {
         ![p.wheelSpeed, p.wheelAngle, p.player.x, p.player.y, p.player.velocityX, p.player.velocityY].every(Number.isFinite) ||
         p.wheelSpeed < 0 || p.wheelSpeed > 1 || p.wheelAngle < 0 || p.wheelAngle >= Math.PI * 2 ||
         Math.abs(p.player.velocityX) > 88.001 || Math.abs(p.player.velocityY) > 240.001 ||
-        episodeCollides(p.place, { ...p.player, width: 12, height: 14 }, this.terrainProfile)) throw new Error('章节空间存档无效');
+        episodeCollides(p.place, { ...p.player, width: 12, height: 14 }, this.terrainProfile, this.has('entry_open'),this.hasRoom('valve_filled'))) throw new Error('章节空间存档无效');
     validateEpisodeWater(p.mill); validateEpisodeWater(p.practice);
-    const scene = p.place === 'mill' ? 'scene.valley.waterwheel' : p.place === 'hermit' ? 'scene.valley.stream_section' : 'scene.valley.settlement';
+    if (p.tailrace !== undefined) {
+      if (!hasMillValley(this.terrainProfile)) throw new Error('工坊下游地形版本不兼容');
+      validateMillTailrace(p.tailrace, p.mill.escaped, p.mill.tick);
+    }
+    const scene = EPISODE_SCENES[p.place];
+    const roomDeps:Partial<Record<RoomFlag,RoomFlag[]>>={echo:['entered'],valve_seen:['entered'],valve_tool:['valve_seen'],valve_filled:['valve_seen'],upper_seen:['valve_filled']};
+    for(const f of ROOM_FLAGS)if(this.hasRoom(f)&&(!this.truth.receiptIndex['forest.episode.room.'+f]||roomDeps[f]?.some(d=>!this.hasRoom(d))))throw Error('蓄水室进度凭证不一致');
+    if(this.hasRoom('entered')&&!this.has('window_filled')||p.place==='cistern'&&!this.hasRoom('entered'))throw Error('蓄水室入口未开放');
+    if(p.climb){
+      if(p.place!=='cistern')throw Error('检修梯场景不一致');
+      validateCisternClimb(p.climb,p.player,this.hasRoom('valve_filled'));
+    }
+    if(p.place==='cistern'&&!this.hasRoom('valve_filled')&&p.player.y<384)throw Error('西侧梯隔栅尚未打开');
+    if(this.hasRoom('echo')!==(p.echoAge!==undefined)||p.echoAge!==undefined&&(!Number.isInteger(p.echoAge)||p.echoAge<0||p.echoAge>180))throw Error('入口回声存档无效');
+    const calibration=p.calibration;
+    const castReceipts2=Object.values(this.truth.receiptIndex).filter(r=>r.receiptId.startsWith('forest.episode.valve.cast.'));
+    if(calibration){
+      if(!this.hasRoom('valve_seen'))throw Error('校准盘尚未观察');
+      const world=new CisternCalibration(calibration),casts=calibration.events.filter(e=>e.kind==='cast');
+      if(this.hasRoom('valve_filled')!==world.satisfied||this.hasRoom('valve_tool')!==calibration.events.some(e=>e.kind==='tool')||
+        castReceipts2.length!==casts.length||castReceipts2.some(r=>r.domain!=='cast'))throw Error('校准阀凭证或接水结果不一致');
+      calibration.events.forEach((e,i)=>{
+        if(e.kind==='cast'&&this.truth.world.flags['global:forest.episode.room.cast.'+i]?.value!==e.expression+':'+e.at)throw Error('校准阀表达记录不一致');
+      });
+    }else if(castReceipts2.length||this.hasRoom('valve_filled')||this.hasRoom('valve_tool'))throw Error('校准阀缺少水源');
+    if (p.place === 'cistern-entry' && !this.has('finished')) throw new Error('地下入口尚未交接');
+    if (p.place === 'cistern-entry' && !this.has('entry_open') && p.player.x + 12 > CISTERN_ENTRY_GATE.left)
+      throw new Error('地下隔栅尚未打开');
     const castReceipts = Object.values(this.truth.receiptIndex).filter(r => r.receiptId.startsWith('forest.episode.cast.'));
     if (this.truth.world.currentSceneId !== scene || !this.truth.receiptIndex['forest.episode.enter'] ||
         this.has('repaired') && p.mill.escaped < 1 ||
         castReceipts.length !== p.casts || castReceipts.some((_, i) => this.truth.receiptIndex[`forest.episode.cast.${i + 1}`]?.domain !== 'cast')) throw new Error('章节场景或施法凭证不一致');
     const deps: Partial<Record<EpisodeFlag, EpisodeFlag[]>> = { timber: ['job'], brace: ['timber'], cleared: ['job'], repaired: ['brace', 'cleared'], medium: ['repaired'], route: ['medium'], intro: ['route'], observed: ['intro'], predicted: ['observed'], plugged: ['observed'], practiced: ['predicted', 'plugged'], debrief: ['practiced'], finished: ['debrief'] };
+    deps.entry_observed = ['finished']; deps.entry_open = ['entry_observed']; deps.entry_surveyed = ['entry_open'];
+    deps.meditated=['debrief']; deps.phrase=['meditated'];
+    deps.window_inspected=['entry_surveyed']; deps.window_cast=['window_inspected']; deps.window_bypass=['window_inspected']; deps.window_filled=['window_inspected'];
+    const w=p.window, cast=this.has('window_cast'), bypass=this.has('window_bypass');
+    if (cast&&bypass || !!w!==(cast||bypass) || w && (w.source==='cast'?!cast:!bypass) ||
+        this.has('phrase') && !this.truth.capabilities.appliedMilestones[phraseContract.milestoneId] ||
+        cast && this.truth.capabilities.expressionCapacityWords<2) throw Error('引水窗进度或能力凭证不一致');
+    if (w) {
+      const simulation=new CisternWindow(w);
+      if (this.has('window_filled')!==simulation.satisfied) throw Error('引水窗接水结果与物理不一致');
+    } else if (this.has('window_filled')) throw Error('引水窗没有水源');
     for (const flag of CHECKS) {
       if (this.has(flag) && (!(this.truth.receiptIndex[`forest.episode.${flag}`]) || deps[flag]?.some(dep => !this.has(dep)))) throw new Error('章节进度前后不一致');
     }
