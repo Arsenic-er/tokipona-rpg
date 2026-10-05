@@ -35,7 +35,8 @@ describe('embedded return channel preserves canonical boundaries',()=>{
   },30000);
   it('lets one-word tool-only players backtrack and revisit without water, MP or reward duplication',()=>{
     const g=ForestEpisode.restore(ready),before=g.sessionState;expect(before.capabilities.expressionCapacityWords).toBe(1);
-    act(g,'return-channel-road');repair(g);act(g,'flow-depth');expect(g.state.place).toBe('return-channel');
+    act(g,'return-channel-road');repair(g);act(g,'flow-depth');expect(g.state.place).toBe('wetland');
+    act(g,'return');expect(g.state.place).toBe('return-channel');
     act(g,'return');const water=structuredClone(g.state.returnFlow);act(g,'top-exit');act(g,'return');act(g,'worker');
     expect(g.state.returnFlow).toEqual(water);expect(g.hasRoom('reported')).toBe(true);
     act(g,'mill-road');act(g,'cistern-shortcut');act(g,'return-channel-road');

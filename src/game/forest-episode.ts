@@ -1,4 +1,10 @@
 import { sha256Canonical, type JsonValue } from '../canonical-json';
+import { readRuntimeForestChapterManifest } from '../content/runtime-forest-chapter-manifest';
+import { createWildlifeLifeRecord } from './life-corpse-ledger';
+import { createStableWildlifeLifeId } from './wildlife-state-machine';
+import { MIGRATION, WETLAND_BOUNDS, ORDER_NODE_BOUNDS, wetlandGround, emptyWetlandMigration,
+  advanceWetlandMigration, validateWetlandMigration, migrationBodies, migrationSettled,
+  type WetlandMigrationState } from '../world/forest-wetland-migration';
 import { PrologueReturnFlowSession, PROLOGUE_RETURN_FLOW_REGION_ID } from './prologue-return-flow';
 import { returnFlowWorldReady } from './return-flow-predicates';
 import { RETURN_CHANNEL_BOUNDS, RETURN_CHANNEL_FLOOR, emptyReturnChannel, advanceReturnChannel, returnChannelFacts,
@@ -6,6 +12,7 @@ import { RETURN_CHANNEL_BOUNDS, RETURN_CHANNEL_FLOOR, emptyReturnChannel, advanc
 
 import { GameSession, type GameSessionSave, type GameSessionState } from '../session/game-session';
 import generatedRuntimeArtifact from '../generated/content-runtime.v0.1.json';
+const forestChapter = readRuntimeForestChapterManifest(generatedRuntimeArtifact);
 import { readRuntimeCisternTaskManifest } from '../content/runtime-task-manifest';
 import { readVerifiedCapabilityMilestoneContract } from '../session/capability-contract';
 import { proposeCapabilityMilestone } from '../session/adapters';
@@ -35,19 +42,21 @@ import { advanceEpisodeWater, emptyEpisodeWater, supplyEpisodeWater, collectedEp
 export const EPISODE_SAVE_KEY = 'tokipona.forest-waterwheel-episode.v0.1';
 export const OPENING_SAVE_KEY = 'tokipona.forest-opening.vertical-slice.v0.1';
 export const EPISODE_BOUNDS = { x: 0, y: 0, width: 1024, height: 480 } as const;
-export type EpisodePlace = 'settlement' | 'mill' | 'hermit' | 'cistern-entry' | 'cistern' | 'return-channel';
-export const EPISODE_PLACES = { settlement: '林间聚落', mill: '旧水轮工坊', hermit: '隐士林地', 'cistern-entry': '蓄水廊检修入口', cistern:'高位蓄水室', 'return-channel':'回流湿地检修渠' } as const;
-export const episodeBounds=(place:EpisodePlace)=>place==='cistern'?CISTERN_ROOM_BOUNDS:place==='return-channel'?RETURN_CHANNEL_BOUNDS:EPISODE_BOUNDS;
+export type EpisodePlace = 'settlement' | 'mill' | 'hermit' | 'cistern-entry' | 'cistern' | 'return-channel' | 'wetland' | 'order-node';
+export const EPISODE_PLACES = { settlement: '林间聚落', mill: '旧水轮工坊', hermit: '隐士林地', 'cistern-entry': '蓄水廊检修入口', cistern:'高位蓄水室', 'return-channel':'回流湿地检修渠', wetland:'湿地迁徙浅滩', 'order-node':'地下档案前厅' } as const;
+export const episodeBounds=(place:EpisodePlace)=>place==='wetland'?WETLAND_BOUNDS:place==='order-node'?ORDER_NODE_BOUNDS:place==='cistern'?CISTERN_ROOM_BOUNDS:place==='return-channel'?RETURN_CHANNEL_BOUNDS:EPISODE_BOUNDS;
 const EPISODE_SCENES: Record<EpisodePlace, string> = {
   settlement: 'scene.valley.settlement', mill: 'scene.valley.waterwheel',
   hermit: 'scene.valley.stream_section', 'cistern-entry': 'scene.valley.high_cistern', cistern:'scene.valley.high_cistern',
   'return-channel':'scene.valley.return_channel',
+  wetland:'scene.valley.return_channel', 'order-node':'scene.valley.underground_order_node',
 };
 export type EpisodeTarget = 'worker' | 'mill-road' | 'hermit-road' | 'return' | 'timber' | 'brace' | 'gate' | 'silt' | 'medium' | 'hermit' | 'pool' | 'plug' | 'rest' |
   'cistern-road' | 'entry-survey' | 'entry-winch' | 'entry-seal' | 'window' | 'window-bypass' |
   'room-road' | 'room-echo' | 'east-up' | 'east-down' | 'west-up' | 'west-down' | 'calibration' | 'calibration-tool' | 'upper-survey' |
   'siphon' | 'siphon-left' | 'siphon-right' | 'siphon-tool' | 'lift-up' | 'lift-down' | 'return-winch' | 'top-exit' | 'cistern-shortcut' |
-  'return-channel-road' | 'flow-inspect' | 'flow-gate' | 'flow-seal' | 'flow-clear' | 'flow-gauge' | 'flow-spout' | 'flow-depth';
+  'return-channel-road' | 'flow-inspect' | 'flow-gate' | 'flow-seal' | 'flow-clear' | 'flow-gauge' | 'flow-spout' | 'flow-depth' |
+  'wetland-lookout' | 'wetland-nest' | 'wetland-young' | 'wetland-clear' | 'node-road' | 'node-survey' | 'node-archive' | 'node-cradle' | 'node-allocation' | 'node-exit';
 export const EPISODE_TARGETS: Readonly<Record<EpisodePlace, readonly { id: EpisodeTarget; x: number; y?:number; label: string }[]>> = {
   settlement: [{ id: 'hermit-road', x: 60, label: '西侧林间小径' }, { id: 'worker', x: 350, label: '工务人' }, { id: 'mill-road', x: 920, label: '沿水渠去工坊' }],
   mill: [{ id: 'return', x: 60, label: '返回聚落' }, { id: 'timber', x: 270, label: '备用木撑' }, { id: 'gate', x: 490, label: '水渠闸柄' },
@@ -73,6 +82,12 @@ export const EPISODE_TARGETS: Readonly<Record<EpisodePlace, readonly { id: Episo
     {id:'flow-gate',x:144,label:'扶正溢流闸'},{id:'flow-seal',x:208,label:'修补分流口密封'},
     {id:'flow-clear',x:272,label:'清理双路导管'},{id:'flow-gauge',x:344,label:'双路水量标尺'},
     {id:'flow-spout',x:408,label:'聚落供水口与湿地出水口'},{id:'flow-depth',x:462,label:'通向地下的旧渠口'}],
+  wetland:[{id:'return',x:40,label:'返回回流检修渠'},{id:'wetland-lookout',x:96,label:'浅滩观察处'},
+    {id:'wetland-nest',x:148,label:'被水浸湿的旧巢'},{id:'wetland-young',x:220,label:'幼体足迹'},
+    {id:'wetland-clear',x:252,label:'疏通迁徙出口的牵引绳'},{id:'node-road',x:540,label:'地下档案入口'}],
+  'order-node':[{id:'return',x:32,label:'返回湿地浅滩'},{id:'node-survey',x:96,label:'前厅检修图'},
+    {id:'node-archive',x:256,label:'旱季配水档案'},{id:'node-cradle',x:304,label:'受损的碎片座'},
+    {id:'node-allocation',x:352,label:'未校准的三路配水台'},{id:'node-exit',x:416,label:'封闭的聚落旧门'}],
 };
 const FLAG = 'forest.episode.';
 const CHECKS = ['job', 'timber', 'brace', 'cleared', 'repaired', 'medium', 'route', 'intro', 'observed', 'predicted', 'plugged', 'practiced', 'debrief', 'finished', 'entry_observed', 'entry_open', 'entry_surveyed', 'meditated', 'phrase', 'window_inspected', 'window_cast', 'window_bypass', 'window_filled'] as const;
@@ -81,8 +96,13 @@ const ROOM_FLAGS=['entered','echo','valve_seen','valve_tool','valve_filled','upp
 type RoomFlag=typeof ROOM_FLAGS[number];
 const FLOW_FLAGS=['entered','inspected','gate','sealed','cleared','restored','observed'] as const;
 type FlowFlag=typeof FLOW_FLAGS[number];
+const MIGRATION_FLAGS=['entered','seen','nest','young','cleared','resolved','node_entered','archive'] as const;
+type MigrationFlag=typeof MIGRATION_FLAGS[number];
+const MIGRATION_REGION = PROLOGUE_RETURN_FLOW_REGION_ID;
 const FLOW_SOLUTION='return_flow.repair_overflow';
 export function episodeGround(place: EpisodePlace, x: number, profile?: EpisodeTerrainProfile): number {
+  if (place==='wetland') return wetlandGround(x);
+  if (place==='order-node') return 336;
   if (place==='return-channel') return RETURN_CHANNEL_FLOOR;
   if (place==='cistern') return 736;
   if (place === 'cistern-entry') return cisternEntryFloor(x);
@@ -94,6 +114,7 @@ export function episodeGround(place: EpisodePlace, x: number, profile?: EpisodeT
   return 336 + Math.round(Math.sin(x / 100 + (place === 'hermit' ? 1 : 0)) * 4);
 }
 export function episodeCollides(place: EpisodePlace, b: Aabb, profile?: EpisodeTerrainProfile, entryOpen = false, upperOpen=false,liftOpen=false): boolean {
+  if (place==='order-node') return b.x<6||b.x+b.width>442||b.y<64||b.y+b.height>336;
   if (place==='cistern') return cisternRoomCollides(b,upperOpen,liftOpen);
   if (b.x < 0 || b.x + b.width > episodeBounds(place).width || b.y < 0) return true;
   if (place === 'cistern-entry') {
@@ -117,6 +138,7 @@ interface EpisodePhysical {
   climb?:CisternClimb;
   lift?:CisternLiftState;
   returnFlow?:ReturnChannelState;
+  migration?:WetlandMigrationState;
   wheelSpeed: number; stableTicks: number; wheelAngle: number; casts: number; baselineCollected: number;
 }
 export interface ForestEpisodeSave {
@@ -141,6 +163,7 @@ export class ForestEpisode {
   private echoPhysics?:CisternCalibration;
   private echoCellsCache?:number[];
   private grace: PlayerJumpGrace = EMPTY_JUMP_GRACE;
+  private readonly migrationLifeIds = new Map<boolean,string>();
   private constructor(session: GameSession, private readonly openingChecksum: string, physical?: EpisodePhysical) {
     this.session = session; this.truth = session.snapshot();
     this.terrainProfile = physical ? physical.terrainProfile : 'forest-clearing-v1';
@@ -176,7 +199,9 @@ export class ForestEpisode {
   get ridingLift():boolean{return liftCarriesPlayer(this.physical.lift);}
   roomSolidAt(x:number,y:number):boolean{return cisternRoomSolid(x,y,this.hasRoom('valve_filled'),this.hasRoom('lift_open'))||
     !!this.physical.lift&&intersects({x,y,width:1,height:1},liftDeck(this.physical.lift));}
-  private collides(b:Aabb):boolean{return episodeCollides(this.physical.place,b,this.terrainProfile,this.has('entry_open'),this.hasRoom('valve_filled'),this.hasRoom('lift_open'));}
+  private collides(b:Aabb):boolean{return episodeCollides(this.physical.place,b,this.terrainProfile,this.has('entry_open'),this.hasRoom('valve_filled'),this.hasRoom('lift_open'))||
+    this.physical.place==='wetland'&&!!this.physical.migration&&
+    migrationBodies(this.physical.migration,this.migrationControls).some(a=>intersects(a,b));}
   groundAt(x: number, place: EpisodePlace = this.physical.place): number { return episodeGround(place, x, this.terrainProfile); }
   get sessionState(): GameSessionState { return this.truth; }
   get player(): PlayerState { const p = this.physical.player; return { position: { x: p.x, y: p.y }, velocity: { x: p.velocityX, y: p.velocityY }, grounded: p.grounded, body: { width: 12, height: 14 } }; }
@@ -262,6 +287,62 @@ export class ForestEpisode {
   }
   hasRoom(flag:RoomFlag):boolean{return this.truth.world.flags['global:forest.episode.room.'+flag]?.value===true;}
   hasFlow(flag:FlowFlag):boolean{return this.truth.world.flags['global:forest.episode.flow.'+flag]?.value===true;}
+  hasMigration(flag:MigrationFlag):boolean{return this.truth.world.flags['global:forest.episode.migration.'+flag]?.value===true;}
+  private migrationIdentity(young=false):string {
+    if(!this.migrationLifeIds.has(young))this.migrationLifeIds.set(young,createStableWildlifeLifeId({
+      regionSaveId:this.session.sessionId,
+      entityId:young?'return_wetland.large_creature.young':forestChapter.largeCreature.entityId,
+      spawnGeneration:0,spawnSequence:0}));
+    return this.migrationLifeIds.get(young)!;
+  }
+  get migrationControls(){
+    return {cleared:this.hasMigration('cleared'),
+      adultAlive:this.truth.lifeCorpseLedger.lives[this.migrationIdentity()]?.state==='alive',
+      youngAlive:this.truth.lifeCorpseLedger.lives[this.migrationIdentity(true)]?.state==='alive'};
+  }
+  private markMigration(flag:MigrationFlag,extra:SessionEventDraft[]=[]):void{
+    this.commit('migration.'+flag,[{eventId:'episode.migration.'+flag,type:'world_flag_set',
+      payload:{flagId:'forest.episode.migration.'+flag,value:true,scope:'global'}},...extra]);
+  }
+  private enterWetland():EpisodeResult{
+    if(!this.hasFlow('restored'))return {accepted:true,text:'分流口还没有稳定。先让聚落和湿地的两路出水恢复，再沿旧渠调查下游。'};
+    if(!this.hasMigration('entered')){
+      const drafts:SessionEventDraft[]=[];
+      for(const young of [false,true]){
+        const id=this.migrationIdentity(young);
+        // One identity for each actual animal. Never replace an existing damaged life or death tombstone.
+        if(!this.truth.lifeCorpseLedger.lives[id])drafts.push({eventId:'episode.migration.life.'+(young?'young':'adult'),
+          type:'wildlife_life_registered',payload:{life:createWildlifeLifeRecord({
+            lifeInstanceId:id,regionSaveId:this.session.sessionId,regionId:MIGRATION_REGION,
+            entityId:young?'return_wetland.large_creature.young':forestChapter.largeCreature.entityId,
+            species:'large_semiaquatic_nester',ageClass:young?'juvenile':'adult',spawnGeneration:0,spawnSequence:0,
+            // Provisional lifecycle capacity only; this slice exposes no damage/harvesting actions.
+            harvestProfileId:'forest.large_semiaquatic_nester.no_harvest',maxHp:young?40:100,
+            registeredAtWorldTick:this.truth.survival.worldTicks})}});
+      }
+      this.markMigration('entered',drafts);
+      this.physical.migration=emptyWetlandMigration();
+      if(!this.migrationControls.adultAlive)this.physical.migration.mode='dead';
+    }
+    this.travel('wetland',34);
+    return {accepted:true,text:'旧巢边的水痕正在上升，大型半水生动物带着幼体寻找出路。先留在左岸观察；可随时返回检修渠。'};
+  }
+  private advanceMigration():void{
+    const s=this.physical.migration!;
+    advanceWetlandMigration(s,this.migrationControls,{...this.physical.player,width:12,height:14});
+    if(this.hasMigration('resolved')||!migrationSettled(s))return;
+    if(!this.hasMigration('young')||!this.hasMigration('nest')||!this.hasMigration('cleared'))throw Error('迁徙缺少现场证据');
+    const regional=(flagId:string,value:boolean|string):SessionEventDraft=>({
+      eventId:'episode.migration.result.'+flagId,type:'world_flag_set',payload:{flagId,value,scope:'region',regionId:MIGRATION_REGION}});
+    this.markMigration('resolved',[
+      regional(forestChapter.largeCreature.resolutionEventId,true),
+      regional('forest_large_creature_resolution','migration_restored'),
+      regional('forest_large_creature_life_state',this.truth.lifeCorpseLedger.lives[this.migrationIdentity()]!.currentHp <
+        this.truth.lifeCorpseLedger.lives[this.migrationIdentity()]!.maxHp?'injured':'alive'),
+      {eventId:'episode.'+forestChapter.largeCreature.resolutionEventId,type:'quest_stage_set',
+       payload:{questId:'ch01_large_creature_crisis',stageId:'completed',stageOrdinal:(this.truth.quests.ch01_large_creature_crisis?.stageOrdinal??0)+1}},
+    ]);
+  }
   get flowControls():ReturnChannelControls{return {gate:this.hasFlow('gate'),sealed:this.hasFlow('sealed'),cleared:this.hasFlow('cleared')};}
   private markFlow(flag:FlowFlag,extra:SessionEventDraft[]=[]):void{
     this.commit('flow.'+flag,[{eventId:'episode.flow.'+flag,type:'world_flag_set',
@@ -333,7 +414,12 @@ export class ForestEpisode {
   }
   get objective(): string {
     if (this.has('finished')) {
-      if(this.hasFlow('observed'))return '聚落和湿地已恢复分流；可以回村查看水口，地下秩序节点与旧矿道仍未开放';
+      if(this.hasMigration('archive'))return '档案记录了旱季改渠的代价；碎片同步与三路配水尚未开放，可原路回访，不算第一章结局';
+      if(this.hasMigration('node_entered'))return '调查地下档案和受损碎片座；先弄清旧水路为何改变';
+      if(this.hasMigration('resolved'))return '动物与幼体已迁入右岸苇地；沿空出的浅滩到地下档案入口';
+      if(this.hasMigration('cleared'))return '出口已疏通；退到旧巢左边的观察处，停留片刻，让成年动物和幼体通过';
+      if(this.hasMigration('entered'))return '在左岸观察旧巢和幼体足迹，再用岸上的牵引绳疏通迁徙出口';
+      if(this.hasFlow('observed'))return '两路分流已恢复；从回流渠右侧旧渠口调查湿地变化，也可回村查看水口';
       if(this.hasFlow('restored'))return '两路供水已稳定；靠近回流渠水量标尺，确认聚落和湿地的实际变化';
       if(this.hasFlow('entered'))return '查看检修牌，扶正溢流闸、补密封、清导管；观察两路水量稳定后再读标尺';
       if(this.hasRoom('reported'))return '高位水路已交接；沿永久梯回到顶层，从支渠前往回流湿地';
@@ -395,6 +481,7 @@ export class ForestEpisode {
     if(p.place==='cistern'&&p.lift?.mode==='call')advanceLift();
     p.tick++;
     if(p.place==='return-channel')this.advanceReturnFlow();
+    if(p.place==='wetland')this.advanceMigration();
     // Channels freeze with the scene: no off-screen completion or forgotten input while reading dialogue.
     if (p.place === 'mill') {
       // Lazy, explicit accounting boundary: old saves round-trip unchanged until gameplay resumes.
@@ -482,7 +569,34 @@ export class ForestEpisode {
       case 'flow-spout':return say(this.hasFlow('restored')?
         '上路送往聚落公共水口，下路送往湿地。浅水已经回到苇根旁；旧水仍沿渠道排走，没有额外复制水或发放物品。':
         '两处出水口通向不同地方。仅仅打开上游不代表两路都有水，要看水真正到达这里。');
-      case 'flow-depth':return say('石阶向地下延伸，旧媒介的槽纹也沿墙继续。地下秩序节点尚未实现，本版不能进入；可沿身后的检修路回村。旧矿道与正式回访资格不会在这里自动解锁。');
+      case 'flow-depth':return this.enterWetland();
+      case 'wetland-lookout':
+        if(!this.hasMigration('seen'))this.markMigration('seen');
+        return say(this.hasMigration('resolved')?'成年动物和幼体留在右岸较高的苇地。旧巢空了；身后的水路维修状态没有改变。':
+          '水回来了，旧巢却被浸湿。成年动物在寻找幼体，拍尾和拨开芦苇是警告，不是要你挑战它。先沿左岸查看痕迹；疏通出口后，回到这里让路。');
+      case 'wetland-nest':
+        if(!this.hasMigration('seen'))return say('先在左侧观察处看看动物和水位，别贸然接近巢穴。');
+        if(!this.hasMigration('nest'))this.markMigration('nest');
+        return say('新水痕高过压扁的苇叶，巢里的根茎被浸湿了。水渠修复帮助了聚落，却也改变了这里的栖息条件。更右侧有小一圈的足迹。');
+      case 'wetland-young':
+        if(!this.hasMigration('nest'))return say('这些小足迹来自旧巢。先查看左边被水浸湿的苇叶。');
+        if(!this.hasMigration('young'))this.markMigration('young');
+        return say('小足迹朝成年动物延伸；幼体还活着，没有丢失。前方倒木堵住了通向高岸的浅槽；岸边牵引绳可以拉开它，不用靠近或攻击动物。');
+      case 'wetland-clear':
+        if(!this.hasMigration('young'))return say('先辨认旧巢和幼体足迹，确认哪条浅槽是它们需要的出口。');
+        if(!this.hasMigration('cleared'))this.markMigration('cleared');
+        return say('你用岸边的牵引绳将倒木移出浅槽。工具留在原处，没有花费 MP。退回左边观察处并关闭面板，给动物和幼体留出通路；它们抵达新苇地后才算处理完毕。');
+      case 'node-road':
+        if(!this.hasMigration('resolved'))return say('动物还在寻找迁徙通路。先处理旧巢和幼体的处境；地下入口就在它们需要通过的浅滩旁。');
+        if(!this.hasMigration('node_entered'))this.markMigration('node_entered');
+        this.travel('order-node',28);return say('绕过空出的浅滩，沿石阶进入档案前厅。身后的路通回湿地，森林碎片仍由你保管。');
+      case 'node-survey':return say('三条旧水路分别通往聚落、湿地和旧商路。检修图有多处损坏，不能凭眼前两路恢复就断言整个系统平衡了。往右有旱季记录和碎片座；本轮只开放调查，不进行同步或配水。');
+      case 'node-archive':
+        if(!this.hasMigration('archive'))this.markMigration('archive');
+        return say('档案记着一次旱季：部分居民与议事者将水引向聚落，保住饮水和庄稼，却让湿地与下游承受缺水。他们随后隐去了改渠记录，担心追责和索赔。维修簿又记下：受损系统无法同时满足三路需求。修复并不意味着代价消失。');
+      case 'node-cradle':return say('槽口与行囊里的森林碎片相符，但关联的结构还没有校准。碎片没有插入或消耗；本轮不执行同步，也不增加词语掌握、MP 或施法资格。');
+      case 'node-allocation':return say('配水台的三路分别标着聚落、湿地和旧商路。先前修好的两路只是局部供水，不能代表全域分配完成。碎片同步和正式配水交互尚未实现，暂时不能选择，也没有“兼顾一切”的选项。');
+      case 'node-exit':return say('这是通往聚落的旧门，正式的地下结局和交接还没有完成。先从左边返回湿地，再沿检修渠和永久梯回村；不会在这里跳过第一章结局。');
       case 'mill-road': this.travel('mill', 100); return say('旧水渠通向东边工坊。');
       case 'hermit-road':
         if (!this.has('route')) return say('西侧小径没留下清楚的路标。先问问工务人这里住着谁。');
@@ -595,6 +709,12 @@ export class ForestEpisode {
         return say('转动手柄，沿检修连杆打开水箱出口，已有水流向虹吸接水槽。没有生成额外水、不消耗 MP，也不算词语掌握。关闭面板观察水位。');
       }
       case 'return':
+        if(this.physical.place==='order-node'){
+          this.travel('wetland',528);return say('回到空出的浅滩。成年动物和幼体的位置保持不变，档案记录留在日志里。');
+        }
+        if(this.physical.place==='wetland'){
+          this.travel('return-channel',450);return say('回到分流检修渠。迁徙进度保留，离开现场时不会自动推进。');
+        }
         if(this.physical.place==='return-channel'){
           this.travel('cistern',266);this.physical.player={x:266,y:114,velocityX:0,velocityY:0,grounded:true};
           return say('沿原检修路回到蓄水室顶层。回流渠的水量与维修状态原样保留；这里不是正式的地下剧情出口。');
@@ -699,6 +819,29 @@ export class ForestEpisode {
       validateMillTailrace(p.tailrace, p.mill.escaped, p.mill.tick);
     }
     const scene = EPISODE_SCENES[p.place];
+    const migrationDeps:Partial<Record<MigrationFlag,MigrationFlag[]>>={seen:['entered'],nest:['seen'],young:['nest'],
+      cleared:['young'],resolved:['cleared'],node_entered:['resolved'],archive:['node_entered']};
+    for(const f of MIGRATION_FLAGS)if(this.hasMigration(f)&&(!this.truth.receiptIndex['forest.episode.migration.'+f]||
+      migrationDeps[f]?.some(d=>!this.hasMigration(d))))throw Error('湿地调查凭证不一致');
+    if(this.hasMigration('entered')!==!!p.migration||p.migration&&!this.hasFlow('restored')||
+      (p.place==='wetland'||p.place==='order-node')&&!p.migration||p.place==='order-node'&&!this.hasMigration('node_entered'))
+      throw Error('湿地入口状态不一致');
+    if(p.migration){
+      validateWetlandMigration(p.migration,this.migrationControls);
+      for(const young of [false,true]){
+        const life=this.truth.lifeCorpseLedger.lives[this.migrationIdentity(young)];
+        if(!life||life.regionSaveId!==this.session.sessionId||life.regionId!==MIGRATION_REGION||
+          life.entityId!==(young?'return_wetland.large_creature.young':forestChapter.largeCreature.entityId)||
+          life.species!=='large_semiaquatic_nester'||life.ageClass!==(young?'juvenile':'adult'))
+          throw Error('湿地生物生命身份不一致');
+      }
+      const regional=(id:string)=>this.truth.world.flags['region:'+MIGRATION_REGION+':'+id]?.value;
+      if(!this.hasMigration('resolved')&&migrationSettled(p.migration)||
+        this.hasMigration('resolved')&&(p.migration.adultX!==MIGRATION.adultEnd||p.migration.youngX!==MIGRATION.youngEnd)||
+        this.hasMigration('resolved')&&(regional(forestChapter.largeCreature.resolutionEventId)!==true||
+          regional('forest_large_creature_resolution')!=='migration_restored'||this.truth.quests.ch01_large_creature_crisis?.stageId!=='completed'))
+        throw Error('湿地迁徙结果与现场不一致');
+    }
     const roomDeps:Partial<Record<RoomFlag,RoomFlag[]>>={echo:['entered'],valve_seen:['entered'],valve_tool:['valve_seen'],valve_filled:['valve_seen'],upper_seen:['valve_filled'],
       siphon_left:['upper_seen'],siphon_right:['upper_seen'],siphon_tool:['upper_seen'],siphon_primed:['upper_seen'],
       lift_open:['siphon_primed'],lift_arrived:['lift_open'],return_open:['lift_arrived'],exited:['return_open'],reported:['exited']};

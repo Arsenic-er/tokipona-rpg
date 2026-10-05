@@ -54,7 +54,8 @@ test('return channel: real split flow, paused repair restore, backtracking and p
   writeFileSync(resolve(dir,'browser-restored.json'),JSON.stringify(restored));
   expect(resources(restored)).toEqual(resources(before));expect(restored.session.state.quests.ch01_return_flow.stageId).toBe('completed');
   expect(restored.session.state.world.flags['global:prologue_return_observed']?.value).not.toBe(true);
-  await use(p,456,'通向地下的旧渠口');await expect(p.locator('.ep-talk')).toContainText('尚未实现');await close(p);
+  await use(p,456,'通向地下的旧渠口');await expect(canvas(p)).toHaveAttribute('data-place','wetland');
+  await use(p,34,'返回回流检修渠');await expect(canvas(p)).toHaveAttribute('data-place','return-channel');
   await use(p,26,'返回蓄水室顶层');await expect(canvas(p)).toHaveAttribute('data-place','cistern');await visible(p);
   const water=(await saved(p)).physical.returnFlow;await use(p,266,'沿回流道返回工坊');await use(p,54,'返回聚落');
   await use(p,344,'工务人');await expect(p.locator('.ep-talk')).toContainText('公共水口');await close(p);

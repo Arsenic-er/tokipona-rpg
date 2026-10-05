@@ -142,7 +142,7 @@ export class ForestMap {
   private drawWorld(): void {
     const ctx = this.map.getContext('2d')!, w = this.map.width, h = this.map.height;
     ctx.fillStyle = '#08110e'; ctx.fillRect(0, 0, w, h);
-    const narrow = w < 600, designW = narrow ? 400 : 960, designH = narrow ? 560 : 400;
+    const narrow = w < 600, designW = narrow ? 400 : 960, designH = narrow ? 690 : 500;
     const fit = Math.min(w / designW, h / designH);
     ctx.save(); ctx.translate((w - designW * fit) / 2, (h - designH * fit) / 2); ctx.scale(fit, fit);
     if (narrow) {
@@ -152,11 +152,11 @@ export class ForestMap {
     }
     ctx.fillStyle = '#778b66'; ctx.font = '18px system-ui'; ctx.fillText('森 林', 60, 63);
     const nodes: Record<MapArea, [number, number]> = narrow
-      ? { opening: [70, 254], settlement: [203, 185], mill: [323, 267], hermit: [156, 97], 'cistern-entry': [313, 355], cistern:[180,428], 'return-channel':[63,356] }
-      : { opening: [140, 249], settlement: [416, 196], mill: [663, 220], hermit: [244, 105], 'cistern-entry': [663, 319],cistern:[465,319], 'return-channel':[245,336] };
+      ? { opening: [70, 254], settlement: [203, 185], mill: [323, 267], hermit: [156, 97], 'cistern-entry': [313, 355], cistern:[230,433], 'return-channel':[76,389],wetland:[75,482],'order-node':[230,545] }
+      : { opening: [140, 249], settlement: [416, 196], mill: [663, 220], hermit: [244, 105], 'cistern-entry': [663, 319],cistern:[465,319], 'return-channel':[245,336],wetland:[245,434],'order-node':[466,434] };
     const edges: [MapArea, MapArea][] = [['opening', 'settlement'], ['settlement', 'mill'], ['settlement', 'hermit'], ['mill', 'cistern-entry'],['cistern-entry','cistern']];
     if(this.options.returnShortcut?.())edges.push(['cistern','mill']);
-    edges.push(['cistern','return-channel']);
+    edges.push(['cistern','return-channel'],['return-channel','wetland'],['wetland','order-node']);
     ctx.lineWidth = 2; ctx.strokeStyle = '#69745b';
     for (const [from, to] of edges) if (this.knowledge.visited(from) && this.knowledge.visited(to)) {
       ctx.beginPath(); ctx.moveTo(...nodes[from]); ctx.lineTo(...nodes[to]); ctx.stroke();
@@ -169,7 +169,7 @@ export class ForestMap {
         ctx.fillStyle = '#020504'; ctx.beginPath(); ctx.moveTo(x - half, y - 17); ctx.lineTo(x - half + 16, y - 29); ctx.lineTo(x + half - 8, y - 24); ctx.lineTo(x + half, y + 16); ctx.lineTo(x + half - 21, y + 36); ctx.lineTo(x - half + 5, y + 25); ctx.closePath(); ctx.fill();
         ctx.fillStyle = '#788675'; ctx.fillText('未探索', x, y + 5); continue;
       }
-      for (let tree = 0; area !== 'cistern-entry' && area!=='cistern' && tree < 5; tree++) {
+      for (let tree = 0; area !== 'cistern-entry' && area!=='cistern' && area!=='order-node' && tree < 5; tree++) {
         const tx = x - 65 + tree * 30, ty = y - 43 + tree % 2 * 8;
         ctx.fillStyle = '#3f5940'; ctx.beginPath(); ctx.moveTo(tx, ty - 11); ctx.lineTo(tx - 7, ty + 4); ctx.lineTo(tx + 7, ty + 4); ctx.fill(); ctx.fillStyle = '#4e523c'; ctx.fillRect(tx - 1, ty + 4, 2, 6);
       }
@@ -178,8 +178,8 @@ export class ForestMap {
       ctx.fillStyle = '#122019'; ctx.fillRect(x - 65, y + 7, 130, 21); ctx.fillStyle = '#e0d3ac'; ctx.fillText(MAP_AREAS[area].label, x, y + 23);
       if (area === this.area) { ctx.fillStyle = '#edc777'; ctx.fillText('◆ 你在这里', x, y + 44); }
     }
-    const px = narrow ? 105 : 870, py = narrow ? 507 : 175;
+    const px = narrow ? 105 : 870, py = narrow ? 629 : 175;
     ctx.fillStyle = '#101813'; ctx.fillRect(px - 75, py - 32, 149, 88); ctx.fillStyle = '#909982'; ctx.fillText('平原方向', px, py); ctx.fillStyle = '#818b78'; ctx.fillText('后续区域 · 未开放', px, py + 27);
-    ctx.font = '13px system-ui'; ctx.fillText('其余世界尚未绘制', narrow ? 200 : 823, narrow ? 552 : 351); ctx.restore();
+    ctx.font = '13px system-ui'; ctx.fillText('其余世界尚未绘制', narrow ? 200 : 823, narrow ? 686 : 351); ctx.restore();
   }
 }

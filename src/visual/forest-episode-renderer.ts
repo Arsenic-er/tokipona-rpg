@@ -1,4 +1,5 @@
 import { ForestEpisode } from '../game/forest-episode';
+import { migrationBody, wetlandGround, orderNodeSolid } from '../world/forest-wetland-migration';
 import { RETURN_CHANNEL_PORTS, returnChannelControls, returnChannelRates } from '../world/forest-return-channel';
 import type { ForestCameraState } from '../runtime/forest-camera';
 import type { ForestOpeningPublicView } from './forest-opening-view';
@@ -34,7 +35,7 @@ export class ForestEpisodeRenderer {
     const p = game.state;
     ctx.imageSmoothingEnabled = false;
     ctx.fillStyle = '#1c2a29'; ctx.fillRect(0, 0, camera.width, camera.height);
-    if (p.place !== 'cistern-entry'&&p.place!=='cistern') {
+    if (p.place !== 'cistern-entry'&&p.place!=='cistern'&&p.place!=='order-node') {
       if (this.backdrop) drawLocalForestBackdrop(ctx, camera, this.backdrop);
       else drawForestOpeningBackdrop(ctx, camera, 360);
       ctx.fillStyle = 'rgba(19,32,30,.24)'; ctx.fillRect(0, 0, camera.width, camera.height);
@@ -80,6 +81,22 @@ export class ForestEpisodeRenderer {
       this.rock(ctx, 961, doorFloor - 34, 5, 35); this.rock(ctx, 991, doorFloor - 34, 5, 35);
       this.rock(ctx, 965, doorFloor - 35, 27, 5);
       this.timber(ctx, 968, doorFloor - 25, 3, 24); this.timber(ctx, 987, doorFloor - 25, 3, 24);
+    } else if(p.place==='wetland'){
+      // Open, low wetland banks. Reeds are background habitat; the shared ground is the walkable surface.
+      for(let x=290;x<755;x+=17){
+        const y=wetlandGround(x),h=13+(x*13%19);
+        ctx.fillStyle='#425944';ctx.fillRect(x,y-h,1,h);ctx.fillRect(x+3,y-h+6,1,h-6);
+        ctx.fillStyle='#727254';ctx.fillRect(x-1,y-h-3,3,5);
+      }
+      ctx.fillStyle='#293e3a';ctx.fillRect(326,362,258,6);
+    } else if(p.place==='order-node'){
+      for(const x of [56,144,232,320,408]){
+        this.rock(ctx,x,64,5,272);this.rock(ctx,x,92,60,5);
+      }
+      ctx.fillStyle='#111e1c';ctx.fillRect(239,242,39,88);ctx.fillRect(292,305,26,31);
+      ctx.fillStyle='#867f61';ctx.fillRect(248,284,19,2);ctx.fillRect(248,290,14,1);ctx.fillRect(248,297,22,1);
+      this.rock(ctx,298,321,16,15);this.rock(ctx,342,307,23,29);
+      this.timber(ctx,405,296,23,40);this.timber(ctx,403,310,27,4);
     } else if(p.place==='return-channel'){
       // Recessed inspection channels above a dry, continuous maintenance walkway.
       this.rock(ctx,65,180,353,191);
@@ -131,6 +148,7 @@ export class ForestEpisodeRenderer {
     if (p.place === 'cistern-entry') { this.cisternEntryProps(ctx, game); this.cisternWindow(ctx, game, windowPlan); }
     if(p.place==='cistern')this.cisternRoom(ctx,game,windowPlan);
     if(p.place==='return-channel')this.returnChannel(ctx,game);
+    if(p.place==='wetland')this.wetland(ctx,game);
     if (p.place === 'mill' && p.tailrace) {
       for (const i of p.tailrace.drops) {
         const x = MILL_TAILRACE.x + i % MILL_TAILRACE.width, y = MILL_TAILRACE.y + Math.floor(i / MILL_TAILRACE.width);
@@ -163,6 +181,15 @@ export class ForestEpisodeRenderer {
     }
   }
   private makeGround(game: ForestEpisode): HTMLCanvasElement {
+    if(game.state.place==='order-node'){
+      const c=document.createElement('canvas');c.width=448;c.height=352;
+      const target=c.getContext('2d')!,im=target.createImageData(c.width,c.height);
+      for(let y=0;y<c.height;y++)for(let x=0;x<c.width;x++)if(orderNodeSolid(x,y)){
+        const rgb=forestMaterialColor(M.stone,x,y,{top:y===336?1:0,side:x===5||x===442,bottom:y===63});
+        const shade=y<48?.45:1;im.data.set([rgb[0]*shade,rgb[1]*shade,rgb[2]*shade,255],(y*c.width+x)*4);
+      }
+      target.putImageData(im,0,0);return c;
+    }
     if(game.state.place==='cistern'){
       const c=document.createElement('canvas');c.width=480;c.height=768;
       const target=c.getContext('2d')!,im=target.createImageData(480,768);
@@ -204,6 +231,35 @@ export class ForestEpisodeRenderer {
       }
     }
     ctx.putImageData(image, 0, 0); return c;
+  }
+  private wetland(ctx:CanvasRenderingContext2D,game:ForestEpisode):void{
+    const s=game.state.migration!;
+    // Damp nest, small tracks, rope and displaced log are stable native-pixel landmarks.
+    for(let i=0;i<18;i++){ctx.fillStyle=i%3?'#706346':'#4c4d34';ctx.fillRect(136+i,350-i%3,2,1);}
+    for(let x=198;x<234;x+=7){ctx.fillStyle='#a18e68';ctx.fillRect(x,wetlandGround(x)-1,2,1);}
+    this.timber(ctx,247,wetlandGround(252)-13,4,13);
+    ctx.strokeStyle='#8b7d58';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(250,wetlandGround(252)-8);
+    ctx.lineTo(493,game.hasMigration('cleared')?380:363);ctx.stroke();
+    this.timber(ctx,483,game.hasMigration('cleared')?376:358,42,7);
+    const y=wetlandGround(540);
+    ctx.fillStyle='#101d1b';ctx.fillRect(528,y-30,25,30);
+    this.rock(ctx,524,y-34,5,34);this.rock(ctx,553,y-34,5,34);this.rock(ctx,528,y-35,25,5);
+    const controls=game.migrationControls;
+    for(const young of [false,true]){
+      if(young?!controls.youngAlive:!controls.adultAlive)continue;
+      const b=migrationBody(young?s.youngX:s.adultX,young),x=Math.floor(b.x),foot=Math.floor(b.y+b.height);
+      const w=b.width,h=b.height,moving=s.mode==='fleeing';
+      const stride=moving?Math.round(Math.sin(s.age*.14+(young?1:0))*2):0;
+      ctx.fillStyle=young?'#776c4e':'#555d49';
+      ctx.fillRect(x+3,foot-h+2,w-7,h-5);ctx.fillRect(x+6,foot-h,w-14,2);
+      ctx.fillStyle=young?'#918063':'#73765a';ctx.fillRect(x+6,foot-h+2,w-16,2);
+      ctx.fillStyle=young?'#655a41':'#424c3b';ctx.fillRect(x+w-8,foot-h+3,8,young?5:9);
+      // Broad tail and two distinct feet; warning tail slap stays inside the same ground envelope.
+      ctx.fillRect(x,foot-5-(s.mode==='warning'&&s.age%40<12?2:0),young?4:9,3);
+      ctx.fillStyle='#262f29';ctx.fillRect(x+5+stride,foot-3,young?3:5,3);
+      ctx.fillRect(x+w-9-stride,foot-3,young?3:5,3);
+      ctx.fillStyle='#b5a26e';ctx.fillRect(x+w-3,foot-h+4,1,1);
+    }
   }
   private makeCisternEntryGround(): HTMLCanvasElement {
     const c = document.createElement('canvas'); c.width = 1024; c.height = 480;

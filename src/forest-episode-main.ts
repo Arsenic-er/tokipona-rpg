@@ -1,5 +1,6 @@
 import { hasMillValley } from './world/forest-mill-terrain';
 import { returnChannelMapMaterial } from './world/forest-return-channel';
+import { wetlandMapMaterial, orderNodeSolid } from './world/forest-wetland-migration';
 import { ForestEpisode, EPISODE_SAVE_KEY, OPENING_SAVE_KEY, EPISODE_PLACES, episodeBounds, type EpisodeResult, type EpisodeTarget } from './game/forest-episode';
 import { BrowserForestOpeningPersistence } from './persistence/browser-forest-opening-persistence';
 import { initializeForestCamera, advanceForestCamera, type RuntimeForestCameraContract } from './runtime/forest-camera';
@@ -167,6 +168,8 @@ function updateMap(): void {
     (x, y) => {
       if (place === 'cistern-entry') return cisternEntrySolid(x, y, game.has('entry_open')) ? 4 : 0;
       if(place==='cistern')return game.roomSolidAt(x,y)?4:0;
+      if(place==='wetland')return wetlandMapMaterial(x,y);
+      if(place==='order-node')return orderNodeSolid(x,y)?4:0;
       if(place==='return-channel')return returnChannelMapMaterial(game.state.returnFlow,game.flowControls,x,y)??(y>=game.groundAt(x)?2:0);
       const lx = x - (place === 'mill' ? 500 : 620), ly = y - (place === 'mill' ? 259 : 280);
       if (place !== 'settlement' && lx >= 0 && lx < 160 && ly >= 0 && ly < 48) {
@@ -206,7 +209,10 @@ function notes(): string {
     game.hasRoom('return_open') ? '永久捷径 · 顶层中间出口通往工坊回流道，工坊可沿梯回访顶层。上层水路已可用；碎片、MP 和已有奖励不变。' : '',
     game.hasFlow('entered') ? '回流湿地 · 顶层支渠可往返。先读检修牌，再扶闸、补密封、清导管；自然水实际穿过两路渠道，关闭面板才能继续流动。' : '',
     game.hasFlow('restored') ? '持续变化 · 聚落与湿地供水已经修复，回村可见公共水口通水；材料补丁和维修结果永久保存，普通水粒离开场景时冻结。' : '',
-    game.hasFlow('observed') ? '水量回看 · 已查看两路标尺。这是局部观察，不是正式回访资格；地下秩序节点、wawa 教学和旧矿道仍未开放。' : '',
+    game.hasFlow('observed') ? '水量回看 · 已查看两路标尺。这是局部观察，不是正式回访资格；旧渠口通往湿地迁徙浅滩。地下秩序节点的同步、wawa 教学和旧矿道仍未开放。' : '',
+    game.hasMigration('nest') ? '迁徙危机 · 回水浸湿了旧巢；成年动物需要带幼体去高岸。拍尾是警告。看过幼体足迹后，可用岸上牵引绳移开倒木，再退回左岸观察处让路。' : '',
+    game.hasMigration('resolved') ? '和平处理 · 成年动物和幼体已实际走到右岸苇地，生命身份和位置保存。没有击杀、掉落、报酬或语言掌握奖励。地下档案入口可进入，仍能沿原检修路回村。' : '',
+    game.hasMigration('archive') ? '旱季档案 · 部分居民和议事者改渠保住聚落饮水与庄稼，把缺水代价转移到湿地和下游，随后因担心追责与索赔隐瞒记录。损坏的系统不能同时满足三路需求。碎片未消耗；同步、最终配水和第一章结局尚未开放。' : '',
     game.hasRoom('reported') ? '工务人交接 · 已说明水路变化，不重复领取报酬。旧矿道仍需后续安全调查，当前未开放。' : '',
     game.has('finished') ? '已领取 · 8 枚钱、一晚床位。小节完成，可继续回访地上地点，或从工坊进入地下检修入口。' : ''];
   return `${game.objective}\n\n${items.filter(Boolean).join('\n\n')}`;
@@ -233,6 +239,8 @@ function updateHud(): void {
   canvas.dataset.objective = game.objective;
   canvas.dataset.ready = String(ready);
   canvas.dataset.returnFlow = game.hasFlow('restored')?'restored':game.hasFlow('entered')?'repairing':'locked';
+  canvas.dataset.migration = game.state.migration?.mode??'unvisited';
+  canvas.dataset.migrationResolved = String(game.hasMigration('resolved'));
   // Read-only projections for accessibility and tests; no command/debug mutation interface.
   canvas.dataset.completed = String(game.has('finished'));
 }

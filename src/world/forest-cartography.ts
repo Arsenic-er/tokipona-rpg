@@ -10,6 +10,8 @@ export const MAP_AREAS = {
   'cistern-entry': { label: '蓄水廊检修入口', width: 1024, height: 480 },
   cistern: {label:'高位蓄水室',width:480,height:768},
   'return-channel': {label:'回流湿地检修渠',width:480,height:416},
+  wetland: {label:'湿地迁徙浅滩',width:768,height:480},
+  'order-node': {label:'地下档案前厅',width:448,height:352},
 } as const;
 export type MapArea = keyof typeof MAP_AREAS;
 export type MapPoint = Readonly<{ x: number; y: number }>;
