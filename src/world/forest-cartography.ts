@@ -9,6 +9,7 @@ export const MAP_AREAS = {
   hermit: { label: '隐士林地', width: 1024, height: 480 },
   'cistern-entry': { label: '蓄水廊检修入口', width: 1024, height: 480 },
   cistern: {label:'高位蓄水室',width:480,height:768},
+  'return-channel': {label:'回流湿地检修渠',width:480,height:416},
 } as const;
 export type MapArea = keyof typeof MAP_AREAS;
 export type MapPoint = Readonly<{ x: number; y: number }>;

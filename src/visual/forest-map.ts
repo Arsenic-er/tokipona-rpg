@@ -152,10 +152,11 @@ export class ForestMap {
     }
     ctx.fillStyle = '#778b66'; ctx.font = '18px system-ui'; ctx.fillText('森 林', 60, 63);
     const nodes: Record<MapArea, [number, number]> = narrow
-      ? { opening: [70, 254], settlement: [203, 185], mill: [323, 267], hermit: [156, 97], 'cistern-entry': [313, 355], cistern:[180,428] }
-      : { opening: [140, 249], settlement: [416, 196], mill: [663, 220], hermit: [244, 105], 'cistern-entry': [663, 319],cistern:[465,319] };
+      ? { opening: [70, 254], settlement: [203, 185], mill: [323, 267], hermit: [156, 97], 'cistern-entry': [313, 355], cistern:[180,428], 'return-channel':[63,356] }
+      : { opening: [140, 249], settlement: [416, 196], mill: [663, 220], hermit: [244, 105], 'cistern-entry': [663, 319],cistern:[465,319], 'return-channel':[245,336] };
     const edges: [MapArea, MapArea][] = [['opening', 'settlement'], ['settlement', 'mill'], ['settlement', 'hermit'], ['mill', 'cistern-entry'],['cistern-entry','cistern']];
     if(this.options.returnShortcut?.())edges.push(['cistern','mill']);
+    edges.push(['cistern','return-channel']);
     ctx.lineWidth = 2; ctx.strokeStyle = '#69745b';
     for (const [from, to] of edges) if (this.knowledge.visited(from) && this.knowledge.visited(to)) {
       ctx.beginPath(); ctx.moveTo(...nodes[from]); ctx.lineTo(...nodes[to]); ctx.stroke();

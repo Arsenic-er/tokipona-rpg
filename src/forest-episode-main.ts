@@ -1,4 +1,5 @@
 import { hasMillValley } from './world/forest-mill-terrain';
+import { returnChannelMapMaterial } from './world/forest-return-channel';
 import { ForestEpisode, EPISODE_SAVE_KEY, OPENING_SAVE_KEY, EPISODE_PLACES, episodeBounds, type EpisodeResult, type EpisodeTarget } from './game/forest-episode';
 import { BrowserForestOpeningPersistence } from './persistence/browser-forest-opening-persistence';
 import { initializeForestCamera, advanceForestCamera, type RuntimeForestCameraContract } from './runtime/forest-camera';
@@ -166,6 +167,7 @@ function updateMap(): void {
     (x, y) => {
       if (place === 'cistern-entry') return cisternEntrySolid(x, y, game.has('entry_open')) ? 4 : 0;
       if(place==='cistern')return game.roomSolidAt(x,y)?4:0;
+      if(place==='return-channel')return returnChannelMapMaterial(game.state.returnFlow,game.flowControls,x,y)??(y>=game.groundAt(x)?2:0);
       const lx = x - (place === 'mill' ? 500 : 620), ly = y - (place === 'mill' ? 259 : 280);
       if (place !== 'settlement' && lx >= 0 && lx < 160 && ly >= 0 && ly < 48) {
         if (episodeWaterSolid(lx, ly, controls)) return place === 'mill' ? 5 : 4;
@@ -202,6 +204,9 @@ function notes(): string {
     game.hasRoom('siphon_primed') ? '虹吸已通水 · 接水槽实际达到刻度，右侧下站可启用水力升降机；也可沿原检修梯返回。' : '',
     game.hasRoom('lift_arrived') ? '顶层停靠 · 检查点已保存，不恢复 MP。升降机可双向乘坐；平台不在时先呼叫，靠站后再按 E。左侧绞盘控制回流道永久梯。' : '',
     game.hasRoom('return_open') ? '永久捷径 · 顶层中间出口通往工坊回流道，工坊可沿梯回访顶层。上层水路已可用；碎片、MP 和已有奖励不变。' : '',
+    game.hasFlow('entered') ? '回流湿地 · 顶层支渠可往返。先读检修牌，再扶闸、补密封、清导管；自然水实际穿过两路渠道，关闭面板才能继续流动。' : '',
+    game.hasFlow('restored') ? '持续变化 · 聚落与湿地供水已经修复，回村可见公共水口通水；材料补丁和维修结果永久保存，普通水粒离开场景时冻结。' : '',
+    game.hasFlow('observed') ? '水量回看 · 已查看两路标尺。这是局部观察，不是正式回访资格；地下秩序节点、wawa 教学和旧矿道仍未开放。' : '',
     game.hasRoom('reported') ? '工务人交接 · 已说明水路变化，不重复领取报酬。旧矿道仍需后续安全调查，当前未开放。' : '',
     game.has('finished') ? '已领取 · 8 枚钱、一晚床位。小节完成，可继续回访地上地点，或从工坊进入地下检修入口。' : ''];
   return `${game.objective}\n\n${items.filter(Boolean).join('\n\n')}`;
@@ -227,6 +232,7 @@ function updateHud(): void {
   canvas.dataset.playerX = game.state.player.x.toFixed(2);
   canvas.dataset.objective = game.objective;
   canvas.dataset.ready = String(ready);
+  canvas.dataset.returnFlow = game.hasFlow('restored')?'restored':game.hasFlow('entered')?'repairing':'locked';
   // Read-only projections for accessibility and tests; no command/debug mutation interface.
   canvas.dataset.completed = String(game.has('finished'));
 }

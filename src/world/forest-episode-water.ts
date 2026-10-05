@@ -12,6 +12,8 @@ export interface EpisodeWaterControls {
   gate: boolean;
   cleared: boolean;
   plugged: boolean;
+  /** Explicitly metered upstream supply; coupled downstream channels must use zero. */
+  sourceRate?: 0 | 1 | 2;
 }
 export function emptyEpisodeWater(): EpisodeWaterState {
   return { cells: Array<number>(160 * 48).fill(0), supplied: 0, escaped: 0, tick: 0 };
@@ -40,7 +42,7 @@ export function supplyEpisodeWater(s: EpisodeWaterState, amount: number, c: Epis
 }
 export function advanceEpisodeWater(s: EpisodeWaterState, c: EpisodeWaterControls, onEscape?: (x: number) => void): number {
   const before = s.escaped;
-  if (c.kind === 'mill' && c.gate) supplyEpisodeWater(s, 2, c);
+  if (c.kind === 'mill' && c.gate) supplyEpisodeWater(s, c.sourceRate ?? 2, c);
   const moved = new Uint8Array(s.cells.length);
   for (let y = 47; y >= 0; y--) for (let scan = 0; scan < 160; scan++) {
     const x = s.tick % 2 ? 159 - scan : scan, i = y * 160 + x;

@@ -20,4 +20,10 @@ it('exports an earned maintenance-window save for cistern browser regression',()
   expect(g.hasRoom('siphon_primed')).toBe(true);expect(ForestEpisode.restore(primed).toSave()).toEqual(primed);
   const liftDir=resolve(import.meta.dirname,'../../.codex-tmp/cistern-lift');mkdirSync(liftDir,{recursive:true});
   writeFileSync(resolve(liftDir,'ready.json'),JSON.stringify(primed));
+  act(g,'lift-up');tick(g,360);act(g,'return-winch');
+  const returnDir=resolve(import.meta.dirname,'../../.codex-tmp/return-channel');mkdirSync(returnDir,{recursive:true});
+  expect(g.state.returnFlow).toBeUndefined();expect(ForestEpisode.restore(g.toSave()).toSave()).toEqual(g.toSave());
+  writeFileSync(resolve(returnDir,'top-ready.json'),JSON.stringify(g.toSave()));
+  act(g,'return-channel-road');expect(ForestEpisode.restore(g.toSave()).toSave()).toEqual(g.toSave());
+  writeFileSync(resolve(returnDir,'entry-ready.json'),JSON.stringify(g.toSave()));
 },60000);
