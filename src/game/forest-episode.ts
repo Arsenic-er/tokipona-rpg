@@ -1,4 +1,7 @@
 import { sha256Canonical, type JsonValue } from '../canonical-json';
+import { PrologueWaterwheelSession } from './prologue-waterwheel';
+import { MOTION_STUDY,MOTION_FLAGS,emptyMotionStudy,advanceMotionStudy,validateMotionStudy,motionVerified,parseMotionPrediction,
+  type MotionStudyState,type MotionFlag } from '../world/forest-motion-study';
 import { WATER_STUDY,WATER_STUDY_FLAGS,waterStudyOrigin,waterStudyEvidence,parseWaterPrediction,waterStudyReady,waterStudyArrived,
   validateWaterStudy,type WaterStudyState,type WaterStudyFlag } from './forest-water-study';
 import { readRuntimeForestChapterManifest } from '../content/runtime-forest-chapter-manifest';
@@ -147,13 +150,14 @@ interface EpisodePhysical {
   migration?:WetlandMigrationState;
   forceStudy?:ForceStudyState;
   waterStudy?:WaterStudyState;
+  motionStudy?:MotionStudyState;
   wheelSpeed: number; stableTicks: number; wheelAngle: number; casts: number; baselineCollected: number;
 }
 export interface ForestEpisodeSave {
   schema: 'tokipona.forest-waterwheel-episode.v0.1';
   openingChecksum: string; session: GameSessionSave; physical: EpisodePhysical; checksum: string;
 }
-export interface EpisodeResult { accepted: boolean; text: string; speaker?: string; choice?: 'work' | 'predict' | 'recall' | 'calibrate' | 'window' | 'calibration' | 'siphon' | 'force-recall' | 'water-recall';
+export interface EpisodeResult { accepted: boolean; text: string; speaker?: string; choice?: 'work' | 'predict' | 'recall' | 'calibrate' | 'window' | 'calibration' | 'siphon' | 'force-recall' | 'water-recall' | 'motion-recall';
   actions?: readonly { id: string; label: string }[];
   resumeWorld?: boolean;
 }
@@ -299,6 +303,66 @@ export class ForestEpisode {
   hasRoom(flag:RoomFlag):boolean{return this.truth.world.flags['global:forest.episode.room.'+flag]?.value===true;}
   hasFlow(flag:FlowFlag):boolean{return this.truth.world.flags['global:forest.episode.flow.'+flag]?.value===true;}
   hasMigration(flag:MigrationFlag):boolean{return this.truth.world.flags['global:forest.episode.migration.'+flag]?.value===true;}
+  hasMotion(flag:MotionFlag):boolean{return this.truth.world.flags['global:forest.episode.motion.'+flag]?.value===true;}
+  get motionStudyStage():MotionFlag|'unvisited'{return [...MOTION_FLAGS].reverse().find(f=>this.hasMotion(f))??'unvisited';}
+  private markMotion(flag:MotionFlag):void{
+    this.commit('motion.'+flag,[{eventId:'episode.motion.flag.'+flag,type:'world_flag_set',
+      payload:{flagId:'forest.episode.motion.'+flag,value:true,scope:'global'}}],'learning');
+  }
+  private motionCoordinator(action:'discover'|'attune'|'ground'):void{
+    const c=new PrologueWaterwheelSession(this.session);
+    const r=action==='discover'?c.discoverTawa('episode.motion.discovery'):action==='attune'?c.attuneTawa('episode.motion.attunement'):
+      c.groundTawa('episode.motion.grounding',{solutionId:'waterwheel.repair_axle',promptLevel:1,
+        predictedMotionCorrect:this.hasMotion('predicted'),worldOutcomeContribution:!!this.physical.motionStudy&&motionVerified(this.physical.motionStudy),
+        toolBypass:false,answerVisible:false});
+    if(!r.accepted)throw Error('水轮运动学习未提交：'+r.reason);
+    this.session=c.session;this.truth=this.session.snapshot();
+  }
+  private advanceMotion(flow:number,beforeAngle:number):void{
+    const p=this.physical,s=p.motionStudy!;
+    advanceMotionStudy(s,{gate:p.gate,repaired:this.has('repaired'),flow,beforeAngle,afterAngle:p.wheelAngle,
+      near:Math.abs(p.player.x+6-MOTION_STUDY.x)<=96&&Math.abs(p.player.y+7-MOTION_STUDY.y)<=80});
+    if(s.phase==='observe'&&motionVerified(s)&&!this.hasMotion('observed')){
+      if(this.truth.learning.words.tawa?.discoveryState!=='discovered')this.motionCoordinator('discover');
+      this.markMotion('observed');
+    }
+    if(s.phase==='trial'&&motionVerified(s)&&!this.hasMotion('completed')){this.motionCoordinator('ground');this.markMotion('completed');}
+  }
+  private motionInteraction(choice?:string):EpisodeResult{
+    const say=(text:string):EpisodeResult=>({accepted:true,text});
+    if(!this.has('repaired'))return say('先用原来的工具修好轮轴和水渠，之后可以自选观察，不会因维修直接学会词语。');
+    if(!this.hasMotion('entered')){
+      if(choice==='motion:observe'){
+        this.markMotion('entered');this.physical.motionStudy=emptyMotionStudy();
+        return {accepted:true,text:'留在轮旁观察活动标记与固定支架。',resumeWorld:true};
+      }
+      return {...say('旧刻槽把水轮上的活动标记，与不动的支架放在一起。可以观察这组对比；不需要施法，不会改变闸门、供水或奖励。'),
+        actions:[{id:'motion:observe',label:'观察水轮与固定支架'}]};
+    }
+    if(!this.hasMotion('observed'))return say('留在轮旁，关闭面板，看活动标记怎样绕固定轮轴移动。需要实际来水和转动；若闸门关闭，可以按原路去打开。离开观察处就暂停记录。');
+    if(this.hasMotion('completed'))return say('回忆出的 tawa 和观测吻合：活动标记沿轮缘运动，固定支架没有跟着走。这里因现场水流而顺时针转动；tawa 本身不是“顺时针”，也不是水或力度。只记一次有情境提示的理解证据，没有增加 MP、容量、报酬或攻击资格。');
+    if(!this.hasMotion('attuned')){
+      if(!this.has('debrief'))return say('你看到活动标记在移动，支架保持不动。先带石龛中的媒介去找隐士，完成第一次安全实践与复盘，再回来看旧刻槽；观测记录会保留。');
+      if(choice==='motion:attune'){
+        if(this.truth.learning.words.tawa?.attunementState!=='attuned')this.motionCoordinator('attune');
+        this.markMotion('attuned');
+      }else return {...say('旧刻槽的注音是 tawa：去、移动。活动标记位置不断改变，固定支架不动。顺时针是这座水轮的现场方向，不是这个词的固定含义。可用支架旁不可带走的普通嵌片校准媒介。'),
+        actions:[{id:'motion:attune',label:'用支架嵌片校准媒介'}]};
+    }
+    if(this.hasMotion('predicted'))return say('预测已提交。关闭面板继续观察真实来水与转动，至少看满一段稳定运动；按钮本身不算完成。不开闸、远离水轮或离开场景时不会偷偷结算。');
+    if(choice==='motion:hint')return {...say('复看注音：tawa，去、移动。标记相对固定支架改变位置；现场来水使它顺时针绕轴转动。词语表示移动，具体方向来自现场。'),
+      actions:[{id:'motion:recall',label:'收起注音，重新预测'}]};
+    if(choice?.startsWith('motion:predict:')){
+      if(parseMotionPrediction(choice)){
+        this.markMotion('predicted');this.physical.motionStudy=emptyMotionStudy('trial');
+        return {accepted:true,text:'请观察活动标记的真实运动。',resumeWorld:true};
+      }
+      return {...say('词语或运动预测还没有对应上。不扣 MP，也没有写入成功证据；可以复看后再想一想。'),choice:'motion-recall',
+        actions:[{id:'motion:hint',label:'复看运动注音'}]};
+    }
+    return {...say('回忆表示去／移动的词。按刚才看到的来水方向，活动标记接下来相对固定支架会怎样？这是有情境提示的观察练习，不是施法。'),choice:'motion-recall',
+      actions:[{id:'motion:hint',label:'复看运动注音'}]};
+  }
   hasWaterStudy(flag:WaterStudyFlag):boolean{return this.truth.world.flags['global:forest.episode.water-study.'+flag]?.value===true;}
   get waterStudyStage():WaterStudyFlag|'unvisited'{return [...WATER_STUDY_FLAGS].reverse().find(f=>this.hasWaterStudy(f))??'unvisited';}
   private markWaterStudy(flag:WaterStudyFlag,extra:SessionEventDraft[]=[]):void{
@@ -629,10 +693,12 @@ export class ForestEpisode {
       if (hasMillValley(this.terrainProfile)) p.tailrace ??= emptyMillTailrace(p.mill.escaped);
       const flow = advanceEpisodeWater(p.mill, this.controls('mill'), p.tailrace ? x => receiveMillOutflow(p.tailrace!, x) : undefined);
       if (p.tailrace) advanceMillTailrace(p.tailrace);
+      const beforeAngle=p.wheelAngle;
       p.wheelSpeed += ((flow > 0 ? 1 : 0) - p.wheelSpeed) * 0.025;
       p.wheelAngle = (p.wheelAngle + p.wheelSpeed * 0.04) % (Math.PI * 2);
       p.stableTicks = this.has('brace') && this.has('cleared') && p.wheelSpeed > 0.08 ? Math.min(180, p.stableTicks + 1) : 0;
       if (p.stableTicks >= 180 && !this.has('repaired')) this.mark('repaired');
+      if(p.motionStudy)this.advanceMotion(flow,beforeAngle);
     }
     if (p.place === 'hermit') {
       advanceEpisodeWater(p.practice, this.controls('practice'));
@@ -873,6 +939,9 @@ export class ForestEpisode {
         if (!this.has('timber')) this.mark('timber');
         return say(this.has('brace') ? '木撑已经装好，不需要搬更多木料。' : '你拿起一根合适的木撑。把它送到右边水轮的支架处。');
       case 'brace':
+        if(choice?.startsWith('motion:'))return this.motionInteraction(choice);
+        if(this.has('repaired'))return {...say('木撑和轮轴仍然稳固，不必再次维修。支架旁留下了一组关于运动的刻槽。'),
+          actions:[{id:'motion:open',label:this.hasMotion('entered')?'继续水轮观察':'查看水轮运动刻槽'}]};
         if (!this.has('timber')) return say('轮轴歪了。先去左侧木料架拿一根木撑。');
         if (!this.has('brace')) this.mark('brace');
         return say('木撑顶住了轮轴。现在即使有水冲击，它也不会再左右摆动。');
@@ -976,6 +1045,20 @@ export class ForestEpisode {
         this.hasWaterStudy('completed')&&!this.truth.learning.words.telo?.evidence.some(e=>e.eventId==='episode.water-study.completed'&&
           e.eventType==='grounding_trial_resolved'&&e.sourceObjectClass===WATER_STUDY.source&&e.promptLevel===1&&e.answerVisible===false))
         throw Error('水槽复习的水量与学习记录不一致');
+    }
+    for(const [i,f] of MOTION_FLAGS.entries())if(this.hasMotion(f)&&(!this.truth.receiptIndex['forest.episode.motion.'+f]||
+      i>0&&!this.hasMotion(MOTION_FLAGS[i-1]!)))throw Error('水轮运动学习顺序无效');
+    if(this.hasMotion('entered')!==!!p.motionStudy||this.hasMotion('entered')&&!this.has('repaired')||
+      this.hasMotion('attuned')&&!this.has('debrief'))throw Error('水轮运动学习入口无效');
+    if(p.motionStudy){
+      validateMotionStudy(p.motionStudy);const w=this.truth.learning.words.tawa;
+      if(this.hasMotion('observed')&&w?.discoveryState!=='discovered'||this.hasMotion('attuned')&&w?.attunementState!=='attuned'||
+        this.hasMotion('predicted')!==(p.motionStudy.phase==='trial')||
+        p.motionStudy.phase==='observe'&&this.hasMotion('observed')!==motionVerified(p.motionStudy)||
+        p.motionStudy.phase==='trial'&&this.hasMotion('completed')!==motionVerified(p.motionStudy)||
+        this.hasMotion('completed')&&!w?.evidence.some(e=>e.eventId==='infrastructure.tawa.grounding.episode.motion.grounding'&&
+          e.eventType==='grounding_trial_resolved'&&e.taskFamilyId==='infrastructure_flow'&&e.promptLevel===1&&e.answerVisible===false))
+        throw Error('水轮运动与理解证据不一致');
     }
     const scene = EPISODE_SCENES[p.place];
     for(const [i,f] of FORCE_FLAGS.entries())if(this.hasForce(f)&&(!this.truth.receiptIndex['forest.episode.force.'+f]||

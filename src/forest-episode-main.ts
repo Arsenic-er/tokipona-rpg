@@ -115,6 +115,13 @@ function renderResult(result: EpisodeResult, target: EpisodeTarget): void {
     button('停在空中，不再受重力影响', () => choose('hover'));
   }
   if (result.choice==='calibrate') button('尝试两词校准',()=>choose('calibrate'));
+  if(result.choice==='motion-recall'){
+    const label=document.createElement('label'),input=document.createElement('input');
+    label.textContent='回忆去或移动的词';input.setAttribute('aria-label',label.textContent);input.maxLength=24;
+    input.autocomplete='off';input.spellcheck=false;input.setAttribute('autocapitalize','off');label.append(input);actions.append(label);
+    for(const [prediction,text] of [['clockwise','沿轮缘顺时针移动'],['still','相对支架保持不动'],['counterclockwise','沿轮缘逆时针移动']] as const)
+      button(text,()=>choose('motion:predict:'+input.value.trim()+':'+prediction));
+  }
   if(result.choice==='water-recall'){
     const label=document.createElement('label'),input=document.createElement('input');
     label.textContent='回忆水或液体的词';input.setAttribute('aria-label',label.textContent);input.maxLength=24;
@@ -205,6 +212,8 @@ function notes(): string {
     game.has('repaired') ? '木撑、清淤、引水：水轮经过连续稳定运行确认。' : '水轮尚未完成稳定运行确认。',
     game.has('medium') ? '行囊 · 受损古代媒介 / 森林位点碎片（永久剧情物，不出售、不丢弃）。' : '还没有取得古代媒介。',
     game.has('intro') ? '隐士见闻 · 旧文明抽取消耗维系世界秩序的能量；媒介并不等于力量源头。MP 与媒介损伤共同限制施法。' : '',
+    game.has('repaired')&&!game.hasMotion('completed') ? '运动刻槽 · 工坊水轮支架旁可观察活动标记与固定支架。隐士实践复盘后可调谐并回忆预测；不自动追认维修为学习证据。' : '',
+    game.hasMotion('completed') ? '运动理解 · tawa：去、移动。已用现场运动验证一次 H1 理解，顺时针只是该水轮的方向，不是词语固定含义；没有开放自由施法或增加 MP、容量、报酬。' : '',
     game.has('observed') ? '词语笔记 · telo：水／液体。石槽和水壶上重复出现；这只是初次接触，不是熟练掌握。' : '',
     game.has('practiced') ? '实践 · 先预测，花 2 MP 引来小量水，再用木楔补漏。水仍服从重力。这是受损媒介的单词练习；通过额外校准后可在地下引水窗尝试长度组合，尚未开放自由攻击。' : '',
     game.has('debrief')&&!game.hasWaterStudy('completed') ? '水槽复习 · 可回隐士右侧练习石槽，主动观察、调谐、收起注音后回忆并预测；确认才花 2 MP，水实际到盆才记录理解，不自动补记旧练习。' : '',
@@ -265,6 +274,7 @@ function updateHud(): void {
   canvas.dataset.migrationResolved = String(game.hasMigration('resolved'));
   canvas.dataset.forceStudy = game.hasForce('completed')?'completed':game.state.forceStudy?.run??'unvisited';
   canvas.dataset.waterStudy = game.waterStudyStage;
+  canvas.dataset.motionStudy = game.motionStudyStage;
   // Read-only projections for accessibility and tests; no command/debug mutation interface.
   canvas.dataset.completed = String(game.has('finished'));
 }

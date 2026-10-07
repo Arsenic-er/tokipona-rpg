@@ -1,5 +1,6 @@
 import { ForestEpisode } from '../game/forest-episode';
 import { FORCE_STUDY } from '../world/forest-force-study';
+import { MOTION_STUDY } from '../world/forest-motion-study';
 import { migrationBody, wetlandGround, orderNodeSolid } from '../world/forest-wetland-migration';
 import { RETURN_CHANNEL_PORTS, returnChannelControls, returnChannelRates } from '../world/forest-return-channel';
 import type { ForestCameraState } from '../runtime/forest-camera';
@@ -70,6 +71,14 @@ export class ForestEpisodeRenderer {
         ctx.restore();
       }
       this.wheel(ctx, 677, 301, p.wheelAngle, !game.has('brace'));
+      if(game.hasMotion('entered')){
+        const {x,y,radius}=MOTION_STUDY;
+        // One brass peg moves with the real wheel; the square-notched reference is fixed.
+        const px=Math.round(x+Math.cos(p.wheelAngle)*radius),py=Math.round(y+Math.sin(p.wheelAngle)*radius);
+        ctx.fillStyle='#3a3629';ctx.fillRect(px-2,py-2,5,5);ctx.fillStyle='#b2a375';ctx.fillRect(px-1,py-1,3,3);
+        this.timber(ctx,x+38,y-18,3,24);ctx.fillStyle='#b2a375';ctx.fillRect(x+36,y-19,7,5);
+        ctx.fillStyle='#3a3629';ctx.fillRect(x+38,y-18,3,3);
+      }
       this.timber(ctx, 505, 302, 5, game.groundAt(505) - 302); this.timber(ctx, 630, 302, 5, game.groundAt(630) - 302);
       this.channel(ctx, game, 'mill', 500, 259);
       this.timber(ctx, 486, game.state.gate ? 272 : 286, 11, 5);
