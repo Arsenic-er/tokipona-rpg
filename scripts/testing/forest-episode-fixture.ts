@@ -1,7 +1,7 @@
 import { PrologueForestOpeningSession } from '../../src/game/prologue-forest-opening';
 /** A genuine completed older opening, driven by movement/tool commands, not edited flags. */
-export function completedOpeningFixture(): PrologueForestOpeningSession {
-  const opening = PrologueForestOpeningSession.fresh({ sessionId: 'episode.compatibility', seed: 'episode.compatibility', physics: 'shared', currentMp: 12, maxMp: 24 });
+export function completedOpeningFixture(currentMp=12): PrologueForestOpeningSession {
+  const opening = PrologueForestOpeningSession.fresh({ sessionId: 'episode.compatibility', seed: 'episode.compatibility', physics: 'shared', currentMp, maxMp: 24 });
   const move = (x: number) => {
     let previous = -Infinity, stuck = 0;
     for (let i = 0; i < 1800; i++) {

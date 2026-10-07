@@ -1,4 +1,6 @@
 import { sha256Canonical, type JsonValue } from '../canonical-json';
+import { WATER_STUDY,WATER_STUDY_FLAGS,waterStudyOrigin,waterStudyEvidence,parseWaterPrediction,waterStudyReady,waterStudyArrived,
+  validateWaterStudy,type WaterStudyState,type WaterStudyFlag } from './forest-water-study';
 import { readRuntimeForestChapterManifest } from '../content/runtime-forest-chapter-manifest';
 import { emptyForceStudy, advanceForceStudy, forceStudyView, forceContrastVerified, forceTrialVerified,
   validateForceStudy, parseForcePrediction, type ForceStudyState } from '../world/forest-force-study';
@@ -144,13 +146,14 @@ interface EpisodePhysical {
   returnFlow?:ReturnChannelState;
   migration?:WetlandMigrationState;
   forceStudy?:ForceStudyState;
+  waterStudy?:WaterStudyState;
   wheelSpeed: number; stableTicks: number; wheelAngle: number; casts: number; baselineCollected: number;
 }
 export interface ForestEpisodeSave {
   schema: 'tokipona.forest-waterwheel-episode.v0.1';
   openingChecksum: string; session: GameSessionSave; physical: EpisodePhysical; checksum: string;
 }
-export interface EpisodeResult { accepted: boolean; text: string; speaker?: string; choice?: 'work' | 'predict' | 'recall' | 'calibrate' | 'window' | 'calibration' | 'siphon' | 'force-recall';
+export interface EpisodeResult { accepted: boolean; text: string; speaker?: string; choice?: 'work' | 'predict' | 'recall' | 'calibrate' | 'window' | 'calibration' | 'siphon' | 'force-recall' | 'water-recall';
   actions?: readonly { id: string; label: string }[];
   resumeWorld?: boolean;
 }
@@ -296,6 +299,66 @@ export class ForestEpisode {
   hasRoom(flag:RoomFlag):boolean{return this.truth.world.flags['global:forest.episode.room.'+flag]?.value===true;}
   hasFlow(flag:FlowFlag):boolean{return this.truth.world.flags['global:forest.episode.flow.'+flag]?.value===true;}
   hasMigration(flag:MigrationFlag):boolean{return this.truth.world.flags['global:forest.episode.migration.'+flag]?.value===true;}
+  hasWaterStudy(flag:WaterStudyFlag):boolean{return this.truth.world.flags['global:forest.episode.water-study.'+flag]?.value===true;}
+  get waterStudyStage():WaterStudyFlag|'unvisited'{return [...WATER_STUDY_FLAGS].reverse().find(f=>this.hasWaterStudy(f))??'unvisited';}
+  private markWaterStudy(flag:WaterStudyFlag,extra:SessionEventDraft[]=[]):void{
+    const drafts:SessionEventDraft[]=[{eventId:'episode.water-study.flag.'+flag,type:'world_flag_set',
+      payload:{flagId:'forest.episode.water-study.'+flag,value:true,scope:'global'}},...extra];
+    const word=this.truth.learning.words.telo;
+    if(flag==='seen'&&word?.discoveryState!=='discovered'||flag==='attuned'&&word?.attunementState!=='attuned'||flag==='completed'){
+      const evidence=waterStudyEvidence(flag as 'seen'|'attuned'|'completed',this.session.sessionId);
+      drafts.push({eventId:'episode.water-study.learning.'+flag,type:'learning_evidence_committed',payload:{evidence}});
+    }
+    this.commit('water-study.'+flag,drafts,'learning');
+  }
+  private waterStudyInteraction(choice?:string):EpisodeResult{
+    const say=(text:string):EpisodeResult=>({accepted:true,text,speaker:'隐士'});
+    if(!this.has('debrief')||!this.has('practiced'))return say('先完成原来的安全练习，和我复盘，再来试可选的回忆练习。');
+    if(!this.hasWaterStudy('seen')){
+      if(choice==='water:observe'){
+        if(!waterStudyReady(this.physical.practice))return say('先让上次的水沿槽流完，再观察接水盆；不会清空原来的水。');
+        this.markWaterStudy('seen');
+      }else return {...say('想确认自己记住了什么，可以再观察石槽里的水与壶上的注音。旧练习仍然保留，这次不会自动发放奖励。'),
+        actions:[{id:'water:observe',label:'重新观察水与注音'}]};
+    }
+    if(this.hasWaterStudy('completed'))return say('你回忆了 telo（水／液体），预测并显化的一份水已真正到达接水盆。记下一次有情境提示的理解证据，不等于熟练掌握；没有再提高 MP、容量或报酬。');
+    if(!this.hasWaterStudy('attuned')){
+      if(choice==='water:attune')this.markWaterStudy('attuned');
+      else return {...say('telo 指水，也可以泛指液体；不是“让水听话”的命令。已有木楔只是修好了漏口。用这里不可带走的普通共鸣嵌片校准后，再收起注音试着回忆。'),
+        actions:[{id:'water:attune',label:'用水槽嵌片校准媒介'}]};
+    }
+    if(this.hasWaterStudy('casting'))return say('这一份水还在沿槽流动。关上面板看它到达右侧接水盆；不会再次扣 MP 或补放水。');
+    if(this.hasWaterStudy('predicted')){
+      if(choice==='water:confirm'){
+        if(!waterStudyReady(this.physical.practice))return say('先等槽内正在流动的水走完，再确认；尚未扣 MP。');
+        const mp=this.truth.mp;
+        if(mp.currentMp<WATER_STUDY.cost)return {...say('当前 MP 不足 2。可以去左侧坐垫恢复；预测保留，尚未扣费，原来的旅途不受影响。'),
+          actions:[{id:'water:confirm',label:'再次检查并确认释放（2 MP）'}]};
+        const next=structuredClone(this.physical.practice);
+        if(supplyEpisodeWater(next,WATER_STUDY.amount,this.controls('practice'))!==WATER_STUDY.amount)return say('出水位置受阻，尚未扣 MP；先观察现场。');
+        const n=this.physical.casts+1,study:WaterStudyState={version:1,baselineCollected:collectedEpisodeWater(this.physical.practice),
+          castIndex:n,startTick:this.physical.practice.tick};
+        this.commit('cast.'+n,[{eventId:'episode.cast.'+n,type:'mp_replaced',
+          payload:{mp:{...mp,currentMp:mp.currentMp-WATER_STUDY.cost,worldVersion:mp.worldVersion+1}}}],'cast');
+        this.markWaterStudy('casting',[{eventId:'episode.water-study.origin',type:'world_flag_set',
+          payload:{flagId:'forest.episode.water-study.origin',value:waterStudyOrigin(study),scope:'global'}}]);
+        // Preserve the original practice completion baseline and all previously collected water.
+        this.physical.practice=next;this.physical.casts=n;this.physical.waterStudy=study;
+        return {accepted:true,text:'释放已确认，请观察这份水实际到达接水盆。',resumeWorld:true};
+      }
+      return {...say('预测已记下。固定小量显化：2 MP、32 格水、零初速度，受重力；木楔和旧水保留。确认才扣费，也可以先离开。'),
+        actions:[{id:'water:confirm',label:'确认释放（2 MP）'}]};
+    }
+    if(choice==='water:hint')return {...say('复看注音：telo，水／液体。显化水仍受重力，会沿有木楔支撑的石槽往低处流；看提示本身不算理解成功。'),
+      actions:[{id:'water:recall',label:'收起注音，重新回忆'}]};
+    if(choice?.startsWith('water:predict:')){
+      if(parseWaterPrediction(choice)){this.markWaterStudy('predicted');return this.waterStudyInteraction();}
+      return {...say('词语或流向预测还没有对应上；没有扣 MP，也没有写入成功证据。'),choice:'water-recall',
+        actions:[{id:'water:hint',label:'复看水槽注音'}]};
+    }
+    return {...say('回忆表示水／液体的那个词，再预测：在槽左端显化一份水后，它会怎样运动？这是有情境提示的练习。'),choice:'water-recall',
+      actions:[{id:'water:hint',label:'复看水槽注音'}]};
+  }
   hasForce(flag:ForceFlag):boolean{return this.truth.world.flags['global:forest.episode.force.'+flag]?.value===true;}
   get forceView(){return this.physical.forceStudy?forceStudyView(this.physical.forceStudy):null;}
   get chapterWordNotes():string{
@@ -574,6 +637,7 @@ export class ForestEpisode {
     if (p.place === 'hermit') {
       advanceEpisodeWater(p.practice, this.controls('practice'));
       if (!this.has('practiced') && this.has('predicted') && this.has('plugged') && p.casts > 0 && collectedEpisodeWater(p.practice) >= p.baselineCollected + 12) this.mark('practiced');
+      if(p.waterStudy&&!this.hasWaterStudy('completed')&&waterStudyArrived(p.waterStudy,p.practice))this.markWaterStudy('completed');
     }
     const window=this.physical.window;
     if (p.place==='cistern-entry' && window && window.age<CISTERN_WINDOW.settleTicks) {
@@ -834,6 +898,7 @@ export class ForestEpisode {
         if (!this.has('intro')) this.mark('intro');
         return say('这是旧文明的施术媒介，裂口太深，只能承受很小的表达。旧人抽走维系秩序的能量，光暗与元素的规则便开始失衡；我只知道残留下来的这一部分。先去右边看水槽。我在水壶和槽边写下了它的读音：telo。别急着施法：先看自然水如何沿坡度流动。', '隐士');
       case 'pool': {
+        if(choice?.startsWith('water:'))return this.waterStudyInteraction(choice);
         if (!this.has('intro')) return say('石槽旁有陌生文字，先请隐士说明。');
         if (!this.has('observed')) {
           supplyEpisodeWater(this.physical.practice, 32, this.controls('practice')); this.mark('observed');
@@ -844,7 +909,8 @@ export class ForestEpisode {
           if (choice) return say('看看槽底的倾斜，还有中间的缺口。水会受重力影响，不会凭空悬停。再观察后试试，不扣 MP。', '隐士');
           return { accepted: true, speaker: '隐士', text: '如果在槽左侧引来一小团 telo，它会怎样？', choice: 'predict' };
         }
-        if (this.has('practiced')) return say('接水盆里留住了清水。回去和隐士谈谈你观察到了什么。');
+        if (this.has('practiced')) return this.has('debrief')?{...say('原练习与水都保留了。可以自选一次收起注音的回忆练习，记录这次实际学到的内容。'),
+          actions:[{id:'water:open',label:this.hasWaterStudy('seen')?'继续水槽复习':'试试水槽回忆练习'}]}:say('接水盆里留住了清水。回去和隐士谈谈你观察到了什么。');
         if (this.physical.practice.cells.some((v, i) => v === 1 && i % 160 < 137)) return say('先等这次水流走完，或去右边用木楔堵住漏口；不要连续灌水。');
         if (this.truth.mp.currentMp < 2) return say('MP 不足。回隐士旁的坐垫休息，再来练习；不用重开，也不会丢掉碎片。');
         const n = this.physical.casts + 1, mp = this.truth.mp;
@@ -897,6 +963,19 @@ export class ForestEpisode {
     if (p.tailrace !== undefined) {
       if (!hasMillValley(this.terrainProfile)) throw new Error('工坊下游地形版本不兼容');
       validateMillTailrace(p.tailrace, p.mill.escaped, p.mill.tick);
+    }
+    for(const [i,f] of WATER_STUDY_FLAGS.entries())if(this.hasWaterStudy(f)&&(!this.truth.receiptIndex['forest.episode.water-study.'+f]||
+      i>0&&!this.hasWaterStudy(WATER_STUDY_FLAGS[i-1]!)))throw Error('水槽复习的学习顺序不一致');
+    if(this.hasWaterStudy('seen')&&(!this.has('debrief')||this.truth.learning.words.telo?.discoveryState!=='discovered')||
+      this.hasWaterStudy('attuned')&&this.truth.learning.words.telo?.attunementState!=='attuned'||
+      this.hasWaterStudy('casting')!==!!p.waterStudy)throw Error('水槽复习的前置无效');
+    if(p.waterStudy){
+      validateWaterStudy(p.waterStudy,p.practice,p.casts);
+      if(this.truth.world.flags['global:forest.episode.water-study.origin']?.value!==waterStudyOrigin(p.waterStudy)||
+        this.hasWaterStudy('completed')!==waterStudyArrived(p.waterStudy,p.practice)||
+        this.hasWaterStudy('completed')&&!this.truth.learning.words.telo?.evidence.some(e=>e.eventId==='episode.water-study.completed'&&
+          e.eventType==='grounding_trial_resolved'&&e.sourceObjectClass===WATER_STUDY.source&&e.promptLevel===1&&e.answerVisible===false))
+        throw Error('水槽复习的水量与学习记录不一致');
     }
     const scene = EPISODE_SCENES[p.place];
     for(const [i,f] of FORCE_FLAGS.entries())if(this.hasForce(f)&&(!this.truth.receiptIndex['forest.episode.force.'+f]||
