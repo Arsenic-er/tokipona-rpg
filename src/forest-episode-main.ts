@@ -103,6 +103,7 @@ function save(): void {
   get('save').classList.toggle('ep-error', !saved);
 }
 function renderResult(result: EpisodeResult, target: EpisodeTarget): void {
+  if(result.resumeWorld){if(talk.open)closeDialog(talk);else{clearInput();canvas.focus();}return;}
   windowPreviewPlan=null;
   talk.querySelector('h2')!.textContent = result.speaker ?? '旅途见闻';
   talk.querySelector('p')!.textContent = result.text;
@@ -114,6 +115,15 @@ function renderResult(result: EpisodeResult, target: EpisodeTarget): void {
     button('停在空中，不再受重力影响', () => choose('hover'));
   }
   if (result.choice==='calibrate') button('尝试两词校准',()=>choose('calibrate'));
+  if(result.choice==='force-recall'){
+    const label=document.createElement('label'),input=document.createElement('input');
+    label.textContent='回忆刚才的词';input.setAttribute('aria-label',label.textContent);input.maxLength=24;
+    input.autocomplete='off';input.spellcheck=false;input.setAttribute('autocapitalize','off');
+    label.append(input);actions.append(label);
+    for(const [prediction,text] of [['more','预测偏移增大'],['less','预测偏移减小'],['reverse','预测方向反转']] as const)
+      button(text,()=>choose('force:predict:'+input.value.trim()+':'+prediction));
+  }
+  for(const action of result.actions??[])button(action.label,()=>choose(action.id));
   if (result.choice==='recall' || result.choice==='window'||result.choice==='calibration'||result.choice==='siphon') {
     const label=document.createElement('label'), input=document.createElement('input');
     label.textContent=result.choice==='recall'?'回忆那个词':'输入引水表达';
@@ -209,7 +219,10 @@ function notes(): string {
     game.hasRoom('return_open') ? '永久捷径 · 顶层中间出口通往工坊回流道，工坊可沿梯回访顶层。上层水路已可用；碎片、MP 和已有奖励不变。' : '',
     game.hasFlow('entered') ? '回流湿地 · 顶层支渠可往返。先读检修牌，再扶闸、补密封、清导管；自然水实际穿过两路渠道，关闭面板才能继续流动。' : '',
     game.hasFlow('restored') ? '持续变化 · 聚落与湿地供水已经修复，回村可见公共水口通水；材料补丁和维修结果永久保存，普通水粒离开场景时冻结。' : '',
-    game.hasFlow('observed') ? '水量回看 · 已查看两路标尺。这是局部观察，不是正式回访资格；旧渠口通往湿地迁徙浅滩。地下秩序节点的同步、wawa 教学和旧矿道仍未开放。' : '',
+    game.hasFlow('observed') ? '水量回看 · 已查看两路标尺。这是局部观察，不是正式回访资格；旧渠口通往湿地迁徙浅滩，出水口旁可以观察测力器。地下秩序节点的同步和旧矿道仍未开放。' : '',
+    game.hasForce('observed') ? '力度注音 · wawa：强、有力、能量／力量。测力器先后施加两档同方向作用，稳态偏移不同；不是尺寸、水量或方向的改变。只有主动回忆、预测并验证后才记录场景理解，修渠和动物事件不算学习证据。' : '',
+    game.hasForce('completed') ? '力度理解 · 已完成一次 H1 情境提示下的非战斗测力练习。不是无提示掌握、熟练输出或攻击解锁，没有增加 MP、容量、钱或掉落。' : '',
+    game.hasMigration('archive')||game.hasForce('entered') ? '五词学习账本 · '+game.chapterWordNotes+'。只展示真实记录，不把旧台词和工具操作补写成语言掌握；既有练习权限保持。' : '',
     game.hasMigration('nest') ? '迁徙危机 · 回水浸湿了旧巢；成年动物需要带幼体去高岸。拍尾是警告。看过幼体足迹后，可用岸上牵引绳移开倒木，再退回左岸观察处让路。' : '',
     game.hasMigration('resolved') ? '和平处理 · 成年动物和幼体已实际走到右岸苇地，生命身份和位置保存。没有击杀、掉落、报酬或语言掌握奖励。地下档案入口可进入，仍能沿原检修路回村。' : '',
     game.hasMigration('archive') ? '旱季档案 · 部分居民和议事者改渠保住聚落饮水与庄稼，把缺水代价转移到湿地和下游，随后因担心追责与索赔隐瞒记录。损坏的系统不能同时满足三路需求。碎片未消耗；同步、最终配水和第一章结局尚未开放。' : '',
@@ -241,6 +254,7 @@ function updateHud(): void {
   canvas.dataset.returnFlow = game.hasFlow('restored')?'restored':game.hasFlow('entered')?'repairing':'locked';
   canvas.dataset.migration = game.state.migration?.mode??'unvisited';
   canvas.dataset.migrationResolved = String(game.hasMigration('resolved'));
+  canvas.dataset.forceStudy = game.hasForce('completed')?'completed':game.state.forceStudy?.run??'unvisited';
   // Read-only projections for accessibility and tests; no command/debug mutation interface.
   canvas.dataset.completed = String(game.has('finished'));
 }

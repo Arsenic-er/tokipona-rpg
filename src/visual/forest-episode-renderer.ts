@@ -1,4 +1,5 @@
 import { ForestEpisode } from '../game/forest-episode';
+import { FORCE_STUDY } from '../world/forest-force-study';
 import { migrationBody, wetlandGround, orderNodeSolid } from '../world/forest-wetland-migration';
 import { RETURN_CHANNEL_PORTS, returnChannelControls, returnChannelRates } from '../world/forest-return-channel';
 import type { ForestCameraState } from '../runtime/forest-camera';
@@ -458,6 +459,19 @@ export class ForestEpisodeRenderer {
       ctx.fillRect(x,400-h,1,h);ctx.fillRect(x-2,399-h,3,3);
     }
     ctx.fillStyle=game.hasFlow('restored')?'#426c71':'#323c2b';ctx.fillRect(365,396,61,3);
+    if(game.hasFlow('restored')){
+      const {x,y,width,height}=FORCE_STUDY,v=game.forceView;
+      this.timber(ctx,x,y,width,height);ctx.fillStyle='#172521';ctx.fillRect(x+3,y+3,width-6,height-6);
+      // Guarded spring gauge: moving pin, stable reference marks, identical direction. No glow or living target.
+      for(let k=0;k<5;k++){ctx.fillStyle='#797e67';ctx.fillRect(x+8+k*7,y+16,1,3);}
+      ctx.fillStyle='#8c9879';ctx.fillRect(x+8+6,y+15,1,6);ctx.fillRect(x+8+18,y+15,1,6);
+      const offset=Math.round(v?.position??0);
+      ctx.strokeStyle='#9c9775';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(x+5,y+8);
+      for(let k=0;k<6;k++)ctx.lineTo(x+5+(3+offset)*k/5,y+8+(k%2?2:-2));ctx.stroke();
+      ctx.fillStyle='#c1b585';ctx.fillRect(x+8+offset,y+6,2,12);
+      ctx.fillStyle='#819281';ctx.fillRect(x+45,y+7,v?.phase==='high'?12:5,2);
+      ctx.fillRect(x+45,y+11,3,2);
+    }
     this.rock(ctx,450,369,5,31);this.rock(ctx,476,366,4,34);this.rock(ctx,450,365,30,5);
     ctx.fillStyle='#101d19';ctx.fillRect(455,370,20,30);this.timber(ctx,455,382,20,3);
   }

@@ -1,11 +1,13 @@
 import { sha256Canonical, type JsonValue } from '../canonical-json';
 import { readRuntimeForestChapterManifest } from '../content/runtime-forest-chapter-manifest';
+import { emptyForceStudy, advanceForceStudy, forceStudyView, forceContrastVerified, forceTrialVerified,
+  validateForceStudy, parseForcePrediction, type ForceStudyState } from '../world/forest-force-study';
 import { createWildlifeLifeRecord } from './life-corpse-ledger';
 import { createStableWildlifeLifeId } from './wildlife-state-machine';
 import { MIGRATION, WETLAND_BOUNDS, ORDER_NODE_BOUNDS, wetlandGround, emptyWetlandMigration,
   advanceWetlandMigration, validateWetlandMigration, migrationBodies, migrationSettled,
   type WetlandMigrationState } from '../world/forest-wetland-migration';
-import { PrologueReturnFlowSession, PROLOGUE_RETURN_FLOW_REGION_ID } from './prologue-return-flow';
+import { PrologueReturnFlowSession, PROLOGUE_RETURN_FLOW_REGION_ID, RETURN_FLOW_WAWA_SOURCE_OBJECT_CLASS } from './prologue-return-flow';
 import { returnFlowWorldReady } from './return-flow-predicates';
 import { RETURN_CHANNEL_BOUNDS, RETURN_CHANNEL_FLOOR, emptyReturnChannel, advanceReturnChannel, returnChannelFacts,
   returnChannelRates, validateReturnChannel, type ReturnChannelState, type ReturnChannelControls } from '../world/forest-return-channel';
@@ -98,6 +100,8 @@ const FLOW_FLAGS=['entered','inspected','gate','sealed','cleared','restored','ob
 type FlowFlag=typeof FLOW_FLAGS[number];
 const MIGRATION_FLAGS=['entered','seen','nest','young','cleared','resolved','node_entered','archive'] as const;
 type MigrationFlag=typeof MIGRATION_FLAGS[number];
+const FORCE_FLAGS=['entered','observed','attuned','predicted','completed'] as const;
+type ForceFlag=typeof FORCE_FLAGS[number];
 const MIGRATION_REGION = PROLOGUE_RETURN_FLOW_REGION_ID;
 const FLOW_SOLUTION='return_flow.repair_overflow';
 export function episodeGround(place: EpisodePlace, x: number, profile?: EpisodeTerrainProfile): number {
@@ -139,13 +143,17 @@ interface EpisodePhysical {
   lift?:CisternLiftState;
   returnFlow?:ReturnChannelState;
   migration?:WetlandMigrationState;
+  forceStudy?:ForceStudyState;
   wheelSpeed: number; stableTicks: number; wheelAngle: number; casts: number; baselineCollected: number;
 }
 export interface ForestEpisodeSave {
   schema: 'tokipona.forest-waterwheel-episode.v0.1';
   openingChecksum: string; session: GameSessionSave; physical: EpisodePhysical; checksum: string;
 }
-export interface EpisodeResult { accepted: boolean; text: string; speaker?: string; choice?: 'work' | 'predict' | 'recall' | 'calibrate' | 'window' | 'calibration' | 'siphon' }
+export interface EpisodeResult { accepted: boolean; text: string; speaker?: string; choice?: 'work' | 'predict' | 'recall' | 'calibrate' | 'window' | 'calibration' | 'siphon' | 'force-recall';
+  actions?: readonly { id: string; label: string }[];
+  resumeWorld?: boolean;
+}
 
 /** Owns ALL episode progression. UI supplies only input/target/choice, never position or completion claims. */
 export class ForestEpisode {
@@ -288,6 +296,75 @@ export class ForestEpisode {
   hasRoom(flag:RoomFlag):boolean{return this.truth.world.flags['global:forest.episode.room.'+flag]?.value===true;}
   hasFlow(flag:FlowFlag):boolean{return this.truth.world.flags['global:forest.episode.flow.'+flag]?.value===true;}
   hasMigration(flag:MigrationFlag):boolean{return this.truth.world.flags['global:forest.episode.migration.'+flag]?.value===true;}
+  hasForce(flag:ForceFlag):boolean{return this.truth.world.flags['global:forest.episode.force.'+flag]?.value===true;}
+  get forceView(){return this.physical.forceStudy?forceStudyView(this.physical.forceStudy):null;}
+  get chapterWordNotes():string{
+    return ['telo','tawa','wawa','lili','suli'].map(word=>{
+      const p=this.truth.learning.words[word];
+      const state=!p||p.discoveryState!=='discovered'?'尚未登记':
+        p.learningState==='stabilized'?'已稳定':p.learningState==='produced'?'已有表达证据':
+        p.learningState==='grounded'?'已有场景理解证据':p.attunementState==='attuned'?'已调谐，待场景练习':'已观察，待调谐';
+      return word+'：'+state;
+    }).join('；');
+  }
+  private markForce(flag:ForceFlag):void{
+    this.commit('force.'+flag,[{eventId:'episode.force.'+flag,type:'world_flag_set',
+      payload:{flagId:'forest.episode.force.'+flag,value:true,scope:'global'}}],'learning');
+  }
+  private forceCoordinator(action:'discover'|'attune'|'ground'):void{
+    const coordinator=new PrologueReturnFlowSession(this.session);
+    const result=action==='discover'?coordinator.discoverWawa('episode.force.discovery'):
+      action==='attune'?coordinator.attuneWawa('episode.force.attunement'):
+        coordinator.groundWawa('episode.force.grounding',{solutionId:FLOW_SOLUTION,promptLevel:1,
+          predictedForceContrastCorrect:this.hasForce('predicted'),
+          worldOutcomeContribution:!!this.physical.forceStudy&&forceTrialVerified(this.physical.forceStudy),answerVisible:false});
+    if(!result.accepted)throw Error('测力器学习记录未提交：'+result.reason);
+    this.session=coordinator.session;this.truth=this.session.snapshot();
+  }
+  private advanceForce():void{
+    const s=this.physical.forceStudy!;
+    advanceForceStudy(s);
+    if(s.run==='contrast'&&forceContrastVerified(s)&&!this.hasForce('observed')){
+      if(this.truth.learning.words.wawa?.discoveryState!=='discovered')this.forceCoordinator('discover');
+      this.markForce('observed');
+    }
+    if(s.run==='trial'&&forceTrialVerified(s)&&!this.hasForce('completed')){
+      this.forceCoordinator('ground');this.markForce('completed');
+    }
+  }
+  private forceInteraction(choice?:string):EpisodeResult{
+    const say=(text:string):EpisodeResult=>({accepted:true,text});
+    if(!this.hasFlow('restored'))return say('两路出水稳定后才能使用测力器，不会通过教学按钮绕过维修。');
+    if(choice==='force:observe'&&!this.hasForce('entered')){
+      this.markForce('entered');this.physical.forceStudy=emptyForceStudy();
+      return {accepted:true,text:'观察水口旁测力器的两档加载。',resumeWorld:true};
+    }
+    if(!this.hasForce('entered'))return {...say('水口旁有一套带护罩的弹簧测力器。它由已有流水驱动，依次施加两档同方向负载；不取走供水、不生成材料，也不是玩家免费施法。'),
+      actions:[{id:'force:observe',label:'观察两档加载'}]};
+    if(!this.hasForce('observed'))return say('测力器正在依次加载。关闭面板后看指针；等两档都实际稳定，再来查看旧刻槽。');
+    if(this.hasForce('completed'))return say('你回忆出的 wawa 与实际结果相符：方向不变，同一弹簧在更大作用力下偏移更大。已记录一次有情境提示的理解练习，不等于熟练掌握，不增加 MP、容量、攻击资格或报酬。这里不是“所有魔法都变大”的规则。');
+    if(choice==='force:attune'&&!this.hasForce('attuned')){
+      if(this.truth.learning.words.wawa?.attunementState!=='attuned')this.forceCoordinator('attune');
+      this.markForce('attuned');
+      return {...say('你用现场不可带走的共鸣嵌片，将媒介对准测力器旧刻槽。调谐已记录，没有回复 MP；准备好后可以回忆词语并预测。'),
+        actions:[{id:'force:recall',label:'开始回忆与预测'}]};
+    }
+    if(!this.hasForce('attuned'))return {...say('两档的方向相同，指针的稳态偏移从约 6 增至约 18。旧刻槽旁的检修注音是 wawa：强、有力、能量／力量。在这套装置里对应已有作用的强弱，不是水量、尺寸或方向，也不等于攻击。'),
+      actions:[{id:'force:attune',label:'用现场嵌片校准媒介'}]};
+    if(this.hasForce('predicted'))return say('预测已记录，测力器正在复现负载变化。关闭面板后观察实际结果；按下按钮不算完成。');
+    if(choice==='force:hint')return {...say('提示复看 · wawa：强、有力、能量／力量。这个试验只改变同一方向的作用力，不增加水量或尺寸，不倒转方向。复看不会直接获得理解证据。'),
+      actions:[{id:'force:recall',label:'收起提示，重新预测'}]};
+    if(choice?.startsWith('force:predict:')){
+      if(parseForcePrediction(choice)){
+        this.markForce('predicted');this.physical.forceStudy={version:1,run:'trial',age:0};
+        return {accepted:true,text:'预测已提交，请观察实际加载。',resumeWorld:true};
+      }
+      return {accepted:true,choice:'force-recall',text:'词语或预测还没有对应上，不扣 MP。可以再想一想，或复看提示；没有写入成功证据。',
+        actions:[{id:'force:hint',label:'复看提示'}]};
+    }
+    return {accepted:true,choice:'force-recall',text:'回忆刚才表示“强／有力”的词。在已有向右作用的情况下，用它描述更强的一档，你预测同一弹簧的稳态偏移怎样变化？写出词语，再选择预测。当前提供情境提示，不是无提示掌握考核。',
+      actions:[{id:'force:hint',label:'复看提示'}]};
+  }
   private migrationIdentity(young=false):string {
     if(!this.migrationLifeIds.has(young))this.migrationLifeIds.set(young,createStableWildlifeLifeId({
       regionSaveId:this.session.sessionId,
@@ -414,7 +491,7 @@ export class ForestEpisode {
   }
   get objective(): string {
     if (this.has('finished')) {
-      if(this.hasMigration('archive'))return '档案记录了旱季改渠的代价；碎片同步与三路配水尚未开放，可原路回访，不算第一章结局';
+      if(this.hasMigration('archive'))return this.hasForce('completed')?'已补上力度理解练习；其余词语前置、碎片同步与三路配水仍需完成，不算第一章结局':'档案记录了旱季改渠的代价；可回检修渠出水口观察测力器，碎片同步与三路配水尚未开放';
       if(this.hasMigration('node_entered'))return '调查地下档案和受损碎片座；先弄清旧水路为何改变';
       if(this.hasMigration('resolved'))return '动物与幼体已迁入右岸苇地；沿空出的浅滩到地下档案入口';
       if(this.hasMigration('cleared'))return '出口已疏通；退到旧巢左边的观察处，停留片刻，让成年动物和幼体通过';
@@ -481,6 +558,7 @@ export class ForestEpisode {
     if(p.place==='cistern'&&p.lift?.mode==='call')advanceLift();
     p.tick++;
     if(p.place==='return-channel')this.advanceReturnFlow();
+    if(p.place==='return-channel'&&p.forceStudy)this.advanceForce();
     if(p.place==='wetland')this.advanceMigration();
     // Channels freeze with the scene: no off-screen completion or forgotten input while reading dialogue.
     if (p.place === 'mill') {
@@ -566,9 +644,11 @@ export class ForestEpisode {
           (this.hasFlow('restored')?'两路水量已稳定，供水修复已保存。你可以回村查看公共水口；这不等于完成地下秩序节点，也没有授予 wawa 或攻击资格。':
           '任一路仍未稳定就不结算；检查闸板、密封和导管，关闭面板等水走完渠道。'));
       }
-      case 'flow-spout':return say(this.hasFlow('restored')?
-        '上路送往聚落公共水口，下路送往湿地。浅水已经回到苇根旁；旧水仍沿渠道排走，没有额外复制水或发放物品。':
-        '两处出水口通向不同地方。仅仅打开上游不代表两路都有水，要看水真正到达这里。');
+      case 'flow-spout':
+        if(choice?.startsWith('force:'))return this.forceInteraction(choice);
+        return this.hasFlow('restored')?{...say('上路送往聚落公共水口，下路送往湿地。旧水仍沿渠道排走，没有额外复制水。水口旁的旧测力器可用来观察非战斗的力度变化。'),
+          actions:[{id:'force:open',label:this.hasForce('entered')?'查看测力器记录':'观察旁侧测力器'}]}:
+          say('两处出水口通向不同地方。仅仅打开上游不代表两路都有水，要看水真正到达这里。');
       case 'flow-depth':return this.enterWetland();
       case 'wetland-lookout':
         if(!this.hasMigration('seen'))this.markMigration('seen');
@@ -594,7 +674,7 @@ export class ForestEpisode {
       case 'node-archive':
         if(!this.hasMigration('archive'))this.markMigration('archive');
         return say('档案记着一次旱季：部分居民与议事者将水引向聚落，保住饮水和庄稼，却让湿地与下游承受缺水。他们随后隐去了改渠记录，担心追责和索赔。维修簿又记下：受损系统无法同时满足三路需求。修复并不意味着代价消失。');
-      case 'node-cradle':return say('槽口与行囊里的森林碎片相符，但关联的结构还没有校准。碎片没有插入或消耗；本轮不执行同步，也不增加词语掌握、MP 或施法资格。');
+      case 'node-cradle':return say('槽口与行囊里的森林碎片相符，但关联的结构还没有校准。碎片没有插入或消耗。五词学习账本：'+this.chapterWordNotes+'。此前的台词和工具操作不自动追认为理解证据；旧练习权限保留。可去回流检修渠出水口完成力度教学，本轮仍不执行碎片同步。');
       case 'node-allocation':return say('配水台的三路分别标着聚落、湿地和旧商路。先前修好的两路只是局部供水，不能代表全域分配完成。碎片同步和正式配水交互尚未实现，暂时不能选择，也没有“兼顾一切”的选项。');
       case 'node-exit':return say('这是通往聚落的旧门，正式的地下结局和交接还没有完成。先从左边返回湿地，再沿检修渠和永久梯回村；不会在这里跳过第一章结局。');
       case 'mill-road': this.travel('mill', 100); return say('旧水渠通向东边工坊。');
@@ -819,6 +899,22 @@ export class ForestEpisode {
       validateMillTailrace(p.tailrace, p.mill.escaped, p.mill.tick);
     }
     const scene = EPISODE_SCENES[p.place];
+    for(const [i,f] of FORCE_FLAGS.entries())if(this.hasForce(f)&&(!this.truth.receiptIndex['forest.episode.force.'+f]||
+      i>0&&!this.hasForce(FORCE_FLAGS[i-1]!)))throw Error('测力器学习凭证不一致');
+    if(this.hasForce('entered')!==!!p.forceStudy||p.forceStudy&&!this.hasFlow('restored'))throw Error('测力器入口未开放');
+    if(p.forceStudy){
+      validateForceStudy(p.forceStudy);
+      const word=this.truth.learning.words.wawa;
+      if(this.hasForce('observed')&&word?.discoveryState!=='discovered'||
+        this.hasForce('attuned')&&word?.attunementState!=='attuned'||
+        this.hasForce('predicted')!==(p.forceStudy.run==='trial')||
+        p.forceStudy.run==='contrast'&&this.hasForce('observed')!==forceContrastVerified(p.forceStudy)||
+        p.forceStudy.run==='trial'&&this.hasForce('completed')!==forceTrialVerified(p.forceStudy)||
+        this.hasForce('completed')&&!word?.evidence.some(e=>e.eventType==='grounding_trial_resolved'&&
+          e.sourceObjectClass===RETURN_FLOW_WAWA_SOURCE_OBJECT_CLASS&&e.taskFamilyId==='ecology_and_return_flow'&&
+          e.worldOutcomeContribution===true&&e.answerVisible===false))
+        throw Error('测力器物理与学习证据不一致');
+    }
     const migrationDeps:Partial<Record<MigrationFlag,MigrationFlag[]>>={seen:['entered'],nest:['seen'],young:['nest'],
       cleared:['young'],resolved:['cleared'],node_entered:['resolved'],archive:['node_entered']};
     for(const f of MIGRATION_FLAGS)if(this.hasMigration(f)&&(!this.truth.receiptIndex['forest.episode.migration.'+f]||
