@@ -107,6 +107,13 @@ export class ForestEpisodeRenderer {
       ctx.fillStyle='#111e1c';ctx.fillRect(239,242,39,88);ctx.fillRect(292,305,26,31);
       ctx.fillStyle='#867f61';ctx.fillRect(248,284,19,2);ctx.fillRect(248,290,14,1);ctx.fillRect(248,297,22,1);
       this.rock(ctx,298,321,16,15);this.rock(ctx,342,307,23,29);
+      const sync=p.shardSync,linked=sync?.phase==='synchronized',inserted=!!sync&&!['packed','synchronized'].includes(sync.phase);
+      ctx.fillStyle=linked?'#b0aa79':'#665f49';ctx.fillRect(294,318,24,2);
+      // Two recessed, non-emissive brass needles converge at the mechanical alignment rate.
+      const gap=sync?.phase==='ready'||linked?0:Math.round(9*(1-(sync?.age??0)/180));
+      ctx.fillStyle='#ada079';ctx.fillRect(305-gap,301,1,15);ctx.fillRect(305+gap,301,1,15);
+      if(inserted){ctx.fillStyle='#8b9b96';ctx.fillRect(301,311,5,7);ctx.fillRect(306,313,3,5);}
+      if(linked){ctx.fillStyle='#9b9a6c';for(const x of [346,352,358])ctx.fillRect(x,309,1,7);}
       this.timber(ctx,405,296,23,40);this.timber(ctx,403,310,27,4);
     } else if(p.place==='return-channel'){
       // Recessed inspection channels above a dry, continuous maintenance walkway.

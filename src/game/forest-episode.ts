@@ -1,4 +1,5 @@
 import { sha256Canonical, type JsonValue } from '../canonical-json';
+import { SHARD_SYNC_EVENT,SHARD_SYNC_TICKS,shardMissingWords,shardPrerequisites,advanceShardAlignment,validateShardState,type ShardSyncState } from './forest-shard-sync';
 import { LENGTH_WORDS,LENGTH_PHASES,LENGTH_STUDY,LengthStudyWorld,parseLengthPrediction,validateLengthStudy,previewLengthStudy,executeLengthStudy,lengthCost,
   type LengthWord,type LengthPhase,type LengthStudyState } from '../world/forest-length-study';
 import { lengthStudyEvidence } from './forest-length-study';
@@ -155,6 +156,7 @@ interface EpisodePhysical {
   waterStudy?:WaterStudyState;
   motionStudy?:MotionStudyState;
   lengthStudy?:LengthStudyState;
+  shardSync?:ShardSyncState;
   wheelSpeed: number; stableTicks: number; wheelAngle: number; casts: number; baselineCollected: number;
 }
 export interface ForestEpisodeSave {
@@ -508,6 +510,46 @@ export class ForestEpisode {
   }
   hasForce(flag:ForceFlag):boolean{return this.truth.world.flags['global:forest.episode.force.'+flag]?.value===true;}
   get forceView(){return this.physical.forceStudy?forceStudyView(this.physical.forceStudy):null;}
+  get shardSyncStage(){return this.physical.shardSync?.phase??'unvisited';}
+  private hasShard(flag:'started'|'aligned'|'synchronized'):boolean{
+    return this.truth.world.flags['global:forest.episode.shard.'+flag]?.value===true;
+  }
+  private markShard(flag:'started'|'aligned'|'synchronized',extra:SessionEventDraft[]=[]):void{
+    this.commit('shard.'+flag,[{eventId:'episode.shard.'+flag,type:'world_flag_set',
+      payload:{flagId:'forest.episode.shard.'+flag,value:true,scope:'global'}},...extra]);
+  }
+  private shardInteraction(choice?:string):EpisodeResult{
+    const say=(text:string,actions?:EpisodeResult['actions']):EpisodeResult=>({accepted:true,text,actions});
+    if(!this.hasMigration('archive'))return say('先读左侧旱季配水档案，弄清这套装置为何停用。森林碎片仍在行囊里。');
+    const missing=shardMissingWords(this.truth,forestChapter);
+    if(missing.length)return say('槽口与森林碎片相符。碎片没有插入或消耗。先补齐现场理解记录：'+missing.join('、')+
+      '。隐士水槽复习 telo，工坊轮轴复习 tawa，蓄水室入口回声复习 lili / suli，回流渠出水口复习 wawa。工具通路和旧练习权限仍保留；同步不会替你学会这些词。');
+    if(!shardPrerequisites(this.truth,forestChapter))return say('原碎片或湿地处理记录缺失，不能同步；可沿左侧原路返回。');
+    let s=this.physical.shardSync;
+    if(s?.phase==='synchronized')return say('森林位点已同步，碎片已取回行囊。装置只恢复了此位点的连接，没有补充 MP、提高容量、授予词义或攻击能力。三路配水尚未决定，第一章尚未结束。');
+    if(choice==='shard:withdraw'&&s){
+      s.phase='packed';s.age=0;return say('碎片收回行囊，未提交同步。已有调查和学习记录保留，随时可以重新嵌入。',[{id:'shard:seat',label:'重新嵌入原碎片'}]);
+    }
+    if(!s||s.phase==='packed'){
+      if(choice!=='shard:seat')return say('碎片的缺口与底座相合。嵌入后用手动校准柄让两道刻线重合；稳定后仍需你确认。原碎片不会消耗，不花 MP。',[{id:'shard:seat',label:'嵌入原碎片'}]);
+      if(!this.hasShard('started'))this.markShard('started');
+      s=this.physical.shardSync={version:1,phase:'seated',age:0};
+    }
+    const withdraw={id:'shard:withdraw',label:'取回碎片，暂不同步'};
+    if(s.phase==='seated'){
+      if(choice==='shard:align'){s.phase='aligning';return {accepted:true,text:'校准柄已松开。留在底座旁观察刻线缓慢重合；稳定后再次互动确认。',resumeWorld:true};}
+      return say('原碎片已嵌入，刻线还没有对齐。可转动手动校准柄，也可取回碎片。',[{id:'shard:align',label:'转动校准柄'},withdraw]);
+    }
+    if(s.phase==='aligning')return say('刻线正在靠拢（'+Math.floor(s.age/SHARD_SYNC_TICKS*100)+'%）。关掉面板，留在底座旁继续观察；离开和阅读时暂停。',[withdraw]);
+    if(choice!=='shard:confirm')return say('两道刻线已稳定重合。确认后只登记森林位点的同步，并取回原碎片；不分配水路，不给予能力。',[{id:'shard:confirm',label:'确认同步并取回碎片'},withdraw]);
+    this.markShard('synchronized',[
+      {eventId:'episode.'+SHARD_SYNC_EVENT,type:'world_flag_set',payload:{flagId:SHARD_SYNC_EVENT,value:true,scope:'region',regionId:MIGRATION_REGION}},
+      {eventId:'episode.shard.quest',type:'quest_stage_set',payload:{questId:'ch01_underground_water_allocation',stageId:'shard_synchronized',
+        stageOrdinal:(this.truth.quests.ch01_underground_water_allocation?.stageOrdinal??0)+1}},
+    ]);
+    s.phase='synchronized';
+    return say('刻线锁定，森林位点已同步。你取回原碎片；三路配水台的检修指针醒了过来，但还没有改动任何水路。没有获得新的词义、MP、报酬或能力。');
+  }
   get chapterWordNotes():string{
     return ['telo','tawa','wawa','lili','suli'].map(word=>{
       const p=this.truth.learning.words[word];
@@ -701,7 +743,8 @@ export class ForestEpisode {
   }
   get objective(): string {
     if (this.has('finished')) {
-      if(this.hasMigration('archive'))return '档案记录了旱季改渠的代价；五词理解可在已有场景复习，正式主线衔接、碎片同步与三路配水仍待完成，不算第一章结局';
+      if(this.hasShard('synchronized'))return '森林位点已同步，原碎片已取回；三路配水与后续线索仍待完成，不算第一章结局';
+      if(this.hasMigration('archive'))return '档案揭示了旱季改渠的代价；补齐五词现场理解后，在碎片座手动对齐并确认同步';
       if(this.hasMigration('node_entered'))return '调查地下档案和受损碎片座；先弄清旧水路为何改变';
       if(this.hasMigration('resolved'))return '动物与幼体已迁入右岸苇地；沿空出的浅滩到地下档案入口';
       if(this.hasMigration('cleared'))return '出口已疏通；退到旧巢左边的观察处，停留片刻，让成年动物和幼体通过';
@@ -770,6 +813,8 @@ export class ForestEpisode {
     if(p.place==='return-channel')this.advanceReturnFlow();
     if(p.place==='return-channel'&&p.forceStudy)this.advanceForce();
     if(p.place==='wetland')this.advanceMigration();
+    if(p.place==='order-node'&&p.shardSync&&advanceShardAlignment(p.shardSync,this.nearest()?.id==='node-cradle')&&!this.hasShard('aligned'))
+      this.markShard('aligned');
     // Channels freeze with the scene: no off-screen completion or forgotten input while reading dialogue.
     if (p.place === 'mill') {
       // Lazy, explicit accounting boundary: old saves round-trip unchanged until gameplay resumes.
@@ -884,12 +929,12 @@ export class ForestEpisode {
         if(!this.hasMigration('resolved'))return say('动物还在寻找迁徙通路。先处理旧巢和幼体的处境；地下入口就在它们需要通过的浅滩旁。');
         if(!this.hasMigration('node_entered'))this.markMigration('node_entered');
         this.travel('order-node',28);return say('绕过空出的浅滩，沿石阶进入档案前厅。身后的路通回湿地，森林碎片仍由你保管。');
-      case 'node-survey':return say('三条旧水路分别通往聚落、湿地和旧商路。检修图有多处损坏，不能凭眼前两路恢复就断言整个系统平衡了。往右有旱季记录和碎片座；本轮只开放调查，不进行同步或配水。');
+      case 'node-survey':return say('三条旧水路分别通往聚落、湿地和旧商路。检修图有多处损坏，不能凭眼前两路恢复就断言整个系统平衡了。往右有旱季记录和碎片座；同步只连接位点，不自动分配水路。');
       case 'node-archive':
         if(!this.hasMigration('archive'))this.markMigration('archive');
         return say('档案记着一次旱季：部分居民与议事者将水引向聚落，保住饮水和庄稼，却让湿地与下游承受缺水。他们随后隐去了改渠记录，担心追责和索赔。维修簿又记下：受损系统无法同时满足三路需求。修复并不意味着代价消失。');
-      case 'node-cradle':return say('槽口与行囊里的森林碎片相符，但关联的结构还没有校准。碎片没有插入或消耗。五词学习账本：'+this.chapterWordNotes+'。此前的台词和工具操作不自动追认为理解证据；旧练习权限保留。可在隐士水槽、工坊水轮、蓄水室入口回声和回流渠出水口复习，本轮仍不执行碎片同步。');
-      case 'node-allocation':return say('配水台的三路分别标着聚落、湿地和旧商路。先前修好的两路只是局部供水，不能代表全域分配完成。碎片同步和正式配水交互尚未实现，暂时不能选择，也没有“兼顾一切”的选项。');
+      case 'node-cradle':return this.shardInteraction(choice);
+      case 'node-allocation':return say((this.hasShard('synchronized')?'碎片同步已完成。':'先完成碎片同步。')+'配水台的三路分别标着聚落、湿地和旧商路。原有两路仍维持局部供水。正式配水交互尚未开放，暂时不能选择，没有“兼顾一切”的初始选项。');
       case 'node-exit':return say('这是通往聚落的旧门，正式的地下结局和交接还没有完成。先从左边返回湿地，再沿检修渠和永久梯回村；不会在这里跳过第一章结局。');
       case 'mill-road': this.travel('mill', 100); return say('旧水渠通向东边工坊。');
       case 'hermit-road':
@@ -1130,6 +1175,24 @@ export class ForestEpisode {
         this.hasWaterStudy('completed')&&!this.truth.learning.words.telo?.evidence.some(e=>e.eventId==='episode.water-study.completed'&&
           e.eventType==='grounding_trial_resolved'&&e.sourceObjectClass===WATER_STUDY.source&&e.promptLevel===1&&e.answerVisible===false))
         throw Error('水槽复习的水量与学习记录不一致');
+    }
+    const ss=p.shardSync,synced=this.truth.world.flags['region:'+MIGRATION_REGION+':'+SHARD_SYNC_EVENT]?.value===true;
+    for(const f of ['started','aligned','synchronized'] as const)if(this.hasShard(f)&&
+      (!ss||!this.truth.receiptIndex['forest.episode.shard.'+f]||f!=='started'&&!this.hasShard('started')))
+      throw Error('碎片同步凭证缺失');
+    if(ss){
+      validateShardState(ss);
+      if(!this.hasShard('started')||!shardPrerequisites(this.truth,forestChapter)||
+        ['ready','synchronized'].includes(ss.phase)&&!this.hasShard('aligned'))throw Error('碎片同步前置不一致');
+    }
+    if(synced!==(ss?.phase==='synchronized')||synced!==this.hasShard('synchronized'))throw Error('碎片同步结果与现场不一致');
+    if(synced){
+      const save=this.session.toSave(),i=save.eventLedger.findIndex(e=>e.eventId==='episode.shard.synchronized');
+      const prior=i<0?null:GameSession.replayLedger(save.sessionId,save.origin,save.eventLedger.slice(0,i));
+      if(!prior?.ok||!shardPrerequisites(prior.session.snapshot(),forestChapter)||
+        prior.session.snapshot().world.flags['global:forest.episode.shard.aligned']?.value!==true||
+        this.truth.quests.ch01_underground_water_allocation?.stageId!=='shard_synchronized')
+        throw Error('碎片同步提交顺序无效');
     }
     const ls=p.lengthStudy;
     if(ls){
