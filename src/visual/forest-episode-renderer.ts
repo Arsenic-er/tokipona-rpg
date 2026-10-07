@@ -1,6 +1,7 @@
 import { ForestEpisode } from '../game/forest-episode';
 import { FORCE_STUDY } from '../world/forest-force-study';
 import { MOTION_STUDY } from '../world/forest-motion-study';
+import { LENGTH_STUDY } from '../world/forest-length-study';
 import { migrationBody, wetlandGround, orderNodeSolid } from '../world/forest-wetland-migration';
 import { RETURN_CHANNEL_PORTS, returnChannelControls, returnChannelRates } from '../world/forest-return-channel';
 import type { ForestCameraState } from '../runtime/forest-camera';
@@ -358,7 +359,8 @@ export class ForestEpisodeRenderer {
       ctx.fillStyle='#525e53';ctx.fillRect(32,368,48,3);
     }
     for(const [x,y] of [[74,701],[344,511],[145,322]])this.lantern(ctx,x,y,game.state.tick);
-    this.roomWater(ctx,game.echoCells,80,662,null);
+    if(game.state.lengthStudy&&game.state.lengthStudy.view!=='baseline')this.lengthStudy(ctx,game,game.nearest()?.id==='room-echo'?plan:null);
+    else this.roomWater(ctx,game.echoCells,80,662,null);
     this.roomWater(ctx,game.calibrationCells,CISTERN_CALIBRATION.x,CISTERN_CALIBRATION.y,game.nearest()?.id==='calibration'?plan:null);
     if(game.calibrationVersion===2){
       // Copper contact and linkage identify the real remote intake, distinct from the near recovery trough.
@@ -412,6 +414,32 @@ export class ForestEpisodeRenderer {
       const length=plan.requestedLengthClass==='short'?16:plan.requestedLengthClass==='long'?64:32;
       ctx.strokeStyle=plan.canConfirm&&(plan.requestedLengthClass!=='long'||game.siphonSupported)?'#acd0bb':'#c7a06d';
       ctx.lineWidth=1;ctx.setLineDash([2,2]);ctx.strokeRect(ox+anchor.x+.5,oy+anchor.y-5.5,length,12);ctx.setLineDash([]);
+    }
+  }
+  private lengthStudy(ctx:CanvasRenderingContext2D,game:ForestEpisode,plan:TeloCastPlan|null):void{
+    const f=game.lengthStudyFrame;if(!f)return;const {x:ox,y:oy}=LENGTH_STUDY;
+    ctx.fillStyle='#101b1b';ctx.fillRect(ox,oy,f.columns*2,f.rows*2);
+    for(let y=0;y<f.rows;y++)for(let x=0;x<f.columns;x++){
+      const m=f.cells[y*f.columns+x];if(m===Material.Air)continue;
+      if(m===Material.Water){ctx.fillStyle=(x+y)%7?'#3c7380':'#789e9e';ctx.fillRect(ox+x*2,oy+y*2,2,2);}
+      else for(let dy=0;dy<2;dy++)for(let dx=0;dx<2;dx++){
+        const rgb=forestMaterialColor(M.stone,ox+x*2+dx,oy+y*2+dy);ctx.fillStyle='rgb('+rgb.join(',')+')';ctx.fillRect(ox+x*2+dx,oy+y*2+dy,1,1);
+      }
+    }
+    const ax=f.word==='lili'?20:24,ay=f.word==='lili'?16:24;
+    ctx.fillStyle='#b2a171';ctx.fillRect(ox+ax-3,oy+ay-1,3,2);
+    for(let d=0;d<=64;d+=16)ctx.fillRect(ox+ax+d,oy+3,1,3);
+    if(f.word==='suli'){
+      ctx.fillRect(ox+82,oy+24,2,3);ctx.fillRect(ox+82,oy+16,49,1);ctx.fillRect(ox+130,oy+16,1,13);
+      this.timber(ctx,ox+8,oy+70,3,20);this.timber(ctx,ox+65,oy+70,3,20);
+      ctx.fillStyle=f.braced?'#b6b08b':'#605a45';ctx.fillRect(ox+8,oy+79,60,2);
+      if(f.braced){ctx.fillRect(ox+10,oy+75,2,10);ctx.fillRect(ox+63,oy+75,2,10);}
+    }
+    if(plan){
+      const length=plan.execution.geometry.realizedLengthPx;
+      const can=plan.canConfirm&&game.sessionState.capabilities.expressionCapacityWords>=2&&(f.word==='lili'||f.braced);
+      ctx.strokeStyle=can?'#acd0bb':'#c7a06d';ctx.lineWidth=1;ctx.setLineDash([2,2]);
+      ctx.strokeRect(ox+ax+.5,oy+ay-5.5,length,12);ctx.setLineDash([]);
     }
   }
   private roomWater(ctx:CanvasRenderingContext2D,cells:readonly number[],ox:number,oy:number,plan:TeloCastPlan|null):void{

@@ -12,8 +12,8 @@ export function approachEpisode(g:ForestEpisode,id:EpisodeTarget):void{
 }
 export const actEpisode=(g:ForestEpisode,id:EpisodeTarget,choice?:string)=>{approachEpisode(g,id);return g.interact(id,choice);};
 /** Earned by ordinary movement and interaction; never fabricate flags, positions, capacity or MP. */
-export function cisternReadyFixture(phrase=true):ForestEpisode{
-  const g=ForestEpisode.begin(completedOpeningFixture()),act=(id:EpisodeTarget,c?:string)=>actEpisode(g,id,c);
+export function cisternReadyFixture(phrase=true,currentMp=12):ForestEpisode{
+  const g=ForestEpisode.begin(completedOpeningFixture(currentMp)),act=(id:EpisodeTarget,c?:string)=>actEpisode(g,id,c);
   act('worker','accept');act('mill-road');act('timber');act('brace');act('silt');act('gate');tickEpisode(g,900);
   act('medium');act('return');act('worker');act('hermit-road');act('hermit');act('pool');act('plug');tickEpisode(g,600);
   act('pool','downhill');act('pool');tickEpisode(g,600);act('hermit');

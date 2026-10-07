@@ -115,6 +115,24 @@ function renderResult(result: EpisodeResult, target: EpisodeTarget): void {
     button('停在空中，不再受重力影响', () => choose('hover'));
   }
   if (result.choice==='calibrate') button('尝试两词校准',()=>choose('calibrate'));
+  if(result.choice==='length-recall'){
+    const label=document.createElement('label'),input=document.createElement('input');
+    label.textContent='回忆尺度表达';input.setAttribute('aria-label',label.textContent);input.maxLength=32;
+    input.autocomplete='off';input.spellcheck=false;input.setAttribute('autocapitalize','off');label.append(input);actions.append(label);
+    for(const [prediction,text] of [['short','落入挡板前的接水杯'],['long','接触远端水舌并引水'],['power','只改变冲击威力']] as const)
+      button(text,()=>choose('length:predict:'+input.value.trim()+':'+prediction));
+  }
+  if(result.choice==='length-cast'){
+    const detail=document.createElement('p');detail.setAttribute('role','status');detail.dataset.length='preview';
+    detail.textContent='预览不会扣费；确认释放后才扣 MP。';actions.append(detail);let planId:string|null=null;
+    button('预览复习槽形态',()=>{
+      const preview=game.previewLengthStudy();if(!preview){detail.textContent='预览不可用，请重新查看复习槽。';confirm.disabled=true;windowPreviewPlan=null;planId=null;return;}
+      const p=preview.plan;planId=p.planId;windowPreviewPlan=p;
+      detail.textContent='长度 '+(p.requestedLengthClass==='short'?16:64)+' px · 固定截面 12 px · 向右 · 零初速度 · 受重力 · 非攻击\n需要 '+p.activationMpRequired+' MP（当前 '+game.sessionState.mp.currentMp+'）\n'+preview.reason;
+      confirm.disabled=!preview.canConfirm;
+    });
+    const confirm=button('确认复习槽释放',()=>{if(!planId)return;const r=game.confirmLengthStudy(planId);save();updateHud();renderResult(r,target);});confirm.disabled=true;
+  }
   if(result.choice==='motion-recall'){
     const label=document.createElement('label'),input=document.createElement('input');
     label.textContent='回忆去或移动的词';input.setAttribute('aria-label',label.textContent);input.maxLength=24;
@@ -212,6 +230,9 @@ function notes(): string {
     game.has('repaired') ? '木撑、清淤、引水：水轮经过连续稳定运行确认。' : '水轮尚未完成稳定运行确认。',
     game.has('medium') ? '行囊 · 受损古代媒介 / 森林位点碎片（永久剧情物，不出售、不丢弃）。' : '还没有取得古代媒介。',
     game.has('intro') ? '隐士见闻 · 旧文明抽取消耗维系世界秩序的能量；媒介并不等于力量源头。MP 与媒介损伤共同限制施法。' : '',
+    game.hasRoom('entered') ? '尺度复习 · 入口回声落稳后，可选旁侧短／长复习槽。自己表达、预览并确认才付 6／10 MP；实际接水后只记录所练词语的理解，不重置原机关。组合能力不足可回隐士校准，MP 不足可坐垫恢复。' : '',
+    game.hasLength('lili','completed') ? 'lili · 小／少；这套引水框架中缩短长度，不改变截面或攻击威力。已有一次 H1 场景理解。' : '',
+    game.hasLength('suli','completed') ? 'suli · 大／多；这套引水框架中加长长度，须有支撑且水真正到位，不是威力加成。已有一次 H1 场景理解。' : '',
     game.has('repaired')&&!game.hasMotion('completed') ? '运动刻槽 · 工坊水轮支架旁可观察活动标记与固定支架。隐士实践复盘后可调谐并回忆预测；不自动追认维修为学习证据。' : '',
     game.hasMotion('completed') ? '运动理解 · tawa：去、移动。已用现场运动验证一次 H1 理解，顺时针只是该水轮的方向，不是词语固定含义；没有开放自由施法或增加 MP、容量、报酬。' : '',
     game.has('observed') ? '词语笔记 · telo：水／液体。石槽和水壶上重复出现；这只是初次接触，不是熟练掌握。' : '',
@@ -275,6 +296,9 @@ function updateHud(): void {
   canvas.dataset.forceStudy = game.hasForce('completed')?'completed':game.state.forceStudy?.run??'unvisited';
   canvas.dataset.waterStudy = game.waterStudyStage;
   canvas.dataset.motionStudy = game.motionStudyStage;
+  canvas.dataset.lengthStudyView = game.state.lengthStudy?.view??'unvisited';
+  canvas.dataset.liliStudy = game.lengthStudyStage('lili');
+  canvas.dataset.suliStudy = game.lengthStudyStage('suli');
   // Read-only projections for accessibility and tests; no command/debug mutation interface.
   canvas.dataset.completed = String(game.has('finished'));
 }

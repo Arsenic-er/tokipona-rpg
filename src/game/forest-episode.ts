@@ -1,4 +1,7 @@
 import { sha256Canonical, type JsonValue } from '../canonical-json';
+import { LENGTH_WORDS,LENGTH_PHASES,LENGTH_STUDY,LengthStudyWorld,parseLengthPrediction,validateLengthStudy,previewLengthStudy,executeLengthStudy,lengthCost,
+  type LengthWord,type LengthPhase,type LengthStudyState } from '../world/forest-length-study';
+import { lengthStudyEvidence } from './forest-length-study';
 import { PrologueWaterwheelSession } from './prologue-waterwheel';
 import { MOTION_STUDY,MOTION_FLAGS,emptyMotionStudy,advanceMotionStudy,validateMotionStudy,motionVerified,parseMotionPrediction,
   type MotionStudyState,type MotionFlag } from '../world/forest-motion-study';
@@ -151,13 +154,14 @@ interface EpisodePhysical {
   forceStudy?:ForceStudyState;
   waterStudy?:WaterStudyState;
   motionStudy?:MotionStudyState;
+  lengthStudy?:LengthStudyState;
   wheelSpeed: number; stableTicks: number; wheelAngle: number; casts: number; baselineCollected: number;
 }
 export interface ForestEpisodeSave {
   schema: 'tokipona.forest-waterwheel-episode.v0.1';
   openingChecksum: string; session: GameSessionSave; physical: EpisodePhysical; checksum: string;
 }
-export interface EpisodeResult { accepted: boolean; text: string; speaker?: string; choice?: 'work' | 'predict' | 'recall' | 'calibrate' | 'window' | 'calibration' | 'siphon' | 'force-recall' | 'water-recall' | 'motion-recall';
+export interface EpisodeResult { accepted: boolean; text: string; speaker?: string; choice?: 'work' | 'predict' | 'recall' | 'calibrate' | 'window' | 'calibration' | 'siphon' | 'force-recall' | 'water-recall' | 'motion-recall' | 'length-recall' | 'length-cast';
   actions?: readonly { id: string; label: string }[];
   resumeWorld?: boolean;
 }
@@ -171,6 +175,7 @@ export class ForestEpisode {
   private previousJump = false;
   private windowPhysics?: CisternWindow;
   private windowCellsCache?: number[];
+  private lengthWorlds:Partial<Record<LengthWord,LengthStudyWorld>>={};
   private calibrationPhysics?:CisternCalibration;
   private calibrationCellsCache?:number[];
   private siphonPhysics?:CisternSiphon;
@@ -303,6 +308,84 @@ export class ForestEpisode {
   hasRoom(flag:RoomFlag):boolean{return this.truth.world.flags['global:forest.episode.room.'+flag]?.value===true;}
   hasFlow(flag:FlowFlag):boolean{return this.truth.world.flags['global:forest.episode.flow.'+flag]?.value===true;}
   hasMigration(flag:MigrationFlag):boolean{return this.truth.world.flags['global:forest.episode.migration.'+flag]?.value===true;}
+  hasLength(word:LengthWord,phase:LengthPhase|'braced'):boolean{return this.truth.world.flags['global:forest.episode.length.'+word+'.'+phase]?.value===true;}
+  lengthStudyStage(word:LengthWord):LengthPhase|'unvisited'{return [...LENGTH_PHASES].reverse().find(f=>this.hasLength(word,f))??'unvisited';}
+  private markLength(word:LengthWord,phase:LengthPhase|'braced',drafts:SessionEventDraft[]=[]):void{
+    this.commit('length.'+word+'.'+phase,[...drafts,{eventId:'episode.length.flag.'+word+'.'+phase,type:'world_flag_set',
+      payload:{flagId:'forest.episode.length.'+word+'.'+phase,value:true,scope:'global'}}],phase==='cast'?'cast':'learning');
+  }
+  private lengthWorld(word:LengthWord):LengthStudyWorld{return this.lengthWorlds[word]??=new LengthStudyWorld(word,this.physical.lengthStudy?.[word]);}
+  get lengthStudyFrame(){
+    const w=this.physical.lengthStudy?.view;if(!w||w==='baseline')return null;
+    const world=this.lengthWorld(w);
+    return {word:w,columns:world.columns,rows:world.rows,cells:world.cells(),braced:this.hasLength('suli','braced')};
+  }
+  private lengthZones(){const p=this.physical.player;return [{entityId:'player',boundsPx:{x:p.x-LENGTH_STUDY.x,y:p.y-LENGTH_STUDY.y,width:12,height:14}}];}
+  previewLengthStudy():ReturnType<ForestEpisode['previewWindow']>{
+    const w=this.physical.lengthStudy?.view;
+    if(!w||w==='baseline'||this.nearest()?.id!=='room-echo'||!this.hasLength(w,'predicted')||this.hasLength(w,'cast'))return null;
+    const mp=this.truth.mp,plan=previewLengthStudy(w,mp.currentMp,mp.maxMp,this.lengthZones());
+    const capacity=this.truth.capabilities.expressionCapacityWords>=2,support=w==='lili'||this.hasLength(w,'braced');
+    return {plan,canConfirm:plan.canConfirm&&capacity&&support,reason:!capacity?'目前只能用单词；可回隐士处做原来的两词回忆校准，原工具路线不受影响。':
+      !support?'先固定复习槽的支撑，再重新预览。长水段稳定度需要 0.75；不增加威力。':
+      !plan.canConfirm?plan.rejectionCode==='requested_class_requires_more_mp'?'MP 不足；不降档、不扣费。可原路回隐士坐垫恢复，再来继续。':'空间或安全范围受阻；站稳后重新预览，不扣 MP。':
+      '可确认。费用只在明确释放时收取；实际水到达接水处后才记录理解。'};
+  }
+  confirmLengthStudy(planId:string):EpisodeResult{
+    const w=this.physical.lengthStudy?.view,preview=this.previewLengthStudy();
+    if(!w||w==='baseline'||!preview||preview.plan.planId!==planId||!preview.canConfirm)
+      return {accepted:false,choice:'length-cast',text:preview?.reason??'复习槽预览已失效；重新查看，不扣 MP。'};
+    const mp=this.truth.mp,r=executeLengthStudy(w,mp.currentMp,mp.maxMp,this.lengthZones(),this.hasLength(w,'braced'));
+    if(!r.committed||r.paid!==lengthCost(w))return {accepted:false,choice:'length-cast',text:'当前构形不能安全提交；不扣 MP。'};
+    this.markLength(w,'cast',[{eventId:'episode.length.mp.'+w,type:'mp_replaced',
+      payload:{mp:{...mp,currentMp:mp.currentMp-r.paid,worldVersion:mp.worldVersion+1}}}]);
+    this.physical.lengthStudy![w]={age:0};delete this.lengthWorlds[w];
+    return {accepted:true,text:'留在复习槽旁，看水实际落下。',resumeWorld:true};
+  }
+  private advanceLengthStudy():void{
+    const s=this.physical.lengthStudy,w=s?.view,p=this.physical.player;
+    if(!s||!w||w==='baseline'||!s[w]||Math.abs(p.x+6-LENGTH_STUDY.targetX)>96||Math.abs(p.y+14-LENGTH_STUDY.targetY)>80)return;
+    const t=s[w]!,world=this.lengthWorld(w);if(t.age>=LENGTH_STUDY.settleTicks)return;
+    world.advance();t.age++;
+    if(world.satisfied&&!this.hasLength(w,'completed'))this.markLength(w,'completed',lengthStudyEvidence(this.truth,this.session.sessionId,w,'ground'));
+  }
+  private lengthInteraction(choice:string):EpisodeResult{
+    const say=(text:string):EpisodeResult=>({accepted:true,text});
+    const menu=()=>({...say('旁侧是隔离的复习槽：复用短接水杯和远端水舌的几何，不连通已经修好的门阀。可选择一种练习，旧机关和水位不会重置；每种只允许本轮一次确认施放。'),
+      actions:[{id:'length:select:lili',label:'观察短接水槽'},{id:'length:select:suli',label:'观察远端接水槽'},{id:'length:baseline',label:'回看默认回声'}]});
+    if(!this.hasRoom('entered')||!this.has('debrief'))return say('先完成隐士的首次安全实践和复盘，原工具路线仍可继续。');
+    if((this.physical.echoAge??0)<180)return say('先关闭面板，看入口回声的默认水段落稳，再来比较长短。演示不消耗 MP，不计学习成功。');
+    if(choice==='length:baseline'){if(this.physical.lengthStudy)this.physical.lengthStudy.view='baseline';return {accepted:true,text:'回看原默认水段。复习槽进度保留。',resumeWorld:true};}
+    if(choice==='length:open')return menu();
+    const selected=LENGTH_WORDS.find(w=>choice==='length:select:'+w);
+    if(selected){
+      if(!this.hasLength(selected,'observed'))this.markLength(selected,'observed',
+        this.truth.learning.words[selected]?.discoveryState==='discovered'?[]:lengthStudyEvidence(this.truth,this.session.sessionId,selected,'observe'));
+      this.physical.lengthStudy??={version:1,view:selected};this.physical.lengthStudy.view=selected;
+    }
+    const w=this.physical.lengthStudy?.view;if(!w||w==='baseline')return menu();
+    const back=[{id:'length:open',label:'查看其他复习槽'}];
+    if(this.hasLength(w,'completed'))return {...say('这次表达与实际接水结果一致，已记一次有情境提示的理解。长度改变，截面、初速度和非攻击性质不变；没有增加 MP 上限、容量、报酬，也没有替你完成原机关或碎片同步。'),actions:back};
+    if(this.hasLength(w,'cast'))return {...say('水已释放，不再扣费。关闭面板并留在槽旁，看水真正进入接水处；切换视图、走远、离场都会暂停这份复习水。'),actions:back};
+    const explanation=w==='lili'?'lili 的宽泛含义是小／少。这里 telo lili 解释为 16 px 长、12 px 宽的水段，挡板距锚点 20 px，短段可落入挡板前的接水杯。不是更弱的攻击。':
+      'suli 的宽泛含义是大／多。这里 telo suli 解释为 64 px 长、12 px 宽的水段，水舌距锚点 58 px；长段接触水舌后释放有限水箱，水还需落入远端接水槽。不是更强的攻击。';
+    if(!this.hasLength(w,'attuned')){
+      if(choice==='length:attune'){
+        this.markLength(w,'attuned',this.truth.learning.words[w]?.attunementState==='attuned'?[]:lengthStudyEvidence(this.truth,this.session.sessionId,w,'attune'));
+      }else return {...say(explanation+' 可用槽边不可带走的普通嵌片调谐。'),actions:[{id:'length:attune',label:'用槽边嵌片调谐'},...back]};
+    }
+    if(choice==='length:brace'&&w==='suli'&&!this.hasLength(w,'braced'))this.markLength(w,'braced');
+    const support=w==='suli'&&!this.hasLength(w,'braced')?[{id:'length:brace',label:'固定复习槽支撑'}]:[];
+    if(this.hasLength(w,'predicted'))return {...say('已保留你的表达与预测。先预览形态和费用，再明确确认；容量或 MP 不够可以回隐士恢复，原工具路线照常可走。'),choice:'length-cast',actions:[...support,...back]};
+    if(choice==='length:hint')return {...say(explanation),actions:[{id:'length:recall',label:'收起注音，重新表达'},...back]};
+    if(choice.startsWith('length:predict:')&&parseLengthPrediction(w,choice)){
+      this.markLength(w,'predicted');return this.lengthInteraction('length:preview');
+    }
+    return {...say(choice.startsWith('length:predict:')?'表达或预测还没对应上，不扣 MP，不写成功证据。可以复看注音后重新想一想。':
+      w==='lili'?'写出使水段缩短的两词表达，并预测它会落在哪里。默认段长 32 px，挡板前只有 20 px；宽度不变。':
+      '写出使水段加长的两词表达，并预测接水结果。默认段长 32 px，远端水舌在 58 px 处；宽度不变。'),
+      choice:'length-recall',actions:[{id:'length:hint',label:'复看尺度注音'},...support,...back]};
+  }
   hasMotion(flag:MotionFlag):boolean{return this.truth.world.flags['global:forest.episode.motion.'+flag]?.value===true;}
   get motionStudyStage():MotionFlag|'unvisited'{return [...MOTION_FLAGS].reverse().find(f=>this.hasMotion(f))??'unvisited';}
   private markMotion(flag:MotionFlag):void{
@@ -618,7 +701,7 @@ export class ForestEpisode {
   }
   get objective(): string {
     if (this.has('finished')) {
-      if(this.hasMigration('archive'))return this.hasForce('completed')?'已补上力度理解练习；其余词语前置、碎片同步与三路配水仍需完成，不算第一章结局':'档案记录了旱季改渠的代价；可回检修渠出水口观察测力器，碎片同步与三路配水尚未开放';
+      if(this.hasMigration('archive'))return '档案记录了旱季改渠的代价；五词理解可在已有场景复习，正式主线衔接、碎片同步与三路配水仍待完成，不算第一章结局';
       if(this.hasMigration('node_entered'))return '调查地下档案和受损碎片座；先弄清旧水路为何改变';
       if(this.hasMigration('resolved'))return '动物与幼体已迁入右岸苇地；沿空出的浅滩到地下档案入口';
       if(this.hasMigration('cleared'))return '出口已疏通；退到旧巢左边的观察处，停留片刻，让成年动物和幼体通过';
@@ -711,6 +794,7 @@ export class ForestEpisode {
       if (this.windowWorld.satisfied && !this.has('window_filled')) this.mark('window_filled');
     }
     if(p.place==='cistern'){
+      this.advanceLengthStudy();
       const s=p.siphon;
       if(s&&s.age<s.events.at(-1)!.at+CISTERN_SIPHON.settleTicks){
         this.siphonWorld.advance();s.age++;this.siphonCellsCache=undefined;
@@ -804,7 +888,7 @@ export class ForestEpisode {
       case 'node-archive':
         if(!this.hasMigration('archive'))this.markMigration('archive');
         return say('档案记着一次旱季：部分居民与议事者将水引向聚落，保住饮水和庄稼，却让湿地与下游承受缺水。他们随后隐去了改渠记录，担心追责和索赔。维修簿又记下：受损系统无法同时满足三路需求。修复并不意味着代价消失。');
-      case 'node-cradle':return say('槽口与行囊里的森林碎片相符，但关联的结构还没有校准。碎片没有插入或消耗。五词学习账本：'+this.chapterWordNotes+'。此前的台词和工具操作不自动追认为理解证据；旧练习权限保留。可去回流检修渠出水口完成力度教学，本轮仍不执行碎片同步。');
+      case 'node-cradle':return say('槽口与行囊里的森林碎片相符，但关联的结构还没有校准。碎片没有插入或消耗。五词学习账本：'+this.chapterWordNotes+'。此前的台词和工具操作不自动追认为理解证据；旧练习权限保留。可在隐士水槽、工坊水轮、蓄水室入口回声和回流渠出水口复习，本轮仍不执行碎片同步。');
       case 'node-allocation':return say('配水台的三路分别标着聚落、湿地和旧商路。先前修好的两路只是局部供水，不能代表全域分配完成。碎片同步和正式配水交互尚未实现，暂时不能选择，也没有“兼顾一切”的选项。');
       case 'node-exit':return say('这是通往聚落的旧门，正式的地下结局和交接还没有完成。先从左边返回湿地，再沿检修渠和永久梯回村；不会在这里跳过第一章结局。');
       case 'mill-road': this.travel('mill', 100); return say('旧水渠通向东边工坊。');
@@ -850,8 +934,9 @@ export class ForestEpisode {
         return say('进入高位蓄水室。左侧可随时返回；入口检查点只轻恢复一次，不会补满 MP。');
       }
       case 'room-echo':
+        if(choice?.startsWith('length:'))return this.lengthInteraction(choice);
         if(!this.hasRoom('echo')){this.markRoom('echo');this.physical.echoAge=0;this.echoPhysics=undefined;this.echoCellsCache=undefined;}
-        return say('回声留下 telo 的默认构形：语言上是水／液体，在这套框架中，不加尺度修饰词会形成 32 px 长、12 px 宽的水段，正常施放需 5 MP。关闭对话看水下落。这里是隔离的演示盆，不扣你的 MP，也不能把演示水带走。');
+        return {...say('回声留下 telo 的默认构形：语言上是水／液体，在这套框架中，不加尺度修饰词会形成 32 px 长、12 px 宽的水段，正常施放需 5 MP。关闭对话看水下落。这里是隔离的演示盆，不扣你的 MP，也不能把演示水带走。'),actions:[{id:'length:open',label:'查看旁侧尺度复习槽'}]};
       case 'lift-up':case 'lift-down':{
         if(!this.hasRoom('siphon_primed'))return say('升降机没有水力。先让虹吸接水槽达到刻度；魔法和手动导水都可以。');
         if(!this.hasRoom('lift_open')){this.markRoom('lift_open');this.physical.lift=emptyCisternLift();}
@@ -1045,6 +1130,34 @@ export class ForestEpisode {
         this.hasWaterStudy('completed')&&!this.truth.learning.words.telo?.evidence.some(e=>e.eventId==='episode.water-study.completed'&&
           e.eventType==='grounding_trial_resolved'&&e.sourceObjectClass===WATER_STUDY.source&&e.promptLevel===1&&e.answerVisible===false))
         throw Error('水槽复习的水量与学习记录不一致');
+    }
+    const ls=p.lengthStudy;
+    if(ls){
+      validateLengthStudy(ls);
+      if(!LENGTH_WORDS.some(w=>this.hasLength(w,'observed'))||!this.hasRoom('entered')||!this.has('debrief')||(p.echoAge??0)<180||ls.view!=='baseline'&&!this.hasLength(ls.view,'observed'))
+        throw Error('尺度复习入口不一致');
+    }
+    for(const w of LENGTH_WORDS){
+      for(const [i,f] of LENGTH_PHASES.entries())if(this.hasLength(w,f)&&(!ls||!this.truth.receiptIndex['forest.episode.length.'+w+'.'+f]||
+        i>0&&!this.hasLength(w,LENGTH_PHASES[i-1]!)))throw Error('尺度复习顺序不一致');
+      if(this.hasLength(w,'cast')!==!!ls?.[w])throw Error('尺度复习施放状态缺失');
+      if(this.hasLength(w,'braced')&&(w!=='suli'||!this.hasLength(w,'attuned')||!this.truth.receiptIndex['forest.episode.length.'+w+'.braced']))throw Error('尺度复习支撑状态无效');
+      const word=this.truth.learning.words[w];
+      if(this.hasLength(w,'observed')&&word?.discoveryState!=='discovered'||this.hasLength(w,'attuned')&&word?.attunementState!=='attuned')throw Error('尺度复习学习账本不一致');
+      const t=ls?.[w];
+      if(t){
+        const save=this.session.toSave(),ledger=save.eventLedger,i=ledger.findIndex(e=>e.eventId==='episode.length.mp.'+w),cast=ledger[i];
+        const prior=i<0?null:GameSession.replayLedger(save.sessionId,save.origin,ledger.slice(0,i)),before=prior?.ok?prior.session.snapshot():null;
+        if(!before||!cast||cast.type!=='mp_replaced'||ledger.filter(e=>e.eventId==='episode.length.mp.'+w).length!==1||
+          cast.payload.mp.currentMp!==before.mp.currentMp-lengthCost(w)||cast.payload.mp.maxMp!==before.mp.maxMp||
+          cast.payload.mp.worldVersion!==before.mp.worldVersion+1||before.capabilities.expressionCapacityWords<2||
+          this.truth.receiptIndex['forest.episode.length.'+w+'.cast']?.domain!=='cast'||
+          w==='suli'&&before.world.flags['global:forest.episode.length.suli.braced']?.value!==true)throw Error('尺度复习施放凭证无效');
+        const world=new LengthStudyWorld(w,t);
+        if(this.hasLength(w,'completed')!==world.satisfied||this.hasLength(w,'completed')&&!word?.evidence.some(e=>
+          e.eventId==='cistern.grounding.episode.length.'+w+'.'+w&&e.eventType==='grounding_trial_resolved'&&e.promptLevel===1&&e.answerVisible===false))
+          throw Error('尺度复习水体与理解证据不一致');
+      }
     }
     for(const [i,f] of MOTION_FLAGS.entries())if(this.hasMotion(f)&&(!this.truth.receiptIndex['forest.episode.motion.'+f]||
       i>0&&!this.hasMotion(MOTION_FLAGS[i-1]!)))throw Error('水轮运动学习顺序无效');
