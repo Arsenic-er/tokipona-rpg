@@ -1,4 +1,5 @@
 import { ForestEpisode } from '../game/forest-episode';
+import {ALLOCATION_BRANCHES,ALLOCATION_PORTS,ALLOCATION_CONTROLS,allocationQuotas,allocationHabitatDepth} from '../world/forest-water-allocation';
 import { FORCE_STUDY } from '../world/forest-force-study';
 import { MOTION_STUDY } from '../world/forest-motion-study';
 import { LENGTH_STUDY } from '../world/forest-length-study';
@@ -54,8 +55,13 @@ export class ForestEpisodeRenderer {
       this.rock(ctx,521,spoutY-12,27,12);
       ctx.fillStyle='#132520';ctx.fillRect(525,spoutY-10,19,6);
       ctx.fillStyle='#8b886a';ctx.fillRect(528,spoutY-21,5,12);ctx.fillRect(531,spoutY-21,8,3);
-      if(game.hasFlow('restored')){ctx.fillStyle='#75a2a3';ctx.fillRect(536,spoutY-18,1,11);
-        ctx.fillStyle='#426d73';ctx.fillRect(526,spoutY-7,17,3);}
+      if(game.hasFlow('restored')){
+        const rationed=game.allocationMode!==null&&allocationQuotas(game.allocationMode).settlement===20;
+        if(!rationed||p.tick%120<30){ctx.fillStyle='#75a2a3';ctx.fillRect(536,spoutY-18,1,11);}
+        ctx.fillStyle='#426d73';ctx.fillRect(526,spoutY-(rationed?5:7),17,rationed?1:3);
+        if(rationed){this.timber(ctx,549,spoutY-19,15,12);this.timber(ctx,555,spoutY-7,2,7);
+          ctx.fillStyle='#b6ae84';ctx.fillRect(552,spoutY-16,9,1);ctx.fillRect(552,spoutY-12,4,1);}
+      }
       drawForestNpc(ctx, 'worker', 350, game.groundAt(350), p.tick);
       this.lantern(ctx, 390, game.groundAt(390) - 17, p.tick); this.lantern(ctx, 780, game.groundAt(780) - 17, p.tick);
     } else if (p.place === 'mill') {
@@ -94,12 +100,15 @@ export class ForestEpisodeRenderer {
       this.timber(ctx, 968, doorFloor - 25, 3, 24); this.timber(ctx, 987, doorFloor - 25, 3, 24);
     } else if(p.place==='wetland'){
       // Open, low wetland banks. Reeds are background habitat; the shared ground is the walkable surface.
+      const stressed=game.allocationMode==='settlement_priority';
       for(let x=290;x<755;x+=17){
         const y=wetlandGround(x),h=13+(x*13%19);
-        ctx.fillStyle='#425944';ctx.fillRect(x,y-h,1,h);ctx.fillRect(x+3,y-h+6,1,h-6);
+        ctx.fillStyle=stressed?'#6c654a':'#425944';ctx.fillRect(x,y-h,1,h);ctx.fillRect(x+3,y-h+6,1,h-6);
         ctx.fillStyle='#727254';ctx.fillRect(x-1,y-h-3,3,5);
       }
-      ctx.fillStyle='#293e3a';ctx.fillRect(326,362,258,6);
+      const depth=allocationHabitatDepth(game.allocationMode);
+      ctx.fillStyle=stressed?'#4b493a':game.allocationMode==='wetland_priority'?'#426d67':'#293e3a';
+      ctx.fillRect(326,368-depth,258,depth);
     } else if(p.place==='order-node'){
       for(const x of [56,144,232,320,408]){
         this.rock(ctx,x,64,5,272);this.rock(ctx,x,92,60,5);
@@ -167,6 +176,7 @@ export class ForestEpisodeRenderer {
     if(p.place==='cistern')this.cisternRoom(ctx,game,windowPlan);
     if(p.place==='return-channel')this.returnChannel(ctx,game);
     if(p.place==='wetland')this.wetland(ctx,game);
+    if(p.place==='order-node')this.allocation(ctx,game);
     if (p.place === 'mill' && p.tailrace) {
       for (const i of p.tailrace.drops) {
         const x = MILL_TAILRACE.x + i % MILL_TAILRACE.width, y = MILL_TAILRACE.y + Math.floor(i / MILL_TAILRACE.width);
@@ -465,6 +475,38 @@ export class ForestEpisodeRenderer {
       const length=plan.requestedLengthClass==='short'?16:plan.requestedLengthClass==='long'?64:32;
       ctx.strokeStyle=plan.canConfirm?'#acd0bb':'#c7a06d';ctx.lineWidth=1;ctx.setLineDash([2,2]);
       ctx.strokeRect(ox+84-length+.5,oy+10.5,length,12);ctx.setLineDash([]);
+    }
+  }
+  private allocation(ctx:CanvasRenderingContext2D,game:ForestEpisode):void{
+    const view=game.allocationView;if(!view)return;
+    for(const part of ['upstream',...ALLOCATION_BRANCHES] as const){
+      const o=ALLOCATION_PORTS[part],water=view.world?.channels[part],key='allocation-channel.'+part;
+      let lining=this.terrain.get(key);
+      if(!lining){
+        lining=document.createElement('canvas');lining.width=160;lining.height=48;
+        const target=lining.getContext('2d')!,pixels=target.createImageData(160,48);
+        for(let y=0;y<48;y++)for(let x=0;x<160;x++){
+          const rgb=episodeWaterSolid(x,y,ALLOCATION_CONTROLS)?forestMaterialColor(M.stone,x+o.x,y+o.y):[16,35,31];
+          pixels.data.set([...rgb,255],(y*160+x)*4);
+        }
+        target.putImageData(pixels,0,0);this.terrain.set(key,lining);
+      }
+      ctx.drawImage(lining,o.x,o.y);
+      if(water)for(let y=0;y<48;y++)for(let x=0;x<160;x++)if(water.cells[y*160+x]){
+        ctx.fillStyle=(x+y)%9===0?'#8fb7b6':'#50838c';ctx.fillRect(o.x+x,o.y+y,1,1);
+      }
+    }
+    ctx.strokeStyle='#65745f';ctx.lineWidth=1;
+    for(const b of ALLOCATION_BRANCHES){
+      const o=ALLOCATION_PORTS[b],outletY=ALLOCATION_PORTS.upstream.y+48;ctx.beginPath();ctx.moveTo(254,outletY);ctx.lineTo(263,outletY);
+      ctx.lineTo(263,o.y+7);ctx.lineTo(280,o.y+7);ctx.stroke();
+      const i=ALLOCATION_BRANCHES.indexOf(b),amount=view.world?.delivered[b]??0;
+      // One, two, three notches match the dialogue's settlement / wetland / road order.
+      ctx.fillStyle='#b5a775';for(let k=0;k<=i;k++)ctx.fillRect(279+k*3,o.y-7,1,4);
+      ctx.fillStyle='#504d3b';ctx.fillRect(296,o.y-6,80,2);
+      if(view.state.phase==='preview'){ctx.fillStyle='#9e8b60';ctx.fillRect(296,o.y-6,view.quotas[b],1);}
+      else{ctx.fillStyle='#78a39b';ctx.fillRect(296,o.y-6,amount,2);}
+      ctx.fillStyle='#b5a775';ctx.fillRect(296+view.quotas[b],o.y-8,1,6);
     }
   }
   private returnChannel(ctx:CanvasRenderingContext2D,game:ForestEpisode):void{

@@ -1,4 +1,6 @@
 import { sha256Canonical, type JsonValue } from '../canonical-json';
+import {AllocationWorld,allocationQuotas,isAllocationMode,validateAllocationState,type AllocationState,type AllocationMode} from '../world/forest-water-allocation';
+import {ALLOCATION_NAMES,allocationDescription,allocationEffects} from './forest-water-allocation';
 import { SHARD_SYNC_EVENT,SHARD_SYNC_TICKS,shardMissingWords,shardPrerequisites,advanceShardAlignment,validateShardState,type ShardSyncState } from './forest-shard-sync';
 import { LENGTH_WORDS,LENGTH_PHASES,LENGTH_STUDY,LengthStudyWorld,parseLengthPrediction,validateLengthStudy,previewLengthStudy,executeLengthStudy,lengthCost,
   type LengthWord,type LengthPhase,type LengthStudyState } from '../world/forest-length-study';
@@ -157,6 +159,7 @@ interface EpisodePhysical {
   motionStudy?:MotionStudyState;
   lengthStudy?:LengthStudyState;
   shardSync?:ShardSyncState;
+  allocation?:AllocationState;
   wheelSpeed: number; stableTicks: number; wheelAngle: number; casts: number; baselineCollected: number;
 }
 export interface ForestEpisodeSave {
@@ -186,6 +189,7 @@ export class ForestEpisode {
   private echoCellsCache?:number[];
   private grace: PlayerJumpGrace = EMPTY_JUMP_GRACE;
   private readonly migrationLifeIds = new Map<boolean,string>();
+  private allocationPhysics?:AllocationWorld;
   private constructor(session: GameSession, private readonly openingChecksum: string, physical?: EpisodePhysical) {
     this.session = session; this.truth = session.snapshot();
     this.terrainProfile = physical ? physical.terrainProfile : 'forest-clearing-v1';
@@ -217,7 +221,8 @@ export class ForestEpisode {
   has(flag: EpisodeFlag): boolean { return this.truth.world.flags['global:' + FLAG + flag]?.value === true; }
   get state(): Readonly<EpisodePhysical> { return this.physical; }
   get targets(){return EPISODE_TARGETS[this.physical.place].filter(t=>
-    (t.id!=='cistern-shortcut'&&t.id!=='return-channel-road')||this.hasRoom('return_open'));}
+    (t.id!=='cistern-shortcut'&&t.id!=='return-channel-road')||this.hasRoom('return_open')).map(t=>
+      t.id==='node-allocation'&&this.allocationMode?{...t,label:'已锁定的三路配水台'}:t);}
   get ridingLift():boolean{return liftCarriesPlayer(this.physical.lift);}
   roomSolidAt(x:number,y:number):boolean{return cisternRoomSolid(x,y,this.hasRoom('valve_filled'),this.hasRoom('lift_open'))||
     !!this.physical.lift&&intersects({x,y,width:1,height:1},liftDeck(this.physical.lift));}
@@ -511,6 +516,59 @@ export class ForestEpisode {
   hasForce(flag:ForceFlag):boolean{return this.truth.world.flags['global:forest.episode.force.'+flag]?.value===true;}
   get forceView(){return this.physical.forceStudy?forceStudyView(this.physical.forceStudy):null;}
   get shardSyncStage(){return this.physical.shardSync?.phase??'unvisited';}
+  get allocationMode():AllocationMode|null{
+    const mode=this.truth.world.flags['region:'+MIGRATION_REGION+':forest_water_allocation']?.value;
+    return isAllocationMode(mode)?mode:null;
+  }
+  get allocationStage(){return this.physical.allocation?.phase??'unvisited';}
+  get allocationSummary():string{return this.allocationMode?allocationDescription(forestChapter,this.allocationMode):'尚未提交三路配水。';}
+  get allocationView(){
+    const s=this.physical.allocation;if(!s)return null;
+    return {state:s,quotas:allocationQuotas(s.mode),world:s.phase==='preview'?null:this.allocationWorld};
+  }
+  private get allocationWorld():AllocationWorld{
+    const s=this.physical.allocation!;return this.allocationPhysics??=new AllocationWorld(s.mode,s.age);
+  }
+  private allocationInteraction(choice?:string):EpisodeResult{
+    const say=(text:string,actions?:EpisodeResult['actions']):EpisodeResult=>({accepted:true,text,actions});
+    if(!this.hasShard('synchronized'))return say('先完成碎片同步。暂时不能选择三路配水；可以沿原路返回，不会消耗 MP。');
+    let s=this.physical.allocation;
+    if(s?.phase==='committed')return say(this.allocationSummary+'这是本阶段的已确认分配，不能靠重开面板改选。原碎片、水路维修、动物生命和学习记录保留；其他位点线索与章节结尾尚待调查。');
+    if(s?.phase==='routing')return say('分配已确认，正在用有限的旧水检定三路出口。关闭面板留在台旁观察；离开、地图和日志会暂停。此时不能取消或改选。');
+    if(choice==='allocation:cancel'){delete this.physical.allocation;this.allocationPhysics=undefined;s=undefined;}
+    const selected=choice?.startsWith('allocation:preview:')?choice.slice('allocation:preview:'.length):null;
+    if(isAllocationMode(selected)){
+      s=this.physical.allocation={version:1,mode:selected,phase:'preview',age:0};this.allocationPhysics=undefined;
+    }
+    if(s&&choice==='allocation:confirm:'+s.mode){
+      if(!shardPrerequisites(this.truth,forestChapter))return say('同步前置记录不完整，未启动分流。');
+      const world=new AllocationWorld(s.mode);
+      this.commit('allocation.confirm',[{eventId:'episode.allocation.selected',type:'world_flag_set',
+        payload:{flagId:'forest.episode.allocation.selected',value:s.mode,scope:'global'}}]);
+      s.phase='routing';this.allocationPhysics=world;
+      return {accepted:true,text:'已锁定'+ALLOCATION_NAMES[s.mode]+'。观察旧水通过计量槽，三路实际入量符合刻度后才生效。没有扣 MP。',resumeWorld:true};
+    }
+    const options=forestChapter.allocation.modeIds.map(mode=>({id:'allocation:preview:'+mode,label:'预览：'+ALLOCATION_NAMES[mode]}));
+    if(!s)return say('损坏的系统无法同时满足三路需求。先比较收益与代价；预览可取消，不改世界、不扣 MP。确认后锁定本阶段选择，仍能沿原检修路返回。',options);
+    const q=allocationQuotas(s.mode);
+    return say('仅预览 · '+allocationDescription(forestChapter,s.mode)+'检定水箱共 120 格旧水：聚落 '+q.settlement+'、湿地 '+q.wetland+'、商路 '+q.road+
+      '；这是本阶段可调整的设计比例，不是免费施法。确认后不能反复改选，实际出水符合刻度才生效。食品价格数值、商队与新地图尚未接入；不会自动赠送物品、声望或战斗资格。',
+      [{id:'allocation:confirm:'+s.mode,label:'确认：'+ALLOCATION_NAMES[s.mode]},...options,{id:'allocation:cancel',label:'取消预览'}]);
+  }
+  private advanceAllocation():void{
+    const s=this.physical.allocation;if(!s||s.phase!=='routing'||this.nearest()?.id!=='node-allocation')return;
+    const world=this.allocationWorld;world.advance();s.age=world.age;
+    if(!world.satisfied)return;
+    const regional=(flagId:string,value:boolean|string):SessionEventDraft=>({eventId:'episode.allocation.result.'+flagId,
+      type:'world_flag_set',payload:{flagId,value,scope:'region',regionId:MIGRATION_REGION}});
+    this.commit('allocation.completed',[
+      regional('forest_water_allocation',s.mode),regional(forestChapter.allocation.commitEventId,true),
+      ...allocationEffects(forestChapter,s.mode).map(id=>regional('forest_allocation_effect.'+id,true)),
+      {eventId:'episode.allocation.quest',type:'quest_stage_set',payload:{questId:'ch01_underground_water_allocation',
+        stageId:'water_allocated',stageOrdinal:(this.truth.quests.ch01_underground_water_allocation?.stageOrdinal??0)+1}},
+    ]);
+    s.phase='committed';
+  }
   private hasShard(flag:'started'|'aligned'|'synchronized'):boolean{
     return this.truth.world.flags['global:forest.episode.shard.'+flag]?.value===true;
   }
@@ -526,7 +584,7 @@ export class ForestEpisode {
       '。隐士水槽复习 telo，工坊轮轴复习 tawa，蓄水室入口回声复习 lili / suli，回流渠出水口复习 wawa。工具通路和旧练习权限仍保留；同步不会替你学会这些词。');
     if(!shardPrerequisites(this.truth,forestChapter))return say('原碎片或湿地处理记录缺失，不能同步；可沿左侧原路返回。');
     let s=this.physical.shardSync;
-    if(s?.phase==='synchronized')return say('森林位点已同步，碎片已取回行囊。装置只恢复了此位点的连接，没有补充 MP、提高容量、授予词义或攻击能力。三路配水尚未决定，第一章尚未结束。');
+    if(s?.phase==='synchronized')return say('森林位点已同步，碎片已取回行囊。装置只恢复了此位点的连接，没有补充 MP、提高容量、授予词义或攻击能力。'+(this.allocationMode?this.allocationSummary:'三路配水尚未决定。')+'第一章尚未结束。');
     if(choice==='shard:withdraw'&&s){
       s.phase='packed';s.age=0;return say('碎片收回行囊，未提交同步。已有调查和学习记录保留，随时可以重新嵌入。',[{id:'shard:seat',label:'重新嵌入原碎片'}]);
     }
@@ -743,7 +801,9 @@ export class ForestEpisode {
   }
   get objective(): string {
     if (this.has('finished')) {
-      if(this.hasShard('synchronized'))return '森林位点已同步，原碎片已取回；三路配水与后续线索仍待完成，不算第一章结局';
+      if(this.allocationMode)return '配水已生效：'+this.allocationSummary+'可沿原路回看聚落与湿地；后续位点线索和章节结局尚未完成';
+      if(this.allocationStage==='routing')return '配水已确认；留在三路配水台旁观察有限旧水通过计量槽，实际入量达标才生效';
+      if(this.hasShard('synchronized'))return '森林位点已同步，原碎片已取回；在右侧配水台比较三种取舍，预览后再确认';
       if(this.hasMigration('archive'))return '档案揭示了旱季改渠的代价；补齐五词现场理解后，在碎片座手动对齐并确认同步';
       if(this.hasMigration('node_entered'))return '调查地下档案和受损碎片座；先弄清旧水路为何改变';
       if(this.hasMigration('resolved'))return '动物与幼体已迁入右岸苇地；沿空出的浅滩到地下档案入口';
@@ -813,6 +873,7 @@ export class ForestEpisode {
     if(p.place==='return-channel')this.advanceReturnFlow();
     if(p.place==='return-channel'&&p.forceStudy)this.advanceForce();
     if(p.place==='wetland')this.advanceMigration();
+    if(p.place==='order-node')this.advanceAllocation();
     if(p.place==='order-node'&&p.shardSync&&advanceShardAlignment(p.shardSync,this.nearest()?.id==='node-cradle')&&!this.hasShard('aligned'))
       this.markShard('aligned');
     // Channels freeze with the scene: no off-screen completion or forgotten input while reading dialogue.
@@ -859,6 +920,13 @@ export class ForestEpisode {
     const requireJob = () => !this.has('job');
     switch (target) {
       case 'worker': {
+        if(this.allocationMode){
+          if(this.hasRoom('exited')&&!this.hasRoom('reported'))this.markRoom('reported');
+          return say(this.allocationSummary+(this.allocationMode==='settlement_priority'?
+          '饮水和庄稼暂时稳了，但不能把湿地退水当成没有代价。':
+          this.allocationMode==='wetland_priority'?'水口已经挂出分时取水牌；粮食摊担心灌溉不足，但这一阶段还没有改动交易价格。':
+          '水口只保留最低供水，商路补给线开始通水。商队和新路线还需要后续调查。')+'维修报酬已结清，不重复发放。','工务人');
+        }
         if(this.hasRoom('exited')){
           if(this.hasFlow('restored')){
             if(!this.hasRoom('reported'))this.markRoom('reported');
@@ -910,6 +978,7 @@ export class ForestEpisode {
           say('两处出水口通向不同地方。仅仅打开上游不代表两路都有水，要看水真正到达这里。');
       case 'flow-depth':return this.enterWetland();
       case 'wetland-lookout':
+        if(this.allocationMode)return say(this.allocationSummary+'成年动物与幼体仍在高岸，之前的和平迁徙没有被撤销。这里的后果是供水和栖息地压力，不会直接扣血或重新刷出生物。');
         if(!this.hasMigration('seen'))this.markMigration('seen');
         return say(this.hasMigration('resolved')?'成年动物和幼体留在右岸较高的苇地。旧巢空了；身后的水路维修状态没有改变。':
           '水回来了，旧巢却被浸湿。成年动物在寻找幼体，拍尾和拨开芦苇是警告，不是要你挑战它。先沿左岸查看痕迹；疏通出口后，回到这里让路。');
@@ -934,7 +1003,7 @@ export class ForestEpisode {
         if(!this.hasMigration('archive'))this.markMigration('archive');
         return say('档案记着一次旱季：部分居民与议事者将水引向聚落，保住饮水和庄稼，却让湿地与下游承受缺水。他们随后隐去了改渠记录，担心追责和索赔。维修簿又记下：受损系统无法同时满足三路需求。修复并不意味着代价消失。');
       case 'node-cradle':return this.shardInteraction(choice);
-      case 'node-allocation':return say((this.hasShard('synchronized')?'碎片同步已完成。':'先完成碎片同步。')+'配水台的三路分别标着聚落、湿地和旧商路。原有两路仍维持局部供水。正式配水交互尚未开放，暂时不能选择，没有“兼顾一切”的初始选项。');
+      case 'node-allocation':return this.allocationInteraction(choice);
       case 'node-exit':return say('这是通往聚落的旧门，正式的地下结局和交接还没有完成。先从左边返回湿地，再沿检修渠和永久梯回村；不会在这里跳过第一章结局。');
       case 'mill-road': this.travel('mill', 100); return say('旧水渠通向东边工坊。');
       case 'hermit-road':
@@ -1191,9 +1260,32 @@ export class ForestEpisode {
       const prior=i<0?null:GameSession.replayLedger(save.sessionId,save.origin,save.eventLedger.slice(0,i));
       if(!prior?.ok||!shardPrerequisites(prior.session.snapshot(),forestChapter)||
         prior.session.snapshot().world.flags['global:forest.episode.shard.aligned']?.value!==true||
-        this.truth.quests.ch01_underground_water_allocation?.stageId!=='shard_synchronized')
+        this.truth.quests.ch01_underground_water_allocation?.stageId!==(this.allocationMode?'water_allocated':'shard_synchronized'))
         throw Error('碎片同步提交顺序无效');
     }
+    const allocation=p.allocation,selected=this.truth.world.flags['global:forest.episode.allocation.selected']?.value;
+    const allocationCommitted=this.truth.world.flags['region:'+MIGRATION_REGION+':'+forestChapter.allocation.commitEventId]?.value===true;
+    if(allocation){
+      validateAllocationState(allocation);
+      if(!this.hasShard('synchronized'))throw Error('配水缺少碎片同步');
+      if(allocation.phase==='preview'){
+        if(selected!==undefined||allocationCommitted)throw Error('已确认配水不能退回预览');
+      }else{
+        if(selected!==allocation.mode||!this.truth.receiptIndex['forest.episode.allocation.confirm'])throw Error('配水确认记录无效');
+        const save=this.session.toSave(),i=save.eventLedger.findIndex(e=>e.eventId==='episode.allocation.selected');
+        const prior=i<0?null:GameSession.replayLedger(save.sessionId,save.origin,save.eventLedger.slice(0,i));
+        if(!prior?.ok||prior.session.snapshot().world.flags['region:'+MIGRATION_REGION+':'+SHARD_SYNC_EVENT]?.value!==true)
+          throw Error('配水早于碎片同步');
+        if(this.allocationWorld.satisfied!==(allocation.phase==='committed'))throw Error('配水记录与实际出水不一致');
+      }
+    }else if(selected!==undefined)throw Error('已确认配水缺少现场状态');
+    if(allocationCommitted!==(allocation?.phase==='committed')||!!this.allocationMode!==allocationCommitted||
+      allocationCommitted&&(this.allocationMode!==allocation?.mode||!this.truth.receiptIndex['forest.episode.allocation.completed']))
+      throw Error('配水提交与现场不一致');
+    const expectedEffects=this.allocationMode?allocationEffects(forestChapter,this.allocationMode):[];
+    const allEffects=new Set(forestChapter.allocation.modeIds.flatMap(m=>[...allocationEffects(forestChapter,m)]));
+    for(const id of allEffects)if((this.truth.world.flags['region:'+MIGRATION_REGION+':forest_allocation_effect.'+id]?.value===true)!==expectedEffects.includes(id))
+      throw Error('配水后果与所选方案不一致');
     const ls=p.lengthStudy;
     if(ls){
       validateLengthStudy(ls);

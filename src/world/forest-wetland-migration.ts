@@ -78,9 +78,9 @@ export function validateWetlandMigration(s: WetlandMigrationState, controls: Mig
     throw Error('湿地迁徙存档无效');
 }
 /** Shallow water is a habitat/backdrop, not a second spell-water source. */
-export function wetlandMapMaterial(x: number, y: number): number {
+export function wetlandMapMaterial(x: number, y: number, depth=3): number {
   if (y >= wetlandGround(x)) return 2;
-  return x >= 340 && x <= 578 && y >= 365 ? 7 : 0;
+  return x >= 340 && x <= 578 && y >= 368-depth ? 7 : 0;
 }
 export function orderNodeSolid(x: number, y: number): boolean {
   return x < 6 || x >= 442 || y < 64 || y >= 336;

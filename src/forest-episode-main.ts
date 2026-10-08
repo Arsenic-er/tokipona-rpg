@@ -1,6 +1,7 @@
 import { hasMillValley } from './world/forest-mill-terrain';
 import { returnChannelMapMaterial } from './world/forest-return-channel';
 import { wetlandMapMaterial, orderNodeSolid } from './world/forest-wetland-migration';
+import { allocationHabitatDepth } from './world/forest-water-allocation';
 import { ForestEpisode, EPISODE_SAVE_KEY, OPENING_SAVE_KEY, EPISODE_PLACES, episodeBounds, type EpisodeResult, type EpisodeTarget } from './game/forest-episode';
 import { BrowserForestOpeningPersistence } from './persistence/browser-forest-opening-persistence';
 import { initializeForestCamera, advanceForestCamera, type RuntimeForestCameraContract } from './runtime/forest-camera';
@@ -210,7 +211,7 @@ function updateMap(): void {
     (x, y) => {
       if (place === 'cistern-entry') return cisternEntrySolid(x, y, game.has('entry_open')) ? 4 : 0;
       if(place==='cistern')return game.roomSolidAt(x,y)?4:0;
-      if(place==='wetland')return wetlandMapMaterial(x,y);
+      if(place==='wetland')return wetlandMapMaterial(x,y,game.allocationMode?allocationHabitatDepth(game.allocationMode):undefined);
       if(place==='order-node')return orderNodeSolid(x,y)?4:0;
       if(place==='return-channel')return returnChannelMapMaterial(game.state.returnFlow,game.flowControls,x,y)??(y>=game.groundAt(x)?2:0);
       const lx = x - (place === 'mill' ? 500 : 620), ly = y - (place === 'mill' ? 259 : 280);
@@ -264,7 +265,10 @@ function notes(): string {
     game.hasMigration('archive')||game.hasForce('entered') ? '五词学习账本 · '+game.chapterWordNotes+'。只展示真实记录，不把旧台词和工具操作补写成语言掌握；既有练习权限保持。' : '',
     game.hasMigration('nest') ? '迁徙危机 · 回水浸湿了旧巢；成年动物需要带幼体去高岸。拍尾是警告。看过幼体足迹后，可用岸上牵引绳移开倒木，再退回左岸观察处让路。' : '',
     game.hasMigration('resolved') ? '和平处理 · 成年动物和幼体已实际走到右岸苇地，生命身份和位置保存。没有击杀、掉落、报酬或语言掌握奖励。地下档案入口可进入，仍能沿原检修路回村。' : '',
-    game.hasMigration('archive') ? '旱季档案 · 部分居民和议事者改渠保住聚落饮水与庄稼，把缺水代价转移到湿地和下游，随后因担心追责与索赔隐瞒记录。损坏的系统不能同时满足三路需求。碎片不会消耗；最终配水和第一章结局尚未开放。' : '',
+    game.hasMigration('archive') ? '旱季档案 · 部分居民和议事者改渠保住聚落饮水与庄稼，把缺水代价转移到湿地和下游，随后因担心追责与索赔隐瞒记录。损坏的系统不能同时满足三路需求。碎片不会消耗；同步后可在右侧比较三路配水，第一章结局尚未完成。' : '',
+    game.allocationStage!=='unvisited'?'三路配水 · '+(game.allocationMode?game.allocationSummary:
+      game.allocationStage==='preview'?'仅预览，可取消，不改供水。计量槽从上到下对应聚落、湿地、商路。':
+      '已确认分配；留在台旁观察有限旧水通过三路计量槽，实际出水符合刻度才生效。')+' 修渠与迁徙的历史成果保留。价格数值、商队和新地图尚未接入。':'',
     game.hasMigration('archive') ? '碎片座 · '+({unvisited:'待补齐五词现场理解，再嵌入原碎片。',packed:'已取回，尚未提交同步。',seated:'已嵌入，等待手动校准。',aligning:'刻线正在对齐；关闭面板并留在底座旁观察。',ready:'刻线已稳定；等待确认，也可以取回。',synchronized:'森林位点已同步，原碎片已取回。没有能力或 MP 奖励。'}[game.shardSyncStage]) : '',
     game.hasRoom('reported') ? '工务人交接 · 已说明水路变化，不重复领取报酬。旧矿道仍需后续安全调查，当前未开放。' : '',
     game.has('finished') ? '已领取 · 8 枚钱、一晚床位。小节完成，可继续回访地上地点，或从工坊进入地下检修入口。' : ''];
@@ -272,7 +276,7 @@ function notes(): string {
 }
 function openNotes(): void { if (blocked()) return; get('notes').textContent = notes(); showDialog(journal); }
 function maybeEnding(): void {
-  if (!game.has('finished') || game.state.place !== 'settlement' || endedThisVisit || dialogs.some(d => d.open)) return;
+  if (!game.has('finished') || game.allocationMode !== null || game.state.place !== 'settlement' || endedThisVisit || dialogs.some(d => d.open)) return;
   endedThisVisit = true;
   get('ending').textContent = `你让水轮重新运转，带回受损媒介与森林碎片，完成隐士的第一次安全实践，并回到聚落交付。\n\n报酬：8 枚钱与一晚床位。旅途中没有强制击杀。\n下一条线索：地下蓄水廊与尚未解锁的古代位点。\n\n${saved ? '已保存，重新打开仍保留物品、MP 和结算。' : '当前保存失败；请返回游戏重试保存或导出备份。'}`;
   showDialog(ending);
@@ -298,6 +302,11 @@ function updateHud(): void {
   canvas.dataset.waterStudy = game.waterStudyStage;
   canvas.dataset.motionStudy = game.motionStudyStage;
   canvas.dataset.lengthStudyView = game.state.lengthStudy?.view??'unvisited';
+  canvas.dataset.allocation = game.allocationStage;
+  canvas.dataset.allocationMode = game.allocationMode??'unassigned';
+  canvas.dataset.allocationAge = String(game.state.allocation?.age??0);
+  const delivered=game.allocationView?.world?.delivered;
+  canvas.dataset.allocationDelivered = delivered?[delivered.settlement,delivered.wetland,delivered.road].join(','):'0,0,0';
   canvas.dataset.shardSync = game.shardSyncStage;
   canvas.dataset.shardAge = String(game.state.shardSync?.age??0);
   canvas.dataset.liliStudy = game.lengthStudyStage('lili');
