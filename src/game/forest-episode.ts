@@ -1,3 +1,4 @@
+import {NODE_EXPERIMENTS,beginNodeExperiment,advanceNodeExperiment,validateNodeExperiments,nodeExperimentSummary,type NodeExperiment,type NodeExperimentState} from '../world/forest-node-experiments';
 import { sha256Canonical, type JsonValue } from '../canonical-json';
 import {FOREST_EPILOGUE_FLAG,FOREST_RETURN_TRANSACTION,forestEpilogueReady,hasEpilogueFlag,hasForestReturn} from './forest-epilogue-contract';
 import {validateForestEpilogue} from './forest-epilogue';
@@ -72,7 +73,7 @@ export type EpisodeTarget = 'worker' | 'mill-road' | 'hermit-road' | 'return' | 
   'room-road' | 'room-echo' | 'east-up' | 'east-down' | 'west-up' | 'west-down' | 'calibration' | 'calibration-tool' | 'upper-survey' |
   'siphon' | 'siphon-left' | 'siphon-right' | 'siphon-tool' | 'lift-up' | 'lift-down' | 'return-winch' | 'top-exit' | 'cistern-shortcut' |
   'return-channel-road' | 'flow-inspect' | 'flow-gate' | 'flow-seal' | 'flow-clear' | 'flow-gauge' | 'flow-spout' | 'flow-depth' |
-  'wetland-lookout' | 'wetland-nest' | 'wetland-young' | 'wetland-clear' | 'node-road' | 'node-survey' | 'node-archive' | 'node-cradle' | 'node-allocation' | 'node-exit' | 'archive-road';
+  'wetland-lookout' | 'wetland-nest' | 'wetland-young' | 'wetland-clear' | 'node-road' | 'node-survey' | 'node-archive' | 'node-cradle' | 'node-allocation' | 'node-exit' | 'archive-road' | 'node-gravity' | 'node-time';
 export const EPISODE_TARGETS: Readonly<Record<EpisodePlace, readonly { id: EpisodeTarget; x: number; y?:number; label: string }[]>> = {
   settlement: [{ id: 'hermit-road', x: 60, label: '西侧林间小径' }, { id: 'worker', x: 350, label: '工务人' }, { id: 'mill-road', x: 920, label: '沿水渠去工坊' }, {id:'archive-road',x:820,label:'旧门通往地下档案'}],
   mill: [{ id: 'return', x: 60, label: '返回聚落' }, { id: 'timber', x: 270, label: '备用木撑' }, { id: 'gate', x: 490, label: '水渠闸柄' },
@@ -101,7 +102,8 @@ export const EPISODE_TARGETS: Readonly<Record<EpisodePlace, readonly { id: Episo
   wetland:[{id:'return',x:40,label:'返回回流检修渠'},{id:'wetland-lookout',x:96,label:'浅滩观察处'},
     {id:'wetland-nest',x:148,label:'被水浸湿的旧巢'},{id:'wetland-young',x:220,label:'幼体足迹'},
     {id:'wetland-clear',x:252,label:'疏通迁徙出口的牵引绳'},{id:'node-road',x:540,label:'地下档案入口'}],
-  'order-node':[{id:'return',x:32,label:'返回湿地浅滩'},{id:'node-survey',x:96,label:'前厅检修图'},
+  'order-node':[{id:'return',x:32,label:'返回湿地浅滩'},{id:'node-gravity',x:NODE_EXPERIMENTS.gravity.x,label:NODE_EXPERIMENTS.gravity.name},
+    {id:'node-time',x:NODE_EXPERIMENTS.time.x,label:NODE_EXPERIMENTS.time.name},{id:'node-survey',x:192,label:'前厅检修图'},
     {id:'node-archive',x:256,label:'旱季配水档案'},{id:'node-cradle',x:304,label:'受损的碎片座'},
     {id:'node-allocation',x:352,label:'未校准的三路配水台'},{id:'node-exit',x:416,label:'封闭的聚落旧门'}],
 };
@@ -163,6 +165,7 @@ interface EpisodePhysical {
   lengthStudy?:LengthStudyState;
   shardSync?:ShardSyncState;
   allocation?:AllocationState;
+  nodeExperiments?:NodeExperimentState;
   wheelSpeed: number; stableTicks: number; wheelAngle: number; casts: number; baselineCollected: number;
 }
 export interface ForestEpisodeSave {
@@ -519,6 +522,31 @@ export class ForestEpisode {
       actions:[{id:'water:hint',label:'复看水槽注音'}]};
   }
   hasForce(flag:ForceFlag):boolean{return this.truth.world.flags['global:forest.episode.force.'+flag]?.value===true;}
+  get nodeExperimentNotes():string {
+    const runs=this.physical.nodeExperiments;
+    if(!runs)return '';
+    return (Object.keys(runs) as NodeExperiment[]).map(kind=>nodeExperimentSummary(kind,runs[kind]!)).join(' ')+
+      '这是现场对照记录，不是词语学习或施法证据；复位只收回演示物，不改动章节进度。';
+  }
+  private nodeExperimentInteraction(kind:NodeExperiment,choice?:string):EpisodeResult {
+    if(choice==='experiment:normal'||choice==='experiment:anomaly'){
+      this.physical.nodeExperiments??={};
+      this.physical.nodeExperiments[kind]=beginNodeExperiment(choice==='experiment:normal'?'normal':'anomaly');
+      return {accepted:true,text:'已松开机械锁扣；留在装置旁观察。',resumeWorld:true};
+    }
+    if(choice==='experiment:reset'){
+      delete this.physical.nodeExperiments?.[kind];
+      if(this.physical.nodeExperiments&&!Object.keys(this.physical.nodeExperiments).length)delete this.physical.nodeExperiments;
+    }
+    const run=this.physical.nodeExperiments?.[kind];
+    return {accepted:true,text:(kind==='gravity'?
+      '两只同重铅锤从中线松开。单刻痕左槽是正常区，双刻痕右槽可接入局部异常；细绳和上下挡块把铅锤限制在槽内。':
+      '两只同长摆从同一角度松开。单刻痕左槽是正常区，双刻痕右槽可接入时间迟滞区；底下的小刻痕记录实际越过中线的次数。')+
+      (run?nodeExperimentSummary(kind,run):'先让两槽正常运行，再接入右槽异常比较。')+
+      '离开装置旁或打开面板会暂停。工具不消耗 MP，不改变人物或水路，也不授予词语掌握。',
+      actions:[{id:'experiment:normal',label:'两槽正常对照'},{id:'experiment:anomaly',label:'接入右槽异常对照'},
+        ...(run?[{id:'experiment:reset',label:'机械复位'}]:[])]};
+  }
   get forceView(){return this.physical.forceStudy?forceStudyView(this.physical.forceStudy):null;}
   get shardSyncStage(){return this.physical.shardSync?.phase??'unvisited';}
   get epilogueSealed(){return hasEpilogueFlag(this.truth,'sealed');}
@@ -979,6 +1007,11 @@ export class ForestEpisode {
     if(p.place==='return-channel'&&p.forceStudy)this.advanceForce();
     if(p.place==='wetland')this.advanceMigration();
     if(p.place==='order-node')this.advanceAllocation();
+    if(p.place==='order-node'&&p.nodeExperiments){
+      const near=this.nearest()?.id;
+      for(const kind of Object.keys(p.nodeExperiments) as NodeExperiment[])
+        if(near==='node-'+kind)advanceNodeExperiment(kind,p.nodeExperiments[kind]!);
+    }
     if(p.place==='order-node'&&p.shardSync&&advanceShardAlignment(p.shardSync,this.nearest()?.id==='node-cradle')&&!this.hasShard('aligned'))
       this.markShard('aligned');
     // Channels freeze with the scene: no off-screen completion or forgotten input while reading dialogue.
@@ -1105,7 +1138,9 @@ export class ForestEpisode {
         if(!this.hasMigration('resolved'))return say('动物还在寻找迁徙通路。先处理旧巢和幼体的处境；地下入口就在它们需要通过的浅滩旁。');
         if(!this.hasMigration('node_entered'))this.markMigration('node_entered');
         this.travel('order-node',28);return say('绕过空出的浅滩，沿石阶进入档案前厅。身后的路通回湿地，森林碎片仍由你保管。');
-      case 'node-survey':return say('三条旧水路分别通往聚落、湿地和旧商路。检修图有多处损坏，不能凭眼前两路恢复就断言整个系统平衡了。往右有旱季记录和碎片座；同步只连接位点，不自动分配水路。');
+      case 'node-gravity':return this.nodeExperimentInteraction('gravity',choice);
+      case 'node-time':return this.nodeExperimentInteraction('time',choice);
+      case 'node-survey':return say('左边两座封闭装置可以比较重力方向和局部时间迟滞，不影响脚下的安全通道。三条旧水路分别通往聚落、湿地和旧商路。检修图有多处损坏，不能凭眼前两路恢复就断言整个系统平衡了。往右有旱季记录和碎片座；同步只连接位点，不自动分配水路。');
       case 'node-archive':
         if(!this.hasMigration('archive'))this.markMigration('archive');
         if(this.allocationMode)return this.siteLeadInteraction('archive',choice);
@@ -1340,6 +1375,10 @@ export class ForestEpisode {
         Math.abs(p.player.velocityX) > 88.001 || Math.abs(p.player.velocityY) > 240.001 ||
         this.collides({ ...p.player, width: 12, height: 14 })) throw new Error('章节空间存档无效');
     validateEpisodeWater(p.mill); validateEpisodeWater(p.practice);
+    if(p.nodeExperiments!==undefined){
+      if(!this.hasMigration('node_entered'))throw Error('地下对照装置入口尚未开放');
+      validateNodeExperiments(p.nodeExperiments,p.tick);
+    }
     if (p.tailrace !== undefined) {
       if (!hasMillValley(this.terrainProfile)) throw new Error('工坊下游地形版本不兼容');
       validateMillTailrace(p.tailrace, p.mill.escaped, p.mill.tick);

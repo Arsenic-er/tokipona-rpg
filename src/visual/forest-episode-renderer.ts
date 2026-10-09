@@ -1,3 +1,4 @@
+import {drawNodeExperiments} from './forest-node-experiments';
 import { ForestEpisode } from '../game/forest-episode';
 import {ALLOCATION_BRANCHES,ALLOCATION_PORTS,ALLOCATION_CONTROLS,allocationQuotas,allocationHabitatDepth} from '../world/forest-water-allocation';
 import { FORCE_STUDY } from '../world/forest-force-study';
@@ -192,7 +193,11 @@ export class ForestEpisodeRenderer {
     if(p.place==='cistern')this.cisternRoom(ctx,game,windowPlan);
     if(p.place==='return-channel')this.returnChannel(ctx,game);
     if(p.place==='wetland')this.wetland(ctx,game);
-    if(p.place==='order-node')this.allocation(ctx,game);
+    if(p.place==='order-node'){
+      drawNodeExperiments(ctx,p.nodeExperiments);this.allocation(ctx,game);
+      this.timber(ctx,178,309,28,19);this.timber(ctx,190,328,3,8);
+      ctx.fillStyle='#b1a17a';ctx.fillRect(182,313,20,1);ctx.fillRect(182,318,15,1);ctx.fillRect(182,323,18,1);
+    }
     if (p.place === 'mill' && p.tailrace) {
       for (const i of p.tailrace.drops) {
         const x = MILL_TAILRACE.x + i % MILL_TAILRACE.width, y = MILL_TAILRACE.y + Math.floor(i / MILL_TAILRACE.width);

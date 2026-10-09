@@ -284,6 +284,7 @@ function notes(): string {
       game.allocationStage==='preview'?'仅预览，可取消，不改供水。计量槽从上到下对应聚落、湿地、商路。':
       '已确认分配；留在台旁观察有限旧水通过三路计量槽，实际出水符合刻度才生效。')+' 修渠与迁徙的历史成果保留。价格数值、商队和新地图尚未接入。':'',
     game.hasMigration('archive') ? '碎片座 · '+({unvisited:'待补齐五词现场理解，再嵌入原碎片。',packed:'已取回，尚未提交同步。',seated:'已嵌入，等待手动校准。',aligning:'刻线正在对齐；关闭面板并留在底座旁观察。',ready:'刻线已稳定；等待确认，也可以取回。',synchronized:'森林位点已同步，原碎片已取回。没有能力或 MP 奖励。'}[game.shardSyncStage]) : '',
+    game.nodeExperimentNotes ? '地下对照 · '+game.nodeExperimentNotes : '',
     game.leadNotes ? '位点索引 · '+game.leadNotes : '',
     game.epilogueNotes ? '尾声与回访 · '+game.epilogueNotes : '',
     game.hasRoom('reported') ? '工务人交接 · 已说明水路变化，不重复领取报酬。旧矿道仍需后续安全调查，当前未开放。' : '',
@@ -318,6 +319,10 @@ function updateHud(): void {
   canvas.dataset.waterStudy = game.waterStudyStage;
   canvas.dataset.motionStudy = game.motionStudyStage;
   canvas.dataset.lengthStudyView = game.state.lengthStudy?.view??'unvisited';
+  for(const kind of ['gravity','time'] as const){
+    const run=game.state.nodeExperiments?.[kind];
+    canvas.dataset[kind+'Experiment']=run?.mode??'unvisited';canvas.dataset[kind+'Age']=String(run?.age??0);
+  }
   canvas.dataset.epilogue = game.epilogueStage;
   canvas.dataset.lead = game.leadStage;
   canvas.dataset.leadWorker = String(game.hasLead('worker'));
