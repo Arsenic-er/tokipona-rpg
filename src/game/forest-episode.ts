@@ -1,4 +1,5 @@
 import { sha256Canonical, type JsonValue } from '../canonical-json';
+import {SITE_LEAD_EVENT,SITE_LEAD_TEXT,SITE_LEAD_HERMIT,SITE_ARCHIVE_HISTORY,hasSiteLead,validateSiteLead,type SiteLeadFlag} from './forest-site-lead';
 import {AllocationWorld,allocationQuotas,isAllocationMode,validateAllocationState,type AllocationState,type AllocationMode} from '../world/forest-water-allocation';
 import {ALLOCATION_NAMES,allocationDescription,allocationEffects} from './forest-water-allocation';
 import { SHARD_SYNC_EVENT,SHARD_SYNC_TICKS,shardMissingWords,shardPrerequisites,advanceShardAlignment,validateShardState,type ShardSyncState } from './forest-shard-sync';
@@ -516,6 +517,51 @@ export class ForestEpisode {
   hasForce(flag:ForceFlag):boolean{return this.truth.world.flags['global:forest.episode.force.'+flag]?.value===true;}
   get forceView(){return this.physical.forceStudy?forceStudyView(this.physical.forceStudy):null;}
   get shardSyncStage(){return this.physical.shardSync?.phase??'unvisited';}
+  hasLead(flag:SiteLeadFlag):boolean{return hasSiteLead(this.truth,flag);}
+  get leadStage(){return this.hasLead('recorded')?'recorded':this.hasLead('inspected')?'inspected':'unvisited';}
+  get leadNotes():string{
+    if(!this.hasLead('inspected'))return this.allocationMode?'配水已生效，可以回旱季配水档案查看同步后显露的位点索引。':'';
+    return (this.hasLead('recorded')?'远方位点线索已记入旅途笔记。':'已看过位点索引，尚未记下方向；可回档案继续。')+SITE_LEAD_TEXT+
+      (this.hasLead('worker')?'工务人已听过旧改道记录与本次分配取舍。':'可以向聚落工务人说明旧改道与本次取舍。')+
+      (this.hasLead('hermit')?'隐士提醒：断线不代表终点，恢复旧网也可能唤醒危险系统。':'可以带着记录请隐士解读，旧练习仍可继续。')+
+      '线索不是新地图入口；旧矿道和远方地区暂未开放，第一章结局尚未完成。';
+  }
+  private markLead(flag:SiteLeadFlag,extra:SessionEventDraft[]=[]):void{
+    if(this.hasLead(flag))return;
+    this.commit('lead.'+flag,[{eventId:'episode.lead.'+flag,type:'world_flag_set',
+      payload:{flagId:'forest.episode.lead.'+flag,value:true,scope:'global'}},...extra]);
+  }
+  private siteLeadInteraction(target:'archive'|'worker'|'hermit',choice?:string):EpisodeResult{
+    const say=(text:string,actions?:EpisodeResult['actions'],speaker?:string):EpisodeResult=>({accepted:true,text,actions,speaker});
+    if(!this.allocationMode)return say('先让已选择的三路配水实际生效，再查看同步后的位点索引。');
+    if(target==='archive'){
+      const history={id:'lead:history',label:'重读旱季改道记录'},inspect={id:'lead:inspect',label:'查看同步后的位点索引'};
+      if(choice==='lead:history')return say(SITE_ARCHIVE_HISTORY,[inspect]);
+      if(choice==='lead:inspect')this.markLead('inspected');
+      if(choice==='lead:record'&&this.hasLead('inspected')&&!this.hasLead('recorded')){
+        this.markLead('recorded',[
+          {eventId:'episode.'+SITE_LEAD_EVENT,type:'world_flag_set',payload:{flagId:SITE_LEAD_EVENT,value:true,scope:'region',regionId:MIGRATION_REGION}},
+          {eventId:'episode.lead.quest',type:'quest_stage_set',payload:{questId:'ch01_underground_water_allocation',stageId:'site_lead_revealed',
+            stageOrdinal:(this.truth.quests.ch01_underground_water_allocation?.stageOrdinal??0)+1}},
+        ]);
+      }
+      if(this.hasLead('recorded'))return say(SITE_LEAD_TEXT+'你已把残缺方向和这次分配记下，原碎片仍在行囊里。可以沿左侧检修路回村说明，也可以先请隐士解读；这些刻线还不能当作通往新地区的道路。',[history]);
+      if(this.hasLead('inspected'))return say(SITE_LEAD_TEXT+'旁边留下了本次配水的刻度。要把这份记录带回去吗？',[{id:'lead:record',label:'记下残缺方向与配水取舍'},history]);
+      return say('旱季改道的旧记录仍在。配水稳定后，档案底部一枚卡住的铜页松开了，露出与森林碎片相同的刻印。',[inspect,history]);
+    }
+    if(!this.hasLead('recorded'))return say('先在地下档案把位点索引的残缺方向记下来。');
+    if(target==='worker'){
+      if(choice==='lead:report')this.markLead('worker');
+      return say(this.allocationSummary+(this.hasLead('worker')?
+        '原来旱季改道的账还留着。我们不能只说水轮修好了，就装作下游没有承受代价。这次分配我记下了，往后要修哪里，还得让受影响的人一起商量。远方的刻线我看不懂，你可以带去问隐士。':
+        '你从地下带回了记录？说说旧水路为什么改过，以及这次你让哪一路优先。')+
+        (this.allocationMode==='wetland_priority'?'分时取水牌先留着，灌溉不足的担心也不能略过。':'')+'维修报酬已结清，不重复发放。',
+        this.hasLead('worker')?undefined:[{id:'lead:report',label:'说明旧改道与本次取舍'}],'工务人');
+    }
+    if(choice==='lead:interpret')this.markLead('hermit');
+    return say(this.hasLead('hermit')?SITE_LEAD_HERMIT:'你带回了森林位点的记录？可以给我看看，但我未必认得断线另一端。原来的表达练习也随时可以继续。',
+      [{id:'lead:interpret',label:this.hasLead('hermit')?'再谈远方位点':'请隐士解读位点记录'},{id:'calibrate',label:'继续原来的两词校准'}],'隐士');
+  }
   get allocationMode():AllocationMode|null{
     const mode=this.truth.world.flags['region:'+MIGRATION_REGION+':forest_water_allocation']?.value;
     return isAllocationMode(mode)?mode:null;
@@ -801,7 +847,8 @@ export class ForestEpisode {
   }
   get objective(): string {
     if (this.has('finished')) {
-      if(this.allocationMode)return '配水已生效：'+this.allocationSummary+'可沿原路回看聚落与湿地；后续位点线索和章节结局尚未完成';
+      if(this.hasLead('recorded'))return this.leadNotes;
+      if(this.allocationMode)return '配水已生效：'+this.allocationSummary+'回旱季配水档案查看位点索引；仍可沿原路回访，第一章结局尚未完成';
       if(this.allocationStage==='routing')return '配水已确认；留在三路配水台旁观察有限旧水通过计量槽，实际入量达标才生效';
       if(this.hasShard('synchronized'))return '森林位点已同步，原碎片已取回；在右侧配水台比较三种取舍，预览后再确认';
       if(this.hasMigration('archive'))return '档案揭示了旱季改渠的代价；补齐五词现场理解后，在碎片座手动对齐并确认同步';
@@ -922,6 +969,7 @@ export class ForestEpisode {
       case 'worker': {
         if(this.allocationMode){
           if(this.hasRoom('exited')&&!this.hasRoom('reported'))this.markRoom('reported');
+          if(this.hasLead('recorded'))return this.siteLeadInteraction('worker',choice);
           return say(this.allocationSummary+(this.allocationMode==='settlement_priority'?
           '饮水和庄稼暂时稳了，但不能把湿地退水当成没有代价。':
           this.allocationMode==='wetland_priority'?'水口已经挂出分时取水牌；粮食摊担心灌溉不足，但这一阶段还没有改动交易价格。':
@@ -1001,6 +1049,7 @@ export class ForestEpisode {
       case 'node-survey':return say('三条旧水路分别通往聚落、湿地和旧商路。检修图有多处损坏，不能凭眼前两路恢复就断言整个系统平衡了。往右有旱季记录和碎片座；同步只连接位点，不自动分配水路。');
       case 'node-archive':
         if(!this.hasMigration('archive'))this.markMigration('archive');
+        if(this.allocationMode)return this.siteLeadInteraction('archive',choice);
         return say('档案记着一次旱季：部分居民与议事者将水引向聚落，保住饮水和庄稼，却让湿地与下游承受缺水。他们随后隐去了改渠记录，担心追责和索赔。维修簿又记下：受损系统无法同时满足三路需求。修复并不意味着代价消失。');
       case 'node-cradle':return this.shardInteraction(choice);
       case 'node-allocation':return this.allocationInteraction(choice);
@@ -1158,6 +1207,7 @@ export class ForestEpisode {
           eventId: `episode.owns.${id}`, type: 'world_flag_set', payload: { flagId: `owns.${id}`, value: true, scope: 'global' } })));
         return say('石龛里是一件有裂纹的古代媒介，旁边嵌着一枚森林位点碎片。它们已收进你的行囊，不会因离开地图而丢失。你还不知道怎么使用，也没有因此学会任何词。');
       case 'hermit':
+        if((this.hasLead('recorded')&&choice===undefined)||choice?.startsWith('lead:'))return this.siteLeadInteraction('hermit',choice);
         if (this.has('debrief') && choice !== undefined) return this.calibratePhrase(choice==='calibrate' ? undefined : choice);
         if (this.has('practiced')) {
           if (!this.has('debrief')) this.mark('debrief');
@@ -1260,7 +1310,7 @@ export class ForestEpisode {
       const prior=i<0?null:GameSession.replayLedger(save.sessionId,save.origin,save.eventLedger.slice(0,i));
       if(!prior?.ok||!shardPrerequisites(prior.session.snapshot(),forestChapter)||
         prior.session.snapshot().world.flags['global:forest.episode.shard.aligned']?.value!==true||
-        this.truth.quests.ch01_underground_water_allocation?.stageId!==(this.allocationMode?'water_allocated':'shard_synchronized'))
+        this.truth.quests.ch01_underground_water_allocation?.stageId!==(this.hasLead('recorded')?'site_lead_revealed':this.allocationMode?'water_allocated':'shard_synchronized'))
         throw Error('碎片同步提交顺序无效');
     }
     const allocation=p.allocation,selected=this.truth.world.flags['global:forest.episode.allocation.selected']?.value;
@@ -1282,6 +1332,7 @@ export class ForestEpisode {
     if(allocationCommitted!==(allocation?.phase==='committed')||!!this.allocationMode!==allocationCommitted||
       allocationCommitted&&(this.allocationMode!==allocation?.mode||!this.truth.receiptIndex['forest.episode.allocation.completed']))
       throw Error('配水提交与现场不一致');
+    validateSiteLead(this.session);
     const expectedEffects=this.allocationMode?allocationEffects(forestChapter,this.allocationMode):[];
     const allEffects=new Set(forestChapter.allocation.modeIds.flatMap(m=>[...allocationEffects(forestChapter,m)]));
     for(const id of allEffects)if((this.truth.world.flags['region:'+MIGRATION_REGION+':forest_allocation_effect.'+id]?.value===true)!==expectedEffects.includes(id))

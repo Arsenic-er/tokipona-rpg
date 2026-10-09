@@ -115,6 +115,12 @@ export class ForestEpisodeRenderer {
       }
       ctx.fillStyle='#111e1c';ctx.fillRect(239,242,39,88);ctx.fillRect(292,305,26,31);
       ctx.fillStyle='#867f61';ctx.fillRect(248,284,19,2);ctx.fillRect(248,290,14,1);ctx.fillRect(248,297,22,1);
+      if(game.hasLead('inspected')){
+        ctx.fillStyle='#81795b';ctx.fillRect(241,303,33,20);
+        ctx.fillStyle='#c1b991';ctx.fillRect(246,312,4,4);
+        for(const [x,y] of [[251,309],[255,307],[260,305],[253,315],[258,317],[263,318]])ctx.fillRect(x,y,2,1);
+        if(game.hasLead('recorded')){ctx.fillStyle='#c9b591';ctx.fillRect(270,316,2,5);}
+      }
       this.rock(ctx,298,321,16,15);this.rock(ctx,342,307,23,29);
       const sync=p.shardSync,linked=sync?.phase==='synchronized',inserted=!!sync&&!['packed','synchronized'].includes(sync.phase);
       ctx.fillStyle=linked?'#b0aa79':'#665f49';ctx.fillRect(294,318,24,2);
