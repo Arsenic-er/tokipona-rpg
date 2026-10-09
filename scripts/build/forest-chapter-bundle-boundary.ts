@@ -1,6 +1,8 @@
 const DEFERRED_FOREST_MODULE_SUFFIXES = Object.freeze([
   "/src/content/runtime-forest-chapter-manifest.ts",
   "/src/rpg-old-mine-ui.ts",
+  "/src/game/forest-epilogue-contract.ts",
+  "/src/game/forest-epilogue.ts",
 ]);
 const FOREST_OPENING_FORBIDDEN_MODULE_SUFFIXES = Object.freeze([
   "/src/world-scale-main.ts",

@@ -31,6 +31,7 @@ import {
   type SessionApplyReason,
   type WorldFlagValue,
 } from "../session/game-session";
+
 import {
   RETURN_FLOW_SOLUTION_IDS,
   exactRequiredActionsCompleted,
@@ -489,6 +490,21 @@ export class PrologueReturnFlowSession {
     return this.commitLearning(id, payloadHash, event);
   }
 
+  /** Explicit post-epilogue observation; never recreates the retired direct N07 return. */
+  public static async observeForestEpilogue(session:GameSession,transactionId:string):Promise<PrologueReturnFlowSettlementReturnResult> {
+    const {forestEpilogueReturnReady,hasForestReturn}=await import("./forest-epilogue-contract");
+    const id=requiredId(transactionId,"transactionId"),state=session.snapshot();
+    if(!forestEpilogueReturnReady(state))return Object.freeze({accepted:false,duplicate:false,reason:"prerequisite_missing",session:null});
+    if(hasForestReturn(state))return Object.freeze({accepted:true,duplicate:true,reason:"duplicate",session});
+    const batch:SessionProposalBatch={transactionId:id,drafts:[{
+      eventId:"session.return.observation."+id,type:"prologue_return_observation_committed",
+      payload:{transactionId:id,writerEvent:"return_observation_committed"},
+    }]};
+    const result=commitTrustedReturnFlowQualificationProposal(session,createReturnFlowQualificationProof("observation",batch));
+    return Object.freeze({accepted:result.committed,duplicate:false,reason:result.committed?"committed":"session_rejected",
+      session:result.committed?result.session:null});
+  }
+
   public returnToSettlement(transactionId: string): PrologueReturnFlowSettlementReturnResult {
     const id = requiredId(transactionId, "transactionId");
     const payloadHash = fingerprint("settlement_return", {
@@ -511,8 +527,8 @@ export class PrologueReturnFlowSession {
       return Object.freeze({ accepted: false, duplicate: false, reason: "prerequisite_missing", session: null });
     }
     // The authored forest chapter now routes N07 through the underground order node.
-    // Its allocation and epilogue coordinator is intentionally not implemented yet;
-    // never recreate the retired direct N07 -> N02 transition here.
+    // ForestEpisode now owns the underground seal and explicit settlement observation.
+    // Never recreate the retired direct N07 -> N02 transition here.
     return Object.freeze({ accepted: false, duplicate: false, reason: "underground_handoff_required", session: null });
   }
 

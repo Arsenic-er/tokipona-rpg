@@ -61,7 +61,8 @@ export function createTokiponaViteConfig(
           strictExecutionOrder: true,
           // Entry-aware names repeat in every import; keep URLs compact while
           // preserving the manifest's full ownership names for boundary audits.
-          chunkFileNames: (chunk) => `assets/${chunk.name.replaceAll("forest-episode-main", "episode").replaceAll("chapter-one", "ch1").replaceAll("magic-lab", "lab")}-[hash].js`,
+          // Consumer lists remain in manifest metadata, not repeated URL bytes.
+          chunkFileNames: (chunk) => `assets/${chunk.name.replace(/~.*/, "").replaceAll("content-runtime.v0.1", "content").replaceAll("shared-base", "base").replaceAll("game-runtime", "game").replaceAll("session-runtime", "session").replaceAll("learning-runtime", "learning").replaceAll("app-support", "app").replaceAll("forest-episode-main", "episode").replaceAll("chapter-one", "ch1").replaceAll("magic-lab", "lab")}-[hash].js`,
           codeSplitting: {
             groups: [
               {

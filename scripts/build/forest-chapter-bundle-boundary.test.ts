@@ -11,6 +11,14 @@ const GRAYBOX_ENTRY = `${ROOT}/src/world-scale-main.ts`;
 const PRIVATE_READER = `${ROOT}/private-assets/read-approved-pack.ts`;
 
 describe("forest chapter bundle boundary", () => {
+  it("keeps forest epilogue conditions out of the unrelated RPG initial closure",()=>{
+    for(const file of ['forest-epilogue-contract.ts','forest-epilogue.ts']){
+      const chunks=baseChunks();chunks.push(chunk('assets/epilogue.js',{moduleIds:[ROOT+'/src/game/'+file]}));
+      expect(()=>assertForestChapterBundleBoundary(chunks)).not.toThrow();
+      chunks[0]={...chunks[0]!,imports:['assets/epilogue.js']};
+      expect(()=>assertForestChapterBundleBoundary(chunks)).toThrow('forest_chapter_static_import:assets/epilogue.js');
+    }
+  });
   it("keeps forest verification and the post-chapter old-mine UI out of the RPG static closure", () => {
     expect(() => assertForestChapterBundleBoundary(baseChunks())).not.toThrow();
 

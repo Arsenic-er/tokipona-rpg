@@ -31,6 +31,7 @@ export function validateSiteLead(session:GameSession):void{
     f==='hermit'&&before.world.flags['global:forest.episode.debrief']?.value!==true)
     throw Error('位点线索提交顺序或地点无效');
  }
- if(hasSiteLead(state,'recorded')&&state.quests.ch01_underground_water_allocation?.stageId!=='site_lead_revealed')
+ if(hasSiteLead(state,'recorded')&&state.quests.ch01_underground_water_allocation?.stageId!==
+  (state.world.flags['global:forest.episode.epilogue.sealed']?.value===true?'completed':'site_lead_revealed'))
   throw Error('位点线索任务阶段无效');
 }

@@ -6,6 +6,7 @@ import type { CommitResult, QuoteResult, TradeSave } from "../game/trade";
 import { createVerifiedSellQuote, createVerifiedSellTransactionId, verifiedTradeManifest, type VerifiedQuoteRequest, type VerifiedSellQuote } from "../game/verified-trade";
 import { adaptTradeSaveToSessionEconomy } from "../game/economy-state";
 import type { EvidenceProposalResult } from "../learning/cistern-session";
+
 import type { LearningProgressionSnapshot } from "../learning/progression";
 import { isTrustedSafeRangeCommitProof, type SafeRangeCommitProof } from "../game/prologue-safe-range";
 import {
@@ -799,9 +800,8 @@ export const commitTrustedReturnFlowQualificationProposal = (
     ? protectedDrafts.length === 1 && protectedDrafts[0]?.type === "learning_evidence_committed" &&
       proof.batch.drafts.some((draft) => draft.type === "learning_evidence_committed" &&
         (draft.payload as Extract<GameSessionEvent, { type: "learning_evidence_committed" }>["payload"]).evidence !== undefined)
-    : protectedDrafts.length === 1 && protectedDrafts[0]?.type === "prologue_return_observation_committed" &&
-      proof.batch.drafts.some((draft) => draft.type === "scene_entered" &&
-        (draft.payload as { sceneId: string }).sceneId === "scene.valley.underground_order_node");
+    : proof.batch.drafts.length === 1 && protectedDrafts.length === 1 &&
+      protectedDrafts[0]?.type === "prologue_return_observation_committed";
   if (!valid) return { committed: false, failedDraftId: protectedDrafts[0]?.eventId ?? null,
     reason: "invalid_event", session: authoritative };
   const working = authoritative.forkForProposal();

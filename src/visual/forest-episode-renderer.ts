@@ -63,6 +63,13 @@ export class ForestEpisodeRenderer {
           ctx.fillStyle='#b6ae84';ctx.fillRect(552,spoutY-16,9,1);ctx.fillRect(552,spoutY-12,4,1);}
       }
       drawForestNpc(ctx, 'worker', 350, game.groundAt(350), p.tick);
+      if(game.epilogueSealed){
+        const floor=game.groundAt(820);
+        this.rock(ctx,802,floor-38,5,38);this.rock(ctx,833,floor-38,5,38);this.rock(ctx,802,floor-42,36,5);
+        ctx.fillStyle='#101c19';ctx.fillRect(807,floor-37,26,37);
+        this.timber(ctx,831,floor-34,3,34);
+        ctx.fillStyle='#b1a078';ctx.fillRect(811,floor-30,8,1);ctx.fillRect(811,floor-27,5,1);
+      }
       this.lantern(ctx, 390, game.groundAt(390) - 17, p.tick); this.lantern(ctx, 780, game.groundAt(780) - 17, p.tick);
     } else if (p.place === 'mill') {
       this.house(ctx, 745, 336, 214, 108, 'mill');
@@ -129,7 +136,10 @@ export class ForestEpisodeRenderer {
       ctx.fillStyle='#ada079';ctx.fillRect(305-gap,301,1,15);ctx.fillRect(305+gap,301,1,15);
       if(inserted){ctx.fillStyle='#8b9b96';ctx.fillRect(301,311,5,7);ctx.fillRect(306,313,3,5);}
       if(linked){ctx.fillStyle='#9b9a6c';for(const x of [346,352,358])ctx.fillRect(x,309,1,7);}
-      this.timber(ctx,405,296,23,40);this.timber(ctx,403,310,27,4);
+      if(game.epilogueSealed){
+        ctx.fillStyle='#0d1816';ctx.fillRect(405,296,23,40);this.timber(ctx,427,296,3,40);
+        ctx.fillStyle='#ad9a70';ctx.fillRect(401,320,2,10);
+      }else{this.timber(ctx,405,296,23,40);this.timber(ctx,403,310,27,4);}
     } else if(p.place==='return-channel'){
       // Recessed inspection channels above a dry, continuous maintenance walkway.
       this.rock(ctx,65,180,353,191);

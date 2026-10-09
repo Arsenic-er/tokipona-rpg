@@ -1,4 +1,6 @@
 import { sha256Canonical, type JsonValue } from '../canonical-json';
+import {FOREST_EPILOGUE_FLAG,FOREST_RETURN_TRANSACTION,forestEpilogueReady,hasEpilogueFlag,hasForestReturn} from './forest-epilogue-contract';
+import {validateForestEpilogue} from './forest-epilogue';
 import {SITE_LEAD_EVENT,SITE_LEAD_TEXT,SITE_LEAD_HERMIT,SITE_ARCHIVE_HISTORY,hasSiteLead,validateSiteLead,type SiteLeadFlag} from './forest-site-lead';
 import {AllocationWorld,allocationQuotas,isAllocationMode,validateAllocationState,type AllocationState,type AllocationMode} from '../world/forest-water-allocation';
 import {ALLOCATION_NAMES,allocationDescription,allocationEffects} from './forest-water-allocation';
@@ -70,9 +72,9 @@ export type EpisodeTarget = 'worker' | 'mill-road' | 'hermit-road' | 'return' | 
   'room-road' | 'room-echo' | 'east-up' | 'east-down' | 'west-up' | 'west-down' | 'calibration' | 'calibration-tool' | 'upper-survey' |
   'siphon' | 'siphon-left' | 'siphon-right' | 'siphon-tool' | 'lift-up' | 'lift-down' | 'return-winch' | 'top-exit' | 'cistern-shortcut' |
   'return-channel-road' | 'flow-inspect' | 'flow-gate' | 'flow-seal' | 'flow-clear' | 'flow-gauge' | 'flow-spout' | 'flow-depth' |
-  'wetland-lookout' | 'wetland-nest' | 'wetland-young' | 'wetland-clear' | 'node-road' | 'node-survey' | 'node-archive' | 'node-cradle' | 'node-allocation' | 'node-exit';
+  'wetland-lookout' | 'wetland-nest' | 'wetland-young' | 'wetland-clear' | 'node-road' | 'node-survey' | 'node-archive' | 'node-cradle' | 'node-allocation' | 'node-exit' | 'archive-road';
 export const EPISODE_TARGETS: Readonly<Record<EpisodePlace, readonly { id: EpisodeTarget; x: number; y?:number; label: string }[]>> = {
-  settlement: [{ id: 'hermit-road', x: 60, label: '西侧林间小径' }, { id: 'worker', x: 350, label: '工务人' }, { id: 'mill-road', x: 920, label: '沿水渠去工坊' }],
+  settlement: [{ id: 'hermit-road', x: 60, label: '西侧林间小径' }, { id: 'worker', x: 350, label: '工务人' }, { id: 'mill-road', x: 920, label: '沿水渠去工坊' }, {id:'archive-road',x:820,label:'旧门通往地下档案'}],
   mill: [{ id: 'return', x: 60, label: '返回聚落' }, { id: 'timber', x: 270, label: '备用木撑' }, { id: 'gate', x: 490, label: '水渠闸柄' },
     { id: 'silt', x: 585, label: '渠道淤堵' }, { id: 'brace', x: 690, label: '水轮支架' }, { id: 'medium', x: 890, label: '检修石龛' },
     { id: 'cistern-road', x: 978, label: '蓄水廊检修入口' },{id:'cistern-shortcut',x:812,label:'回流道永久梯'}],
@@ -222,7 +224,9 @@ export class ForestEpisode {
   has(flag: EpisodeFlag): boolean { return this.truth.world.flags['global:' + FLAG + flag]?.value === true; }
   get state(): Readonly<EpisodePhysical> { return this.physical; }
   get targets(){return EPISODE_TARGETS[this.physical.place].filter(t=>
-    (t.id!=='cistern-shortcut'&&t.id!=='return-channel-road')||this.hasRoom('return_open')).map(t=>
+    (t.id!=='archive-road'||this.epilogueSealed)&&
+    ((t.id!=='cistern-shortcut'&&t.id!=='return-channel-road')||this.hasRoom('return_open'))).map(t=>
+      t.id==='node-exit'&&this.epilogueSealed?{...t,label:'通往聚落的旧门'}:
       t.id==='node-allocation'&&this.allocationMode?{...t,label:'已锁定的三路配水台'}:t);}
   get ridingLift():boolean{return liftCarriesPlayer(this.physical.lift);}
   roomSolidAt(x:number,y:number):boolean{return cisternRoomSolid(x,y,this.hasRoom('valve_filled'),this.hasRoom('lift_open'))||
@@ -517,6 +521,59 @@ export class ForestEpisode {
   hasForce(flag:ForceFlag):boolean{return this.truth.world.flags['global:forest.episode.force.'+flag]?.value===true;}
   get forceView(){return this.physical.forceStudy?forceStudyView(this.physical.forceStudy):null;}
   get shardSyncStage(){return this.physical.shardSync?.phase??'unvisited';}
+  get epilogueSealed(){return hasEpilogueFlag(this.truth,'sealed');}
+  get returnObserved(){return hasForestReturn(this.truth);}
+  get epilogueStage(){return this.returnObserved?'returned':this.epilogueSealed?'sealed':hasEpilogueFlag(this.truth,'reviewed')?'reviewed':'unvisited';}
+  get epilogueNotes():string{
+    if(!this.hasLead('recorded'))return '';
+    return (this.returnObserved?'本次水路调查的尾声与回访已记下。可以留在森林继续探索，远方地区暂未开放。':
+      this.epilogueSealed?'分配与线索已封存，聚落旧门可以双向通行。回村向工务人交代后，可主动记下回访结语。':
+      '地下右侧旧门旁可核对并封存本次分配与线索；原路仍可往返。')+
+      this.allocationSummary+'这只是有限容量下的临时选择，不是三方问题已经解决。原碎片仍由你保管，能力与学习需要继续积累。';
+  }
+  private epilogueInteraction(choice?:string):EpisodeResult{
+    const say=(text:string,actions?:EpisodeResult['actions']):EpisodeResult=>({accepted:true,text,actions});
+    if(!forestEpilogueReady(this.truth))return say('旧门的交接簿还缺记录。先完成碎片同步和实际配水，并在档案里记下位点方向；左侧检修路始终可以返回。');
+    if(this.epilogueSealed){
+      if(choice==='epilogue:depart'){this.travel('settlement',810);return say('旧门沿干燥检修坡接回聚落。分配、动物迁徙和碎片记录保留；可找工务人说明，再决定何时收下这段旅程的结语。');}
+      return say(this.epilogueNotes,[{id:'epilogue:depart',label:'沿旧门返回聚落'}]);
+    }
+    if(choice==='epilogue:review'&&!hasEpilogueFlag(this.truth,'reviewed'))this.markEpilogue('reviewed');
+    if(choice==='epilogue:seal'&&hasEpilogueFlag(this.truth,'reviewed')){
+      this.markEpilogue('sealed',[
+        {eventId:'episode.'+FOREST_EPILOGUE_FLAG,type:'world_flag_set',payload:{flagId:FOREST_EPILOGUE_FLAG,value:true,scope:'region',regionId:MIGRATION_REGION}},
+        {eventId:'episode.epilogue.quest',type:'quest_stage_set',payload:{questId:'ch01_underground_water_allocation',stageId:'completed',
+          stageOrdinal:(this.truth.quests.ch01_underground_water_allocation?.stageOrdinal??0)+1}},
+      ]);
+      return say('你在交接簿中留下本次分配和残缺方向，收好原碎片，卸下旧门内侧的门闩。这里的有限选择已经封存，仍需回村交代；不会因此得到新的力量。',[{id:'epilogue:depart',label:'沿旧门返回聚落'}]);
+    }
+    return say(this.allocationSummary+SITE_LEAD_TEXT+'成年动物与幼体的迁徙记录仍在。修复没有抹去旧改道的代价；封存本次记录后，可以拆下内侧门闩回村。',
+      [{id:hasEpilogueFlag(this.truth,'reviewed')?'epilogue:seal':'epilogue:review',label:hasEpilogueFlag(this.truth,'reviewed')?'封存本次选择并打开旧门':'核对本次分配与碎片记录'}]);
+  }
+  private markEpilogue(flag:'reviewed'|'sealed',extra:SessionEventDraft[]=[]):void{
+    if(hasEpilogueFlag(this.truth,flag))return;
+    this.commit('epilogue.'+flag,[{eventId:'episode.epilogue.'+flag,type:'world_flag_set',
+      payload:{flagId:'forest.episode.epilogue.'+flag,value:true,scope:'global'}},...extra]);
+  }
+  async confirmEpilogueReturn():Promise<EpisodeResult>{
+    if(this.nearest()?.id!=='worker'||!this.epilogueSealed||!this.hasLead('worker'))return {accepted:false,text:'请先封存记录，并在工务人身旁说明本次取舍。'};
+    if(this.returnObserved)return this.epilogueReturn();
+    const source=this.session;
+    const r=await PrologueReturnFlowSession.observeForestEpilogue(source,FOREST_RETURN_TRANSACTION);
+    if(this.session!==source||this.nearest()?.id!=='worker')return {accepted:false,text:'当前位置或进度已变化，没有提交回访；请重新确认。'};
+    if(!r.accepted||!r.session)return {accepted:false,text:'回访前置尚未齐全，现有进度没有改动。'};
+    this.session=r.session;this.truth=this.session.snapshot();return this.epilogueReturn();
+  }
+  private epilogueReturn(_choice?:string):EpisodeResult{
+    const say=(text:string,actions?:EpisodeResult['actions']):EpisodeResult=>({accepted:true,text,actions,speaker:'工务人'});
+    if(!this.epilogueSealed||!this.hasLead('worker'))return say('先封存地下记录，再说明旧改道和这次分配取舍；现在仍可继续调查。');
+
+    return say(this.allocationSummary+
+      (this.returnObserved?'你把这次回访写进了旅途笔记。水路暂时有了安排，但被移走的代价仍需有人承担。森林之外还有断开的位点，你可以留下继续查证，也可以为以后的旅途做准备。':
+      '这不是最后的修复。饮水、湿地和来往补给，总得有人继续照看。你带回的旧账我们已经知道，接下来不能再把代价藏起来。准备好把这次调查记作一段结束了吗？')+
+      '原碎片仍在你手中；床位和旧练习照常保留，没有额外报酬或能力奖励。',
+      this.returnObserved?[{id:'epilogue:recap',label:'重读本次回访结语'}]:[{id:'epilogue:return',label:'记下回访与下一段旅程'}]);
+  }
   hasLead(flag:SiteLeadFlag):boolean{return hasSiteLead(this.truth,flag);}
   get leadStage(){return this.hasLead('recorded')?'recorded':this.hasLead('inspected')?'inspected':'unvisited';}
   get leadNotes():string{
@@ -524,7 +581,7 @@ export class ForestEpisode {
     return (this.hasLead('recorded')?'远方位点线索已记入旅途笔记。':'已看过位点索引，尚未记下方向；可回档案继续。')+SITE_LEAD_TEXT+
       (this.hasLead('worker')?'工务人已听过旧改道记录与本次分配取舍。':'可以向聚落工务人说明旧改道与本次取舍。')+
       (this.hasLead('hermit')?'隐士提醒：断线不代表终点，恢复旧网也可能唤醒危险系统。':'可以带着记录请隐士解读，旧练习仍可继续。')+
-      '线索不是新地图入口；旧矿道和远方地区暂未开放，第一章结局尚未完成。';
+      '线索不是新地图入口；旧矿道和远方地区暂未开放。'+this.epilogueNotes;
   }
   private markLead(flag:SiteLeadFlag,extra:SessionEventDraft[]=[]):void{
     if(this.hasLead(flag))return;
@@ -556,7 +613,7 @@ export class ForestEpisode {
         '原来旱季改道的账还留着。我们不能只说水轮修好了，就装作下游没有承受代价。这次分配我记下了，往后要修哪里，还得让受影响的人一起商量。远方的刻线我看不懂，你可以带去问隐士。':
         '你从地下带回了记录？说说旧水路为什么改过，以及这次你让哪一路优先。')+
         (this.allocationMode==='wetland_priority'?'分时取水牌先留着，灌溉不足的担心也不能略过。':'')+'维修报酬已结清，不重复发放。',
-        this.hasLead('worker')?undefined:[{id:'lead:report',label:'说明旧改道与本次取舍'}],'工务人');
+        this.hasLead('worker')?(this.epilogueSealed?[{id:'epilogue:recap',label:this.returnObserved?'重读本次回访结语':'查看回访结语'}]:undefined):[{id:'lead:report',label:'说明旧改道与本次取舍'}],'工务人');
     }
     if(choice==='lead:interpret')this.markLead('hermit');
     return say(this.hasLead('hermit')?SITE_LEAD_HERMIT:'你带回了森林位点的记录？可以给我看看，但我未必认得断线另一端。原来的表达练习也随时可以继续。',
@@ -847,6 +904,7 @@ export class ForestEpisode {
   }
   get objective(): string {
     if (this.has('finished')) {
+      if(this.epilogueSealed)return this.epilogueNotes;
       if(this.hasLead('recorded'))return this.leadNotes;
       if(this.allocationMode)return '配水已生效：'+this.allocationSummary+'回旱季配水档案查看位点索引；仍可沿原路回访，第一章结局尚未完成';
       if(this.allocationStage==='routing')return '配水已确认；留在三路配水台旁观察有限旧水通过计量槽，实际入量达标才生效';
@@ -969,6 +1027,7 @@ export class ForestEpisode {
       case 'worker': {
         if(this.allocationMode){
           if(this.hasRoom('exited')&&!this.hasRoom('reported'))this.markRoom('reported');
+          if(choice?.startsWith('epilogue:'))return this.epilogueReturn(choice);
           if(this.hasLead('recorded'))return this.siteLeadInteraction('worker',choice);
           return say(this.allocationSummary+(this.allocationMode==='settlement_priority'?
           '饮水和庄稼暂时稳了，但不能把湿地退水当成没有代价。':
@@ -1053,7 +1112,10 @@ export class ForestEpisode {
         return say('档案记着一次旱季：部分居民与议事者将水引向聚落，保住饮水和庄稼，却让湿地与下游承受缺水。他们随后隐去了改渠记录，担心追责和索赔。维修簿又记下：受损系统无法同时满足三路需求。修复并不意味着代价消失。');
       case 'node-cradle':return this.shardInteraction(choice);
       case 'node-allocation':return this.allocationInteraction(choice);
-      case 'node-exit':return say('这是通往聚落的旧门，正式的地下结局和交接还没有完成。先从左边返回湿地，再沿检修渠和永久梯回村；不会在这里跳过第一章结局。');
+      case 'node-exit':return this.epilogueInteraction(choice);
+      case 'archive-road':
+        if(!this.epilogueSealed)return {accepted:false,text:'聚落旧门尚未从内侧打开。'};
+        this.travel('order-node',406);return say('沿旧门回到档案前厅，碎片、配水和回访记录保持不变。可重读旧账或从左侧回看湿地。');
       case 'mill-road': this.travel('mill', 100); return say('旧水渠通向东边工坊。');
       case 'hermit-road':
         if (!this.has('route')) return say('西侧小径没留下清楚的路标。先问问工务人这里住着谁。');
@@ -1310,7 +1372,7 @@ export class ForestEpisode {
       const prior=i<0?null:GameSession.replayLedger(save.sessionId,save.origin,save.eventLedger.slice(0,i));
       if(!prior?.ok||!shardPrerequisites(prior.session.snapshot(),forestChapter)||
         prior.session.snapshot().world.flags['global:forest.episode.shard.aligned']?.value!==true||
-        this.truth.quests.ch01_underground_water_allocation?.stageId!==(this.hasLead('recorded')?'site_lead_revealed':this.allocationMode?'water_allocated':'shard_synchronized'))
+        this.truth.quests.ch01_underground_water_allocation?.stageId!==(this.epilogueSealed?'completed':this.hasLead('recorded')?'site_lead_revealed':this.allocationMode?'water_allocated':'shard_synchronized'))
         throw Error('碎片同步提交顺序无效');
     }
     const allocation=p.allocation,selected=this.truth.world.flags['global:forest.episode.allocation.selected']?.value;
@@ -1333,6 +1395,7 @@ export class ForestEpisode {
       allocationCommitted&&(this.allocationMode!==allocation?.mode||!this.truth.receiptIndex['forest.episode.allocation.completed']))
       throw Error('配水提交与现场不一致');
     validateSiteLead(this.session);
+    validateForestEpilogue(this.session);
     const expectedEffects=this.allocationMode?allocationEffects(forestChapter,this.allocationMode):[];
     const allEffects=new Set(forestChapter.allocation.modeIds.flatMap(m=>[...allocationEffects(forestChapter,m)]));
     for(const id of allEffects)if((this.truth.world.flags['region:'+MIGRATION_REGION+':forest_allocation_effect.'+id]?.value===true)!==expectedEffects.includes(id))

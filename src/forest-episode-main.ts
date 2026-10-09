@@ -74,7 +74,7 @@ const mouseCamera = new ForestMouseCamera(cameraBounds), gait = new ForestTravel
 const blocked = () => !ready || focusLost || document.hidden || dialogs.some(d => d.open) || atlas.open;
 const atlas = new ForestMap(root, { storage, suffix,
   canOpen: () => !blocked(), suspend: clearInput, resume: () => { clearInput(); canvas.focus(); },
-  returnShortcut:()=>game.hasRoom('return_open'),
+  returnShortcut:()=>game.hasRoom('return_open'),epilogueShortcut:()=>game.epilogueSealed,
 });
 bindForestMouseCamera(canvas, mouseCamera, blocked);
 function clearInput(): void { keys.clear(); touches.clear(); }
@@ -190,7 +190,21 @@ function renderResult(result: EpisodeResult, target: EpisodeTarget): void {
   if (!talk.open) showDialog(talk);
   else actions.querySelector('button')?.focus();
   sound();
-  function choose(choice: string): void { const next = game.interact(target, choice); save(); renderResult(next, target); updateHud(); }
+  function choose(choice: string): void {
+    if(target==='worker'&&choice==='epilogue:return'){
+      const current=game;for(const b of actions.querySelectorAll('button'))b.disabled=true;
+      void current.confirmEpilogueReturn().then(next=>{
+        if(game!==current)return;save();renderResult(next,target);updateHud();
+      }).catch(()=>{
+        if(game!==current)return;
+        renderResult({accepted:false,text:'回访确认暂时无法载入，进度没有改动。可以重试或稍后回来。',
+          actions:[{id:'epilogue:return',label:'重试回访确认'}]},target);
+      });return;
+    }
+    const oldPlace=game.state.place,next=game.interact(target,choice);
+    if(oldPlace!==game.state.place){updateMap();resetCamera();}
+    save();renderResult(next,target);updateHud();
+  }
 }
 function interact(): void {
   if (blocked()) return;
@@ -271,6 +285,7 @@ function notes(): string {
       '已确认分配；留在台旁观察有限旧水通过三路计量槽，实际出水符合刻度才生效。')+' 修渠与迁徙的历史成果保留。价格数值、商队和新地图尚未接入。':'',
     game.hasMigration('archive') ? '碎片座 · '+({unvisited:'待补齐五词现场理解，再嵌入原碎片。',packed:'已取回，尚未提交同步。',seated:'已嵌入，等待手动校准。',aligning:'刻线正在对齐；关闭面板并留在底座旁观察。',ready:'刻线已稳定；等待确认，也可以取回。',synchronized:'森林位点已同步，原碎片已取回。没有能力或 MP 奖励。'}[game.shardSyncStage]) : '',
     game.leadNotes ? '位点索引 · '+game.leadNotes : '',
+    game.epilogueNotes ? '尾声与回访 · '+game.epilogueNotes : '',
     game.hasRoom('reported') ? '工务人交接 · 已说明水路变化，不重复领取报酬。旧矿道仍需后续安全调查，当前未开放。' : '',
     game.has('finished') ? '已领取 · 8 枚钱、一晚床位。小节完成，可继续回访地上地点，或从工坊进入地下检修入口。' : ''];
   return `${game.objective}\n\n${items.filter(Boolean).join('\n\n')}`;
@@ -303,6 +318,7 @@ function updateHud(): void {
   canvas.dataset.waterStudy = game.waterStudyStage;
   canvas.dataset.motionStudy = game.motionStudyStage;
   canvas.dataset.lengthStudyView = game.state.lengthStudy?.view??'unvisited';
+  canvas.dataset.epilogue = game.epilogueStage;
   canvas.dataset.lead = game.leadStage;
   canvas.dataset.leadWorker = String(game.hasLead('worker'));
   canvas.dataset.leadHermit = String(game.hasLead('hermit'));
