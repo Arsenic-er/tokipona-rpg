@@ -134,6 +134,24 @@ function renderResult(result: EpisodeResult, target: EpisodeTarget): void {
     });
     const confirm=button('确认复习槽释放',()=>{if(!planId)return;const r=game.confirmLengthStudy(planId);save();updateHud();renderResult(r,target);});confirm.disabled=true;
   }
+  if(result.choice==='node-motion-recall'){
+    const label=document.createElement('label'),input=document.createElement('input');
+    label.textContent='输入运动词';input.setAttribute('aria-label',label.textContent);input.maxLength=24;
+    input.autocomplete='off';input.spellcheck=false;input.setAttribute('autocapitalize','off');label.append(input);actions.append(label);
+    for(const [prediction,text] of [['reverse','下轨反向，上轨继续向右'],['same','两轨继续同向'],['still','两轨都静止']] as const)
+      button(text,()=>choose('rail:predict:'+input.value.trim()+':'+prediction));
+  }
+  if(result.choice==='node-motion-cast'){
+    const detail=document.createElement('p');detail.setAttribute('role','status');actions.append(detail);
+    detail.textContent='先预览，不扣费。';let planId:string|null=null;
+    button('预览下轨作用',()=>{
+      const p=game.previewNodeMotion();planId=p?.planId??null;confirm.disabled=!p?.canConfirm;
+      detail.textContent=p?'当前 '+game.sessionState.mp.currentMp+' MP · '+p.reason:'请重新靠近时间对照台；没有扣费。';
+    });
+    const confirm=button('确认消耗 2 MP 施放',()=>{
+      if(!planId)return;const r=game.confirmNodeMotion(planId);save();updateHud();renderResult(r,target);
+    });confirm.disabled=true;
+  }
   if(result.choice==='motion-recall'){
     const label=document.createElement('label'),input=document.createElement('input');
     label.textContent='回忆去或移动的词';input.setAttribute('aria-label',label.textContent);input.maxLength=24;
@@ -285,6 +303,7 @@ function notes(): string {
       '已确认分配；留在台旁观察有限旧水通过三路计量槽，实际出水符合刻度才生效。')+' 修渠与迁徙的历史成果保留。价格数值、商队和新地图尚未接入。':'',
     game.hasMigration('archive') ? '碎片座 · '+({unvisited:'待补齐五词现场理解，再嵌入原碎片。',packed:'已取回，尚未提交同步。',seated:'已嵌入，等待手动校准。',aligning:'刻线正在对齐；关闭面板并留在底座旁观察。',ready:'刻线已稳定；等待确认，也可以取回。',synchronized:'森林位点已同步，原碎片已取回。没有能力或 MP 奖励。'}[game.shardSyncStage]) : '',
     game.nodeExperimentNotes ? '地下对照 · '+game.nodeExperimentNotes : '',
+    game.nodeMotionNotes,
     game.leadNotes ? '位点索引 · '+game.leadNotes : '',
     game.epilogueNotes ? '尾声与回访 · '+game.epilogueNotes : '',
     game.hasRoom('reported') ? '工务人交接 · 已说明水路变化，不重复领取报酬。旧矿道仍需后续安全调查，当前未开放。' : '',
@@ -324,6 +343,8 @@ function updateHud(): void {
     canvas.dataset[kind+'Experiment']=run?.mode??'unvisited';canvas.dataset[kind+'Age']=String(run?.age??0);
   }
   canvas.dataset.conservationLedger=String(game.state.nodeExperiments?.conservation?.ledgerOpen===true);
+  canvas.dataset.nodeMotion=game.hasNodeMotion('completed')?'completed':game.state.nodeMotion?.castAge!==undefined?'casting':game.state.nodeMotion?'reference':'unvisited';
+  canvas.dataset.nodeMotionAge=String(game.state.nodeMotion?.castAge??game.state.nodeMotion?.referenceAge??0);
   canvas.dataset.epilogue = game.epilogueStage;
   canvas.dataset.lead = game.leadStage;
   canvas.dataset.leadWorker = String(game.hasLead('worker'));

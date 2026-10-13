@@ -1,3 +1,5 @@
+import {NODE_MOTION,advanceNodeMotion,validateNodeMotion,nodeMotionVerified,parseNodeMotionPrediction,type NodeMotionState} from '../world/forest-node-motion';
+import {NODE_MOTION_FLAGS,nodeMotionWordReady,nodeMotionEvidence,type NodeMotionFlag} from './forest-node-motion';
 import {NODE_EXPERIMENTS,beginNodeExperiment,advanceNodeExperiment,validateNodeExperiments,nodeExperimentSummary,type NodeExperiment,type NodeExperimentState} from '../world/forest-node-experiments';
 import { sha256Canonical, type JsonValue } from '../canonical-json';
 import {FOREST_EPILOGUE_FLAG,FOREST_RETURN_TRANSACTION,forestEpilogueReady,hasEpilogueFlag,hasForestReturn} from './forest-epilogue-contract';
@@ -169,13 +171,14 @@ interface EpisodePhysical {
   shardSync?:ShardSyncState;
   allocation?:AllocationState;
   nodeExperiments?:NodeExperimentState;
+  nodeMotion?:NodeMotionState;
   wheelSpeed: number; stableTicks: number; wheelAngle: number; casts: number; baselineCollected: number;
 }
 export interface ForestEpisodeSave {
   schema: 'tokipona.forest-waterwheel-episode.v0.1';
   openingChecksum: string; session: GameSessionSave; physical: EpisodePhysical; checksum: string;
 }
-export interface EpisodeResult { accepted: boolean; text: string; speaker?: string; choice?: 'work' | 'predict' | 'recall' | 'calibrate' | 'window' | 'calibration' | 'siphon' | 'force-recall' | 'water-recall' | 'motion-recall' | 'length-recall' | 'length-cast';
+export interface EpisodeResult { accepted: boolean; text: string; speaker?: string; choice?: 'work' | 'predict' | 'recall' | 'calibrate' | 'window' | 'calibration' | 'siphon' | 'force-recall' | 'water-recall' | 'motion-recall' | 'length-recall' | 'length-cast' | 'node-motion-recall' | 'node-motion-cast';
   actions?: readonly { id: string; label: string }[];
   resumeWorld?: boolean;
 }
@@ -525,6 +528,64 @@ export class ForestEpisode {
       actions:[{id:'water:hint',label:'复看水槽注音'}]};
   }
   hasForce(flag:ForceFlag):boolean{return this.truth.world.flags['global:forest.episode.force.'+flag]?.value===true;}
+  hasNodeMotion(flag:NodeMotionFlag):boolean{return this.truth.world.flags['global:forest.episode.node-motion.'+flag]?.value===true;}
+  private markNodeMotion(flag:NodeMotionFlag,drafts:SessionEventDraft[]=[]):void{
+    if(this.hasNodeMotion(flag))return;
+    this.commit('node-motion.'+flag,[...drafts,{eventId:'episode.node-motion.'+flag,type:'world_flag_set',
+      payload:{flagId:'forest.episode.node-motion.'+flag,value:true,scope:'global'}}],flag==='cast'?'cast':'learning');
+  }
+  get nodeMotionNotes():string{
+    const s=this.physical.nodeMotion;if(!s)return '';
+    return this.hasNodeMotion('completed')?'运动滑轨 · 下轨先减速再反向，上轨仍向右。tawa 改变运动，方向由焦点决定，不是瞬移。仅记录第二次 H1 场景理解，不提升容量或攻击资格。':
+      s.castAge!==undefined?'运动滑轨 · 已付 2 MP，留在时间对照台旁看下轨实际反向；未验证结果前不记录理解。':
+      '运动滑轨 · 上下两轨正常同向移动。机械参照不计作学习；已在水轮理解 tawa 后，可收起提示自己表达，预览并确认一次隔离练习。';
+  }
+  previewNodeMotion(){
+    const s=this.physical.nodeMotion,mp=this.truth.mp;
+    if(this.nearest()?.id!=='node-time'||!s||s.referenceAge!==NODE_MOTION.ticks||s.castAge!==undefined||
+      !this.hasNodeMotion('predicted')||!nodeMotionWordReady(this.truth)||!this.has('debrief'))return null;
+    return {planId:sha256Canonical({profile:'node-motion-v1',tick:this.physical.tick,player:this.physical.player,mp} as unknown as JsonValue),
+      cost:NODE_MOTION.cost,canConfirm:mp.currentMp>=NODE_MOTION.cost,
+      reason:mp.currentMp<NODE_MOTION.cost?'MP 不足，不降档、不扣费；可原路回隐士坐垫恢复。':
+        '仅下轨：向左作用 0.4 秒，随后自由滑行；不移动人物，不生成物质。确认支付 2 MP。'};
+  }
+  confirmNodeMotion(planId:string):EpisodeResult{
+    const p=this.previewNodeMotion();
+    if(!p||p.planId!==planId||!p.canConfirm)return {accepted:false,choice:'node-motion-cast',text:p?.reason??'预览已失效，请靠近时间对照台重新预览；未扣 MP。'};
+    const mp=this.truth.mp;
+    this.markNodeMotion('cast',[{eventId:'episode.node-motion.mp',type:'mp_replaced',
+      payload:{mp:{...mp,currentMp:mp.currentMp-NODE_MOTION.cost,worldVersion:mp.worldVersion+1}}}]);
+    this.physical.nodeMotion!.castAge=0;
+    return {accepted:true,text:'上下轨已同时松开，仅下轨接收有限作用；留在旁边观察。',resumeWorld:true};
+  }
+  private advanceNodeMotion():void{
+    const s=this.physical.nodeMotion;if(!s||this.nearest()?.id!=='node-time')return;
+    advanceNodeMotion(s);
+    if(nodeMotionVerified(s)&&!this.hasNodeMotion('completed'))this.markNodeMotion('completed',[
+      {eventId:'episode.node-motion.evidence',type:'learning_evidence_committed',payload:{evidence:nodeMotionEvidence(this.session.sessionId)}}]);
+  }
+  private nodeMotionInteraction(choice:string):EpisodeResult{
+    const s=this.physical.nodeMotion;
+    if(choice==='rail:reference'&&!this.hasNodeMotion('predicted')&&s?.castAge===undefined){
+      this.physical.nodeMotion={version:1,referenceAge:0};
+      return {accepted:true,text:'同时松开两轨的机械锁扣；两块滑块只靠同样的初速度滑行。',resumeWorld:true};
+    }
+    if(this.hasNodeMotion('completed'))return {accepted:true,text:this.nodeMotionNotes+'本轮施放已经记录，不重复扣费或授予证据。'};
+    if(s?.castAge!==undefined)return {accepted:true,text:this.nodeMotionNotes};
+    if(!s||s.referenceAge<NODE_MOTION.ticks)return {accepted:true,text:'时间对照台上方有两条隔离滑轨。单刻痕上轨和双刻痕下轨使用同样的滑块，先看机械参照。可跳过此练习，原主线通路不受影响。',
+      actions:[{id:'rail:reference',label:'运行滑轨机械参照'}]};
+    if(!nodeMotionWordReady(this.truth)||!this.has('debrief'))return {accepted:true,text:'两轨都向右。先回工坊水轮支架完成运动词的观察、调谐与预测，并完成隐士安全复盘，再尝试施放。此处不会自动授予词语。'};
+    if(this.hasNodeMotion('predicted'))return {accepted:true,choice:'node-motion-cast',text:'表达与预测已准备好；先预览，再明确确认。'};
+    if(choice==='rail:hint')return {accepted:true,text:'tawa 表示去、移动；不是向左，也不是瞬移。上下轨同向，焦点只朝左作用于下轨。先比较速度的变化。',
+      actions:[{id:'rail:recall',label:'收起提示，自己表达'}]};
+    if(parseNodeMotionPrediction(choice)){
+      this.markNodeMotion('predicted');return {accepted:true,choice:'node-motion-cast',text:'预测已记录，尚未施放，也未记作理解。请预览确认。'};
+    }
+    return {accepted:!choice.startsWith('rail:predict:'),choice:'node-motion-recall',
+      text:(choice.startsWith('rail:predict:')?'表达或预测尚不符合此机关；未扣 MP。':'')+
+        '两轨原本向右。现在用已学的运动词，只让下轨接受向左的有限作用；它足以克服起始速度。预测结束时下轨与上轨的方向关系。',
+      actions:[{id:'rail:hint',label:'查看运动词提示'}]};
+  }
   get nodeExperimentNotes():string {
     const runs=this.physical.nodeExperiments;
     if(!runs)return '';
@@ -532,6 +593,7 @@ export class ForestEpisode {
       '这是现场对照记录，不是词语学习或施法证据；复位只收回演示物，不改动章节进度。';
   }
   private nodeExperimentInteraction(kind:NodeExperiment,choice?:string):EpisodeResult {
+    if(kind==='time'&&choice?.startsWith('rail:'))return this.nodeMotionInteraction(choice);
     if(choice==='experiment:normal'||choice==='experiment:anomaly'){
       this.physical.nodeExperiments??={};
       this.physical.nodeExperiments[kind]=beginNodeExperiment(choice==='experiment:normal'?'normal':'anomaly');
@@ -551,6 +613,7 @@ export class ForestEpisode {
       (run?nodeExperimentSummary(kind,run):'先让两槽正常运行，再接入右槽异常比较。')+
       '离开装置旁或打开面板会暂停。工具不消耗 MP，不改变人物或水路，也不授予词语掌握。',
       actions:[{id:'experiment:normal',label:'两槽正常对照'},{id:'experiment:anomaly',label:'接入右槽异常对照'},
+        ...(kind==='time'?[{id:'rail:inspect',label:'查看上方运动滑轨'}]:[]),
         ...(kind==='conservation'&&run?.age===NODE_EXPERIMENTS.conservation.ticks?[{id:'experiment:ledger',label:run.ledgerOpen?'重看整套水量账':'打开隔离仓核账'}]:[]),
         ...(run?[{id:'experiment:reset',label:'机械复位'}]:[])]};
   }
@@ -1013,7 +1076,7 @@ export class ForestEpisode {
     if(p.place==='return-channel')this.advanceReturnFlow();
     if(p.place==='return-channel'&&p.forceStudy)this.advanceForce();
     if(p.place==='wetland')this.advanceMigration();
-    if(p.place==='order-node')this.advanceAllocation();
+    if(p.place==='order-node'){this.advanceAllocation();this.advanceNodeMotion();}
     if(p.place==='order-node'&&p.nodeExperiments){
       const near=this.nearest()?.id;
       for(const kind of Object.keys(p.nodeExperiments) as NodeExperiment[])
@@ -1384,6 +1447,29 @@ export class ForestEpisode {
         Math.abs(p.player.velocityX) > 88.001 || Math.abs(p.player.velocityY) > 240.001 ||
         this.collides({ ...p.player, width: 12, height: 14 })) throw new Error('章节空间存档无效');
     validateEpisodeWater(p.mill); validateEpisodeWater(p.practice);
+    if(p.nodeMotion) {
+      validateNodeMotion(p.nodeMotion,p.tick);
+      if(!this.hasMigration('node_entered'))throw Error('地下运动滑轨入口无效');
+    }
+    for(const [i,f] of NODE_MOTION_FLAGS.entries())if(this.hasNodeMotion(f)&&(!p.nodeMotion||
+      !this.truth.receiptIndex['forest.episode.node-motion.'+f]||i>0&&!this.hasNodeMotion(NODE_MOTION_FLAGS[i-1]!)))
+      throw Error('地下运动滑轨学习顺序无效');
+    if(this.hasNodeMotion('predicted')&&(!p.nodeMotion||p.nodeMotion.referenceAge!==NODE_MOTION.ticks||
+      !nodeMotionWordReady(this.truth)||!this.has('debrief'))||this.hasNodeMotion('cast')!==(p.nodeMotion?.castAge!==undefined))
+      throw Error('地下运动滑轨前置或施放状态无效');
+    if(p.nodeMotion?.castAge!==undefined){
+      const save=this.session.toSave(),ledger=save.eventLedger,i=ledger.findIndex(e=>e.eventId==='episode.node-motion.mp'),cast=ledger[i];
+      const prior=i<0?null:GameSession.replayLedger(save.sessionId,save.origin,ledger.slice(0,i)),before=prior?.ok?prior.session.snapshot():null;
+      if(!before||!cast||cast.type!=='mp_replaced'||ledger.filter(e=>e.eventId==='episode.node-motion.mp').length!==1||
+        !nodeMotionWordReady(before)||before.world.flags['global:forest.episode.node-motion.predicted']?.value!==true||
+        cast.payload.mp.currentMp!==before.mp.currentMp-NODE_MOTION.cost||cast.payload.mp.maxMp!==before.mp.maxMp||
+        cast.payload.mp.worldVersion!==before.mp.worldVersion+1||this.truth.receiptIndex['forest.episode.node-motion.cast']?.domain!=='cast')
+        throw Error('地下运动滑轨扣费凭证无效');
+      if(this.hasNodeMotion('completed')!==nodeMotionVerified(p.nodeMotion)||this.hasNodeMotion('completed')&&
+        !this.truth.learning.words.tawa?.evidence.some(e=>e.eventId==='episode.node-motion.grounding'&&e.taskFamilyId==='forest_motion_relations'&&
+          e.sourceObjectClass==='underground_motion_rail'&&e.eventType==='grounding_trial_resolved'&&e.promptLevel===1&&e.answerVisible===false))
+        throw Error('地下运动滑轨结果与学习证据不一致');
+    }
     if(p.nodeExperiments!==undefined){
       if(!this.hasMigration('node_entered'))throw Error('地下对照装置入口尚未开放');
       validateNodeExperiments(p.nodeExperiments,p.tick);
