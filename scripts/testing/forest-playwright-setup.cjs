@@ -7,6 +7,7 @@ module.exports = async () => {
     'scripts/testing/forest-node-motion-fixture.test.ts',
     'scripts/testing/forest-node-energy-fixture.test.ts',
     'scripts/testing/forest-node-water-fixture.test.ts',
+    'scripts/testing/forest-archive-rig-fixture.test.ts',
     'scripts/testing/forest-epilogue-fixture.test.ts',
     'scripts/testing/forest-site-lead-fixture.test.ts',
     'scripts/testing/forest-allocation-fixture.test.ts',

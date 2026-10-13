@@ -134,6 +134,26 @@ function renderResult(result: EpisodeResult, target: EpisodeTarget): void {
     });
     const confirm=button('确认复习槽释放',()=>{if(!planId)return;const r=game.confirmLengthStudy(planId);save();updateHud();renderResult(r,target);});confirm.disabled=true;
   }
+  if(result.choice==='archive-rig'){
+    const label=document.createElement('label'),input=document.createElement('input');
+    label.textContent='输入机关表达';input.setAttribute('aria-label',label.textContent);input.maxLength=32;
+    input.autocomplete='off';input.spellcheck=false;input.setAttribute('autocapitalize','off');label.append(input);actions.append(label);
+    const facing=document.createElement('label'),direction=document.createElement('select');
+    facing.textContent='焦点方向';direction.setAttribute('aria-label',facing.textContent);
+    for(const [value,text] of [['-1','左侧收件端'],['1','右侧止挡']]){const option=document.createElement('option');option.value=value!;option.textContent=text!;direction.append(option);}
+    facing.append(direction);actions.append(facing);
+    const detail=document.createElement('p');detail.setAttribute('role','status');detail.textContent='输入后先预览；确认才消耗 2 MP。';actions.append(detail);
+    let planId:string|null=null;
+    button('预览取回架施法',()=>{
+      const p=game.previewArchiveRig(input.value,Number(direction.value));planId=p?.planId??null;confirm.disabled=!p?.canConfirm;
+      detail.textContent=p?'当前 '+game.sessionState.mp.currentMp+' MP · '+p.reason:'水位或位置条件已改变，请重新靠近档案。';
+    });
+    const confirm=button('确认取回架施法',()=>{
+      if(!planId)return;const r=game.confirmArchiveRig(planId,input.value,Number(direction.value));save();updateHud();renderResult(r,target);
+    });confirm.disabled=true;
+    const invalidate=()=>{planId=null;confirm.disabled=true;detail.textContent='表达或方向已修改，请重新预览。';};
+    input.oninput=invalidate;direction.onchange=invalidate;
+  }
   if(result.choice==='node-water-recall'){
     const label=document.createElement('label'),input=document.createElement('input');
     label.textContent='输入水与尺度表达';input.setAttribute('aria-label',label.textContent);input.maxLength=32;
@@ -342,6 +362,7 @@ function notes(): string {
     game.nodeMotionNotes,
     game.nodeEnergyNotes,
     game.nodeWaterNotes,
+    game.archiveRigNotes,
     game.leadNotes ? '位点索引 · '+game.leadNotes : '',
     game.epilogueNotes ? '尾声与回访 · '+game.epilogueNotes : '',
     game.hasRoom('reported') ? '工务人交接 · 已说明水路变化，不重复领取报酬。旧矿道仍需后续安全调查，当前未开放。' : '',
@@ -383,6 +404,8 @@ function updateHud(): void {
   canvas.dataset.conservationLedger=String(game.state.nodeExperiments?.conservation?.ledgerOpen===true);
   canvas.dataset.nodeMotion=game.hasNodeMotion('completed')?'completed':game.state.nodeMotion?.castAge!==undefined?'casting':game.state.nodeMotion?'reference':'unvisited';
   canvas.dataset.nodeMotionAge=String(game.state.nodeMotion?.castAge??game.state.nodeMotion?.referenceAge??0);
+  canvas.dataset.archiveRig=game.archiveRigStatus;
+  canvas.dataset.archiveRigAge=String(game.state.archiveRig?.age??0);
   canvas.dataset.nodeWater=game.hasNodeWater('long.completed')?'completed':game.state.nodeWater?.[game.nodeWaterStage]?'flowing':game.nodeWaterStage;
   canvas.dataset.nodeWaterAge=String(game.state.nodeWater?.[game.nodeWaterStage]?.age??0);
   canvas.dataset.nodeEnergy=game.hasNodeEnergy('completed')?'completed':game.state.nodeEnergy?.castAge!==undefined?'casting':game.state.nodeEnergy?'reference':'unvisited';

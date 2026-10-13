@@ -1,3 +1,5 @@
+import {ARCHIVE_RIG,archiveRigFrame,archiveRigAccounting,appendArchiveRig,advanceArchiveRig,canOperateArchiveRig,type ArchiveRigState,type RigKind} from '../world/forest-archive-rig';
+import {parseRigWord,rigWordReady,RIG_NOTE,hasArchiveRigFlag,validateArchiveRigLedger} from './forest-archive-rig';
 import {NODE_WATER,WATER_STAGES,NodeWaterWorld,validateNodeWater,nodeWaterCost,previewNodeWaterWorld,type NodeWaterState,type NodeWaterStage} from '../world/forest-node-water';
 import {NODE_WATER_FLAGS,nodeWaterWordsReady,parseNodeWaterPrediction,nodeWaterEvidence,type NodeWaterFlag} from './forest-node-water';
 import {NODE_ENERGY,advanceNodeEnergy,validateNodeEnergy,nodeEnergyVerified,nodeEnergyAccounting,parseNodeEnergyPrediction,type NodeEnergyState} from '../world/forest-node-energy';
@@ -178,13 +180,14 @@ interface EpisodePhysical {
   nodeMotion?:NodeMotionState;
   nodeEnergy?:NodeEnergyState;
   nodeWater?:NodeWaterState;
+  archiveRig?:ArchiveRigState;
   wheelSpeed: number; stableTicks: number; wheelAngle: number; casts: number; baselineCollected: number;
 }
 export interface ForestEpisodeSave {
   schema: 'tokipona.forest-waterwheel-episode.v0.1';
   openingChecksum: string; session: GameSessionSave; physical: EpisodePhysical; checksum: string;
 }
-export interface EpisodeResult { accepted: boolean; text: string; speaker?: string; choice?: 'work' | 'predict' | 'recall' | 'calibrate' | 'window' | 'calibration' | 'siphon' | 'force-recall' | 'water-recall' | 'motion-recall' | 'length-recall' | 'length-cast' | 'node-motion-recall' | 'node-motion-cast' | 'node-energy-recall' | 'node-energy-cast' | 'node-water-recall' | 'node-water-cast';
+export interface EpisodeResult { accepted: boolean; text: string; speaker?: string; choice?: 'work' | 'predict' | 'recall' | 'calibrate' | 'window' | 'calibration' | 'siphon' | 'force-recall' | 'water-recall' | 'motion-recall' | 'length-recall' | 'length-cast' | 'node-motion-recall' | 'node-motion-cast' | 'node-energy-recall' | 'node-energy-cast' | 'node-water-recall' | 'node-water-cast' | 'archive-rig';
   actions?: readonly { id: string; label: string }[];
   resumeWorld?: boolean;
 }
@@ -592,6 +595,76 @@ export class ForestEpisode {
       text:(choice.startsWith('rail:predict:')?'表达或预测尚不符合此机关；未扣 MP。':'')+
         '两轨原本向右。现在用已学的运动词，只让下轨接受向左的有限作用；它足以克服起始速度。预测结束时下轨与上轨的方向关系。',
       actions:[{id:'rail:hint',label:'查看运动词提示'}]};
+  }
+  hasArchiveRig(flag:'coupled'|'collected'):boolean{return hasArchiveRigFlag(this.truth,flag);}
+  private rigWaterReady():boolean{return this.hasNodeWater('long.completed')&&this.waterwayWorld().longSatisfied;}
+  get archiveRigStatus():string{
+    const s=this.physical.archiveRig;if(!s)return this.rigWaterReady()?'ready':'locked';
+    const f=archiveRigFrame(s);return this.hasArchiveRig('collected')?'recorded':f.delivered?'delivered':f.working?'moving':'stalled';
+  }
+  get archiveRigNotes():string{
+    const s=this.physical.archiveRig;if(!s)return '';
+    return '档案取回架 · '+(this.hasArchiveRig('collected')?RIG_NOTE:archiveRigFrame(s).delivered?'附页已送到收件端，需明确取出后记入日志。':'先用实际双杯水位解锁，再比较转向与有限供能；手摇可救回。')+
+      archiveRigAccounting(s)+'这次组合应用保留真实操作记录，不自动增加词语证据、熟练度、能力或物品。';
+  }
+  private commitRigAction(kind:RigKind,direction?:-1|1):void{
+    const s=this.physical.archiveRig!,next=appendArchiveRig(s,kind,direction),index=s.events.length,event=next.events[index]!,mp=this.truth.mp;
+    const drafts:SessionEventDraft[]=kind==='winch'?[]:[{eventId:'episode.archive-rig.mp.'+index,type:'mp_replaced',
+      payload:{mp:{...mp,currentMp:mp.currentMp-ARCHIVE_RIG.cost,worldVersion:mp.worldVersion+1}}}];
+    drafts.push({eventId:'episode.archive-rig.action.'+index,type:'world_flag_set',
+      payload:{flagId:'forest.episode.archive-rig.action.'+index,value:sha256Canonical(event as unknown as JsonValue),scope:'global'}});
+    this.commit('archive-rig.action.'+index,drafts,kind==='winch'?'world':'cast');this.physical.archiveRig=next;
+  }
+  previewArchiveRig(input:string,direction:number){
+    const word=parseRigWord(input),s=this.physical.archiveRig,mp=this.truth.mp;
+    if(this.nearest()?.id!=='node-archive'||!s||!this.rigWaterReady())return null;
+    const kind=word==='tawa'?'motion':'energy',validDirection=direction===-1||direction===1;
+    const ready=word!==null&&rigWordReady(this.truth,word),unused=canOperateArchiveRig(s,kind);
+    const canConfirm=ready&&unused&&validDirection&&mp.currentMp>=ARCHIVE_RIG.cost;
+    const reason=!word?'这里只支持独立的运动词或能量词；水与尺度由左侧真实水路负责，未支持的连写不会收费。':
+      !ready?'尚未完成该词理解与隐士复盘，可用手摇绞盘回收。':!validDirection?'请选择左／右焦点方向。':
+      !unused?'这项输入已使用、手摇已接管或滑架已到站；不重复扣费，可用手摇回收。':mp.currentMp<ARCHIVE_RIG.cost?'MP 不足，不扣费；可手摇或沿旧路回隐士休息。':
+      word==='tawa'?'支付 2 MP，使换向盘在 24 tick 内转向'+(direction===-1?'左侧收件端':'右侧止挡')+'；不瞬移滑架，不补入牵引能量。':
+      '支付 2 MP，向牵引储能补入 20 格有限能量；当前朝'+(archiveRigFrame(s).gear===-1?'左':'右')+'。水位只解锁，不供能；撞止挡会空耗。';
+    return {planId:sha256Canonical({profile:'archive-rig-v1',word,direction,tick:this.physical.tick,player:this.physical.player,mp,state:s} as unknown as JsonValue),canConfirm,reason};
+  }
+  confirmArchiveRig(planId:string,input:string,direction:number):EpisodeResult{
+    const p=this.previewArchiveRig(input,direction),word=parseRigWord(input);
+    if(!p||p.planId!==planId||!p.canConfirm||!word)return {accepted:false,choice:'archive-rig',text:p?.reason??'预览失效；靠近旱季配水档案重新预览，没有扣 MP。'};
+    this.commitRigAction(word==='tawa'?'motion':'energy',word==='tawa'?direction as -1|1:undefined);
+    return {accepted:true,text:word==='tawa'?'换向盘正在旋转，滑架位置不变。收起面板观察，动力仍需另行提供。':'有限能量已接入牵引储槽。看方向、位置和余量；错误朝向可用手摇绞盘救回。',resumeWorld:true};
+  }
+  private advanceArchiveRig():void{
+    if(this.physical.archiveRig&&this.nearest()?.id==='node-archive'&&this.rigWaterReady())advanceArchiveRig(this.physical.archiveRig);
+  }
+  private archiveRigInteraction(choice:string):EpisodeResult{
+    const s=this.physical.archiveRig;
+    if(!s){
+      if(!this.rigWaterReady())return {accepted:true,text:'档案上方有一份卡在右侧滑架中的检修附页。水位锁扣仍然闭合：先到左侧材质承托台的串联水槽，让窄口和隔开的双杯实际接水。魔法或有限备用水箱都可以。原旱季档案、碎片座和主线路线不受影响。'};
+      if(choice!=='rig:couple')return {accepted:true,text:'双杯已有实际水位。连接水位联杆只解除滑架锁扣，不刷入水、不提供能量，也不消耗之前装置的记录。',
+        actions:[{id:'rig:couple',label:'接上双杯水位联杆'}]};
+      this.commit('archive-rig.coupled',[{eventId:'episode.archive-rig.coupled',type:'world_flag_set',
+        payload:{flagId:'forest.episode.archive-rig.coupled',value:true,scope:'global'}}]);
+      this.physical.archiveRig={version:1,age:0,events:[]};return this.archiveRigInteraction('rig:inspect');
+    }
+    const f=archiveRigFrame(s);
+    if(this.hasArchiveRig('collected'))return {accepted:true,text:this.archiveRigNotes};
+    if(f.delivered){
+      if(choice==='rig:take'){
+        this.commit('archive-rig.collected',[{eventId:'episode.archive-rig.collected',type:'world_flag_set',
+          payload:{flagId:'forest.episode.archive-rig.collected',value:true,scope:'global'}}]);
+        return {accepted:true,text:this.archiveRigNotes};
+      }
+      return {accepted:true,text:'滑架已到收件端，制动器留住未用完的能量；未返还 MP。检修附页现在可以取出。'+archiveRigAccounting(s),
+        actions:[{id:'rig:take',label:'取出并记录检修附页'}]};
+    }
+    if(choice==='rig:winch'&&canOperateArchiveRig(s,'winch')){
+      this.commitRigAction('winch');return {accepted:true,text:'手动夹住换向盘并向收件端回摇。劳动按实际所需补入牵引能量，不消耗 MP、不退款，也不伪造魔法学习。约三秒内可收回；收起面板留在旁边观察。',resumeWorld:true};
+    }
+    return {accepted:true,choice:s.events.some(e=>e.kind==='winch')?undefined:'archive-rig',
+      text:'目标是把右侧附页送到左侧收件端。当前滑架 '+f.position+' px，传动朝'+(f.gear===-1?'左':'右')+'，'+
+        (f.selectorRemaining?'换向盘还在转动；':'')+'只改变方向不会自动供能，只供能也不保证方向正确。可分次输入 tawa 或 wawa，预览后分别确认；这不是五词连写咒语。'+archiveRigAccounting(s),
+      actions:canOperateArchiveRig(s,'winch')?[{id:'rig:winch',label:'改用手摇绞盘回收'}]:undefined};
   }
   hasNodeWater(flag:NodeWaterFlag):boolean{return this.truth.world.flags['global:forest.episode.node-water.'+flag]?.value===true;}
   private markNodeWater(flag:NodeWaterFlag,drafts:SessionEventDraft[]=[],domain:'world'|'cast'|'learning'='world'):void{
@@ -1226,7 +1299,7 @@ export class ForestEpisode {
     if(p.place==='return-channel')this.advanceReturnFlow();
     if(p.place==='return-channel'&&p.forceStudy)this.advanceForce();
     if(p.place==='wetland')this.advanceMigration();
-    if(p.place==='order-node'){this.advanceAllocation();this.advanceNodeMotion();this.advanceNodeEnergy();this.advanceNodeWater();}
+    if(p.place==='order-node'){this.advanceAllocation();this.advanceNodeMotion();this.advanceNodeEnergy();this.advanceNodeWater();this.advanceArchiveRig();}
     if(p.place==='order-node'&&p.nodeExperiments){
       const near=this.nearest()?.id;
       for(const kind of Object.keys(p.nodeExperiments) as NodeExperiment[])
@@ -1363,10 +1436,13 @@ export class ForestEpisode {
       case 'node-material':return this.nodeExperimentInteraction('material',choice);
       case 'node-conservation':return this.nodeExperimentInteraction('conservation',choice);
       case 'node-survey':return say('左边四座封闭装置可以比较重力、时间、材质承托与水量收支，不影响脚下的安全通道。三条旧水路分别通往聚落、湿地和旧商路。检修图有多处损坏，不能凭眼前两路恢复就断言整个系统平衡了。往右有旱季记录和碎片座；同步只连接位点，不自动分配水路。');
-      case 'node-archive':
+      case 'node-archive': {
+        if(choice?.startsWith('rig:'))return this.archiveRigInteraction(choice);
         if(!this.hasMigration('archive'))this.markMigration('archive');
-        if(this.allocationMode)return this.siteLeadInteraction('archive',choice);
-        return say('档案记着一次旱季：部分居民与议事者将水引向聚落，保住饮水和庄稼，却让湿地与下游承受缺水。他们随后隐去了改渠记录，担心追责和索赔。维修簿又记下：受损系统无法同时满足三路需求。修复并不意味着代价消失。');
+        const result=this.allocationMode?this.siteLeadInteraction('archive',choice):
+          say('档案记着一次旱季：部分居民与议事者将水引向聚落，保住饮水和庄稼，却让湿地与下游承受缺水。他们随后隐去了改渠记录，担心追责和索赔。维修簿又记下：受损系统无法同时满足三路需求。修复并不意味着代价消失。');
+        return {...result,actions:[...(result.actions??[]),{id:'rig:inspect',label:'查看档案取回架'}]};
+      }
       case 'node-cradle':return this.shardInteraction(choice);
       case 'node-allocation':return this.allocationInteraction(choice);
       case 'node-exit':return this.epilogueInteraction(choice);
@@ -1597,6 +1673,7 @@ export class ForestEpisode {
         Math.abs(p.player.velocityX) > 88.001 || Math.abs(p.player.velocityY) > 240.001 ||
         this.collides({ ...p.player, width: 12, height: 14 })) throw new Error('章节空间存档无效');
     validateEpisodeWater(p.mill); validateEpisodeWater(p.practice);
+    validateArchiveRigLedger(this.session.toSave(),p.archiveRig,p.tick,this.rigWaterReady());
     if(p.nodeWater!==undefined){
       validateNodeWater(p.nodeWater,p.tick);
       if(!this.hasMigration('node_entered'))throw Error('地下接水机关入口无效');
