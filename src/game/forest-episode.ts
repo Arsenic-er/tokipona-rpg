@@ -1,3 +1,5 @@
+import {NODE_WATER,WATER_STAGES,NodeWaterWorld,validateNodeWater,nodeWaterCost,previewNodeWaterWorld,type NodeWaterState,type NodeWaterStage} from '../world/forest-node-water';
+import {NODE_WATER_FLAGS,nodeWaterWordsReady,parseNodeWaterPrediction,nodeWaterEvidence,type NodeWaterFlag} from './forest-node-water';
 import {NODE_ENERGY,advanceNodeEnergy,validateNodeEnergy,nodeEnergyVerified,nodeEnergyAccounting,parseNodeEnergyPrediction,type NodeEnergyState} from '../world/forest-node-energy';
 import {NODE_ENERGY_FLAGS,nodeEnergyWordReady,nodeEnergyEvidence,type NodeEnergyFlag} from './forest-node-energy';
 import {NODE_MOTION,advanceNodeMotion,validateNodeMotion,nodeMotionVerified,parseNodeMotionPrediction,type NodeMotionState} from '../world/forest-node-motion';
@@ -38,7 +40,7 @@ import { readRuntimeCisternTaskManifest } from '../content/runtime-task-manifest
 import { readVerifiedCapabilityMilestoneContract } from '../session/capability-contract';
 import { proposeCapabilityMilestone } from '../session/adapters';
 import { CISTERN_WINDOW, CisternWindow, WINDOW_EXPRESSIONS, windowPreview, executeWindowCast, type CisternWindowState, type WindowExpression } from '../world/forest-cistern-window';
-import type { TeloCastPlan } from '../spells/cast-plan';
+import type { TeloCastPlan, LivingSafetyZone } from '../spells/cast-plan';
 import { CastExecutionLedger } from '../spells/cast-plan';
 import { CisternLearningSession } from '../learning/cistern-session';
 import { CISTERN_ROOM_BOUNDS, cisternRoomSolid, cisternRoomCollides, stepCisternClimb, validateCisternClimb, type CisternClimb } from '../world/forest-cistern-room';
@@ -175,13 +177,14 @@ interface EpisodePhysical {
   nodeExperiments?:NodeExperimentState;
   nodeMotion?:NodeMotionState;
   nodeEnergy?:NodeEnergyState;
+  nodeWater?:NodeWaterState;
   wheelSpeed: number; stableTicks: number; wheelAngle: number; casts: number; baselineCollected: number;
 }
 export interface ForestEpisodeSave {
   schema: 'tokipona.forest-waterwheel-episode.v0.1';
   openingChecksum: string; session: GameSessionSave; physical: EpisodePhysical; checksum: string;
 }
-export interface EpisodeResult { accepted: boolean; text: string; speaker?: string; choice?: 'work' | 'predict' | 'recall' | 'calibrate' | 'window' | 'calibration' | 'siphon' | 'force-recall' | 'water-recall' | 'motion-recall' | 'length-recall' | 'length-cast' | 'node-motion-recall' | 'node-motion-cast' | 'node-energy-recall' | 'node-energy-cast';
+export interface EpisodeResult { accepted: boolean; text: string; speaker?: string; choice?: 'work' | 'predict' | 'recall' | 'calibrate' | 'window' | 'calibration' | 'siphon' | 'force-recall' | 'water-recall' | 'motion-recall' | 'length-recall' | 'length-cast' | 'node-motion-recall' | 'node-motion-cast' | 'node-energy-recall' | 'node-energy-cast' | 'node-water-recall' | 'node-water-cast';
   actions?: readonly { id: string; label: string }[];
   resumeWorld?: boolean;
 }
@@ -205,6 +208,7 @@ export class ForestEpisode {
   private grace: PlayerJumpGrace = EMPTY_JUMP_GRACE;
   private readonly migrationLifeIds = new Map<boolean,string>();
   private allocationPhysics?:AllocationWorld;
+  private nodeWaterPhysics?:NodeWaterWorld;
   private constructor(session: GameSession, private readonly openingChecksum: string, physical?: EpisodePhysical) {
     this.session = session; this.truth = session.snapshot();
     this.terrainProfile = physical ? physical.terrainProfile : 'forest-clearing-v1';
@@ -589,6 +593,87 @@ export class ForestEpisode {
         '两轨原本向右。现在用已学的运动词，只让下轨接受向左的有限作用；它足以克服起始速度。预测结束时下轨与上轨的方向关系。',
       actions:[{id:'rail:hint',label:'查看运动词提示'}]};
   }
+  hasNodeWater(flag:NodeWaterFlag):boolean{return this.truth.world.flags['global:forest.episode.node-water.'+flag]?.value===true;}
+  private markNodeWater(flag:NodeWaterFlag,drafts:SessionEventDraft[]=[],domain:'world'|'cast'|'learning'='world'):void{
+    if(this.hasNodeWater(flag))return;
+    this.commit('node-water.'+flag,[...drafts,{eventId:'episode.node-water.'+flag,type:'world_flag_set',
+      payload:{flagId:'forest.episode.node-water.'+flag,value:true,scope:'global'}}],domain);
+  }
+  private waterwayWorld():NodeWaterWorld{return this.nodeWaterPhysics??=new NodeWaterWorld(this.physical.nodeWater);}
+  get nodeWaterCells():readonly number[]{return this.waterwayWorld().cells();}
+  get nodeWaterFrame(){return {cells:this.waterwayWorld().cells(),collected:this.waterwayWorld().collected,total:this.waterwayWorld().totalWater};}
+  get nodeWaterStage():NodeWaterStage{return this.hasNodeWater('short.completed')?'long':'short';}
+  get nodeWaterNotes():string{
+    const s=this.physical.nodeWater;if(!s)return '';
+    return '地下串联接水槽 · '+WATER_STAGES.map(k=>!s[k]? (k==='short'?'窄口':'双槽')+'尚未供水':
+      (k==='short'?'窄口':'双槽')+'：'+(s[k]!.source==='cast'?'施法供水':'手动释放有限旧水')+
+      (this.hasNodeWater(`${k}.completed`)?'，实际接通':'，等待实际接水')).join('；')+
+      '。原水箱共 240 格；显化额外增加 48／192 格水。手动供水不记作语言理解；此处不影响三路配水或主线通行。';
+  }
+  private nodeWaterZones():LivingSafetyZone[]{
+    const p=this.physical.player;return [{entityId:'player',boundsPx:{x:p.x-NODE_WATER.x,y:p.y-NODE_WATER.y,width:12,height:14}}];
+  }
+  previewNodeWater(){
+    const stage=this.nodeWaterStage,s=this.physical.nodeWater,mp=this.truth.mp;
+    if(this.nearest()?.id!=='node-material'||s?.[stage]||!this.hasNodeWater(`${stage}.predicted`)||
+      !nodeWaterWordsReady(this.truth,stage)||!this.has('debrief'))return null;
+    const {plan}=previewNodeWaterWorld(s,stage,mp.currentMp,mp.maxMp,this.nodeWaterZones());
+    const supported=stage==='short'||this.hasNodeWater('long.braced'),capacity=this.truth.capabilities.expressionCapacityWords>=2;
+    const canConfirm=supported&&capacity&&plan.canConfirm;
+    return {plan,planId:sha256Canonical({profile:'node-water-v1',stage,tick:this.physical.tick,player:this.physical.player,mp,state:s,supported,capacity,plan:plan.planId} as unknown as JsonValue),
+      canConfirm,reason:!supported?'先固定长口支架，不会自动缩短。':!capacity?'媒介需要两词容量；可改走手动水箱。':
+        !plan.canConfirm?(mp.currentMp<nodeWaterCost(stage)?'MP 不足，未扣费；沿原路回隐士坐垫恢复，或选择手动水箱。':'空间或生物安全区不允许这次显化，未扣费。'):
+        '固定截面 12 px、长度 '+(stage==='short'?16:64)+' px，向右、零初速度、受重力、非攻击。明确支付 '+nodeWaterCost(stage)+' MP；接水结果不会由确认按钮直接完成。'};
+  }
+  confirmNodeWater(planId:string):EpisodeResult{
+    const p=this.previewNodeWater();
+    if(!p||p.planId!==planId||!p.canConfirm)return {accepted:false,choice:'node-water-cast',text:p?.reason??'预览已失效，靠近材质承托台重新预览；没有扣 MP。'};
+    const stage=this.nodeWaterStage,mp=this.truth.mp,{world,plan}=previewNodeWaterWorld(this.physical.nodeWater,stage,mp.currentMp,mp.maxMp,this.nodeWaterZones());
+    const result=world.confirm(plan,this.nodeWaterZones());
+    if(!result.committed||result.mpCharge!==nodeWaterCost(stage))return {accepted:false,text:'物理显化被拒绝，没有扣 MP。'};
+    this.markNodeWater(`${stage}.started`,[{eventId:'episode.node-water.mp.'+stage,type:'mp_replaced',
+      payload:{mp:{...mp,currentMp:mp.currentMp-result.mpCharge,worldVersion:mp.worldVersion+1}}}],'cast');
+    this.physical.nodeWater??={version:1};this.physical.nodeWater[stage]={source:'cast',age:0};this.nodeWaterPhysics=world;
+    return {accepted:true,text:'水已显化。留在承托台旁观察实际下落与接水，关闭面板才继续。',resumeWorld:true};
+  }
+  private advanceNodeWater():void{
+    const s=this.physical.nodeWater;if(!s||this.nearest()?.id!=='node-material')return;
+    const stage=this.nodeWaterStage,run=s[stage];if(!run||run.age>=NODE_WATER.ticks)return;
+    const world=this.waterwayWorld();world.advance(stage);run.age++;
+    if(run.age!==NODE_WATER.ticks)return;
+    const satisfied=stage==='short'?world.shortSatisfied:world.longSatisfied;if(!satisfied)return;
+    if(stage==='short')world.openBaffle();
+    const words:('telo'|'lili'|'suli')[]=run.source==='cast'?[stage==='short'?'lili':'suli']:[];
+    if(stage==='long'&&run.source==='cast'&&s.short?.source==='cast')words.push('telo');
+    this.markNodeWater(`${stage}.completed`,words.map(word=>({eventId:'episode.node-water.evidence.'+word,
+      type:'learning_evidence_committed',payload:{evidence:nodeWaterEvidence(this.session.sessionId,word)}})),words.length?'learning':'world');
+  }
+  private nodeWaterInteraction(choice:string):EpisodeResult{
+    const stage=this.nodeWaterStage,s=this.physical.nodeWater,run=s?.[stage];
+    if(this.hasNodeWater('long.completed'))return {accepted:true,text:this.nodeWaterNotes+'两只接水触点都已压下，检修指示闩打开；不重复扣费或授予证据。'};
+    if(run)return {accepted:true,text:this.nodeWaterNotes+'请收起面板留在旁边观察。'};
+    const manual={id:'waterway:tool',label:stage==='short'?'手动释放窄口备用水箱':'手动释放双槽备用水箱'};
+    if(choice==='waterway:tool'){
+      const world=this.waterwayWorld();world.openTool(stage);
+      this.markNodeWater(`${stage}.started`);this.physical.nodeWater??={version:1};this.physical.nodeWater[stage]={source:'tool',age:0};
+      return {accepted:true,text:'只打开备用水箱底阀，旧水受重力流下；不扣 MP、不凭工具授予学习。一次有限水源，不会重复补水。',resumeWorld:true};
+    }
+    if(choice==='waterway:brace'&&stage==='long')this.markNodeWater('long.braced');
+    const actions=[manual,...(stage==='long'&&!this.hasNodeWater('long.braced')?[{id:'waterway:brace',label:'固定长口支架'}]:[])];
+    if(!nodeWaterWordsReady(this.truth,stage)||!this.has('debrief'))return {accepted:true,text:'这是独立的串联检修水槽。窄口先接水才能打开下一级挡片；之后要让隔开的两只杯子都接到水。可直接使用备用水箱；施法须先在隐士和蓄水室完成对应词的理解，不会在这里自动补学。',actions};
+    if(this.hasNodeWater(`${stage}.predicted`))return {accepted:true,choice:'node-water-cast',text:'表达与预测已准备好。预览会核对空间、支撑和 MP，再明确确认。',actions};
+    if(choice==='waterway:hint')return {accepted:true,text:'telo 表达水／液体；lili 在本机关缩短水结构，suli 延长结构，不是改变冲击威力。第一段窄口只能容纳短段；第二段必须跨过中间隔板上方，覆盖两只接水杯。',
+      actions:[{id:'waterway:recall',label:'收起提示，自己写水路表达'},...actions]};
+    if(parseNodeWaterPrediction(choice,stage)){
+      this.physical.nodeWater??={version:1};this.markNodeWater(`${stage}.predicted`,[],'learning');
+      return {accepted:true,choice:'node-water-cast',text:'只记录了预测，尚未扣 MP 或写入理解。',actions};
+    }
+    return {accepted:!choice.startsWith('waterway:predict:'),choice:'node-water-recall',
+      text:(choice.startsWith('waterway:predict:')?'表达或预测还不符合现场，未扣 MP。':'')+
+        (stage==='short'?'窄口前只有 22 px 空间，接水可释放下一级挡片。写出能通过窄口的水表达，预测落点。':
+        '挡片已打开；远杯在焦点右侧 40 px 之外，两个杯子下方仍有隔板。写出同时覆盖两杯的水表达，预测结果。'),
+      actions:[{id:'waterway:hint',label:'查看水与尺度提示'},...actions]};
+  }
   hasNodeEnergy(flag:NodeEnergyFlag):boolean{return this.truth.world.flags['global:forest.episode.node-energy.'+flag]?.value===true;}
   private markNodeEnergy(flag:NodeEnergyFlag,drafts:SessionEventDraft[]=[]):void{
     if(this.hasNodeEnergy(flag))return;
@@ -654,6 +739,7 @@ export class ForestEpisode {
       '这是现场对照记录，不是词语学习或施法证据；复位只收回演示物，不改动章节进度。';
   }
   private nodeExperimentInteraction(kind:NodeExperiment,choice?:string):EpisodeResult {
+    if(kind==='material'&&choice?.startsWith('waterway:'))return this.nodeWaterInteraction(choice);
     if(kind==='time'&&choice?.startsWith('rail:'))return this.nodeMotionInteraction(choice);
     if(kind==='conservation'&&choice?.startsWith('energy:'))return this.nodeEnergyInteraction(choice);
     if(choice==='experiment:normal'||choice==='experiment:anomaly'){
@@ -675,6 +761,7 @@ export class ForestEpisode {
       (run?nodeExperimentSummary(kind,run):'先让两槽正常运行，再接入右槽异常比较。')+
       '离开装置旁或打开面板会暂停。工具不消耗 MP，不改变人物或水路，也不授予词语掌握。',
       actions:[{id:'experiment:normal',label:'两槽正常对照'},{id:'experiment:anomaly',label:'接入右槽异常对照'},
+        ...(kind==='material'?[{id:'waterway:inspect',label:'查看上方串联接水槽'}]:[]),
         ...(kind==='time'?[{id:'rail:inspect',label:'查看上方运动滑轨'}]:[]),
         ...(kind==='conservation'?[{id:'energy:inspect',label:'查看上方蓄能提升机'}]:[]),
         ...(kind==='conservation'&&run?.age===NODE_EXPERIMENTS.conservation.ticks?[{id:'experiment:ledger',label:run.ledgerOpen?'重看整套水量账':'打开隔离仓核账'}]:[]),
@@ -1139,7 +1226,7 @@ export class ForestEpisode {
     if(p.place==='return-channel')this.advanceReturnFlow();
     if(p.place==='return-channel'&&p.forceStudy)this.advanceForce();
     if(p.place==='wetland')this.advanceMigration();
-    if(p.place==='order-node'){this.advanceAllocation();this.advanceNodeMotion();this.advanceNodeEnergy();}
+    if(p.place==='order-node'){this.advanceAllocation();this.advanceNodeMotion();this.advanceNodeEnergy();this.advanceNodeWater();}
     if(p.place==='order-node'&&p.nodeExperiments){
       const near=this.nearest()?.id;
       for(const kind of Object.keys(p.nodeExperiments) as NodeExperiment[])
@@ -1510,6 +1597,41 @@ export class ForestEpisode {
         Math.abs(p.player.velocityX) > 88.001 || Math.abs(p.player.velocityY) > 240.001 ||
         this.collides({ ...p.player, width: 12, height: 14 })) throw new Error('章节空间存档无效');
     validateEpisodeWater(p.mill); validateEpisodeWater(p.practice);
+    if(p.nodeWater!==undefined){
+      validateNodeWater(p.nodeWater,p.tick);
+      if(!this.hasMigration('node_entered'))throw Error('地下接水机关入口无效');
+    }
+    for(const f of NODE_WATER_FLAGS)if(this.hasNodeWater(f)&&(!p.nodeWater||!this.truth.receiptIndex['forest.episode.node-water.'+f]))
+      throw Error('地下接水机关凭证缺失');
+    if(this.hasNodeWater('long.braced')&&!this.hasNodeWater('short.completed'))throw Error('地下接水机关支撑顺序无效');
+    for(const stage of WATER_STAGES){
+      const run=p.nodeWater?.[stage],predicted=this.hasNodeWater(`${stage}.predicted`),started=this.hasNodeWater(`${stage}.started`),done=this.hasNodeWater(`${stage}.completed`);
+      if(started!==!!run||predicted&&(!nodeWaterWordsReady(this.truth,stage)||!this.has('debrief'))||
+        (predicted||started)&&stage==='long'&&!this.hasNodeWater('short.completed'))throw Error('地下接水机关前置无效');
+      if(done!==(run?.age===NODE_WATER.ticks&&(stage==='short'?this.waterwayWorld().shortSatisfied:this.waterwayWorld().longSatisfied)))
+        throw Error('地下接水机关接水结果无效');
+      if(run?.source==='cast'){
+        const save=this.session.toSave(),ledger=save.eventLedger,id='episode.node-water.mp.'+stage,i=ledger.findIndex(e=>e.eventId===id),event=ledger[i];
+        const prior=i<0?null:GameSession.replayLedger(save.sessionId,save.origin,ledger.slice(0,i)),before=prior?.ok?prior.session.snapshot():null;
+        if(!predicted||stage==='long'&&!this.hasNodeWater('long.braced')||!before||!event||event.type!=='mp_replaced'||
+          ledger.filter(e=>e.eventId===id).length!==1||!nodeWaterWordsReady(before,stage)||before.capabilities.expressionCapacityWords<2||
+          before.world.flags['global:forest.episode.node-water.'+`${stage}.predicted`]?.value!==true||
+          before.world.flags['global:forest.episode.debrief']?.value!==true||
+          stage==='long'&&before.world.flags['global:forest.episode.node-water.long.braced']?.value!==true||
+          event.payload.mp.currentMp!==before.mp.currentMp-nodeWaterCost(stage)||event.payload.mp.maxMp!==before.mp.maxMp||
+          event.payload.mp.worldVersion!==before.mp.worldVersion+1||this.truth.receiptIndex['forest.episode.node-water.'+`${stage}.started`]?.domain!=='cast')
+          throw Error('地下接水机关扣费凭证无效');
+      }else if(this.session.toSave().eventLedger.some(e=>e.eventId==='episode.node-water.mp.'+stage))throw Error('地下接水机关工具路线不能扣费');
+    }
+    for(const word of ['telo','lili','suli'] as const){
+      const stage=word==='lili'?'short':'long',expected=this.hasNodeWater(`${stage}.completed`)&&p.nodeWater?.[stage]?.source==='cast'&&
+        (word!=='telo'||p.nodeWater?.short?.source==='cast');
+      const evidence=this.truth.learning.words[word]?.evidence.filter(e=>e.eventId==='episode.node-water.grounding.'+word)??[];
+      if(expected!==(evidence.length===1)||evidence.length>0&&(!expected||evidence.some(e=>
+        e.taskFamilyId!=='forest_water_scale_transfer'||e.sourceObjectClass!=='underground_serial_waterway'||
+        e.eventType!=='grounding_trial_resolved'||e.promptLevel!==1||e.toolBypass||e.answerVisible!==false)))
+        throw Error('地下接水机关学习证据不一致');
+    }
     if(p.nodeEnergy!==undefined){
       validateNodeEnergy(p.nodeEnergy,p.tick);
       if(!this.hasMigration('node_entered'))throw Error('地下蓄能提升机入口无效');

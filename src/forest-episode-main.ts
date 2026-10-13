@@ -134,6 +134,24 @@ function renderResult(result: EpisodeResult, target: EpisodeTarget): void {
     });
     const confirm=button('确认复习槽释放',()=>{if(!planId)return;const r=game.confirmLengthStudy(planId);save();updateHud();renderResult(r,target);});confirm.disabled=true;
   }
+  if(result.choice==='node-water-recall'){
+    const label=document.createElement('label'),input=document.createElement('input');
+    label.textContent='输入水与尺度表达';input.setAttribute('aria-label',label.textContent);input.maxLength=32;
+    input.autocomplete='off';input.spellcheck=false;input.setAttribute('autocapitalize','off');label.append(input);actions.append(label);
+    for(const [prediction,text] of [['narrow','短段落入窄口接水杯'],['both','长段落入隔开的两只杯子'],['power','只增加冲击威力']] as const)
+      button(text,()=>choose('waterway:predict:'+input.value.trim()+':'+prediction));
+  }
+  if(result.choice==='node-water-cast'){
+    const detail=document.createElement('p');detail.setAttribute('role','status');actions.append(detail);
+    detail.textContent='先核对形态、支撑与 MP。预览不扣费。';let planId:string|null=null;
+    button('预览串联水结构',()=>{
+      const p=game.previewNodeWater();planId=p?.planId??null;confirm.disabled=!p?.canConfirm;
+      detail.textContent=p?'当前 '+game.sessionState.mp.currentMp+' MP · '+p.reason:'请重新靠近材质承托台；未扣费。';
+    });
+    const confirm=button('确认释放水结构',()=>{
+      if(!planId)return;const r=game.confirmNodeWater(planId);save();updateHud();renderResult(r,target);
+    });confirm.disabled=true;
+  }
   if(result.choice==='node-energy-recall'){
     const label=document.createElement('label'),input=document.createElement('input');
     label.textContent='输入力量或能量词';input.setAttribute('aria-label',label.textContent);input.maxLength=24;
@@ -323,6 +341,7 @@ function notes(): string {
     game.nodeExperimentNotes ? '地下对照 · '+game.nodeExperimentNotes : '',
     game.nodeMotionNotes,
     game.nodeEnergyNotes,
+    game.nodeWaterNotes,
     game.leadNotes ? '位点索引 · '+game.leadNotes : '',
     game.epilogueNotes ? '尾声与回访 · '+game.epilogueNotes : '',
     game.hasRoom('reported') ? '工务人交接 · 已说明水路变化，不重复领取报酬。旧矿道仍需后续安全调查，当前未开放。' : '',
@@ -364,6 +383,8 @@ function updateHud(): void {
   canvas.dataset.conservationLedger=String(game.state.nodeExperiments?.conservation?.ledgerOpen===true);
   canvas.dataset.nodeMotion=game.hasNodeMotion('completed')?'completed':game.state.nodeMotion?.castAge!==undefined?'casting':game.state.nodeMotion?'reference':'unvisited';
   canvas.dataset.nodeMotionAge=String(game.state.nodeMotion?.castAge??game.state.nodeMotion?.referenceAge??0);
+  canvas.dataset.nodeWater=game.hasNodeWater('long.completed')?'completed':game.state.nodeWater?.[game.nodeWaterStage]?'flowing':game.nodeWaterStage;
+  canvas.dataset.nodeWaterAge=String(game.state.nodeWater?.[game.nodeWaterStage]?.age??0);
   canvas.dataset.nodeEnergy=game.hasNodeEnergy('completed')?'completed':game.state.nodeEnergy?.castAge!==undefined?'casting':game.state.nodeEnergy?'reference':'unvisited';
   canvas.dataset.nodeEnergyAge=String(game.state.nodeEnergy?.castAge??game.state.nodeEnergy?.referenceAge??0);
   canvas.dataset.epilogue = game.epilogueStage;
