@@ -1,3 +1,4 @@
+import {drawNodeEnergy} from './forest-node-energy';
 import {drawNodeMotion} from './forest-node-motion';
 import {drawNodeExperiments} from './forest-node-experiments';
 import { ForestEpisode } from '../game/forest-episode';
@@ -195,7 +196,7 @@ export class ForestEpisodeRenderer {
     if(p.place==='return-channel')this.returnChannel(ctx,game);
     if(p.place==='wetland')this.wetland(ctx,game);
     if(p.place==='order-node'){
-      drawNodeExperiments(ctx,p.nodeExperiments);drawNodeMotion(ctx,p.nodeMotion);this.allocation(ctx,game);
+      drawNodeExperiments(ctx,p.nodeExperiments);drawNodeMotion(ctx,p.nodeMotion);drawNodeEnergy(ctx,p.nodeEnergy);this.allocation(ctx,game);
       this.timber(ctx,370,309,28,19);this.timber(ctx,382,328,3,8);
       ctx.fillStyle='#b1a17a';ctx.fillRect(374,313,20,1);ctx.fillRect(374,318,15,1);ctx.fillRect(374,323,18,1);
     }

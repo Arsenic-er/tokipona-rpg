@@ -134,6 +134,24 @@ function renderResult(result: EpisodeResult, target: EpisodeTarget): void {
     });
     const confirm=button('确认复习槽释放',()=>{if(!planId)return;const r=game.confirmLengthStudy(planId);save();updateHud();renderResult(r,target);});confirm.disabled=true;
   }
+  if(result.choice==='node-energy-recall'){
+    const label=document.createElement('label'),input=document.createElement('input');
+    label.textContent='输入力量或能量词';input.setAttribute('aria-label',label.textContent);input.maxLength=24;
+    input.autocomplete='off';input.spellcheck=false;input.setAttribute('autocapitalize','off');label.append(input);actions.append(label);
+    for(const [prediction,text] of [['finite','提升更高，能量耗尽后停下'],['forever','持续运转，不再消耗能量'],['mass','只让负载变轻']] as const)
+      button(text,()=>choose('energy:predict:'+input.value.trim()+':'+prediction));
+  }
+  if(result.choice==='node-energy-cast'){
+    const detail=document.createElement('p');detail.setAttribute('role','status');actions.append(detail);
+    detail.textContent='预览只显示这台机关的有限输入，不扣费。';let planId:string|null=null;
+    button('预览右机补能',()=>{
+      const p=game.previewNodeEnergy();planId=p?.planId??null;confirm.disabled=!p?.canConfirm;
+      detail.textContent=p?'当前 '+game.sessionState.mp.currentMp+' MP · '+p.reason:'请重新靠近守恒核验槽；未扣费。';
+    });
+    const confirm=button('确认消耗 2 MP 补能',()=>{
+      if(!planId)return;const r=game.confirmNodeEnergy(planId);save();updateHud();renderResult(r,target);
+    });confirm.disabled=true;
+  }
   if(result.choice==='node-motion-recall'){
     const label=document.createElement('label'),input=document.createElement('input');
     label.textContent='输入运动词';input.setAttribute('aria-label',label.textContent);input.maxLength=24;
@@ -304,6 +322,7 @@ function notes(): string {
     game.hasMigration('archive') ? '碎片座 · '+({unvisited:'待补齐五词现场理解，再嵌入原碎片。',packed:'已取回，尚未提交同步。',seated:'已嵌入，等待手动校准。',aligning:'刻线正在对齐；关闭面板并留在底座旁观察。',ready:'刻线已稳定；等待确认，也可以取回。',synchronized:'森林位点已同步，原碎片已取回。没有能力或 MP 奖励。'}[game.shardSyncStage]) : '',
     game.nodeExperimentNotes ? '地下对照 · '+game.nodeExperimentNotes : '',
     game.nodeMotionNotes,
+    game.nodeEnergyNotes,
     game.leadNotes ? '位点索引 · '+game.leadNotes : '',
     game.epilogueNotes ? '尾声与回访 · '+game.epilogueNotes : '',
     game.hasRoom('reported') ? '工务人交接 · 已说明水路变化，不重复领取报酬。旧矿道仍需后续安全调查，当前未开放。' : '',
@@ -345,6 +364,8 @@ function updateHud(): void {
   canvas.dataset.conservationLedger=String(game.state.nodeExperiments?.conservation?.ledgerOpen===true);
   canvas.dataset.nodeMotion=game.hasNodeMotion('completed')?'completed':game.state.nodeMotion?.castAge!==undefined?'casting':game.state.nodeMotion?'reference':'unvisited';
   canvas.dataset.nodeMotionAge=String(game.state.nodeMotion?.castAge??game.state.nodeMotion?.referenceAge??0);
+  canvas.dataset.nodeEnergy=game.hasNodeEnergy('completed')?'completed':game.state.nodeEnergy?.castAge!==undefined?'casting':game.state.nodeEnergy?'reference':'unvisited';
+  canvas.dataset.nodeEnergyAge=String(game.state.nodeEnergy?.castAge??game.state.nodeEnergy?.referenceAge??0);
   canvas.dataset.epilogue = game.epilogueStage;
   canvas.dataset.lead = game.leadStage;
   canvas.dataset.leadWorker = String(game.hasLead('worker'));

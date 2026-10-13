@@ -5,6 +5,7 @@ module.exports = async () => {
   execFileSync(process.execPath,[path.join(root,'node_modules/vitest/vitest.mjs'),'run',
     'scripts/testing/forest-node-experiments-fixture.test.ts',
     'scripts/testing/forest-node-motion-fixture.test.ts',
+    'scripts/testing/forest-node-energy-fixture.test.ts',
     'scripts/testing/forest-epilogue-fixture.test.ts',
     'scripts/testing/forest-site-lead-fixture.test.ts',
     'scripts/testing/forest-allocation-fixture.test.ts',

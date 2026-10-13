@@ -1,3 +1,5 @@
+import {NODE_ENERGY,advanceNodeEnergy,validateNodeEnergy,nodeEnergyVerified,nodeEnergyAccounting,parseNodeEnergyPrediction,type NodeEnergyState} from '../world/forest-node-energy';
+import {NODE_ENERGY_FLAGS,nodeEnergyWordReady,nodeEnergyEvidence,type NodeEnergyFlag} from './forest-node-energy';
 import {NODE_MOTION,advanceNodeMotion,validateNodeMotion,nodeMotionVerified,parseNodeMotionPrediction,type NodeMotionState} from '../world/forest-node-motion';
 import {NODE_MOTION_FLAGS,nodeMotionWordReady,nodeMotionEvidence,type NodeMotionFlag} from './forest-node-motion';
 import {NODE_EXPERIMENTS,beginNodeExperiment,advanceNodeExperiment,validateNodeExperiments,nodeExperimentSummary,type NodeExperiment,type NodeExperimentState} from '../world/forest-node-experiments';
@@ -172,13 +174,14 @@ interface EpisodePhysical {
   allocation?:AllocationState;
   nodeExperiments?:NodeExperimentState;
   nodeMotion?:NodeMotionState;
+  nodeEnergy?:NodeEnergyState;
   wheelSpeed: number; stableTicks: number; wheelAngle: number; casts: number; baselineCollected: number;
 }
 export interface ForestEpisodeSave {
   schema: 'tokipona.forest-waterwheel-episode.v0.1';
   openingChecksum: string; session: GameSessionSave; physical: EpisodePhysical; checksum: string;
 }
-export interface EpisodeResult { accepted: boolean; text: string; speaker?: string; choice?: 'work' | 'predict' | 'recall' | 'calibrate' | 'window' | 'calibration' | 'siphon' | 'force-recall' | 'water-recall' | 'motion-recall' | 'length-recall' | 'length-cast' | 'node-motion-recall' | 'node-motion-cast';
+export interface EpisodeResult { accepted: boolean; text: string; speaker?: string; choice?: 'work' | 'predict' | 'recall' | 'calibrate' | 'window' | 'calibration' | 'siphon' | 'force-recall' | 'water-recall' | 'motion-recall' | 'length-recall' | 'length-cast' | 'node-motion-recall' | 'node-motion-cast' | 'node-energy-recall' | 'node-energy-cast';
   actions?: readonly { id: string; label: string }[];
   resumeWorld?: boolean;
 }
@@ -586,6 +589,64 @@ export class ForestEpisode {
         '两轨原本向右。现在用已学的运动词，只让下轨接受向左的有限作用；它足以克服起始速度。预测结束时下轨与上轨的方向关系。',
       actions:[{id:'rail:hint',label:'查看运动词提示'}]};
   }
+  hasNodeEnergy(flag:NodeEnergyFlag):boolean{return this.truth.world.flags['global:forest.episode.node-energy.'+flag]?.value===true;}
+  private markNodeEnergy(flag:NodeEnergyFlag,drafts:SessionEventDraft[]=[]):void{
+    if(this.hasNodeEnergy(flag))return;
+    this.commit('node-energy.'+flag,[...drafts,{eventId:'episode.node-energy.'+flag,type:'world_flag_set',
+      payload:{flagId:'forest.episode.node-energy.'+flag,value:true,scope:'global'}}],flag==='cast'?'cast':'learning');
+  }
+  get nodeEnergyNotes():string{
+    const s=this.physical.nodeEnergy;if(!s)return '';
+    return (this.hasNodeEnergy('completed')?'蓄能提升机 · 右机越过门闩触点后耗尽，左机只升了一小段。输入变成提升做功和损耗；不是无限动力，也不改变负载质量。仅新增第二次 H1 理解，不授予熟练掌握、容量或攻击资格。':
+      s.castAge!==undefined?'蓄能提升机 · 已付 2 MP，留在守恒核验槽旁观察；实际提升并耗尽前不记录理解。':
+      '蓄能提升机 · 两台手摇参照使用相同负载与传动速度；工具观察不计作词语学习。')+nodeEnergyAccounting(s);
+  }
+  previewNodeEnergy(){
+    const s=this.physical.nodeEnergy,mp=this.truth.mp;
+    if(this.nearest()?.id!=='node-conservation'||!s||s.referenceAge!==NODE_ENERGY.referenceTicks||s.castAge!==undefined||
+      !this.hasNodeEnergy('predicted')||!nodeEnergyWordReady(this.truth)||!this.has('debrief'))return null;
+    return {planId:sha256Canonical({profile:'node-energy-v1',tick:this.physical.tick,player:this.physical.player,mp} as unknown as JsonValue),
+      cost:NODE_ENERGY.cost,canConfirm:mp.currentMp>=NODE_ENERGY.cost,
+      reason:mp.currentMp<NODE_ENERGY.cost?'MP 不足，不降档、不扣费；可沿原路回隐士坐垫恢复。':
+        '仅右机补入 20 格机关能量。两机各由手摇提供 10 格参照，传动每份消耗的四分之三用于提升、四分之一成为损耗；速度、质量不变。明确支付 2 MP，不补水、不伤害生物。'};
+  }
+  confirmNodeEnergy(planId:string):EpisodeResult{
+    const p=this.previewNodeEnergy();
+    if(!p||p.planId!==planId||!p.canConfirm)return {accepted:false,choice:'node-energy-cast',text:p?.reason??'预览已失效；靠近守恒核验槽重新预览，没有扣 MP。'};
+    const mp=this.truth.mp;
+    this.markNodeEnergy('cast',[{eventId:'episode.node-energy.mp',type:'mp_replaced',
+      payload:{mp:{...mp,currentMp:mp.currentMp-NODE_ENERGY.cost,worldVersion:mp.worldVersion+1}}}]);
+    this.physical.nodeEnergy!.castAge=0;
+    return {accepted:true,text:'机械收回负载、手摇重置参照；右机额外接入有限能量。留在旁边，看能量降低、负载升高并最终停止。',resumeWorld:true};
+  }
+  private advanceNodeEnergy():void{
+    const s=this.physical.nodeEnergy;if(!s||this.nearest()?.id!=='node-conservation')return;
+    advanceNodeEnergy(s);
+    if(nodeEnergyVerified(s)&&!this.hasNodeEnergy('completed'))this.markNodeEnergy('completed',[
+      {eventId:'episode.node-energy.evidence',type:'learning_evidence_committed',payload:{evidence:nodeEnergyEvidence(this.session.sessionId)}}]);
+  }
+  private nodeEnergyInteraction(choice:string):EpisodeResult{
+    const s=this.physical.nodeEnergy;
+    if(choice==='energy:reference'&&!this.hasNodeEnergy('predicted')&&s?.castAge===undefined){
+      this.physical.nodeEnergy={version:1,referenceAge:0};
+      return {accepted:true,text:'手摇给两机各蓄入相同有限能量，再松开传动锁。棘轮防止停机后负载落回；只在封闭机关里比较。',resumeWorld:true};
+    }
+    if(this.hasNodeEnergy('completed'))return {accepted:true,text:this.nodeEnergyNotes+'本轮已记录，不再收费或重复授予证据。'};
+    if(s?.castAge!==undefined)return {accepted:true,text:this.nodeEnergyNotes};
+    if(!s||s.referenceAge<NODE_ENERGY.referenceTicks)return {accepted:true,text:'守恒核验槽上方是两台封闭的蓄能提升机。单刻痕左机作参照，双刻痕右机可接收有限补能；先手摇比较同样的蓄能。它不连通主水路，不是玩家升降平台，也不挡住主线。',
+      actions:[{id:'energy:reference',label:'手摇运行提升参照'}]};
+    if(!nodeEnergyWordReady(this.truth)||!this.has('debrief'))return {accepted:true,text:'两机在能量耗尽后停在同样高度。先完成回流检修渠测力器的力量词理解和隐士安全复盘，再尝试施放；工具参照不会自动补学词语。'+nodeEnergyAccounting(s)};
+    if(this.hasNodeEnergy('predicted'))return {accepted:true,choice:'node-energy-cast',text:'表达和预测已准备好，尚未施放。先预览，再明确确认扣费。'};
+    if(choice==='energy:hint')return {accepted:true,text:'wawa 可表达力量、能量。这里补入的是有限可用能量；负载和传动速度没有改变，提升与摩擦都会耗能。增加输入不等于永远运转或必然增加伤害。',
+      actions:[{id:'energy:recall',label:'收起提示，自己表达'}]};
+    if(parseNodeEnergyPrediction(choice)){
+      this.markNodeEnergy('predicted');return {accepted:true,choice:'node-energy-cast',text:'预测已记录；只有实际提升和能量收支验证后才记录理解。'};
+    }
+    return {accepted:!choice.startsWith('energy:predict:'),choice:'node-energy-recall',
+      text:(choice.startsWith('energy:predict:')?'表达或预测还不符合这个机关，没有扣 MP。':'')+
+        '参照能量只够提升一小段。用已学的力量／能量词给右机补入有限能量，不换负载、不改变传动速度；预测它会怎样。'+nodeEnergyAccounting(s),
+      actions:[{id:'energy:hint',label:'查看能量词提示'}]};
+  }
   get nodeExperimentNotes():string {
     const runs=this.physical.nodeExperiments;
     if(!runs)return '';
@@ -594,6 +655,7 @@ export class ForestEpisode {
   }
   private nodeExperimentInteraction(kind:NodeExperiment,choice?:string):EpisodeResult {
     if(kind==='time'&&choice?.startsWith('rail:'))return this.nodeMotionInteraction(choice);
+    if(kind==='conservation'&&choice?.startsWith('energy:'))return this.nodeEnergyInteraction(choice);
     if(choice==='experiment:normal'||choice==='experiment:anomaly'){
       this.physical.nodeExperiments??={};
       this.physical.nodeExperiments[kind]=beginNodeExperiment(choice==='experiment:normal'?'normal':'anomaly');
@@ -614,6 +676,7 @@ export class ForestEpisode {
       '离开装置旁或打开面板会暂停。工具不消耗 MP，不改变人物或水路，也不授予词语掌握。',
       actions:[{id:'experiment:normal',label:'两槽正常对照'},{id:'experiment:anomaly',label:'接入右槽异常对照'},
         ...(kind==='time'?[{id:'rail:inspect',label:'查看上方运动滑轨'}]:[]),
+        ...(kind==='conservation'?[{id:'energy:inspect',label:'查看上方蓄能提升机'}]:[]),
         ...(kind==='conservation'&&run?.age===NODE_EXPERIMENTS.conservation.ticks?[{id:'experiment:ledger',label:run.ledgerOpen?'重看整套水量账':'打开隔离仓核账'}]:[]),
         ...(run?[{id:'experiment:reset',label:'机械复位'}]:[])]};
   }
@@ -1076,7 +1139,7 @@ export class ForestEpisode {
     if(p.place==='return-channel')this.advanceReturnFlow();
     if(p.place==='return-channel'&&p.forceStudy)this.advanceForce();
     if(p.place==='wetland')this.advanceMigration();
-    if(p.place==='order-node'){this.advanceAllocation();this.advanceNodeMotion();}
+    if(p.place==='order-node'){this.advanceAllocation();this.advanceNodeMotion();this.advanceNodeEnergy();}
     if(p.place==='order-node'&&p.nodeExperiments){
       const near=this.nearest()?.id;
       for(const kind of Object.keys(p.nodeExperiments) as NodeExperiment[])
@@ -1447,6 +1510,29 @@ export class ForestEpisode {
         Math.abs(p.player.velocityX) > 88.001 || Math.abs(p.player.velocityY) > 240.001 ||
         this.collides({ ...p.player, width: 12, height: 14 })) throw new Error('章节空间存档无效');
     validateEpisodeWater(p.mill); validateEpisodeWater(p.practice);
+    if(p.nodeEnergy!==undefined){
+      validateNodeEnergy(p.nodeEnergy,p.tick);
+      if(!this.hasMigration('node_entered'))throw Error('地下蓄能提升机入口无效');
+    }
+    for(const [i,f] of NODE_ENERGY_FLAGS.entries())if(this.hasNodeEnergy(f)&&(!p.nodeEnergy||
+      !this.truth.receiptIndex['forest.episode.node-energy.'+f]||i>0&&!this.hasNodeEnergy(NODE_ENERGY_FLAGS[i-1]!)))
+      throw Error('地下蓄能提升机学习顺序无效');
+    if(this.hasNodeEnergy('predicted')&&(!p.nodeEnergy||p.nodeEnergy.referenceAge!==NODE_ENERGY.referenceTicks||
+      !nodeEnergyWordReady(this.truth)||!this.has('debrief'))||this.hasNodeEnergy('cast')!==(p.nodeEnergy?.castAge!==undefined))
+      throw Error('地下蓄能提升机前置或施放状态无效');
+    if(p.nodeEnergy?.castAge!==undefined){
+      const save=this.session.toSave(),ledger=save.eventLedger,i=ledger.findIndex(e=>e.eventId==='episode.node-energy.mp'),cast=ledger[i];
+      const prior=i<0?null:GameSession.replayLedger(save.sessionId,save.origin,ledger.slice(0,i)),before=prior?.ok?prior.session.snapshot():null;
+      if(!before||!cast||cast.type!=='mp_replaced'||ledger.filter(e=>e.eventId==='episode.node-energy.mp').length!==1||
+        !nodeEnergyWordReady(before)||before.world.flags['global:forest.episode.node-energy.predicted']?.value!==true||
+        cast.payload.mp.currentMp!==before.mp.currentMp-NODE_ENERGY.cost||cast.payload.mp.maxMp!==before.mp.maxMp||
+        cast.payload.mp.worldVersion!==before.mp.worldVersion+1||this.truth.receiptIndex['forest.episode.node-energy.cast']?.domain!=='cast')
+        throw Error('地下蓄能提升机扣费凭证无效');
+      if(this.hasNodeEnergy('completed')!==nodeEnergyVerified(p.nodeEnergy)||this.hasNodeEnergy('completed')&&
+        !this.truth.learning.words.wawa?.evidence.some(e=>e.eventId==='episode.node-energy.grounding'&&e.taskFamilyId==='forest_energy_budget'&&
+          e.sourceObjectClass==='underground_energy_hoist'&&e.eventType==='grounding_trial_resolved'&&e.promptLevel===1&&e.answerVisible===false))
+        throw Error('地下蓄能提升机结果与学习证据不一致');
+    }
     if(p.nodeMotion) {
       validateNodeMotion(p.nodeMotion,p.tick);
       if(!this.hasMigration('node_entered'))throw Error('地下运动滑轨入口无效');
