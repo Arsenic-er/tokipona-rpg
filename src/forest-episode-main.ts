@@ -319,10 +319,11 @@ function updateHud(): void {
   canvas.dataset.waterStudy = game.waterStudyStage;
   canvas.dataset.motionStudy = game.motionStudyStage;
   canvas.dataset.lengthStudyView = game.state.lengthStudy?.view??'unvisited';
-  for(const kind of ['gravity','time'] as const){
+  for(const kind of ['gravity','time','material','conservation'] as const){
     const run=game.state.nodeExperiments?.[kind];
     canvas.dataset[kind+'Experiment']=run?.mode??'unvisited';canvas.dataset[kind+'Age']=String(run?.age??0);
   }
+  canvas.dataset.conservationLedger=String(game.state.nodeExperiments?.conservation?.ledgerOpen===true);
   canvas.dataset.epilogue = game.epilogueStage;
   canvas.dataset.lead = game.leadStage;
   canvas.dataset.leadWorker = String(game.hasLead('worker'));

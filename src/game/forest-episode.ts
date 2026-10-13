@@ -73,7 +73,7 @@ export type EpisodeTarget = 'worker' | 'mill-road' | 'hermit-road' | 'return' | 
   'room-road' | 'room-echo' | 'east-up' | 'east-down' | 'west-up' | 'west-down' | 'calibration' | 'calibration-tool' | 'upper-survey' |
   'siphon' | 'siphon-left' | 'siphon-right' | 'siphon-tool' | 'lift-up' | 'lift-down' | 'return-winch' | 'top-exit' | 'cistern-shortcut' |
   'return-channel-road' | 'flow-inspect' | 'flow-gate' | 'flow-seal' | 'flow-clear' | 'flow-gauge' | 'flow-spout' | 'flow-depth' |
-  'wetland-lookout' | 'wetland-nest' | 'wetland-young' | 'wetland-clear' | 'node-road' | 'node-survey' | 'node-archive' | 'node-cradle' | 'node-allocation' | 'node-exit' | 'archive-road' | 'node-gravity' | 'node-time';
+  'wetland-lookout' | 'wetland-nest' | 'wetland-young' | 'wetland-clear' | 'node-road' | 'node-survey' | 'node-archive' | 'node-cradle' | 'node-allocation' | 'node-exit' | 'archive-road' | 'node-gravity' | 'node-time' | 'node-material' | 'node-conservation';
 export const EPISODE_TARGETS: Readonly<Record<EpisodePlace, readonly { id: EpisodeTarget; x: number; y?:number; label: string }[]>> = {
   settlement: [{ id: 'hermit-road', x: 60, label: '西侧林间小径' }, { id: 'worker', x: 350, label: '工务人' }, { id: 'mill-road', x: 920, label: '沿水渠去工坊' }, {id:'archive-road',x:820,label:'旧门通往地下档案'}],
   mill: [{ id: 'return', x: 60, label: '返回聚落' }, { id: 'timber', x: 270, label: '备用木撑' }, { id: 'gate', x: 490, label: '水渠闸柄' },
@@ -103,7 +103,10 @@ export const EPISODE_TARGETS: Readonly<Record<EpisodePlace, readonly { id: Episo
     {id:'wetland-nest',x:148,label:'被水浸湿的旧巢'},{id:'wetland-young',x:220,label:'幼体足迹'},
     {id:'wetland-clear',x:252,label:'疏通迁徙出口的牵引绳'},{id:'node-road',x:540,label:'地下档案入口'}],
   'order-node':[{id:'return',x:32,label:'返回湿地浅滩'},{id:'node-gravity',x:NODE_EXPERIMENTS.gravity.x,label:NODE_EXPERIMENTS.gravity.name},
-    {id:'node-time',x:NODE_EXPERIMENTS.time.x,label:NODE_EXPERIMENTS.time.name},{id:'node-survey',x:192,label:'前厅检修图'},
+    {id:'node-time',x:NODE_EXPERIMENTS.time.x,label:NODE_EXPERIMENTS.time.name},
+    {id:'node-material',x:NODE_EXPERIMENTS.material.x,label:NODE_EXPERIMENTS.material.name},
+    {id:'node-conservation',x:NODE_EXPERIMENTS.conservation.x,label:NODE_EXPERIMENTS.conservation.name},
+    {id:'node-survey',x:384,label:'前厅检修图'},
     {id:'node-archive',x:256,label:'旱季配水档案'},{id:'node-cradle',x:304,label:'受损的碎片座'},
     {id:'node-allocation',x:352,label:'未校准的三路配水台'},{id:'node-exit',x:416,label:'封闭的聚落旧门'}],
 };
@@ -539,12 +542,16 @@ export class ForestEpisode {
       if(this.physical.nodeExperiments&&!Object.keys(this.physical.nodeExperiments).length)delete this.physical.nodeExperiments;
     }
     const run=this.physical.nodeExperiments?.[kind];
+    if(choice==='experiment:ledger'&&kind==='conservation'&&run?.age===NODE_EXPERIMENTS.conservation.ticks)run.ledgerOpen=true;
     return {accepted:true,text:(kind==='gravity'?
       '两只同重铅锤从中线松开。单刻痕左槽是正常区，双刻痕右槽可接入局部异常；细绳和上下挡块把铅锤限制在槽内。':
-      '两只同长摆从同一角度松开。单刻痕左槽是正常区，双刻痕右槽可接入时间迟滞区；底下的小刻痕记录实际越过中线的次数。')+
+      kind==='time'?'两只同长摆从同一角度松开。单刻痕左槽是正常区，双刻痕右槽可接入时间迟滞区；底下的小刻痕记录实际越过中线的次数。':
+      kind==='material'?'两槽各有十六粒陶粒和一块石板。单刻痕左槽是正常区，双刻痕右槽可接入局部异常；比较陶粒是否被板面承托。':
+      '两槽各有十六滴旧水。单刻痕左槽是正常区，双刻痕右槽可接入局部异常。先看可见出水，再打开下方隔离仓，核对整套装置的水量。')+
       (run?nodeExperimentSummary(kind,run):'先让两槽正常运行，再接入右槽异常比较。')+
       '离开装置旁或打开面板会暂停。工具不消耗 MP，不改变人物或水路，也不授予词语掌握。',
       actions:[{id:'experiment:normal',label:'两槽正常对照'},{id:'experiment:anomaly',label:'接入右槽异常对照'},
+        ...(kind==='conservation'&&run?.age===NODE_EXPERIMENTS.conservation.ticks?[{id:'experiment:ledger',label:run.ledgerOpen?'重看整套水量账':'打开隔离仓核账'}]:[]),
         ...(run?[{id:'experiment:reset',label:'机械复位'}]:[])]};
   }
   get forceView(){return this.physical.forceStudy?forceStudyView(this.physical.forceStudy):null;}
@@ -1140,7 +1147,9 @@ export class ForestEpisode {
         this.travel('order-node',28);return say('绕过空出的浅滩，沿石阶进入档案前厅。身后的路通回湿地，森林碎片仍由你保管。');
       case 'node-gravity':return this.nodeExperimentInteraction('gravity',choice);
       case 'node-time':return this.nodeExperimentInteraction('time',choice);
-      case 'node-survey':return say('左边两座封闭装置可以比较重力方向和局部时间迟滞，不影响脚下的安全通道。三条旧水路分别通往聚落、湿地和旧商路。检修图有多处损坏，不能凭眼前两路恢复就断言整个系统平衡了。往右有旱季记录和碎片座；同步只连接位点，不自动分配水路。');
+      case 'node-material':return this.nodeExperimentInteraction('material',choice);
+      case 'node-conservation':return this.nodeExperimentInteraction('conservation',choice);
+      case 'node-survey':return say('左边四座封闭装置可以比较重力、时间、材质承托与水量收支，不影响脚下的安全通道。三条旧水路分别通往聚落、湿地和旧商路。检修图有多处损坏，不能凭眼前两路恢复就断言整个系统平衡了。往右有旱季记录和碎片座；同步只连接位点，不自动分配水路。');
       case 'node-archive':
         if(!this.hasMigration('archive'))this.markMigration('archive');
         if(this.allocationMode)return this.siteLeadInteraction('archive',choice);

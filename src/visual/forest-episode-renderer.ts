@@ -195,8 +195,8 @@ export class ForestEpisodeRenderer {
     if(p.place==='wetland')this.wetland(ctx,game);
     if(p.place==='order-node'){
       drawNodeExperiments(ctx,p.nodeExperiments);this.allocation(ctx,game);
-      this.timber(ctx,178,309,28,19);this.timber(ctx,190,328,3,8);
-      ctx.fillStyle='#b1a17a';ctx.fillRect(182,313,20,1);ctx.fillRect(182,318,15,1);ctx.fillRect(182,323,18,1);
+      this.timber(ctx,370,309,28,19);this.timber(ctx,382,328,3,8);
+      ctx.fillStyle='#b1a17a';ctx.fillRect(374,313,20,1);ctx.fillRect(374,318,15,1);ctx.fillRect(374,323,18,1);
     }
     if (p.place === 'mill' && p.tailrace) {
       for (const i of p.tailrace.drops) {

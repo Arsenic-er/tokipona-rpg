@@ -1,6 +1,6 @@
 import {describe,it,expect} from 'vitest';
-import {NODE_EXPERIMENTS,beginNodeExperiment,advanceNodeExperiment,nodeExperimentView,nodeExperimentSummary,validateNodeExperiments,type NodeExperiment,type NodeExperimentRun} from './forest-node-experiments';
-const kinds:NodeExperiment[]=['gravity','time'];
+import {NODE_EXPERIMENTS,beginNodeExperiment,advanceNodeExperiment,nodeExperimentView,nodeExperimentSummary,validateNodeExperiments,type MotionExperiment,type NodeExperimentRun} from './forest-node-experiments';
+const kinds:MotionExperiment[]=['gravity','time'];
 describe('sealed underground fixed-step comparisons',()=>{
  it.each(kinds)('%s normal chambers follow identical actual trajectories',kind=>{
   const r=beginNodeExperiment('normal'),initial=nodeExperimentView(kind,r).left.offset;
