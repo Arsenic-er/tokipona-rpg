@@ -18,6 +18,8 @@ import { cisternEntrySolid } from './world/forest-cistern-entry';
 import { episodeViewport } from './visual/forest-episode-viewport';
 import { WINDOW_EXPRESSIONS, type WindowExpression } from './world/forest-cistern-window';
 import type { TeloCastPlan } from './spells/cast-plan';
+import { interactionPresentation, playerBubblePosition, rememberFeedback } from './visual/forest-interaction-presentation';
+import { loadLocalWorkerPortraitFromDocument } from './visual/browser-local-worker-portrait';
 
 const params = new URLSearchParams(location.search), rawSlot = params.get('practice');
 const practice = rawSlot !== null && /^[0-9a-f]{32}$/.test(rawSlot);
@@ -53,7 +55,8 @@ root.innerHTML = `<canvas width="640" height="360" tabindex="0" data-surface="ga
   <header><section><small>第一章 · 水往何处 / ${practice ? '临时旅程' : '水轮与碎片'}</small><h1 data-ep="place"></h1><p data-ep="stats"></p></section>
     <nav><button data-ep="journal">任务日志 J</button><button data-ep="mute" aria-pressed="false">声音 开</button><button data-ep="pause">暂停 Esc</button></nav></header>
   <output class="ep-prompt" data-ep="prompt"></output><output class="ep-status" data-ep="save"></output>
-  <dialog class="ep-talk" aria-label="人物对话"><h2></h2><p></p><div class="ep-actions"></div></dialog>
+  <aside class="ep-bubble" data-ep="bubble" role="status" aria-label="物品反馈" aria-live="polite" aria-atomic="true" hidden><small>旅途见闻</small><p></p></aside>
+  <dialog class="ep-talk" aria-label="人物对话"><figure class="ep-portrait" hidden></figure><div class="ep-talk-content"><h2></h2><p></p><div class="ep-actions"></div><small class="ep-talk-help" hidden>Enter 确认当前选项 · Esc 暂别</small></div></dialog>
   <dialog class="ep-journal" aria-label="章节笔记"><h2>水轮与碎片 · 任务日志</h2><p data-ep="notes"></p><div class="ep-actions"><button data-ep="close-notes">回到旅途</button><button data-ep="backup">导出存档</button></div></dialog>
   <dialog class="ep-pause" aria-label="暂停"><h2>暂停</h2><p>A/D 或方向键移动，按住从走加速到跑；空格/W 跳跃。E 与身边的人或物互动。滚轮缩放，鼠标轻微带动视野，0 恢复镜头。J 看笔记。对话和离开窗口时暂停。</p><p>每个重要步骤与场景切换自动保存。临时旅程不改主进度。</p><div class="ep-actions"><button data-ep="resume">继续游戏</button><button data-ep="retry-save">重试保存</button><button data-ep="new-practice">临时重玩</button></div></dialog>
   <dialog class="ep-ending" aria-label="小章节结算"><h2>水轮与碎片 · 小节完成</h2><p data-ep="ending"></p><div class="ep-actions"><button data-ep="free-roam">继续在本地走走</button><button data-ep="ending-backup">导出存档</button><button data-ep="ending-practice">临时重玩</button></div><p>这是第一章的一个可玩小节，不是三小时完整第一章。蓄水室可经校准层、虹吸和升降机抵达顶层，放下回流道永久梯后返回工坊；旧矿道和其他位点尚未开放。</p></dialog>
@@ -63,6 +66,30 @@ const canvas = root.querySelector('canvas')!, ctx = canvas.getContext('2d', { al
 const talk = root.querySelector<HTMLDialogElement>('.ep-talk')!, journal = root.querySelector<HTMLDialogElement>('.ep-journal')!;
 const pause = root.querySelector<HTMLDialogElement>('.ep-pause')!, ending = root.querySelector<HTMLDialogElement>('.ep-ending')!;
 const dialogs = [talk, journal, pause, ending];
+const bubble = get('bubble'), portrait = talk.querySelector<HTMLElement>('.ep-portrait')!;
+let workerPortrait: HTMLImageElement | null = null;
+let bubbleSource: { place: string; x: number } | null = null;
+let feedbackHistory: string[] = [];
+let bubbleSize = { width: 300, height: 100 };
+new ResizeObserver(entries => {
+  const box = entries[0]?.target.getBoundingClientRect();
+  if (box?.width && box.height) bubbleSize = { width: box.width, height: box.height };
+}).observe(bubble);
+void loadLocalWorkerPortraitFromDocument().then(image => {
+  workerPortrait = image;
+  if (image) { image.alt = ''; image.draggable = false; portrait.replaceChildren(image); }
+  portrait.hidden = !image || talk.dataset.presentation !== 'worker-dialogue';
+  talk.dataset.portrait = image ? 'candidate-v0.1' : 'unavailable';
+});
+function hideBubble(): void { bubble.hidden = true; bubbleSource = null; }
+function showBubble(text: string): void {
+  if (talk.open) closeDialog(talk);
+  feedbackHistory = rememberFeedback(feedbackHistory, text);
+  // Keep one live region; repeating a result must not stack bubbles or announcements.
+  if (bubble.querySelector('p')!.textContent !== text) bubble.querySelector('p')!.textContent = text;
+  bubbleSource = { place: game.state.place, x: game.player.position.x };
+  bubble.hidden = false;
+}
 let windowPreviewPlan: TeloCastPlan | null = null;
 const keys = new Set<string>(), touches = new Set<string>();
 let focusLost = false, ready = false, saved = true, endedThisVisit = false, lastSaveTick = game.state.tick;
@@ -73,13 +100,13 @@ let camera = initializeForestCamera(cameraContract, game.player, cameraBounds), 
 const mouseCamera = new ForestMouseCamera(cameraBounds), gait = new ForestTravelerGait();
 const blocked = () => !ready || focusLost || document.hidden || dialogs.some(d => d.open) || atlas.open;
 const atlas = new ForestMap(root, { storage, suffix,
-  canOpen: () => !blocked(), suspend: clearInput, resume: () => { clearInput(); canvas.focus(); },
+  canOpen: () => !blocked(), suspend: () => { hideBubble(); clearInput(); }, resume: () => { clearInput(); canvas.focus(); },
   returnShortcut:()=>game.hasRoom('return_open'),epilogueShortcut:()=>game.epilogueSealed,
 });
 bindForestMouseCamera(canvas, mouseCamera, blocked);
 function clearInput(): void { keys.clear(); touches.clear(); }
 function closeDialog(d: HTMLDialogElement): void { d.close(); windowPreviewPlan=null; clearInput(); canvas.focus(); }
-function showDialog(d: HTMLDialogElement): void { clearInput(); d.showModal(); d.querySelector('button')?.focus(); }
+function showDialog(d: HTMLDialogElement): void { hideBubble(); clearInput(); d.showModal(); d.querySelector('button')?.focus(); }
 function sound(): void {
   if (muted) return;
   try {
@@ -106,6 +133,13 @@ function save(): void {
 function renderResult(result: EpisodeResult, target: EpisodeTarget): void {
   if(result.resumeWorld){if(talk.open)closeDialog(talk);else{clearInput();canvas.focus();}return;}
   windowPreviewPlan=null;
+  const presentation = interactionPresentation(result, target);
+  if (presentation === 'player-bubble') { showBubble(result.text); sound(); return; }
+  hideBubble();
+  talk.dataset.presentation = presentation;
+  portrait.hidden = presentation !== 'worker-dialogue' || !workerPortrait;
+  talk.querySelector<HTMLElement>('.ep-talk-help')!.hidden = presentation !== 'worker-dialogue';
+  talk.dataset.advance = String(presentation === 'worker-dialogue' && !result.choice && !result.actions?.length);
   talk.querySelector('h2')!.textContent = result.speaker ?? '旅途见闻';
   talk.querySelector('p')!.textContent = result.text;
   const actions = talk.querySelector('.ep-actions')!; actions.replaceChildren();
@@ -289,7 +323,7 @@ function interact(): void {
   if(game.state.climb||game.ridingLift){clearInput();canvas.focus();return;}
   renderResult(result, target.id);
 }
-function resetCamera(): void { Object.assign(cameraBounds,episodeBounds(game.state.place)); camera = initializeForestCamera(cameraContract, game.player, cameraBounds); mouseCamera.reset(); gait.reset(); lastPlace = game.state.place; clearInput(); }
+function resetCamera(): void { hideBubble(); Object.assign(cameraBounds,episodeBounds(game.state.place)); camera = initializeForestCamera(cameraContract, game.player, cameraBounds); mouseCamera.reset(); gait.reset(); lastPlace = game.state.place; clearInput(); }
 function updateMap(): void {
   const p = game.player, place = game.state.place;
   const kind = place === 'mill' ? 'mill' : 'practice';
@@ -369,7 +403,11 @@ function notes(): string {
     game.has('finished') ? '已领取 · 8 枚钱、一晚床位。小节完成，可继续回访地上地点，或从工坊进入地下检修入口。' : ''];
   return `${game.objective}\n\n${items.filter(Boolean).join('\n\n')}`;
 }
-function openNotes(): void { if (blocked()) return; get('notes').textContent = notes(); showDialog(journal); }
+function openNotes(): void {
+  if (blocked()) return;
+  get('notes').textContent = notes() + (feedbackHistory.length ? '\n\n本次游玩的观察（临时记录，重新进入后不保留）\n' + feedbackHistory.join('\n') : '');
+  showDialog(journal);
+}
 function maybeEnding(): void {
   if (!game.has('finished') || game.allocationMode !== null || game.state.place !== 'settlement' || endedThisVisit || dialogs.some(d => d.open)) return;
   endedThisVisit = true;
@@ -448,6 +486,13 @@ window.addEventListener('keydown', event => {
   if (event.ctrlKey || event.metaKey || event.altKey) return;
   const k = event.key.toLowerCase();
   if (atlas.key(event)) return;
+  if (talk.open && event.repeat && (k === ' ' || k === 'enter')) { event.preventDefault(); return; }
+  if (talk.open && talk.dataset.presentation === 'worker-dialogue' && k === 'e') {
+    // Repeated opening input cannot accept a choice or spend resources.
+    event.preventDefault();
+    if (!event.repeat && talk.dataset.advance === 'true') { closeDialog(talk); maybeEnding(); }
+    return;
+  }
   if (k === 'escape' && !dialogs.some(d => d.open)) { event.preventDefault(); if (!blocked()) showDialog(pause); return; }
   if (blocked()) return;
   if (k === 'j' && !event.repeat) { event.preventDefault(); openNotes(); return; }
@@ -499,6 +544,18 @@ function draw(now: number): void {
     hud: { health: 100, maxHealth: 100, mp: game.sessionState.mp.currentMp, maxMp: game.sessionState.mp.maxMp, objective: game.objective },
   };
   renderer.draw(ctx, game, renderCamera, view, windowPreviewPlan);
+  if (bubbleSource) {
+    if (blocked() || bubbleSource.place !== game.state.place || Math.abs(p.position.x - bubbleSource.x) > 80) hideBubble();
+    else {
+      const placement = playerBubblePosition(renderCamera,
+        { x: p.position.x, y: p.position.y, width: p.body.width, height: p.body.height },
+        { width: innerWidth, height: innerHeight }, bubbleSize);
+      bubble.hidden = !placement.visible;
+      bubble.style.left = placement.x + 'px'; bubble.style.top = placement.y + 'px';
+      bubble.style.setProperty('--bubble-tail', placement.tailX + 'px');
+      bubble.dataset.side = placement.side;
+    }
+  }
   canvas.dataset.cameraX=String(renderCamera.x);canvas.dataset.cameraY=String(renderCamera.y);
   canvas.dataset.cameraWidth=String(renderCamera.width);canvas.dataset.cameraHeight=String(renderCamera.height);
   if (game.state.tick !== hudTick) { updateHud(); hudTick = game.state.tick; }

@@ -64,7 +64,9 @@ test('complete small chapter: work, physical repair, artifacts, hermit, failure/
   await expect(page.locator('.atlas-landmarks')).toContainText('旧水轮工坊');
   await expect(page.locator('.atlas-landmarks')).not.toContainText('隐士林地');
   await page.keyboard.press('m');
-  await walk(page, 264); await use(page, '备用木撑'); await closeTalk(page);
+  await walk(page, 264); await use(page, '备用木撑');
+  await expect(page.getByRole('status', { name: '物品反馈' })).toContainText('木撑');
+  await expect(page.getByRole('dialog', { name: '人物对话', exact: true })).not.toBeVisible();
   await walk(page, 684); await use(page, '水轮支架'); await closeTalk(page);
   const valley = await saved(page);
   expect(valley.physical.terrainProfile).toBe('forest-clearing-v1');

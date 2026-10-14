@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { copyFileSync, mkdirSync, readFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 
 const repositoryRoot = resolve(import.meta.dirname, "../..");
@@ -30,3 +30,14 @@ if (createHash("sha256").update(forestBytes).digest("hex") !==
 }
 copyFileSync(forestSource, resolve(repositoryRoot, "src/local-art-cache/background-far.v0.3.png"));
 console.log("local_forest_backdrop_ready:v0.3");
+
+// Optional dialogue candidate: private source stays out of public runtime assets.
+const portraitSource = resolve(repositoryRoot, '../tokipona-asset/source/forest-chapter/dialogue/worker-v0.1/worker-portrait.png');
+if (existsSync(portraitSource)) {
+  const portraitBytes = readFileSync(portraitSource);
+  if (createHash('sha256').update(portraitBytes).digest('hex') !== '92814f2b34c540e7aa2694a91736e14d061eb8e4162a9910a754880ad013e84f') {
+    throw new Error('worker portrait does not match the v0.1 design candidate');
+  }
+  copyFileSync(portraitSource, resolve(repositoryRoot, 'src/local-art-cache/worker-portrait.v0.1.png'));
+  console.log('local_worker_portrait_ready:v0.1');
+} else console.log('local_worker_portrait_missing:dialogue_remains_playable');

@@ -23,6 +23,53 @@
 .episode .ep-actions input:focus-visible, .episode .ep-actions select:focus-visible { outline: 2px solid #d2bd79; outline-offset: 2px; }
 .episode .ep-actions [data-window] { width: 100%; margin: 0; }
 .episode .ep-talk { margin-bottom: 7vh; }
+/* NPC dialogue sample: world-scale actors stay small; portraits belong only to UI. */
+.episode .ep-talk[open][data-presentation="worker-dialogue"] {
+  display: flex; align-items: center; gap: 24px; box-sizing: border-box;
+  width: min(960px, calc(100vw - 48px)); max-height: min(45dvh, 360px);
+  margin: auto auto max(18px, env(safe-area-inset-bottom));
+  padding: 18px 26px; border: 2px solid #777755; border-radius: 0;
+  background: #182621f7; box-shadow: 0 0 0 3px #121d19, 0 12px 40px #0006;
+}
+.episode .ep-talk[data-presentation="worker-dialogue"]::backdrop { background: #07100b20; }
+.episode .ep-portrait { flex: 0 0 144px; width: 144px; margin: 0; align-self: flex-end; }
+.episode .ep-portrait img { display: block; width: 100%; height: auto; image-rendering: pixelated; }
+.episode .ep-talk-content { min-width: 0; flex: 1; }
+.episode .ep-talk[data-presentation="worker-dialogue"] h2 { margin: 0 0 6px; font-size: 19px; font-weight: 600; letter-spacing: .08em; }
+.episode .ep-talk[data-presentation="worker-dialogue"] p { margin: 0; font-size: 16px; line-height: 1.7; overflow-wrap: anywhere; }
+.episode .ep-talk[data-presentation="worker-dialogue"] .ep-actions { gap: 10px; margin-top: 14px; }
+.episode .ep-talk[data-presentation="worker-dialogue"] button { min-height: 44px; padding: 6px 14px; border-radius: 0; font-size: 15px; }
+.episode .ep-talk-help { display: block; color: #aeb8a8; font-size: 11px; margin-top: 7px; }
+.episode .ep-bubble {
+  position: absolute; z-index: 3; box-sizing: border-box; pointer-events: none;
+  width: min(300px, calc(100vw - 32px)); padding: 10px 14px;
+  color: #eee6cf; background: #1b2a24f7; border: 1px solid #91977c;
+  box-shadow: 2px 3px 0 #0c1510aa; font-size: 14px; line-height: 1.6;
+}
+.episode .ep-bubble p { margin: 3px 0 0; overflow-wrap: anywhere; }
+.episode .ep-bubble small { color: #c7bd91; font-size: 11px; letter-spacing: .1em; }
+.episode .ep-bubble::after {
+  content: ""; position: absolute; width: 8px; height: 8px; left: var(--bubble-tail, 50%);
+  bottom: -5px; background: #1b2a24; border-right: 1px solid #91977c; border-bottom: 1px solid #91977c;
+  transform: translateX(-50%) rotate(45deg);
+}
+.episode .ep-bubble[data-side="below"]::after { top: -5px; bottom: auto; transform: translateX(-50%) rotate(225deg); }
+@media (max-height: 500px), (max-width: 680px) {
+  .episode .ep-talk[open][data-presentation="worker-dialogue"] {
+    width: calc(100vw - 28px); gap: 14px; padding: 12px 16px;
+    max-height: 65dvh; margin-bottom: max(12px, env(safe-area-inset-bottom));
+  }
+  .episode .ep-portrait { flex-basis: 88px; width: 88px; }
+  .episode .ep-talk[data-presentation="worker-dialogue"] h2 { font-size: 16px; margin-bottom: 3px; }
+  .episode .ep-talk[data-presentation="worker-dialogue"] p { font-size: 14px; line-height: 1.55; }
+  .episode .ep-talk[data-presentation="worker-dialogue"] .ep-actions { margin-top: 8px; }
+  .episode .ep-talk-help { display: none; }
+  .episode .ep-bubble { width: min(264px, calc(100vw - 32px)); font-size: 13px; }
+}
+@media (max-width: 420px) {
+  .episode .ep-talk[open][data-presentation="worker-dialogue"] { gap: 10px; padding: 12px; }
+  .episode .ep-portrait { flex-basis: 64px; width: 64px; align-self: flex-start; }
+}
 .episode .ep-controls { position: absolute; bottom: max(22px, env(safe-area-inset-bottom)); left: 18px; right: 18px; display: none; justify-content: space-between; pointer-events: none; }
 .episode .ep-controls div { display: flex; gap: 10px; }
 .episode .ep-controls button { min-width: 54px; height: 52px; pointer-events: auto; touch-action: none; user-select: none; }
