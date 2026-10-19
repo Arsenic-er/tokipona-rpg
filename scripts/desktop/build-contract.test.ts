@@ -20,6 +20,14 @@ describe("local-only desktop packaging", () => {
     expect(script).toContain('$buildDrive.AvailableFreeSpace -lt 1GB');
     expect(script.indexOf('$buildDrive.AvailableFreeSpace')).toBeLessThan(script.indexOf("Run-Step 'node' @('scripts/desktop/ensure-runtime.cjs')"));
   });
+  it("copies the optional worker portrait into the offline package without making it mandatory", () => {
+    const script = readFileSync(new URL('./build-windows.ps1', import.meta.url), 'utf8');
+    expect(script).toContain("$portraitSource = Join-Path $repo 'src/local-art-cache/worker-portrait.v0.1.png'");
+    expect(script).toContain("if (Test-Path -LiteralPath $portraitSource) {");
+    expect(script).toContain("Copy-Item -LiteralPath $portraitSource -Destination $art");
+    const copy = script.indexOf('Copy-Item -LiteralPath $portraitSource -Destination $art');
+    expect(copy).toBeLessThan(script.indexOf("'--win', '--dir'"));
+  });
   it("never enables private candidates in the default public build", () => {
     expect(createTokiponaViteConfig().define?.__TOKIPONA_LOCAL_DESKTOP__).toBe("false");
     expect(desktopConfig.define?.__TOKIPONA_LOCAL_DESKTOP__).toBe("true");

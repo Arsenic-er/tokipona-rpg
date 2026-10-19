@@ -3,6 +3,7 @@ const GAME_URL = 'tokipona://game/chapter-one.html';
 const CANDIDATES = new Set([
   '/src/local-art-cache/traveler-atlas.v0.6.png',
   '/src/local-art-cache/background-far.v0.3.png',
+  '/src/local-art-cache/worker-portrait.v0.1.png',
 ]);
 
 function localURL(raw) {

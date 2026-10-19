@@ -64,6 +64,11 @@ try {
   foreach ($name in @('traveler-atlas.v0.6.png', 'background-far.v0.3.png')) {
     Copy-Item -LiteralPath (Join-Path $repo "src/local-art-cache/$name") -Destination $art
   }
+  # Candidate portraits remain optional; public builds never consume this directory.
+  $portraitSource = Join-Path $repo 'src/local-art-cache/worker-portrait.v0.1.png'
+  if (Test-Path -LiteralPath $portraitSource) {
+    Copy-Item -LiteralPath $portraitSource -Destination $art
+  }
   Run-Step 'pnpm' @('exec', 'electron-builder', '--config', 'desktop/builder.cjs', '--win', '--dir', '--x64', '--publish', 'never')
   Run-Step 'node' @('scripts/desktop/smoke.cjs', (Join-Path $stage 'package/win-unpacked/tokipona-rpg.exe'))
   Test-Episode (Join-Path $stage 'package/win-unpacked/tokipona-rpg.exe')
