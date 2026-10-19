@@ -23,6 +23,68 @@ function repair(g: ForestEpisode): void {
 }
 
 describe('waterwheel & fragment playable episode', () => {
+
+  it('describes repeated tools and the emptied niche without collecting or repairing twice', () => {
+    const g = ForestEpisode.restore(start);
+    act(g, 'worker', 'accept'); act(g, 'mill-road');
+    expect(act(g, 'timber').text).toContain('拿到木撑');
+    let before = g.toSave();
+    expect(g.interact('timber').text).toContain('木撑带着');
+    expect(g.toSave()).toEqual(before);
+    expect(act(g, 'brace').text).toBe('木撑顶住了轮轴。');
+    before = g.toSave(); expect(g.interact('brace').text).toBe('轮轴撑稳了。'); expect(g.toSave()).toEqual(before);
+    act(g, 'silt'); before = g.toSave();
+    expect(g.interact('silt').text).toContain('已经清干净'); expect(g.toSave()).toEqual(before);
+    act(g, 'gate'); wait(g); expect(g.has('repaired')).toBe(true);
+    expect(act(g, 'medium').text).toContain('森林位点碎片');
+    const collected = g.toSave(), restored = ForestEpisode.restore(collected);
+    expect(restored.interact('medium').text).toBe('石龛已经空了。');
+    expect(restored.toSave()).toEqual(collected);
+    for (const key of ['mp', 'economy', 'learning', 'capabilities'] as const)
+      expect(restored.sessionState[key]).toEqual(start.session.state[key]);
+  }, 30000);
+
+  it('offers optional hermit explanations without granting words, charging MP or repeating the debrief', () => {
+    let g = ForestEpisode.restore(start); repair(g);
+    const introduced = g.toSave();
+    expect(g.interact('hermit').text).toBe('水槽在右边。先看水怎么流，再试着用媒介引来一点。');
+    for (const topic of ['hermit:questions', 'hermit:world', 'hermit:medium']) {
+      expect(g.interact('hermit', topic).speaker).toBe('隐士');
+      expect(g.toSave()).toEqual(introduced);
+    }
+    expect(g.interact('hermit', 'hermit:questions').actions?.map(a => a.id)).not.toContain('hermit:fragment');
+    act(g, 'pool'); act(g, 'plug'); wait(g, 600); act(g, 'pool', 'downhill'); act(g, 'pool'); wait(g, 600);
+    expect(g.has('practiced')).toBe(true);
+    expect(act(g, 'hermit').text).toContain('工坊下的蓄水廊');
+    const debriefed = g.toSave(); g = ForestEpisode.restore(debriefed);
+    const repeat = g.interact('hermit');
+    expect(repeat.text).not.toContain('旧人'); expect(repeat.text.length).toBeLessThan(60);
+    expect(repeat.choice).toBe('calibrate');
+    expect(g.interact('hermit', 'hermit:lesson').text).toContain('一次要 2 MP');
+    expect(g.interact('hermit', 'hermit:fragment').text).toContain('古代位点');
+    expect(g.toSave()).toEqual(debriefed);
+    act(g, 'return'); act(g, 'mill-road'); act(g, 'medium');
+    expect(g.interact('medium').text).not.toContain('还不知道');
+    expect(g.sessionState.learning).toEqual(start.session.state.learning);
+    expect(g.sessionState.capabilities).toEqual(start.session.state.capabilities);
+  }, 30000);
+
+  it('reports the actual rest amount without changing the cap or repeated full-MP state', () => {
+    const g = ForestEpisode.restore(start); repair(g);
+    act(g, 'pool'); wait(g, 600); act(g, 'pool', 'downhill'); act(g, 'pool');
+    act(g, 'rest'); let lastRecovery = '';
+    while (g.sessionState.mp.currentMp < g.sessionState.mp.maxMp) {
+      const before = g.sessionState.mp.currentMp;
+      const result = g.interact('rest'); lastRecovery = result.text;
+      expect(result.text).toBe(`歇了一会儿。MP +${g.sessionState.mp.currentMp - before}。`);
+    }
+    expect(lastRecovery).toBe('歇了一会儿。MP +2。');
+    const full = g.toSave();
+    expect(g.interact('rest').text).toBe('MP 已满。');
+    expect(g.toSave()).toEqual(full);
+    expect(g.sessionState.mp.maxMp).toBe(start.session.state.mp.maxMp);
+  }, 30000);
+
   it.each([undefined, 'woodland-v2', 'mill-valley-v1'] as const)('keeps old %s hermit saves on their original ground with exact restore', profile => {
     const previous = structuredClone(start); previous.physical.terrainProfile = profile;
     if (profile === undefined) delete previous.physical.terrainProfile;

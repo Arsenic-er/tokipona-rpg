@@ -7,6 +7,11 @@ const fixture = () => readFileSync(resolve(dir, 'opening.json'), 'utf8');
 async function advance(page: Page, milliseconds = 1000) { for (let t = 0; t < milliseconds; t += 100) await page.clock.fastForward(100); }
 async function saved(page: Page) { return page.evaluate(key => { window.dispatchEvent(new Event('pagehide')); return JSON.parse(localStorage.getItem(key)!); }, EPISODE); }
 async function closeTalk(page: Page) { await page.getByRole('dialog', { name: '人物对话', exact: true }).getByRole('button', { name: '继续', exact: true }).click(); await advance(page, 300); }
+async function feedback(page: Page, text: string) {
+  await expect(page.getByRole('status', { name: '物品反馈' })).toContainText(text);
+  await expect(page.getByRole('dialog', { name: '人物对话', exact: true })).not.toBeVisible();
+  await advance(page, 300);
+}
 async function walk(page: Page, x: number, touch = false): Promise<void> {
   const canvas = page.locator('canvas[data-surface="game"]'), read = async () => Number(await canvas.getAttribute('data-player-x'));
   await canvas.focus(); const direction = (await read()) < x ? 1 : -1, key = direction > 0 ? 'd' : 'a';
@@ -67,7 +72,7 @@ test('complete small chapter: work, physical repair, artifacts, hermit, failure/
   await walk(page, 264); await use(page, '备用木撑');
   await expect(page.getByRole('status', { name: '物品反馈' })).toContainText('木撑');
   await expect(page.getByRole('dialog', { name: '人物对话', exact: true })).not.toBeVisible();
-  await walk(page, 684); await use(page, '水轮支架'); await closeTalk(page);
+  await walk(page, 684); await use(page, '水轮支架'); await feedback(page, '木撑顶住');
   const valley = await saved(page);
   expect(valley.physical.terrainProfile).toBe('forest-clearing-v1');
   expect(valley.physical.player.y).toBeGreaterThan(350);
@@ -76,8 +81,8 @@ test('complete small chapter: work, physical repair, artifacts, hermit, failure/
   await page.keyboard.press('m'); await page.screenshot({ path: resolve(dir, 'mill-valley-map.png') }); await page.keyboard.press('m');
   await page.reload(); await expect(page.locator('canvas[data-surface="game"]')).toHaveAttribute('data-ready', 'true');
   expect((await saved(page)).physical).toEqual(valley.physical);
-  await walk(page, 579); await use(page, '渠道淤堵'); await closeTalk(page);
-  await walk(page, 484); await use(page, '水渠闸柄'); await closeTalk(page);
+  await walk(page, 579); await use(page, '渠道淤堵'); await feedback(page, '淤泥铲开');
+  await walk(page, 484); await use(page, '水渠闸柄'); await feedback(page, '闸门');
   await advance(page, 12000);
   expect((await saved(page)).session.state.world.flags['global:forest.episode.repaired']?.value).toBe(true);
   await page.screenshot({ path: resolve(dir, 'mill-running.png') });
@@ -87,20 +92,22 @@ test('complete small chapter: work, physical repair, artifacts, hermit, failure/
   expect(tailrace.received).toBe(tailrace.escaped + tailrace.drops.length + tailrace.pending.reduce((a: number, b: number) => a + b, 0));
   await page.reload(); await expect(page.locator('canvas[data-surface="game"]')).toHaveAttribute('data-ready', 'true');
   expect((await saved(page)).physical).toEqual(flowing.physical);
-  await use(page, '水渠闸柄'); await closeTalk(page); await advance(page, 20000);
+  await use(page, '水渠闸柄'); await feedback(page, '闸门'); await advance(page, 20000);
   const drained = await saved(page);
   expect(drained.physical.tailrace.drops).toEqual([]);
   expect(drained.physical.tailrace.escaped).toBeGreaterThan(tailrace.escaped);
-  await use(page, '水渠闸柄'); await closeTalk(page);
+  await use(page, '水渠闸柄'); await feedback(page, '闸门');
   await walk(page, 678); await advance(page, 10000);
   await page.screenshot({ path: resolve(dir, 'mill-tailrace-running.png') });
   await page.keyboard.press('m'); await page.screenshot({ path: resolve(dir, 'mill-tailrace-map.png') }); await page.keyboard.press('m');
-  await walk(page, 884); await use(page, '检修石龛'); await closeTalk(page);
+  await walk(page, 884); await use(page, '检修石龛'); await feedback(page, '森林位点碎片');
   const artifacts = await saved(page);
   expect(artifacts.session.state.mp).toEqual(before.session.state.mp);
   expect(artifacts.session.state.learning).toEqual(before.session.state.learning);
   await page.reload(); await expect(page.locator('canvas[data-surface="game"]')).toHaveAttribute('data-ready', 'true');
   await expect(page.locator('[data-ep="stats"]')).toContainText('森林碎片');
+  await use(page, '检修石龛'); await feedback(page, '石龛已经空了');
+  expect((await saved(page)).session).toEqual(artifacts.session);
   await walk(page, 54); await use(page, '返回聚落');
   await walk(page, 344); await use(page, '工务人'); await closeTalk(page);
   await walk(page, 54); await use(page, '西侧林间小径');
@@ -115,7 +122,18 @@ test('complete small chapter: work, physical repair, artifacts, hermit, failure/
   await page.keyboard.press('m'); await page.screenshot({ path: resolve(dir, 'hermit-clearing-map.png') }); await page.keyboard.press('m');
   await page.reload(); await expect(page.locator('canvas[data-surface="game"]')).toHaveAttribute('data-ready', 'true');
   expect((await saved(page)).physical).toEqual(clearing.physical);
-  await walk(page, 404); await use(page, '隐士'); await closeTalk(page);
+  await walk(page, 404); await use(page, '隐士');
+  const hermitIntro = await saved(page), talk = page.getByRole('dialog', { name: '人物对话', exact: true });
+  await talk.getByRole('button', { name: '还有些事想问', exact: true }).click();
+  await talk.getByRole('button', { name: '这件媒介还能用吗？', exact: true }).click();
+  await expect(talk).toContainText('MP');
+  await talk.getByRole('button', { name: '旧文明出了什么事？', exact: true }).click();
+  await expect(talk).toContainText('维系秩序的能量');
+  expect((await saved(page))).toEqual(hermitIntro);
+  await page.screenshot({ path: resolve(dir, 'hermit-optional-questions.png') });
+  await closeTalk(page); await use(page, '隐士');
+  await expect(talk).toContainText('水槽在右边'); await expect(talk).not.toContainText('旧人抽走');
+  await closeTalk(page);
   await walk(page, 614); await use(page, '练习石槽'); await closeTalk(page); await advance(page, 6000);
   await use(page, '练习石槽');
   await page.getByRole('button', { name: '停在空中，不再受重力影响' }).click();
@@ -124,13 +142,25 @@ test('complete small chapter: work, physical repair, artifacts, hermit, failure/
   await use(page, '练习石槽'); await page.getByRole('button', { name: '落入槽内，沿坡往低处流' }).click(); await closeTalk(page);
   await use(page, '练习石槽'); await closeTalk(page); await advance(page, 6000);
   expect((await saved(page)).session.state.world.flags['global:forest.episode.practiced']).toBeUndefined();
-  await walk(page, 714); await use(page, '漏口与木楔'); await closeTalk(page);
+  await walk(page, 714); await use(page, '漏口与木楔'); await feedback(page, '漏口堵住');
   await walk(page, 614); await use(page, '练习石槽'); await closeTalk(page); await advance(page, 6000);
   const learned = await saved(page);
   expect(learned.session.state.world.flags['global:forest.episode.practiced']?.value).toBe(true);
   expect(learned.session.state.mp.currentMp).toBe(before.session.state.mp.currentMp - 4);
   await page.screenshot({ path: resolve(dir, 'hermit-practice.png') });
   await walk(page, 404); await use(page, '隐士'); await closeTalk(page);
+  await use(page, '隐士'); await expect(talk).toContainText('想试组合');
+  const debrief = await saved(page);
+  await talk.getByRole('button', { name: '还有些事想问', exact: true }).click();
+  await talk.getByRole('button', { name: '这枚碎片通向哪里？', exact: true }).click();
+  await expect(talk).toContainText('古代位点'); expect((await saved(page))).toEqual(debrief);
+  await closeTalk(page);
+  await page.keyboard.press('j');
+  const journal = page.getByRole('dialog', { name: '章节笔记', exact: true });
+  await expect(journal).toContainText('词语笔记 · telo');
+  await expect(journal).not.toContainText('H1');
+  await expect(journal).not.toContainText('成功证据');
+  await page.keyboard.press('Escape');
   await walk(page, 54); await use(page, '返回聚落'); await walk(page, 344); await use(page, '工务人'); await closeTalk(page);
   await expect(page.getByRole('dialog', { name: '小章节结算', exact: true })).toBeVisible();
   await page.screenshot({ path: resolve(dir, 'episode-ending.png') });
@@ -208,7 +238,7 @@ test('complete small chapter: work, physical repair, artifacts, hermit, failure/
   await page.reload();await expect(page.locator('canvas[data-surface="game"]')).toHaveAttribute('data-ready','true');
   await page.getByRole('button',{name:'继续在本地走走'}).click();
   await walk(page,54);await use(page,'西侧林间小径');
-  await walk(page,264);await use(page,'林下坐垫');await closeTalk(page);
+  await walk(page,264);await use(page,'林下坐垫');await feedback(page,'MP +');
   const rested=await saved(page);
   await walk(page,404);await use(page,'隐士');await page.getByRole('button',{name:'尝试两词校准'}).click();
   await page.getByRole('textbox',{name:'回忆那个词'}).fill('kiwen');await page.getByRole('button',{name:'提交回忆'}).click();

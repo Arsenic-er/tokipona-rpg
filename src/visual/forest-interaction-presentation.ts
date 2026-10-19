@@ -5,8 +5,9 @@ export type InteractionPresentation = 'worker-dialogue' | 'player-bubble' | 'pan
 /** Presentation only. Choices, costs and progression stay owned by ForestEpisode. */
 export function interactionPresentation(result: EpisodeResult, target: EpisodeTarget): InteractionPresentation {
   if (target === 'worker' && result.speaker === '工务人') return 'worker-dialogue';
-  // Explicit allowlist: never turn an unknown/cost-bearing interaction into ambient feedback.
-  if (target === 'timber' && !result.speaker && !result.choice && !result.actions?.length && !result.resumeWorld) return 'player-bubble';
+  // Only simple tools, pickups and rest. Spell previews and decisions stay modal.
+  const simpleTargets: readonly EpisodeTarget[] = ['timber', 'brace', 'silt', 'gate', 'medium', 'plug', 'rest'];
+  if (simpleTargets.includes(target) && !result.speaker && !result.choice && !result.actions?.length && !result.resumeWorld) return 'player-bubble';
   return 'panel';
 }
 

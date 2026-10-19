@@ -67,7 +67,7 @@ test('touch water recall: zero MP preserves prediction, rest recovery, rotation 
     await input.fill('telo');await action(p,'沿槽流向低处',true);await action(p,'确认释放（2 MP）',true);await expect(p.locator('.ep-talk')).toContainText('MP 不足');
     expect((await saved(p)).session.state.mp.currentMp).toBe(0);expect((await saved(p)).physical.practice.supplied).toBe(before.physical.practice.supplied);
     await exactReload(p);await p.setViewportSize({width:844,height:390});await walk(p,264,true);await expect(p.locator('[data-ep="prompt"]')).toHaveText('E · 林下坐垫');
-    await interact(p,true);await action(p,'继续',true);expect((await saved(p)).session.state.mp.currentMp).toBe(4);
+    await interact(p,true);await expect(p.getByRole('status',{name:'物品反馈'})).toContainText('MP +4');await expect(p.locator('.ep-talk')).not.toBeVisible();expect((await saved(p)).session.state.mp.currentMp).toBe(4);
     await walk(p,614,true);await openStudy(p,false,true);await action(p,'确认释放（2 MP）',true);await advance(p,300);
     await p.getByRole('button',{name:'任务日志 J',exact:true}).tap();const paused=await saved(p);await advance(p,1500);
     expect((await saved(p)).physical.practice).toEqual(paused.physical.practice);await p.getByRole('button',{name:'回到旅途',exact:true}).tap();

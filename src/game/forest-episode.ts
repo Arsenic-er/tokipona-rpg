@@ -933,7 +933,7 @@ export class ForestEpisode {
       return say(this.allocationSummary+(this.hasLead('worker')?
         '原来旱季改道的账还留着。我们不能只说水轮修好了，就装作下游没有承受代价。这次分配我记下了，往后要修哪里，还得让受影响的人一起商量。远方的刻线我看不懂，你可以带去问隐士。':
         '你从地下带回了记录？说说旧水路为什么改过，以及这次你让哪一路优先。')+
-        (this.allocationMode==='wetland_priority'?'分时取水牌先留着，灌溉不足的担心也不能略过。':'')+'维修报酬已结清，不重复发放。',
+        (this.allocationMode==='wetland_priority'?'分时取水牌先留着，田里的水还得想办法。':''),
         this.hasLead('worker')?(this.epilogueSealed?[{id:'epilogue:recap',label:this.returnObserved?'重读本次回访结语':'查看回访结语'}]:undefined):[{id:'lead:report',label:'说明旧改道与本次取舍'}],'工务人');
     }
     if(choice==='lead:interpret')this.markLead('hermit');
@@ -1357,33 +1357,34 @@ export class ForestEpisode {
           if(this.hasLead('recorded'))return this.siteLeadInteraction('worker',choice);
           return say(this.allocationSummary+(this.allocationMode==='settlement_priority'?
           '饮水和庄稼暂时稳了，但不能把湿地退水当成没有代价。':
-          this.allocationMode==='wetland_priority'?'水口已经挂出分时取水牌；粮食摊担心灌溉不足，但这一阶段还没有改动交易价格。':
-          '水口只保留最低供水，商路补给线开始通水。商队和新路线还需要后续调查。')+'维修报酬已结清，不重复发放。','工务人');
+          this.allocationMode==='wetland_priority'?'水口已经挂出分时取水牌，粮食摊还在担心灌溉的水不够。':
+          '水口只能勉强够用，商路那边倒是开始通水了。那条路怎么样，还得去看看。'),'工务人');
         }
         if(this.hasRoom('exited')){
           if(this.hasFlow('restored')){
             if(!this.hasRoom('reported'))this.markRoom('reported');
-            return say('公共水口又有稳定的水了，湿地那一路也没有被截走。你修的不是临时水盆，而是两条供水路。地下旧渠还需要调查；这次没有新的报酬或能力解锁，碎片仍由你保管。','工务人');
+            return say('公共水口又有水了，湿地那一路也通着。地下的旧渠，还得接着查。','工务人');
           }
           if(!this.hasRoom('reported'))this.markRoom('reported');
-          return say('回流道的检修梯已经放下了？那就不用每次绕过两层水阀。上层水路重新可用，下一步得查清它通往哪里。那枚碎片仍先留在你手里；旧矿道还没有安全通路。报酬和床位已经结清，不重复发放。','工务人');
+          return say('检修梯放下来了？往后不用再绕两层水阀了。上面的水路通向哪里，还得查清楚。旧矿道先别进去，那里还不安全。','工务人');
         }
-        if (this.has('finished')) return say('屋里给你留了床位。水轮运转正常，林中的路也随时向你敞开。', '工务人');
+        if (this.has('finished')) return say('水轮的活儿辛苦了。屋里留着你的床位。', '工务人');
         if (this.has('debrief')) {
           const e = this.truth.economy;
           this.mark('finished', [{ eventId: 'episode.reward', type: 'economy_wallet_changed', payload: {
             expectedWalletRevision: e.walletRevision, nextWalletRevision: e.walletRevision + 1, coinDelta: 8, nextCoin: e.coin + 8 } },
             { eventId: 'episode.lodging', type: 'world_flag_set', payload: { flagId: 'forest.settlement.lodging_earned', value: true, scope: 'global' } },
             { eventId: 'episode.checkpoint', type: 'checkpoint_set', payload: { checkpoint: { id: 'forest.episode.lodging', sceneId: 'scene.valley.settlement', position: { x: 340, y: this.groundAt(340, 'settlement') - 14 }, revision: this.truth.checkpoint.revision + 1 } } }]);
-          return say('水又进了磨房，明早大家就有面粉。约好的八枚钱，还有今晚的床位，都归你。蓄水廊的检修入口在工坊右侧，现在可以下去看看。把隐士的话记好，什么时候启程由你决定。', '工务人');
+          return say('水又进磨房了，明早能磨面粉。说好的八枚钱，拿着，今晚的床位也留好了。你要找蓄水廊，就从工坊右边的检修口下去。', '工务人');
         }
         if (this.has('medium')) {
           if (!this.has('route')) this.mark('route');
-          return say('不是水轮上的零件。这枚碎片的槽口，与西边林中旧石碑很像。沿聚落西侧小径找那位隐士，他认得一些旧文字。带回来也好，不去也好，维修的功劳仍算你的。', '工务人');
+          return say('这可不是水轮的零件。槽口倒像西边旧石碑上的刻痕。沿村西的小径去找隐士吧，他认得一些旧文字。', '工务人');
         }
-        if (this.has('job')) return say('工坊在东边。木料架有现成木撑；先扶稳轮轴，清淤，再引水。别用蛮力转轮子，让流水自己做工。', '工务人');
-        if (choice === 'accept') { this.mark('job'); return say('那就拜托你了。东边旧工坊的轮轴松了，水渠也堵着。取木撑、扶轮轴、清淤、开闸；工具都在原处。修好回来，我付八枚钱，给你一个床位。', '工务人'); }
-        return { accepted: true, speaker: '工务人', text: '从溪路来的？这里有床位，只是水轮坏了，大家正缺人手。你愿意替我们修一修吗？不用会魔法。', choice: 'work' };
+        if (this.has('repaired')) return say('轮子转稳了，就看看轮轴后的石龛。凸轮会把盖板抬起来。', '工务人');
+        if (this.has('job')) return say('木撑在东边工坊的料架上。扶稳轮轴，清掉渠里的淤泥，再开闸。轮子得靠水带，别硬推。', '工务人');
+        if (choice === 'accept') { this.mark('job'); return say('那就拜托你了。东边工坊的轮轴松了，水渠也堵了。工具都在那儿。修好回来，我给你八枚钱，再留一晚床位。', '工务人'); }
+        return { accepted: true, speaker: '工务人', text: '从溪路来的？东边的水轮坏了，正缺人帮忙。替我们修好，给你八枚钱，再留一晚床位。愿意吗？', choice: 'work' };
       }
       case 'return-channel-road':return this.enterReturnChannel();
       case 'flow-inspect':
@@ -1579,70 +1580,104 @@ export class ForestEpisode {
         this.travel('settlement', this.physical.place === 'mill' ? 870 : 110); return say('回到聚落。');
       case 'timber':
         if (requireJob()) return say('这是聚落的备用木料。先和工务人商量维修。');
-        if (!this.has('timber')) this.mark('timber');
-        return say(this.has('brace') ? '木撑已经装好，不需要搬更多木料。' : '你拿起一根合适的木撑。把它送到右边水轮的支架处。');
+        if (this.has('brace')) return say('木撑已经装好了。');
+        if (this.has('timber')) return say('木撑带着呢，送到右边的轮轴下去。');
+        this.mark('timber');
+        return say('拿到木撑了。送到右边的轮轴下去。');
       case 'brace':
         if(choice?.startsWith('motion:'))return this.motionInteraction(choice);
         if(this.has('repaired'))return {...say('木撑和轮轴仍然稳固，不必再次维修。支架旁留下了一组关于运动的刻槽。'),
           actions:[{id:'motion:open',label:this.hasMotion('entered')?'继续水轮观察':'查看水轮运动刻槽'}]};
         if (!this.has('timber')) return say('轮轴歪了。先去左侧木料架拿一根木撑。');
-        if (!this.has('brace')) this.mark('brace');
-        return say('木撑顶住了轮轴。现在即使有水冲击，它也不会再左右摆动。');
+        if (this.has('brace')) return say('轮轴撑稳了。');
+        this.mark('brace');
+        return say('木撑顶住了轮轴。');
       case 'silt':
         if (requireJob()) return say('淤泥堵住了水渠。先接受工务人的维修委托。');
-        if (!this.has('cleared')) this.mark('cleared');
-        return say('你用渠边的铲子清出泥块。槽底重新露出来，水能沿坡流向右侧。');
+        if (this.has('cleared')) return say('这段水渠已经清干净了。');
+        this.mark('cleared');
+        return say('淤泥铲开了，水能流过去了。');
       case 'gate':
         if (requireJob()) return say('这里的闸门关系着聚落用水。先问工务人。');
         this.physical.gate = !this.physical.gate;
-        return say(this.physical.gate ? '闸门抬起。留意水是否穿过整段渠道，以及轮轴是否平稳。' : '闸门关闭。剩余水会继续流出，可安全检查支架和水渠。');
+        return say(this.physical.gate ? '闸门开了。看看水能不能带动轮子。' : '闸门关了，渠里的余水还会往下流。');
       case 'medium':
         if (!this.has('repaired')) return say('检修石龛卡在轮轴后的凸轮下。让水轮稳定运转，凸轮才会把盖板抬起。');
-        if (!this.has('medium')) this.mark('medium', ['artifact.ancient_medium_frame', 'artifact.fragment.forest_site'].map(id => ({
+        if (this.has('medium')) return say('石龛已经空了。');
+        this.mark('medium', ['artifact.ancient_medium_frame', 'artifact.fragment.forest_site'].map(id => ({
           eventId: `episode.owns.${id}`, type: 'world_flag_set', payload: { flagId: `owns.${id}`, value: true, scope: 'global' } })));
-        return say('石龛里是一件有裂纹的古代媒介，旁边嵌着一枚森林位点碎片。它们已收进你的行囊，不会因离开地图而丢失。你还不知道怎么使用，也没有因此学会任何词。');
-      case 'hermit':
+        return say('收好了：一件开裂的古代媒介，还有一枚森林位点碎片。找个人问问它们的来历。');
+      case 'hermit': {
         if((this.hasLead('recorded')&&choice===undefined)||choice?.startsWith('lead:'))return this.siteLeadInteraction('hermit',choice);
+        const questions = [{ id: 'hermit:questions', label: '还有些事想问' }];
+        // Optional conversation reads the same story state; it never grants learning or spends MP.
+        if (this.has('intro') && choice?.startsWith('hermit:')) {
+          const topics = [
+            { id: 'hermit:medium', label: '这件媒介还能用吗？' },
+            { id: 'hermit:world', label: '旧文明出了什么事？' },
+            ...(this.has('debrief') ? [
+              { id: 'hermit:lesson', label: '再讲讲 telo 的用法' },
+              { id: 'hermit:fragment', label: '这枚碎片通向哪里？' },
+            ] : []),
+          ];
+          const text = choice === 'hermit:medium' ? '裂口太深，只能承受很小的法术。媒介只是通路，施法还得耗你自己的 MP。休息能恢复 MP，补不好这些裂纹。'
+            : choice === 'hermit:world' ? '旧人抽走维系秩序的能量，光暗和元素的规则便开始失衡。我只知道残留下来的这一部分。'
+            : choice === 'hermit:lesson' && this.has('debrief') ? 'telo 指水，也指液体。你引来了水，它仍会往低处流；槽漏了，就用木楔补。想再试，水槽就在右边，一次要 2 MP。'
+            : choice === 'hermit:fragment' && this.has('debrief') ? '这些碎片属于散落的古代位点。工坊下面的蓄水廊，或许有相同的刻痕。' + (this.has('finished') ? '检修入口就在工坊右边。' : '先回村交代水轮的事，再下去看看。')
+            : '你想问什么？';
+          return { ...say(text, '隐士'), actions: topics.filter(t => t.id !== choice) };
+        }
         if (this.has('debrief') && choice !== undefined) return this.calibratePhrase(choice==='calibrate' ? undefined : choice);
         if (this.has('practiced')) {
-          if (!this.has('debrief')) this.mark('debrief');
-          return {...say('你没有命令水停在空中，而是先看懂坡度，再用木楔补住漏口。telo 在这里指水，也可以指液体；它不是“水必须听我摆布”。媒介只是通路，你自己的 MP 和它的损伤都限制力量。碎片属于散落的位点，地下蓄水廊或许还有同类痕迹。先把修好的水轮交还给村里，之后的路由你选。若想尝试组合表达，可以先去坐垫休息，再回来做一次回忆校准。', '隐士'), choice:'calibrate'};
+          if (this.has('debrief')) return {
+            ...say(this.has('phrase') ? '还想练练？水槽就在右边。有不明白的，问我。' : this.has('meditated') ? '歇好了？想试组合，就先回忆一下水的表达。' : '想试组合的话，先去坐垫歇一会儿，再来找我。水槽也随时能用。', '隐士'),
+            choice: 'calibrate', actions: questions,
+          };
+          this.mark('debrief');
+          return { ...say('水留住了。telo 指水，也指液体。媒介只是通路，施法还要耗你的 MP。先把水轮修好的消息带回村里吧。那枚碎片的线索，也许就在工坊下的蓄水廊。', '隐士'),
+            choice: 'calibrate', actions: questions };
         }
-        if (!this.has('intro')) this.mark('intro');
-        return say('这是旧文明的施术媒介，裂口太深，只能承受很小的表达。旧人抽走维系秩序的能量，光暗与元素的规则便开始失衡；我只知道残留下来的这一部分。先去右边看水槽。我在水壶和槽边写下了它的读音：telo。别急着施法：先看自然水如何沿坡度流动。', '隐士');
+        const firstVisit = !this.has('intro');
+        if (firstVisit) this.mark('intro');
+        return { ...say(firstVisit
+          ? '旧人抽走维系秩序的能量，光暗和元素才会失衡。这件媒介也伤得很重，只能试很小的法术。去右边看看水槽，壶上的字读 telo。'
+          : '水槽在右边。先看水怎么流，再试着用媒介引来一点。', '隐士'), actions: questions };
+      }
       case 'pool': {
         if(choice?.startsWith('water:'))return this.waterStudyInteraction(choice);
         if (!this.has('intro')) return say('石槽旁有陌生文字，先请隐士说明。');
         if (!this.has('observed')) {
           supplyEpisodeWater(this.physical.practice, 32, this.controls('practice')); this.mark('observed');
-          return say('隐士舀来少量自然水：水落入石槽，往低处流；中段有一道漏口。水壶与槽边都标注着同一个读音 telo。先看一会儿，准备好再按 E。', '隐士');
+          return say('看这点水，沿槽往低处流，中间却漏走了。壶上和槽边写的是同一个词：telo。先看看，想好了再试。', '隐士');
         }
         if (!this.has('predicted')) {
-          if (choice === 'downhill') { this.mark('predicted'); return say('对。表达只引来小量水，不会取消重力，也不会修好石槽。接下来按 E 试一次：2 MP、32 个水格；受损媒介只开放这一档。', '隐士'); }
-          if (choice) return say('看看槽底的倾斜，还有中间的缺口。水会受重力影响，不会凭空悬停。再观察后试试，不扣 MP。', '隐士');
+          if (choice === 'downhill') { this.mark('predicted'); return say('对，水还是往低处流。先试一小团，消耗 2 MP；漏口还得另想办法。准备好后，再按 E 施放。', '隐士'); }
+          if (choice) return say('再看看槽底的坡度。重力还在，水可不会停在半空。想一想，再试。', '隐士');
           return { accepted: true, speaker: '隐士', text: '如果在槽左侧引来一小团 telo，它会怎样？', choice: 'predict' };
         }
-        if (this.has('practiced')) return this.has('debrief')?{...say('原练习与水都保留了。可以自选一次收起注音的回忆练习，记录这次实际学到的内容。'),
+        if (this.has('practiced')) return this.has('debrief')?{...say('接水盆里还有水。要不要收起注音，再试着回忆 telo 的用法？'),
           actions:[{id:'water:open',label:this.hasWaterStudy('seen')?'继续水槽复习':'试试水槽回忆练习'}]}:say('接水盆里留住了清水。回去和隐士谈谈你观察到了什么。');
         if (this.physical.practice.cells.some((v, i) => v === 1 && i % 160 < 137)) return say('先等这次水流走完，或去右边用木楔堵住漏口；不要连续灌水。');
-        if (this.truth.mp.currentMp < 2) return say('MP 不足。回隐士旁的坐垫休息，再来练习；不用重开，也不会丢掉碎片。');
+        if (this.truth.mp.currentMp < 2) return say('MP 不足，需要 2 MP。去隐士旁的坐垫歇一会儿。');
         const n = this.physical.casts + 1, mp = this.truth.mp;
         this.commit(`cast.${n}`, [{ eventId: `episode.cast.${n}`, type: 'mp_replaced', payload: { mp: { ...mp, currentMp: mp.currentMp - 2, worldVersion: mp.worldVersion + 1 } } }], 'cast');
         this.physical.casts = n; this.physical.baselineCollected = collectedEpisodeWater(this.physical.practice);
         supplyEpisodeWater(this.physical.practice, 32, this.controls('practice'));
-        return say('telo。掌中的媒介轻轻震动，少量水落入槽内。MP −2。水仍会流进漏口；观察结果，再用旁边的工具处理。');
+        return say('telo。水落进了槽里。MP −2。');
       }
       case 'plug':
         if (!this.has('observed')) return say('槽边放着一枚木楔。先观察石槽里的水。');
-        if (!this.has('plugged')) this.mark('plugged');
-        return say('木楔嵌入漏口。你没有用魔法修好石槽，而是给水补出了一条完整的路。');
+        if (this.has('plugged')) return say('木楔还堵得严实。');
+        this.mark('plugged');
+        return say('漏口堵住了。');
       case 'rest': {
         if (!this.has('intro')) return say('先和隐士打个招呼。');
         if (this.has('debrief') && !this.has('meditated')) this.mark('meditated');
         const mp = this.truth.mp;
-        if (mp.currentMp >= mp.maxMp) return say('你在树下平复呼吸。MP 已满，最大 MP 没有变化。');
+        if (mp.currentMp >= mp.maxMp) return say('MP 已满。');
+        const recovered = Math.min(4, mp.maxMp - mp.currentMp);
         this.commit(`rest.${this.truth.revision}`, [{ eventId: `episode.rest.${this.truth.revision}`, type: 'mp_replaced', payload: { mp: { ...mp, currentMp: Math.min(mp.maxMp, mp.currentMp + 4), worldVersion: mp.worldVersion + 1 } } }], 'mp_recovery');
-        return say('你坐下调整呼吸，恢复了最多 4 MP。媒介的裂纹仍在，不能靠休息提高施法上限。');
+        return say(`歇了一会儿。MP +${recovered}。`);
       }
     }
   }

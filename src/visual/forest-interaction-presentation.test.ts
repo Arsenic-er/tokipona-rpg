@@ -4,17 +4,19 @@ import { loadLocalWorkerPortrait } from './browser-local-worker-portrait';
 
 describe('interaction presentation boundary', () => {
   const plain = { accepted: true, text: '取木撑' };
-  it('uses bubbles only for the explicit simple timber interaction', () => {
-    expect(interactionPresentation(plain, 'timber')).toBe('player-bubble');
-    expect(interactionPresentation(plain, 'gate')).toBe('panel');
-    expect(interactionPresentation(plain, 'medium')).toBe('panel');
+  it('uses bubbles for simple tools, pickups and rest, but keeps spell interactions modal', () => {
+    for (const target of ['timber', 'brace', 'silt', 'gate', 'medium', 'plug', 'rest'] as const)
+      expect(interactionPresentation(plain, target)).toBe('player-bubble');
+    for (const target of ['pool', 'node-allocation', 'calibration', 'siphon'] as const)
+      expect(interactionPresentation(plain, target)).toBe('panel');
   });
   it('keeps decisions, custom actions, NPC speakers and resume signals out of bubbles', () => {
     for (const result of [
       { ...plain, choice: 'work' as const },
       { ...plain, actions: [{ id: 'buy', label: '购买' }] },
       { ...plain, speaker: '工务人' }, { ...plain, resumeWorld: true },
-    ]) expect(interactionPresentation(result, 'timber')).toBe('panel');
+    ]) for (const target of ['timber', 'brace', 'silt', 'gate', 'medium', 'plug', 'rest'] as const)
+      expect(interactionPresentation(result, target)).toBe('panel');
   });
   it('identifies the worker by target AND speaker; never reuses his portrait for a different voice', () => {
     expect(interactionPresentation({ ...plain, speaker: '工务人' }, 'worker')).toBe('worker-dialogue');
