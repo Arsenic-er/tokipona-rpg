@@ -1,0 +1,54 @@
+name: Feature request
+description: Suggest an improvement to tokipona-rpg.
+title: '[Feature]: '
+body:
+- type: dropdown
+  id: component
+  attributes:
+    label: Affected component
+    options:
+    - Spell input or material simulation
+    - Quest or scene progression
+    - Language learning feedback
+    - Save or load
+    - Interface or localization
+    - Desktop build
+    - Other / unsure
+  validations:
+    required: true
+- type: textarea
+  id: problem
+  attributes:
+    label: Problem or use case
+    placeholder: 'Example: I need clearer feedback when a spell cannot run because
+      a resource is missing.'
+  validations:
+    required: true
+- type: textarea
+  id: proposal
+  attributes:
+    label: Proposed solution
+    placeholder: 'Example: Preview the missing resource before confirming a spell,
+      while keeping its cost unchanged.'
+  validations:
+    required: true
+- type: textarea
+  id: alternatives
+  attributes:
+    label: Alternatives considered
+    description: Describe other approaches or current workarounds, if any.
+- type: textarea
+  id: acceptance
+  attributes:
+    label: Acceptance criteria
+    placeholder: 'The preview matches the actual resource requirement.
+
+      Cancelling does not spend resources or change quest progress.
+
+      Existing saves and language-learning records remain compatible.'
+- type: textarea
+  id: context
+  attributes:
+    label: Additional context
+    description: Add related issues, small examples, design sketches, or references
+      if useful.

@@ -1,0 +1,87 @@
+name: Bug report
+description: Report a spell, simulation, quest, language, or save problem.
+title: '[Bug]: '
+body:
+- type: dropdown
+  id: component
+  attributes:
+    label: Affected component
+    options:
+    - Spell input or material simulation
+    - Quest or scene progression
+    - Language learning feedback
+    - Save or load
+    - Interface or localization
+    - Desktop build
+    - Other / unsure
+  validations:
+    required: true
+- type: input
+  id: version
+  attributes:
+    label: Version or commit SHA
+  validations:
+    required: true
+- type: textarea
+  id: summary
+  attributes:
+    label: What happened?
+    placeholder: 'Example: A saved spell interaction is incomplete after reloading
+      the same scene.'
+  validations:
+    required: true
+- type: textarea
+  id: steps
+  attributes:
+    label: Steps to reproduce
+    placeholder: '1. Record the scene, exact spell input, and resource state.
+
+      2. Perform the affected interaction and save.
+
+      3. Reload and compare the scene, resources, and quest state.'
+  validations:
+    required: true
+- type: textarea
+  id: expected
+  attributes:
+    label: Expected behavior
+    placeholder: The saved interaction and resources should follow the documented
+      save behavior.
+  validations:
+    required: true
+- type: textarea
+  id: context
+  attributes:
+    label: Scene, spell, and save state
+    placeholder: 'Chapter, scene, and location:
+
+      Exact spell or word input:
+
+      Relevant resource or MP state:
+
+      Current quest objective:
+
+      New game or existing save:
+
+      Last interaction before the problem:'
+- type: textarea
+  id: environment
+  attributes:
+    label: Environment
+    placeholder: 'Operating system:
+
+      Desktop build or browser version:
+
+      Display resolution and scaling:
+
+      Input method:
+
+      Observed frame rate (performance reports only):'
+  validations:
+    required: true
+- type: textarea
+  id: evidence
+  attributes:
+    label: Logs, screenshots, or a minimal example
+    description: Include the smallest example or log excerpt needed to reproduce the
+      problem.
